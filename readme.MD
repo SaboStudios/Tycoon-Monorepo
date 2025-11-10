@@ -24,19 +24,13 @@ This project fuses **strategic gameplay** with **true digital ownership** and **
 
 ---
 
-## ✨ Features (WIP)
-
+## 🔮 Upcoming Features
 - 🏡 **Property Ownership** — Own iconic Monopoly-style properties as ERC-721 NFTs  
 - 💰 **Rent & Tycoon Mechanics** — Earn passive income and upgrade properties for higher yields  
 - 🎲 **On-Chain Events** — Dice rolls, Chance, Community Chest, Tax, Jail  
 - 📊 **Interactive Dashboard** — Real-time, animated Monopoly board  
 - ⛽ **Gas Efficient** — Built on Stella for minimal transaction fees  
-- 👛 **Wallet Integration** — Supports MetaMask, WalletConnect, and more  
-
----
-
-## 🔮 Upcoming Features
-
+- 👛 **Wallet Integration** — Supports MetaMask, WalletConnect, and more 
 - 👥 **Multiplayer Lobbies** — Compete with friends in real-time  
 - 🏆 **Leaderboards & Tournaments** — Track and showcase top tycoons  
 - 🌾 **Yield Farming Integrations** — Earn while you play  
