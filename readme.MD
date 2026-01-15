@@ -1,15 +1,15 @@
 
-# 🌟 Stella — Monopoly Tycoon on Stella
+# 🌟 Tycoon — Monopoly Tycoon on Stella
 
 ## Overview
 
-**Stella** is a thrilling blockchain-based **Tycoon game** inspired by the classic **Monopoly** board game — built on the **Stella Network**.  
+**Tycoon** is a thrilling blockchain-based **Tycoon game** inspired by the classic **Monopoly** board game — built on the **Stella Network**.  
 Players can **buy, sell, and trade virtual properties as NFTs**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**.
 
 This project fuses **strategic gameplay** with **true digital ownership** and **transparent, verifiable mechanics** powered by smart contracts.
 
 > 🚧 **Currently in active development** — Frontend (React + Next.js) and smart contracts are being actively improved.  
-> Join the journey and help shape Stella’s on-chain world!
+> Join the journey and help shape Tycoon’s on-chain world!
 
 ---
 
