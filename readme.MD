@@ -1,9 +1,9 @@
 
-# 🌟 Tycoon — Monopoly Tycoon on Stella
+# 🌟 Tycoon — Monopoly on Stella
 
 ## Overview
 
-**Tycoon** is a thrilling blockchain-based **Tycoon game** inspired by the classic **Monopoly** board game — built on the **Stella Network**.  
+**Tycoon** is a thrilling blockchain-based game inspired by the classic **Monopoly** board game — built on the **Stella Network**.  
 Players can **buy, sell, and trade virtual properties as NFTs**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**.
 
 This project fuses **strategic gameplay** with **true digital ownership** and **transparent, verifiable mechanics** powered by smart contracts.
