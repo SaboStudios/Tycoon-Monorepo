@@ -1,8 +1,8 @@
-# 🎲 Tycoon — Monopoly Tycoon on Chain
+# 🎲 Tycoon — Conquer Trade Build
 
 ## Overview
 
-**Tycoon** is an exciting blockchain-based tycoon game inspired by the classic **Monopoly** board game.  
+**Tycoon** is an exciting blockchain-based game inspired by the classic **Monopoly** board game.  
 This version is built on the **Stellar Network** with **Soroban** smart contracts.
 
 Players will be able to **buy, sell, and trade virtual properties as tokens/NFT-like assets**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**  all powered by Stellar's fast, low-cost, and energy-efficient infrastructure.
