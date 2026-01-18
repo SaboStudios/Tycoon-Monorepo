@@ -13,7 +13,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 ---
 
-## ✨ Key Features (Planned)
+## ✨ Key Features 
 
 - 🏡 **Property Ownership** — Iconic Monopoly properties tokenized on Stellar (using Soroban contracts for ownership & transfers)  
 - 💰 **Rent & Tycoon Mechanics** — Earn passive income; upgrade properties for higher yields  
@@ -36,7 +36,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 ---
 
-## 🛠 Tech Stack (Planned)
+## 🛠 Tech Stack 
 
 | Layer            | Tools                                      |
 |------------------|--------------------------------------------|
