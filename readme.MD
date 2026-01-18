@@ -3,14 +3,13 @@
 ## Overview
 
 **Tycoon** is an exciting blockchain-based tycoon game inspired by the classic **Monopoly** board game.  
-This version will be built on the **Stellar Network** with **Soroban** smart contracts.
+This version is built on the **Stellar Network** with **Soroban** smart contracts.
 
 Players will be able to **buy, sell, and trade virtual properties as tokens/NFT-like assets**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**  all powered by Stellar's fast, low-cost, and energy-efficient infrastructure.
 
 This project combines **strategic gameplay** with **true ownership** and **transparent mechanics** using Soroban smart contracts.
 
-> 🚧 Project in early planning phase — We're gearing up to begin development!  
-> Smart contracts (Rust + Soroban), frontend, and game logic coming soon. Join the journey!
+> Smart contracts (Rust + Soroban), frontend, and game logic. Join the journey!
 
 ---
 
