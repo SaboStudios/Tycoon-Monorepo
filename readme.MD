@@ -1,4 +1,4 @@
-# 🎲 Tycoon — Monopoly Tycoon on Chain (Stellar Edition)
+# 🎲 Tycoon — Monopoly Tycoon on Chain
 
 ## Overview
 
