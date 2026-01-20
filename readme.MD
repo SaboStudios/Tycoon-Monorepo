@@ -89,5 +89,5 @@ Let's build the ultimate on-chain Monopoly experience on Stellar! 🌟
 🛡 License  
 MIT License — See LICENSE file (once created).
 
-Built with ❤️ on **Stellar**  
+Built with ❤️ on **Stellar**  also available on stacks, Base and Celo
 “Roll the dice. Build your empire… on the fastest, most inclusive blockchain.”
