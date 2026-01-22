@@ -2,6 +2,9 @@
 target/
 Cargo.lock
 
+# Test artifacts
+test_snapshots/
+
 # IDE
 .vscode/
 .idea/
