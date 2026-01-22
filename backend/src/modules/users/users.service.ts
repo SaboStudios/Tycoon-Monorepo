@@ -4,13 +4,15 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginationService, PaginationDto, PaginatedResponse } from '../../common';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) {}
+    private readonly paginationService: PaginationService,
+  ) { }
 
   /**
    * Create a new user
@@ -21,10 +23,12 @@ export class UsersService {
   }
 
   /**
-   * Get all users
+   * Get all users with pagination, sorting, and filtering
    */
-  async findAll(): Promise<User[]> {
-    return await this.userRepository.find();
+  async findAll(paginationDto: PaginationDto): Promise<PaginatedResponse<User>> {
+    const queryBuilder = this.userRepository.createQueryBuilder('user');
+    const searchableFields = ['email', 'firstName', 'lastName'];
+    return await this.paginationService.paginate(queryBuilder, paginationDto, searchableFields);
   }
 
   /**
