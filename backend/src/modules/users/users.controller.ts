@@ -9,11 +9,13 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { PaginationDto, PaginatedResponse } from '../../common';
 
 @Controller('users')
 export class UsersController {
@@ -34,8 +36,8 @@ export class UsersController {
    * GET /users
    */
   @Get()
-  async findAll(): Promise<User[]> {
-    return await this.usersService.findAll();
+  async findAll(@Query() paginationDto: PaginationDto): Promise<PaginatedResponse<User>> {
+    return await this.usersService.findAll(paginationDto);
   }
 
   /**
