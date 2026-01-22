@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
+import { CommonModule } from './common/common.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -30,9 +31,10 @@ import { UsersModule } from './modules/users/users.module';
     }),
 
     // Feature Modules
+    CommonModule,
     UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
