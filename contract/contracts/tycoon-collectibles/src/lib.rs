@@ -72,6 +72,18 @@ impl TycoonCollectibles {
     pub fn tokens_of(env: Env, owner: Address) -> soroban_sdk::Vec<u128> {
         get_owned_tokens(&env, &owner)
     }
+
+    /// Get the count of tokens owned by an address
+    pub fn owned_token_count(env: Env, owner: Address) -> u32 {
+        owned_token_count(&env, &owner)
+    }
+
+    /// Get token ID at a specific index for an owner
+    /// Returns the token ID or panics if index is out of bounds
+    pub fn token_of_owner_by_index(env: Env, owner: Address, index: u32) -> u128 {
+        token_of_owner_by_index(&env, &owner, index)
+            .unwrap_or_else(|| panic!("Index out of bounds"))
+    }
 }
 
 mod test;
