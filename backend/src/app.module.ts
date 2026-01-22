@@ -7,15 +7,17 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
+import { jwtConfig } from './config/jwt.config';
 import { CommonModule } from './common/common.module';
 import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig],
+      load: [appConfig, databaseConfig, jwtConfig],
       envFilePath: '.env',
     }),
 
@@ -41,6 +43,7 @@ import { UsersModule } from './modules/users/users.module';
     // Feature Modules
     CommonModule,
     UsersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [
