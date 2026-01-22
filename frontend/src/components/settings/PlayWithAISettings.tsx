@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState } from "react"
 import { ArrowLeft, Bot, Coins, Clock, Play, Shield, Gamepad2, Settings2, Wallet, Rocket } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
@@ -48,20 +48,20 @@ const STARTING_CASH = [
 
 export function PlayWithAISettings() {
     const router = useRouter()
-    const [isLoading, setIsLoading] = React.useState(false)
+    const [isLoading, setIsLoading] = useState(false)
 
     // Form State
-    const [piece, setPiece] = React.useState("rocket")
-    const [opponents, setOpponents] = React.useState("3")
-    const [difficulty, setDifficulty] = React.useState("medium")
-    const [cash, setCash] = React.useState("1500")
-    const [duration, setDuration] = React.useState("0")
-    const [playerName, setPlayerName] = React.useState("Tycoon Player")
+    const [piece, setPiece] = useState("rocket")
+    const [opponents, setOpponents] = useState("3")
+    const [difficulty, setDifficulty] = useState("medium")
+    const [cash, setCash] = useState("1500")
+    const [duration, setDuration] = useState("0")
+    const [playerName, setPlayerName] = useState("Tycoon Player")
 
     // House Rules State
-    const [freeParkingBonus, setFreeParkingBonus] = React.useState(false)
-    const [doubleGoCash, setDoubleGoCash] = React.useState(false)
-    const [auctionsEnabled, setAuctionsEnabled] = React.useState(true)
+    const [freeParkingBonus, setFreeParkingBonus] = useState(false)
+    const [doubleGoCash, setDoubleGoCash] = useState(false)
+    const [auctionsEnabled, setAuctionsEnabled] = useState(true)
 
     const handleStartBattle = async () => {
         setIsLoading(true)
