@@ -1,6 +1,14 @@
-# Rust's output directory
-target
+# Build artifacts
+target/
+Cargo.lock
 
-# Local settings
-.soroban
-.stellar
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
