@@ -5,10 +5,15 @@ import { User } from './entities/user.entity';
 import { repositoryMockFactory, MockType } from '../../../test/mocks/database.mock';
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
+import { PaginationService } from '../../common/services/pagination.service';
 
 describe('UsersService', () => {
     let service: UsersService;
     let repositoryMock: MockType<Repository<User>>;
+
+    const mockPaginationService = {
+        paginate: jest.fn(),
+    };
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -17,6 +22,10 @@ describe('UsersService', () => {
                 {
                     provide: getRepositoryToken(User),
                     useFactory: repositoryMockFactory,
+                },
+                {
+                    provide: PaginationService,
+                    useValue: mockPaginationService,
                 },
             ],
         }).compile();
@@ -44,11 +53,21 @@ describe('UsersService', () => {
 
     describe('findAll', () => {
         it('should return an array of users', async () => {
-            const users = [{ id: '1', email: 'test@example.com' }];
-            repositoryMock.find!.mockReturnValue(users);
+            const paginatedResponse = {
+                data: [{ id: '1', email: 'test@example.com' }],
+                meta: {
+                    page: 1,
+                    limit: 10,
+                    totalItems: 1,
+                    totalPages: 1,
+                },
+            };
+            mockPaginationService.paginate.mockResolvedValue(paginatedResponse);
+            repositoryMock.createQueryBuilder = jest.fn().mockReturnValue({});
 
-            const result = await service.findAll();
-            expect(result).toEqual(users);
+            const result = await service.findAll({ page: 1, limit: 10 });
+            expect(result).toEqual(paginatedResponse);
+            expect(mockPaginationService.paginate).toHaveBeenCalled();
         });
     });
 
