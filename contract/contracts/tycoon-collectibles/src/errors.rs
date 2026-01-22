@@ -9,4 +9,7 @@ pub enum CollectibleError {
     InvalidAmount = 3,
     Unauthorized = 4,
     TokenIdMismatch = 5,
+    ZeroPrice = 6,
+    InsufficientStock = 7,
+    ShopNotInitialized = 8,
 }
