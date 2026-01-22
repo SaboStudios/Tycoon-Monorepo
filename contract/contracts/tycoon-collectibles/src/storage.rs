@@ -1,6 +1,7 @@
 use soroban_sdk::{Address, Env};
 
 const ADMIN_KEY: &str = "ADMIN";
+const MINTER_KEY: &str = "MINTER";
 const BALANCE_PREFIX: &str = "BAL";
 
 /// Check if admin is set
@@ -32,4 +33,12 @@ pub fn set_balance(env: &Env, owner: &Address, token_id: u128, amount: u64) {
     } else {
         env.storage().persistent().set(&key, &amount);
     }
+}
+
+pub fn set_minter(env: &Env, minter: &Address) {
+    env.storage().instance().set(&MINTER_KEY, minter);
+}
+
+pub fn get_minter(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&MINTER_KEY)
 }

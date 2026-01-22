@@ -1,8 +1,8 @@
-use soroban_sdk::{Address, Env, symbol_short};
-use crate::storage::{get_balance, set_balance};
 use crate::enumeration::{add_token_to_owner, remove_token_from_owner};
-use crate::events::emit_transfer_event;
 use crate::errors::CollectibleError;
+use crate::events::emit_transfer_event;
+use crate::storage::{get_balance, set_balance};
+use soroban_sdk::{symbol_short, Address, Env};
 
 /// Internal safe transfer function
 /// Handles balance updates, enumeration, and event emission
@@ -20,7 +20,7 @@ pub fn _safe_transfer(
 
     // Get current balances
     let from_balance = get_balance(env, from, token_id);
-    
+
     // Check sufficient balance
     if from_balance < amount {
         return Err(CollectibleError::InsufficientBalance);
@@ -29,7 +29,7 @@ pub fn _safe_transfer(
     // Update sender balance
     let new_from_balance = from_balance - amount;
     set_balance(env, from, token_id, new_from_balance);
-    
+
     // Remove from enumeration if balance becomes zero
     if new_from_balance == 0 {
         remove_token_from_owner(env, from, token_id);
@@ -39,7 +39,7 @@ pub fn _safe_transfer(
     let to_balance = get_balance(env, to, token_id);
     let new_to_balance = to_balance + amount;
     set_balance(env, to, token_id, new_to_balance);
-    
+
     // Add to enumeration if this is a new token for the recipient
     if to_balance == 0 {
         add_token_to_owner(env, to, token_id);
@@ -47,7 +47,7 @@ pub fn _safe_transfer(
 
     // Emit transfer event
     emit_transfer_event(env, from, to, token_id, amount);
-    
+
     Ok(())
 }
 
@@ -70,7 +70,7 @@ pub fn _safe_batch_transfer(
         let amount = amounts.get(i).unwrap();
         _safe_transfer(env, from, to, token_id, amount)?;
     }
-    
+
     Ok(())
 }
 
@@ -89,18 +89,16 @@ pub fn _safe_mint(
     let to_balance = get_balance(env, to, token_id);
     let new_to_balance = to_balance + amount;
     set_balance(env, to, token_id, new_to_balance);
-    
+
     // Add to enumeration if this is a new token for the recipient
     if to_balance == 0 {
         add_token_to_owner(env, to, token_id);
     }
 
     // Emit mint event (from zero address concept)
-    env.events().publish(
-        (symbol_short!("mint"),),
-        (to.clone(), token_id, amount),
-    );
-    
+    env.events()
+        .publish((symbol_short!("mint"),), (to.clone(), token_id, amount));
+
     Ok(())
 }
 
@@ -123,17 +121,15 @@ pub fn _safe_burn(
     // Update balance
     let new_from_balance = from_balance - amount;
     set_balance(env, from, token_id, new_from_balance);
-    
+
     // Remove from enumeration if balance becomes zero
     if new_from_balance == 0 {
         remove_token_from_owner(env, from, token_id);
     }
 
     // Emit burn event
-    env.events().publish(
-        (symbol_short!("burn"),),
-        (from.clone(), token_id, amount),
-    );
-    
+    env.events()
+        .publish((symbol_short!("burn"),), (from.clone(), token_id, amount));
+
     Ok(())
 }

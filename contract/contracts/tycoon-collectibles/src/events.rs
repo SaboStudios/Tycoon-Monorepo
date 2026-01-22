@@ -1,14 +1,8 @@
-use soroban_sdk::{Address, Env, symbol_short};
+use soroban_sdk::{symbol_short, Address, Env};
 
 /// Emit a transfer event
 /// Similar to ERC-1155's TransferSingle event
-pub fn emit_transfer_event(
-    env: &Env,
-    from: &Address,
-    to: &Address,
-    token_id: u128,
-    amount: u64,
-) {
+pub fn emit_transfer_event(env: &Env, from: &Address, to: &Address, token_id: u128, amount: u64) {
     env.events().publish(
         (symbol_short!("transfer"),),
         (from.clone(), to.clone(), token_id, amount),
