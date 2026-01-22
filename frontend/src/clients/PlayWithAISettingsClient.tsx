@@ -1,15 +1,15 @@
 "use client"
 
-import * as React from "react"
+import { useEffect, useState } from "react"
 import { ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { PlayWithAISettings } from "@/components/settings/PlayWithAISettings"
 
 export default function PlayWithAISettingsClient() {
-    const [isChecking, setIsChecking] = React.useState(true)
-    const [isRegistered, setIsRegistered] = React.useState(false)
+    const [isChecking, setIsChecking] = useState(true)
+    const [isRegistered, setIsRegistered] = useState(false)
 
-    React.useEffect(() => {
+    useEffect(() => {
         // Mock registration check
         const checkRegistration = async () => {
             // Simulate network delay
