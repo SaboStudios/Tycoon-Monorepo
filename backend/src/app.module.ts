@@ -1,15 +1,14 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
 import { CommonModule } from './common/common.module';
 import { UsersModule } from './modules/users/users.module';
-import { AuthGuard } from './common/guards/auth.guard';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -20,25 +19,24 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
       envFilePath: '.env',
     }),
 
-    // TypeORM Module (conditionally loaded)
-    process.env.NODE_ENV !== 'test'
-      ? TypeOrmModule.forRootAsync({
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (configService: ConfigService) => {
-          const dbConfig = configService.get('database');
-          if (!dbConfig) {
-            throw new Error('Database configuration not found');
-          }
-          return dbConfig;
-        },
-      })
-      : TypeOrmModule.forRoot({
-        type: 'sqlite',
-        database: ':memory:',
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true,
-      }),
+    // Rate Limiting
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 100,
+    }]),
+
+    // TypeORM Module
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const dbConfig = configService.get('database');
+        if (!dbConfig) {
+          throw new Error('Database configuration not found');
+        }
+        return dbConfig;
+      },
+    }),
 
     // Feature Modules
     CommonModule,
@@ -49,12 +47,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: LoggingInterceptor,
+      useClass: ThrottlerGuard,
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
