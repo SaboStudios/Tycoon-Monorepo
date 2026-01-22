@@ -36,7 +36,13 @@ describe('AuthController (e2e)', () => {
         return request(app.getHttpServer())
             .get('/users')
             .set('Authorization', 'Bearer secret-token')
-            .expect(200);
+            .expect(200)
+            .expect((res) => {
+                expect(res.body).toHaveProperty('success', true);
+                expect(res.body).toHaveProperty('message', 'Operation successful');
+                expect(res.body).toHaveProperty('data');
+                expect(res.body).toHaveProperty('statusCode', 200);
+            });
     });
 
     afterAll(async () => {
