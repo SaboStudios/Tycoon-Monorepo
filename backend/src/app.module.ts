@@ -1,57 +1,70 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
+import { jwtConfig } from './config/jwt.config';
+import { redisConfig } from './config/redis.config';
+import { CommonModule, ResponseInterceptor, HttpExceptionFilter } from './common';
 import { UsersModule } from './modules/users/users.module';
-import { AuthGuard } from './common/guards/auth.guard';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { AuthModule } from './modules/auth/auth.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { CacheInterceptor } from './common/interceptors/cache.interceptor';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig],
+      load: [appConfig, databaseConfig, jwtConfig, redisConfig],
       envFilePath: '.env',
     }),
 
-    // TypeORM Module (conditionally loaded)
-    process.env.NODE_ENV !== 'test'
-      ? TypeOrmModule.forRootAsync({
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (configService: ConfigService) => {
-          const dbConfig = configService.get('database');
-          if (!dbConfig) {
-            throw new Error('Database configuration not found');
-          }
-          return dbConfig;
-        },
-      })
-      : TypeOrmModule.forRoot({
-        type: 'sqlite',
-        database: ':memory:',
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true,
-      }),
+    // Rate Limiting
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 100,
+    }]),
+
+    // TypeORM Module
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const dbConfig = configService.get('database');
+        if (!dbConfig) {
+          throw new Error('Database configuration not found');
+        }
+        return dbConfig;
+      },
+    }),
 
     // Feature Modules
+    RedisModule,
+    CommonModule,
     UsersModule,
+    AuthModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
-      useClass: AuthGuard,
+      useClass: ThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,
-      useClass: LoggingInterceptor,
+      useClass: CacheInterceptor,
+      // useClass: ResponseInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
     },
   ],
 })
