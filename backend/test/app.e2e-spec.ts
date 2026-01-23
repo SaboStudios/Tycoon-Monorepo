@@ -26,7 +26,12 @@ describe('AppController (e2e)', () => {
       .get('/')
       .set('Authorization', 'Bearer secret-token')
       .expect(200)
-      .expect('Hello World!');
+      .expect({
+        success: true,
+        message: 'Operation successful',
+        data: 'Hello World!',
+        statusCode: 200,
+      });
   });
 
   afterAll(async () => {
