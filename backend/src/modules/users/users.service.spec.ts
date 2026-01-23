@@ -6,6 +6,7 @@ import { repositoryMockFactory, MockType } from '../../../test/mocks/database.mo
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { PaginationService } from '../../common/services/pagination.service';
+import { RedisService } from '../redis/redis.service';
 
 describe('UsersService', () => {
     let service: UsersService;
@@ -13,6 +14,13 @@ describe('UsersService', () => {
 
     const mockPaginationService = {
         paginate: jest.fn(),
+    };
+
+    const mockRedisService = {
+        get: jest.fn(),
+        set: jest.fn(),
+        del: jest.fn(),
+        deleteByPattern: jest.fn(),
     };
 
     beforeEach(async () => {
@@ -26,6 +34,10 @@ describe('UsersService', () => {
                 {
                     provide: PaginationService,
                     useValue: mockPaginationService,
+                },
+                {
+                    provide: RedisService,
+                    useValue: mockRedisService,
                 },
             ],
         }).compile();

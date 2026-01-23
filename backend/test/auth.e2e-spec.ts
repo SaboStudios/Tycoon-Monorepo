@@ -8,6 +8,7 @@ import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from '../src/modules/users/users.module';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { CommonModule } from '../src/common/common.module';
+import { RedisModule } from '../src/modules/redis/redis.module';
 
 describe('AuthController (e2e)', () => {
     let app: INestApplication;
@@ -25,6 +26,10 @@ describe('AuthController (e2e)', () => {
                                 expiresIn: 900,
                                 refreshExpiresIn: 604800,
                             },
+                            redis: {
+                                host: 'localhost',
+                                port: 6379,
+                            },
                         }),
                     ],
                 }),
@@ -38,6 +43,7 @@ describe('AuthController (e2e)', () => {
                 }),
                 TypeOrmModule.forFeature([User, RefreshToken]),
                 CommonModule,
+                RedisModule,
                 UsersModule,
                 AuthModule,
             ],
@@ -56,10 +62,18 @@ describe('AuthController (e2e)', () => {
             .expect(401); // Expect 401 for invalid credentials
     });
 
-    it('/users (GET) - Returns users list', () => {
+    it('/users (GET) - Returns paginated users list', () => {
         return request(app.getHttpServer())
             .get('/api/v1/users')
-            .expect(200);
+            .expect(200)
+            .expect((res) => {
+                expect(res.body).toHaveProperty('data');
+                expect(res.body).toHaveProperty('meta');
+                expect(res.body.meta).toHaveProperty('page');
+                expect(res.body.meta).toHaveProperty('limit');
+                expect(res.body.meta).toHaveProperty('totalItems');
+                expect(Array.isArray(res.body.data)).toBe(true);
+            });
     });
 
     afterAll(async () => {

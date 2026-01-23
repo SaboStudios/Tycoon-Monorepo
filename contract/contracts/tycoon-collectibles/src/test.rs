@@ -1,7 +1,8 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::{Address as _, Events}, Address, Env};
+use crate::types::{Perk, CASH_TIERS};
 
 #[test]
 fn test_initialize() {
@@ -193,4 +194,433 @@ fn test_mint_transfer_burn_flow() {
     // Final state check
     assert_eq!(client.balance_of(&alice, &1), 6);
     assert_eq!(client.balance_of(&bob, &1), 2);
+}
+
+#[test]
+fn test_burn_collectible_for_perk_cash_tiered() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &5);
+    
+    // Set perk to CashTiered with strength 3
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &3);
+    
+    // Burn collectible for perk
+    client.burn_collectible_for_perk(&user, &1);
+    
+    // Verify balance decreased by 1
+    assert_eq!(client.balance_of(&user, &1), 4);
+    
+    // Verify events
+    let events = env.events().all();
+    let event_count = events.len();
+    
+    // Should have: mint event, cash_perk event, burn event, coll_burn event
+    assert!(event_count >= 4);
+    
+    // Check for cash perk activation event with correct value (strength 3 = 500)
+    let cash_value = CASH_TIERS[2]; // strength 3 -> index 2 -> 500
+    assert_eq!(cash_value, 500);
+}
+
+#[test]
+fn test_burn_collectible_for_perk_all_tiers() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Test all 5 tiers
+    for strength in 1..=5 {
+        let token_id = strength as u128;
+        
+        // Buy collectible
+        client.buy_collectible(&user, &token_id, &1);
+        
+        // Set perk to CashTiered with current strength
+        client.set_token_perk(&admin, &token_id, &Perk::CashTiered, &strength);
+        
+        // Burn collectible for perk
+        client.burn_collectible_for_perk(&user, &token_id);
+        
+        // Verify balance is now 0
+        assert_eq!(client.balance_of(&user, &token_id), 0);
+    }
+    
+    // Verify expected cash values
+    assert_eq!(CASH_TIERS[0], 100);   // Strength 1
+    assert_eq!(CASH_TIERS[1], 250);   // Strength 2
+    assert_eq!(CASH_TIERS[2], 500);   // Strength 3
+    assert_eq!(CASH_TIERS[3], 1000);  // Strength 4
+    assert_eq!(CASH_TIERS[4], 2500);  // Strength 5
+}
+
+#[test]
+fn test_burn_collectible_for_perk_tax_refund() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &3);
+    
+    // Set perk to TaxRefund with strength 4
+    client.set_token_perk(&admin, &1, &Perk::TaxRefund, &4);
+    
+    // Burn collectible for perk
+    client.burn_collectible_for_perk(&user, &1);
+    
+    // Verify balance decreased by 1
+    assert_eq!(client.balance_of(&user, &1), 2);
+    
+    // Verify events emitted
+    let events = env.events().all();
+    assert!(events.len() >= 4);
+}
+
+#[test]
+fn test_burn_collectible_for_perk_non_tiered() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &2);
+    
+    // Set perk to RentBoost (non-tiered)
+    client.set_token_perk(&admin, &1, &Perk::RentBoost, &1);
+    
+    // Burn collectible for perk
+    client.burn_collectible_for_perk(&user, &1);
+    
+    // Verify balance decreased by 1
+    assert_eq!(client.balance_of(&user, &1), 1);
+    
+    // Verify events emitted (should NOT have cash_perk event)
+    let events = env.events().all();
+    assert!(events.len() >= 3); // mint, burn, coll_burn (no cash_perk)
+}
+
+#[test]
+fn test_burn_collectible_for_perk_property_discount() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &1);
+    
+    // Set perk to PropertyDiscount (non-tiered)
+    client.set_token_perk(&admin, &1, &Perk::PropertyDiscount, &2);
+    
+    // Burn collectible for perk
+    client.burn_collectible_for_perk(&user, &1);
+    
+    // Verify balance is now 0
+    assert_eq!(client.balance_of(&user, &1), 0);
+    
+    // Verify token removed from enumeration
+    let tokens = client.tokens_of(&user);
+    assert_eq!(tokens.len(), 0);
+}
+
+#[test]
+fn test_burn_collectible_for_perk_insufficient_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Set perk without buying collectible
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &3);
+    
+    // Try to burn collectible (should fail - insufficient balance)
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_burn_collectible_for_perk_invalid_perk_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &1);
+    
+    // Don't set perk (defaults to None)
+    
+    // Try to burn collectible (should fail - invalid perk)
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_burn_collectible_for_perk_invalid_strength_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &1);
+    
+    // Set perk to CashTiered with invalid strength 0
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &0);
+    
+    // Try to burn collectible (should fail - invalid strength)
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_burn_collectible_for_perk_invalid_strength_six() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &1);
+    
+    // Set perk to CashTiered with invalid strength 6
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &6);
+    
+    // Try to burn collectible (should fail - invalid strength)
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_burn_collectible_for_perk_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy collectible
+    client.buy_collectible(&user, &1, &1);
+    
+    // Set perk
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &3);
+    
+    // Pause contract
+    client.set_pause(&admin, &true);
+    
+    // Try to burn collectible (should fail - contract paused)
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+    
+    // Verify balance unchanged
+    assert_eq!(client.balance_of(&user, &1), 1);
+}
+
+#[test]
+fn test_pause_unpause_functionality() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Initially not paused
+    assert_eq!(client.is_contract_paused(), false);
+    
+    // Pause
+    client.set_pause(&admin, &true);
+    assert_eq!(client.is_contract_paused(), true);
+    
+    // Buy collectible and set perk
+    client.buy_collectible(&user, &1, &1);
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &3);
+    
+    // Cannot burn while paused
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+    
+    // Unpause
+    client.set_pause(&admin, &false);
+    assert_eq!(client.is_contract_paused(), false);
+    
+    // Now can burn
+    client.burn_collectible_for_perk(&user, &1);
+    assert_eq!(client.balance_of(&user, &1), 0);
+}
+
+#[test]
+fn test_set_token_perk_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Try to set perk as non-admin (should fail)
+    let result = client.try_set_token_perk(&user, &1, &Perk::CashTiered, &3);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_set_pause_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Try to pause as non-admin (should fail)
+    let result = client.try_set_pause(&user, &true);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_token_perk_and_strength() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Default perk should be None
+    let perk = client.get_token_perk(&1);
+    assert_eq!(perk, Perk::None);
+    
+    // Default strength should be 0
+    let strength = client.get_token_strength(&1);
+    assert_eq!(strength, 0);
+    
+    // Set perk and strength
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &5);
+    
+    // Verify
+    let perk = client.get_token_perk(&1);
+    assert_eq!(perk, Perk::CashTiered);
+    
+    let strength = client.get_token_strength(&1);
+    assert_eq!(strength, 5);
+}
+
+#[test]
+fn test_multiple_burns_with_different_perks() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy multiple collectibles with different perks
+    client.buy_collectible(&user, &1, &1);
+    client.buy_collectible(&user, &2, &1);
+    client.buy_collectible(&user, &3, &1);
+    
+    // Set different perks
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &1);
+    client.set_token_perk(&admin, &2, &Perk::TaxRefund, &5);
+    client.set_token_perk(&admin, &3, &Perk::RentBoost, &1);
+    
+    // Burn all three
+    client.burn_collectible_for_perk(&user, &1);
+    client.burn_collectible_for_perk(&user, &2);
+    client.burn_collectible_for_perk(&user, &3);
+    
+    // Verify all balances are 0
+    assert_eq!(client.balance_of(&user, &1), 0);
+    assert_eq!(client.balance_of(&user, &2), 0);
+    assert_eq!(client.balance_of(&user, &3), 0);
+    
+    // Verify enumeration is empty
+    let tokens = client.tokens_of(&user);
+    assert_eq!(tokens.len(), 0);
 }
