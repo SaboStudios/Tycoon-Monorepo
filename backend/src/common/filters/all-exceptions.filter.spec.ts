@@ -29,27 +29,24 @@ describe('AllExceptionsFilter', () => {
         jest.clearAllMocks();
     });
 
-    it('should catch HttpException and format response', () => {
-        const mockJson = jest.fn();
-        const mockStatus = jest.fn().mockReturnThis();
-        const mockGetResponse = jest.fn().mockReturnValue({
-            status: mockStatus,
-            json: mockJson,
-        });
+    const createMockArgumentsHost = () => {
+        const mockGetResponse = jest.fn();
         const mockGetRequest = jest.fn();
-        const mockArgumentsHost = {
+        return {
             switchToHttp: () => ({
                 getResponse: mockGetResponse,
                 getRequest: mockGetRequest,
             }),
         } as unknown as ArgumentsHost;
+    };
 
+    it('should catch HttpException and format response', () => {
+        const mockHost = createMockArgumentsHost();
         mockHttpAdapterHost.httpAdapter.getRequestUrl.mockReturnValue('/test-url');
 
         const exception = new HttpException('Bad Request', HttpStatus.BAD_REQUEST);
-        filter.catch(exception, mockArgumentsHost);
+        filter.catch(exception, mockHost);
 
-        expect(mockHttpAdapterHost.httpAdapter.reply).toHaveBeenCalled();
         const responseBody = mockHttpAdapterHost.httpAdapter.reply.mock.calls[0][1];
         expect(responseBody).toMatchObject({
             statusCode: 400,
@@ -59,26 +56,56 @@ describe('AllExceptionsFilter', () => {
     });
 
     it('should catch unknown errors and return 500', () => {
-        const mockGetResponse = jest.fn();
-        const mockGetRequest = jest.fn();
-        const mockArgumentsHost = {
-            switchToHttp: () => ({
-                getResponse: mockGetResponse,
-                getRequest: mockGetRequest,
-            }),
-        } as unknown as ArgumentsHost;
-
+        const mockHost = createMockArgumentsHost();
         mockHttpAdapterHost.httpAdapter.getRequestUrl.mockReturnValue('/test-url');
 
         const exception = new Error('Random error');
-        filter.catch(exception, mockArgumentsHost);
+        filter.catch(exception, mockHost);
 
         const responseBody = mockHttpAdapterHost.httpAdapter.reply.mock.calls[0][1];
-        // In strict 500 mode default message is "Internal server error"
         expect(responseBody).toMatchObject({
             statusCode: 500,
             path: '/test-url',
             message: 'Internal server error',
+        });
+    });
+
+    it('should map Postgres duplicate entry (23505) to 409 Conflict', () => {
+        const mockHost = createMockArgumentsHost();
+        const exception = { code: '23505' };
+
+        filter.catch(exception, mockHost);
+
+        const responseBody = mockHttpAdapterHost.httpAdapter.reply.mock.calls[0][1];
+        expect(responseBody).toMatchObject({
+            statusCode: HttpStatus.CONFLICT,
+            message: 'Duplicate entry',
+        });
+    });
+
+    it('should map Postgres foreign key violation (23503) to 400 Bad Request', () => {
+        const mockHost = createMockArgumentsHost();
+        const exception = { code: '23503' };
+
+        filter.catch(exception, mockHost);
+
+        const responseBody = mockHttpAdapterHost.httpAdapter.reply.mock.calls[0][1];
+        expect(responseBody).toMatchObject({
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Referenced record does not exist',
+        });
+    });
+
+    it('should map Postgres not null violation (23502) to 400 Bad Request', () => {
+        const mockHost = createMockArgumentsHost();
+        const exception = { code: '23502' };
+
+        filter.catch(exception, mockHost);
+
+        const responseBody = mockHttpAdapterHost.httpAdapter.reply.mock.calls[0][1];
+        expect(responseBody).toMatchObject({
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Required field is missing',
         });
     });
 });

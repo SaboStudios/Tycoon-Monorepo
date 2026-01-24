@@ -1,4 +1,3 @@
-
 import {
     ExceptionFilter,
     Catch,
@@ -16,51 +15,55 @@ export class AllExceptionsFilter implements ExceptionFilter {
     constructor(private readonly httpAdapterHost: HttpAdapterHost) { }
 
     catch(exception: unknown, host: ArgumentsHost): void {
-        // In certain situations `httpAdapter` might not be available in the
-        // constructor method, thus we should resolve it here.
         const { httpAdapter } = this.httpAdapterHost;
-
         const ctx = host.switchToHttp();
 
-        const httpStatus =
-            exception instanceof HttpException
-                ? exception.getStatus()
-                : HttpStatus.INTERNAL_SERVER_ERROR;
+        let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+        let message = 'Internal server error';
+        let error: string | undefined;
+
+        if (exception instanceof HttpException) {
+            httpStatus = exception.getStatus();
+            const response = exception.getResponse();
+
+            if (typeof response === 'string') {
+                message = response;
+            } else {
+                const responseObj = response as any;
+                message = responseObj.message || exception.message;
+                error = responseObj.error;
+            }
+        } else {
+            this.logger.error(exception);
+
+            // Handle common database errors
+            const dbError = exception as any;
+            if (dbError.code) {
+                switch (dbError.code) {
+                    case '23505': // Duplicate key
+                        httpStatus = HttpStatus.CONFLICT;
+                        message = 'Duplicate entry';
+                        break;
+                    case '23503': // Foreign key violation
+                        httpStatus = HttpStatus.BAD_REQUEST;
+                        message = 'Referenced record does not exist';
+                        break;
+                    case '23502': // Not null violation
+                        httpStatus = HttpStatus.BAD_REQUEST;
+                        message = 'Required field is missing';
+                        break;
+                }
+            }
+        }
 
         const responseBody = {
             statusCode: httpStatus,
             timestamp: new Date().toISOString(),
             path: httpAdapter.getRequestUrl(ctx.getRequest()),
-            message: 'Internal server error',
-            code: undefined,
+            message,
+            ...(error && { error }),
         };
 
-        if (exception instanceof HttpException) {
-            const response = exception.getResponse();
-            responseBody.message =
-                typeof response === 'string'
-                    ? response
-                    : (response as any).message || (exception as Error).message;
-
-            if (typeof response === 'object' && (response as any).error) {
-                responseBody['error'] = (response as any).error;
-            }
-        } else {
-            // Log the actual error for non-HTTP exceptions (internal errors)
-            this.logger.error(exception);
-
-            // Check for common TypeORM errors
-            if ((exception as any).code === '23505') {
-                responseBody.statusCode = HttpStatus.CONFLICT;
-                responseBody.message = 'Duplicate entry';
-            }
-        }
-
-        // In production, keep 500 errors generic. 
-        // In dev, you might want to show more info, but requirement says "Hide internal ... details in production"
-        // We already default 500s to 'Internal server error' above for non-HttpExceptions.
-        // If it WAS an HttpException (e.g. 400), we passed the message through.
-
-        httpAdapter.reply(ctx.getResponse(), responseBody, responseBody.statusCode);
+        httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
     }
 }
