@@ -737,6 +737,17 @@ fn test_pause_unpause_functionality() {
     // Unpause
     client.set_pause(&admin, &false);
     assert_eq!(client.is_contract_paused(), false);
+    assert!(!client.is_contract_paused());
+
+    // Pause
+    client.set_pause(&admin, &true);
+    assert!(client.is_contract_paused());
+
+    //...
+
+    // Unpause
+    client.set_pause(&admin, &false);
+    assert!(!client.is_contract_paused());
 
     // Now can burn
     client.burn_collectible_for_perk(&user, &1);

@@ -188,7 +188,7 @@ impl TycoonCollectibles {
         // Special handling for CashTiered and TaxRefund
         if matches!(perk, Perk::CashTiered | Perk::TaxRefund) {
             // Validate strength is 1-5
-            if strength < 1 || strength > 5 {
+            if !(1..=5).contains(&strength) {
                 return Err(CollectibleError::InvalidStrength);
             }
 
