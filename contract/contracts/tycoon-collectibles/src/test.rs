@@ -199,6 +199,226 @@ fn test_mint_transfer_burn_flow() {
     assert_eq!(client.balance_of(&bob, &1), 2);
 }
 
+// ====================================
+// Shop Purchase Tests
+// ====================================
+
+/// Helper function to create a mock token for testing
+fn create_mock_token(env: &Env, admin: &Address) -> Address {
+    let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+    token_contract.address()
+}
+
+#[test]
+fn test_buy_from_shop_with_tyc() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+
+    // Create mock TYC and USDC tokens
+    let tyc_token = create_mock_token(&env, &admin);
+    let usdc_token = create_mock_token(&env, &admin);
+
+    // Initialize contract and shop
+    client.initialize(&admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // Set collectible for sale: token_id 1, TYC price 100, USDC price 10, stock 5
+    client.set_collectible_for_sale(&1, &100, &10, &5);
+
+    // Mint TYC tokens to buyer using stellar asset client
+    let tyc_client = soroban_sdk::token::StellarAssetClient::new(&env, &tyc_token);
+    tyc_client.mint(&buyer, &1000);
+
+    // Buy collectible with TYC
+    client.buy_collectible_from_shop(&buyer, &1, &false);
+
+    // Verify buyer received the collectible
+    assert_eq!(client.balance_of(&buyer, &1), 1);
+
+    // Verify stock decreased
+    assert_eq!(client.get_stock(&1), 4);
+
+    // Verify TYC was transferred (buyer should have 1000 - 100 = 900)
+    let tyc_token_client = soroban_sdk::token::Client::new(&env, &tyc_token);
+    assert_eq!(tyc_token_client.balance(&buyer), 900);
+}
+
+#[test]
+fn test_buy_from_shop_with_usdc() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+
+    // Create mock tokens
+    let tyc_token = create_mock_token(&env, &admin);
+    let usdc_token = create_mock_token(&env, &admin);
+
+    // Initialize contract and shop
+    client.initialize(&admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // Set collectible for sale
+    client.set_collectible_for_sale(&1, &100, &50, &10);
+
+    // Mint USDC tokens to buyer
+    let usdc_client = soroban_sdk::token::StellarAssetClient::new(&env, &usdc_token);
+    usdc_client.mint(&buyer, &500);
+
+    // Buy collectible with USDC
+    client.buy_collectible_from_shop(&buyer, &1, &true);
+
+    // Verify buyer received the collectible
+    assert_eq!(client.balance_of(&buyer, &1), 1);
+
+    // Verify stock decreased
+    assert_eq!(client.get_stock(&1), 9);
+
+    // Verify USDC was transferred (buyer should have 500 - 50 = 450)
+    let usdc_token_client = soroban_sdk::token::Client::new(&env, &usdc_token);
+    assert_eq!(usdc_token_client.balance(&buyer), 450);
+}
+
+#[test]
+fn test_buy_from_shop_insufficient_stock() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+
+    let tyc_token = create_mock_token(&env, &admin);
+    let usdc_token = create_mock_token(&env, &admin);
+
+    client.initialize(&admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // Set collectible for sale with 0 stock
+    client.set_collectible_for_sale(&1, &100, &10, &0);
+
+    // Mint tokens to buyer
+    let tyc_client = soroban_sdk::token::StellarAssetClient::new(&env, &tyc_token);
+    tyc_client.mint(&buyer, &1000);
+
+    // Try to buy - should fail with InsufficientStock
+    let result = client.try_buy_collectible_from_shop(&buyer, &1, &false);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_buy_from_shop_zero_price() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+
+    let tyc_token = create_mock_token(&env, &admin);
+    let usdc_token = create_mock_token(&env, &admin);
+
+    client.initialize(&admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // Set collectible with zero TYC price but valid USDC price
+    client.set_collectible_for_sale(&1, &0, &10, &5);
+
+    // Mint tokens to buyer
+    let tyc_client = soroban_sdk::token::StellarAssetClient::new(&env, &tyc_token);
+    tyc_client.mint(&buyer, &1000);
+
+    // Try to buy with TYC - should fail with ZeroPrice
+    let result = client.try_buy_collectible_from_shop(&buyer, &1, &false);
+    assert!(result.is_err());
+
+    // Buying with USDC should work (price is 10)
+    let usdc_client = soroban_sdk::token::StellarAssetClient::new(&env, &usdc_token);
+    usdc_client.mint(&buyer, &100);
+    let result = client.try_buy_collectible_from_shop(&buyer, &1, &true);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_buy_from_shop_decrements_stock() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+
+    let tyc_token = create_mock_token(&env, &admin);
+    let usdc_token = create_mock_token(&env, &admin);
+
+    client.initialize(&admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // Set collectible for sale with stock of 3
+    client.set_collectible_for_sale(&1, &10, &5, &3);
+
+    // Mint tokens to buyer
+    let tyc_client = soroban_sdk::token::StellarAssetClient::new(&env, &tyc_token);
+    tyc_client.mint(&buyer, &1000);
+
+    // Initial stock should be 3
+    assert_eq!(client.get_stock(&1), 3);
+
+    // Buy 1
+    client.buy_collectible_from_shop(&buyer, &1, &false);
+    assert_eq!(client.get_stock(&1), 2);
+
+    // Buy another
+    client.buy_collectible_from_shop(&buyer, &1, &false);
+    assert_eq!(client.get_stock(&1), 1);
+
+    // Buy last one
+    client.buy_collectible_from_shop(&buyer, &1, &false);
+    assert_eq!(client.get_stock(&1), 0);
+
+    // Verify buyer has 3 collectibles
+    assert_eq!(client.balance_of(&buyer, &1), 3);
+
+    // Next purchase should fail
+    let result = client.try_buy_collectible_from_shop(&buyer, &1, &false);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_buy_from_shop_not_initialized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+
+    client.initialize(&admin);
+    // Note: Shop NOT initialized
+
+    // Try to buy - should fail with ShopNotInitialized
+    let result = client.try_buy_collectible_from_shop(&buyer, &1, &false);
+    assert!(result.is_err());
+}
+
 #[test]
 fn test_burn_collectible_for_perk_cash_tiered() {
     let env = Env::default();
@@ -500,6 +720,23 @@ fn test_pause_unpause_functionality() {
     client.initialize(&admin);
 
     // Initially not paused
+    assert_eq!(client.is_contract_paused(), false);
+
+    // Pause
+    client.set_pause(&admin, &true);
+    assert_eq!(client.is_contract_paused(), true);
+
+    // Buy collectible and set perk
+    client.buy_collectible(&user, &1, &1);
+    client.set_token_perk(&admin, &1, &Perk::CashTiered, &3);
+
+    // Cannot burn while paused
+    let result = client.try_burn_collectible_for_perk(&user, &1);
+    assert!(result.is_err());
+
+    // Unpause
+    client.set_pause(&admin, &false);
+    assert_eq!(client.is_contract_paused(), false);
     assert!(!client.is_contract_paused());
 
     // Pause
