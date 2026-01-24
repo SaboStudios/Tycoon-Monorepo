@@ -12,7 +12,7 @@ pub enum CollectibleError {
     ZeroPrice = 6,
     InsufficientStock = 7,
     ShopNotInitialized = 8,
-    ContractPaused = 6,
-    InvalidPerk = 7,
-    InvalidStrength = 8,
+    ContractPaused = 9,
+    InvalidPerk = 10,
+    InvalidStrength = 11,
 }
