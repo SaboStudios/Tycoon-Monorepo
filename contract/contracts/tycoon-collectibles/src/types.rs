@@ -23,3 +23,17 @@ pub struct CollectiblePrice {
     pub tyc_price: i128,
     pub usdc_price: i128,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Perk {
+    None = 0,
+    CashTiered = 1,
+    TaxRefund = 2,
+    RentBoost = 3,
+    PropertyDiscount = 4,
+}
+
+// Cash tier values based on strength (1-5)
+pub const CASH_TIERS: [u64; 5] = [100, 250, 500, 1000, 2500];

@@ -1,3 +1,4 @@
+use crate::types::Perk;
 use soroban_sdk::{symbol_short, Address, Env};
 
 /// Emit a transfer event
@@ -24,17 +25,29 @@ pub fn emit_batch_transfer_event(
     );
 }
 
-/// Emit a collectible bought event
-/// Fired when a user purchases a collectible from the shop
-pub fn emit_collectible_bought_event(
+/// Emit a collectible burned event
+pub fn emit_collectible_burned_event(
     env: &Env,
+    burner: &Address,
     token_id: u128,
-    buyer: &Address,
-    price: i128,
-    is_usdc: bool,
+    perk: Perk,
+    strength: u32,
 ) {
     env.events().publish(
-        (symbol_short!("bought"),),
-        (token_id, buyer.clone(), price, is_usdc),
+        (symbol_short!("coll_burn"),),
+        (burner.clone(), token_id, perk, strength),
+    );
+}
+
+/// Emit a cash perk activated event
+pub fn emit_cash_perk_activated_event(
+    env: &Env,
+    activator: &Address,
+    token_id: u128,
+    cash_value: u64,
+) {
+    env.events().publish(
+        (symbol_short!("cash_perk"),),
+        (activator.clone(), token_id, cash_value),
     );
 }
