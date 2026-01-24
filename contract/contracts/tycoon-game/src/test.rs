@@ -19,14 +19,14 @@ fn create_token_contract<'a>(env: &Env, admin: &Address) -> (Address, TokenClien
 fn setup_contract(env: &Env) -> (Address, TycoonContractClient<'_>, Address, Address, Address) {
     let contract_id = env.register(TycoonContract, ());
     let client = TycoonContractClient::new(env, &contract_id);
-    
+
     let owner = Address::generate(env);
     let tyc_admin = Address::generate(env);
     let usdc_admin = Address::generate(env);
-    
+
     let (tyc_token, _) = create_token_contract(env, &tyc_admin);
     let (usdc_token, _) = create_token_contract(env, &usdc_admin);
-    
+
     (contract_id, client, owner, tyc_token, usdc_token)
 }
 
@@ -36,12 +36,12 @@ fn setup_contract(env: &Env) -> (Address, TycoonContractClient<'_>, Address, Add
 fn test_initialize_success() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Verify initialization was successful by trying to use owner functions
     // This implicitly tests that the owner was set correctly
 }
@@ -51,12 +51,12 @@ fn test_initialize_success() {
 fn test_initialize_twice_fails() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // First initialization should succeed
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Second initialization should panic
     client.initialize(&tyc_token, &usdc_token, &owner);
 }
@@ -67,21 +67,21 @@ fn test_initialize_twice_fails() {
 fn test_withdraw_tyc_by_owner_success() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
     tyc_admin_client.mint(&contract_id, &1000);
-    
+
     let recipient = Address::generate(&env);
-    
+
     client.withdraw_funds(&tyc_token, &recipient, &500);
-    
+
     let tyc_client = TokenClient::new(&env, &tyc_token);
     assert_eq!(tyc_client.balance(&recipient), 500);
-    
+
     // Verify the contract balance decreased
     assert_eq!(tyc_client.balance(&contract_id), 500);
 }
@@ -90,21 +90,21 @@ fn test_withdraw_tyc_by_owner_success() {
 fn test_withdraw_usdc_by_owner_success() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     let usdc_admin_client = StellarAssetClient::new(&env, &usdc_token);
     usdc_admin_client.mint(&contract_id, &2000);
-    
+
     let recipient = Address::generate(&env);
-    
+
     client.withdraw_funds(&usdc_token, &recipient, &1500);
-    
+
     let usdc_client = TokenClient::new(&env, &usdc_token);
     assert_eq!(usdc_client.balance(&recipient), 1500);
-    
+
     assert_eq!(usdc_client.balance(&contract_id), 500);
 }
 
@@ -113,18 +113,18 @@ fn test_withdraw_usdc_by_owner_success() {
 fn test_withdraw_insufficient_balance_fails() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Mint only 100 TYC tokens to the contract
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
     tyc_admin_client.mint(&contract_id, &100);
-    
+
     let recipient = Address::generate(&env);
-    
+
     // Try to withdraw more than available - should panic
     client.withdraw_funds(&tyc_token, &recipient, &500);
 }
@@ -134,16 +134,16 @@ fn test_withdraw_insufficient_balance_fails() {
 fn test_withdraw_invalid_token_fails() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Try to withdraw a different token (not TYC or USDC)
     let other_token = Address::generate(&env);
     let recipient = Address::generate(&env);
-    
+
     client.withdraw_funds(&other_token, &recipient, &100);
 }
 
@@ -151,27 +151,27 @@ fn test_withdraw_invalid_token_fails() {
 fn test_withdraw_emits_event() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Mint some TYC tokens to the contract
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
     tyc_admin_client.mint(&contract_id, &1000);
-    
+
     let recipient = Address::generate(&env);
-    
+
     // Withdraw funds
     client.withdraw_funds(&tyc_token, &recipient, &500);
-    
+
     // Verify event was emitted
     let events = env.events().all();
     let _event = events.last().unwrap();
-    
+
     // Verify event has the expected topics and data
-    assert!(events.len() > 0);
+    assert!(!events.is_empty());
 }
 
 // ===== VIEW FUNCTION TESTS =====
@@ -180,12 +180,12 @@ fn test_withdraw_emits_event() {
 fn test_get_collectible_info_success() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Set collectible info
     let token_id = 1;
     let perk = 5;
@@ -193,12 +193,19 @@ fn test_get_collectible_info_success() {
     let tyc_price = 1000;
     let usdc_price = 500;
     let shop_stock = 50;
-    
-    client.set_collectible_info(&token_id, &perk, &strength, &tyc_price, &usdc_price, &shop_stock);
-    
+
+    client.set_collectible_info(
+        &token_id,
+        &perk,
+        &strength,
+        &tyc_price,
+        &usdc_price,
+        &shop_stock,
+    );
+
     // Get collectible info
     let info = client.get_collectible_info(&token_id);
-    
+
     // Verify the data
     assert_eq!(info, (perk, strength, tyc_price, usdc_price, shop_stock));
 }
@@ -208,12 +215,12 @@ fn test_get_collectible_info_success() {
 fn test_get_collectible_info_nonexistent() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Try to get a non-existent collectible
     client.get_collectible_info(&999);
 }
@@ -222,17 +229,17 @@ fn test_get_collectible_info_nonexistent() {
 fn test_get_cash_tier_value_success() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Set cash tier values
     client.set_cash_tier_value(&1, &100);
     client.set_cash_tier_value(&2, &500);
     client.set_cash_tier_value(&3, &1000);
-    
+
     // Get cash tier values
     assert_eq!(client.get_cash_tier_value(&1), 100);
     assert_eq!(client.get_cash_tier_value(&2), 500);
@@ -244,12 +251,12 @@ fn test_get_cash_tier_value_success() {
 fn test_get_cash_tier_value_invalid_tier() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // Try to get a non-existent tier
     client.get_cash_tier_value(&999);
 }
@@ -260,39 +267,39 @@ fn test_get_cash_tier_value_invalid_tier() {
 fn test_full_contract_flow() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
-    
+
     // 1. Initialize the contract
     client.initialize(&tyc_token, &usdc_token, &owner);
-    
+
     // 2. Set up collectibles
     client.set_collectible_info(&1, &10, &200, &5000, &2500, &100);
     client.set_collectible_info(&2, &20, &400, &10000, &5000, &50);
-    
+
     // 3. Set up cash tiers
     client.set_cash_tier_value(&1, &1000);
     client.set_cash_tier_value(&2, &5000);
-    
+
     // 4. Verify collectible data
     let info1 = client.get_collectible_info(&1);
     assert_eq!(info1, (10, 200, 5000, 2500, 100));
-    
+
     let info2 = client.get_collectible_info(&2);
     assert_eq!(info2, (20, 400, 10000, 5000, 50));
-    
+
     // 5. Verify cash tier data
     assert_eq!(client.get_cash_tier_value(&1), 1000);
     assert_eq!(client.get_cash_tier_value(&2), 5000);
-    
+
     // 6. Fund the contract and test withdrawal
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
     tyc_admin_client.mint(&contract_id, &10000);
-    
+
     let tyc_client = TokenClient::new(&env, &tyc_token);
     let recipient = Address::generate(&env);
     client.withdraw_funds(&tyc_token, &recipient, &3000);
-    
+
     assert_eq!(tyc_client.balance(&recipient), 3000);
     assert_eq!(tyc_client.balance(&contract_id), 7000);
 }

@@ -1,15 +1,9 @@
-use soroban_sdk::{Address, Env, symbol_short};
 use crate::types::Perk;
+use soroban_sdk::{symbol_short, Address, Env};
 
 /// Emit a transfer event
 /// Similar to ERC-1155's TransferSingle event
-pub fn emit_transfer_event(
-    env: &Env,
-    from: &Address,
-    to: &Address,
-    token_id: u128,
-    amount: u64,
-) {
+pub fn emit_transfer_event(env: &Env, from: &Address, to: &Address, token_id: u128, amount: u64) {
     env.events().publish(
         (symbol_short!("transfer"),),
         (from.clone(), to.clone(), token_id, amount),
@@ -55,5 +49,19 @@ pub fn emit_cash_perk_activated_event(
     env.events().publish(
         (symbol_short!("cash_perk"),),
         (activator.clone(), token_id, cash_value),
+    );
+}
+
+/// Emit a collectible bought event
+pub fn emit_collectible_bought_event(
+    env: &Env,
+    token_id: u128,
+    buyer: &Address,
+    price: i128,
+    use_usdc: bool,
+) {
+    env.events().publish(
+        (symbol_short!("coll_buy"),),
+        (buyer.clone(), token_id, price, use_usdc),
     );
 }
