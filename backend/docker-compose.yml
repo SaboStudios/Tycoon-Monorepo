@@ -16,6 +16,18 @@ services:
     networks:
       - tycoon_network
 
+  redis:
+    image: redis:7-alpine
+    container_name: tycoon_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - tycoon_network
+    command: redis-server --appendonly yes
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: tycoon_pgadmin
@@ -32,6 +44,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   tycoon_network:

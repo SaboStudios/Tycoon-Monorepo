@@ -1,7 +1,11 @@
 use soroban_sdk::{Address, Env, Vec};
+use crate::types::Perk;
 
 const ADMIN_KEY: &str = "ADMIN";
 const BALANCE_PREFIX: &str = "BAL";
+const PAUSED_KEY: &str = "PAUSED";
+const PERK_PREFIX: &str = "PERK";
+const STRENGTH_PREFIX: &str = "STRENGTH";
 const OWNED_TOKENS_PREFIX: &str = "OWNED";
 const TOKEN_INDEX_PREFIX: &str = "TIDX";
 
@@ -20,6 +24,16 @@ pub fn get_admin(env: &Env) -> Address {
     env.storage().instance().get(&ADMIN_KEY).unwrap()
 }
 
+/// Check if contract is paused
+pub fn is_paused(env: &Env) -> bool {
+    env.storage().instance().get(&PAUSED_KEY).unwrap_or(false)
+}
+
+/// Set pause state
+pub fn set_paused(env: &Env, paused: bool) {
+    env.storage().instance().set(&PAUSED_KEY, &paused);
+}
+
 /// Get balance for a specific token
 pub fn get_balance(env: &Env, owner: &Address, token_id: u128) -> u64 {
     let key = (BALANCE_PREFIX, owner.clone(), token_id);
@@ -33,7 +47,10 @@ pub fn set_balance(env: &Env, owner: &Address, token_id: u128, amount: u64) {
         env.storage().persistent().remove(&key);
     } else {
         env.storage().persistent().set(&key, &amount);
-    }
+/// Set strength for a token
+pub fn set_strength(env: &Env, token_id: u128, strength: u32) {
+    let key = (STRENGTH_PREFIX, token_id);
+    env.storage().persistent().set(&key, &strength);
 }
 
 /// Get the owned tokens Vec for an address
