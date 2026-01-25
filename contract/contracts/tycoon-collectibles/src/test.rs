@@ -848,12 +848,41 @@ fn test_multiple_burns_with_different_perks() {
 }
 
 #[test]
+fn test_owned_token_count() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
 fn test_set_backend_minter_unauthorized() {
     let env = Env::default();
     let contract_id = env.register(TycoonCollectibles, ());
     let client = TycoonCollectiblesClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Initially no tokens
+    assert_eq!(client.owned_token_count(&alice), 0);
+    
+    // Buy 3 different tokens
+    client.buy_collectible(&alice, &1, &5);
+    client.buy_collectible(&alice, &2, &3);
+    client.buy_collectible(&alice, &3, &1);
+    
+    // Should have 3 unique tokens
+    assert_eq!(client.owned_token_count(&alice), 3);
+    
+    // Burn one completely
+    client.burn(&alice, &2, &3);
+    assert_eq!(client.owned_token_count(&alice), 2);
+}
+
+#[test]
+fn test_token_of_owner_by_index() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
     let stranger = Address::generate(&env);
 
     client.initialize(&admin);
@@ -872,6 +901,71 @@ fn test_protected_mint_authorized_roles() {
     let client = TycoonCollectiblesClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy tokens in order: 10, 20, 30
+    client.buy_collectible(&alice, &10, &1);
+    client.buy_collectible(&alice, &20, &1);
+    client.buy_collectible(&alice, &30, &1);
+    
+    // Check indexing
+    assert_eq!(client.token_of_owner_by_index(&alice, &0), 10);
+    assert_eq!(client.token_of_owner_by_index(&alice, &1), 20);
+    assert_eq!(client.token_of_owner_by_index(&alice, &2), 30);
+}
+
+#[test]
+fn test_enumeration_swap_remove_behavior() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy tokens: 100, 200, 300, 400
+    client.buy_collectible(&alice, &100, &1);
+    client.buy_collectible(&alice, &200, &1);
+    client.buy_collectible(&alice, &300, &1);
+    client.buy_collectible(&alice, &400, &1);
+    
+    assert_eq!(client.owned_token_count(&alice), 4);
+    
+    // Burn token at index 1 (token 200)
+    // This should swap last element (400) to index 1
+    client.burn(&alice, &200, &1);
+    
+    assert_eq!(client.owned_token_count(&alice), 3);
+    
+    // After swap-remove: [100, 400, 300]
+    let token0 = client.token_of_owner_by_index(&alice, &0);
+    let token1 = client.token_of_owner_by_index(&alice, &1);
+    let token2 = client.token_of_owner_by_index(&alice, &2);
+    
+    // Verify no duplicates and correct tokens remain
+    assert!(token0 == 100 || token0 == 400 || token0 == 300);
+    assert!(token1 == 100 || token1 == 400 || token1 == 300);
+    assert!(token2 == 100 || token2 == 400 || token2 == 300);
+    
+    // Verify 200 is gone
+    let tokens = client.tokens_of(&alice);
+    assert!(!tokens.contains(&200));
+    assert!(tokens.contains(&100));
+    assert!(tokens.contains(&300));
+    assert!(tokens.contains(&400));
+}
+
+#[test]
+fn test_complex_ownership_scenario() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
     let minter = Address::generate(&env);
     let user = Address::generate(&env);
 
@@ -895,6 +989,83 @@ fn test_protected_mint_rejection() {
     let client = TycoonCollectiblesClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let charlie = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Complex scenario: multiple mints, transfers, burns
+    
+    // Alice buys tokens 1, 2, 3, 4, 5
+    for i in 1..=5 {
+        client.buy_collectible(&alice, &i, &10);
+    }
+    assert_eq!(client.owned_token_count(&alice), 5);
+    
+    // Alice transfers token 2 to Bob (partial)
+    client.transfer(&alice, &bob, &2, &5);
+    assert_eq!(client.owned_token_count(&alice), 5); // Still owns token 2
+    assert_eq!(client.owned_token_count(&bob), 1);
+    
+    // Alice transfers remaining token 2 to Bob
+    client.transfer(&alice, &bob, &2, &5);
+    assert_eq!(client.owned_token_count(&alice), 4); // Lost token 2
+    assert_eq!(client.owned_token_count(&bob), 1); // Still has token 2
+    
+    // Bob transfers token 2 to Charlie
+    client.transfer(&bob, &charlie, &2, &10);
+    assert_eq!(client.owned_token_count(&bob), 0);
+    assert_eq!(client.owned_token_count(&charlie), 1);
+    
+    // Alice burns token 4 completely
+    client.burn(&alice, &4, &10);
+    assert_eq!(client.owned_token_count(&alice), 3);
+    
+    // Verify final state
+    let alice_tokens = client.tokens_of(&alice);
+    assert_eq!(alice_tokens.len(), 3);
+    assert!(!alice_tokens.contains(&2));
+    assert!(!alice_tokens.contains(&4));
+    
+    let charlie_tokens = client.tokens_of(&charlie);
+    assert_eq!(charlie_tokens.len(), 1);
+    assert_eq!(charlie_tokens.get(0).unwrap(), 2);
+}
+
+#[test]
+fn test_no_duplicate_entries() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy same token multiple times (increasing balance)
+    client.buy_collectible(&alice, &1, &5);
+    client.buy_collectible(&alice, &1, &3);
+    client.buy_collectible(&alice, &1, &2);
+    
+    // Should only appear once in enumeration
+    let tokens = client.tokens_of(&alice);
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens.get(0).unwrap(), 1);
+    assert_eq!(client.owned_token_count(&alice), 1);
+    
+    // Balance should be cumulative
+    assert_eq!(client.balance_of(&alice, &1), 10);
+}
+
+#[test]
+fn test_enumeration_after_complete_burn() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
     let user = Address::generate(&env);
     let stranger = Address::generate(&env);
 
@@ -917,6 +1088,66 @@ fn test_minter_event_emission() {
     let client = TycoonCollectiblesClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy 5 tokens
+    client.buy_collectible(&alice, &1, &10);
+    client.buy_collectible(&alice, &2, &10);
+    client.buy_collectible(&alice, &3, &10);
+    client.buy_collectible(&alice, &4, &10);
+    client.buy_collectible(&alice, &5, &10);
+    
+    assert_eq!(client.owned_token_count(&alice), 5);
+    
+    // Burn all tokens completely
+    client.burn(&alice, &1, &10);
+    client.burn(&alice, &2, &10);
+    client.burn(&alice, &3, &10);
+    client.burn(&alice, &4, &10);
+    client.burn(&alice, &5, &10);
+    
+    // Should have no tokens
+    assert_eq!(client.owned_token_count(&alice), 0);
+    let tokens = client.tokens_of(&alice);
+    assert_eq!(tokens.len(), 0);
+}
+
+#[test]
+fn test_partial_transfers_maintain_enumeration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Alice buys 100 of token 1
+    client.buy_collectible(&alice, &1, &100);
+    assert_eq!(client.owned_token_count(&alice), 1);
+    
+    // Alice transfers 30 to Bob (still has 70)
+    client.transfer(&alice, &bob, &1, &30);
+    
+    // Both should have the token in enumeration
+    assert_eq!(client.owned_token_count(&alice), 1);
+    assert_eq!(client.owned_token_count(&bob), 1);
+    
+    // Alice transfers another 40 (still has 30)
+    client.transfer(&alice, &bob, &1, &40);
+    assert_eq!(client.owned_token_count(&alice), 1);
+    assert_eq!(client.owned_token_count(&bob), 1);
+    
+    // Alice transfers final 30 (now has 0)
+    client.transfer(&alice, &bob, &1, &30);
+    assert_eq!(client.owned_token_count(&alice), 0);
+    assert_eq!(client.owned_token_count(&bob), 1);
     let minter = Address::generate(&env);
 
     client.initialize(&admin);

@@ -1,3 +1,4 @@
+use soroban_sdk::{Address, Env, Vec};
 use crate::types::Perk;
 use soroban_sdk::{Address, Env};
 
@@ -7,6 +8,8 @@ const BALANCE_PREFIX: &str = "BAL";
 const PAUSED_KEY: &str = "PAUSED";
 const PERK_PREFIX: &str = "PERK";
 const STRENGTH_PREFIX: &str = "STRENGTH";
+const OWNED_TOKENS_PREFIX: &str = "OWNED";
+const TOKEN_INDEX_PREFIX: &str = "TIDX";
 
 /// Check if admin is set
 pub fn has_admin(env: &Env) -> bool {
@@ -46,31 +49,47 @@ pub fn set_balance(env: &Env, owner: &Address, token_id: u128, amount: u64) {
         env.storage().persistent().remove(&key);
     } else {
         env.storage().persistent().set(&key, &amount);
-    }
-}
-
-/// Get perk for a token
-pub fn get_perk(env: &Env, token_id: u128) -> Perk {
-    let key = (PERK_PREFIX, token_id);
-    env.storage().persistent().get(&key).unwrap_or(Perk::None)
-}
-
-/// Set perk for a token
-pub fn set_perk(env: &Env, token_id: u128, perk: Perk) {
-    let key = (PERK_PREFIX, token_id);
-    env.storage().persistent().set(&key, &perk);
-}
-
-/// Get strength for a token
-pub fn get_strength(env: &Env, token_id: u128) -> u32 {
-    let key = (STRENGTH_PREFIX, token_id);
-    env.storage().persistent().get(&key).unwrap_or(0)
-}
-
 /// Set strength for a token
 pub fn set_strength(env: &Env, token_id: u128, strength: u32) {
     let key = (STRENGTH_PREFIX, token_id);
     env.storage().persistent().set(&key, &strength);
+}
+
+/// Get the owned tokens Vec for an address
+pub fn get_owned_tokens_vec(env: &Env, owner: &Address) -> Vec<u128> {
+    let key = (OWNED_TOKENS_PREFIX, owner.clone());
+    env.storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(env))
+}
+
+/// Set the owned tokens Vec for an address
+pub fn set_owned_tokens_vec(env: &Env, owner: &Address, tokens: &Vec<u128>) {
+    let key = (OWNED_TOKENS_PREFIX, owner.clone());
+    if tokens.is_empty() {
+        env.storage().persistent().remove(&key);
+    } else {
+        env.storage().persistent().set(&key, tokens);
+    }
+}
+
+/// Get the index of a token in an owner's token list
+pub fn get_token_index(env: &Env, owner: &Address, token_id: u128) -> Option<u32> {
+    let key = (TOKEN_INDEX_PREFIX, owner.clone(), token_id);
+    env.storage().persistent().get(&key)
+}
+
+/// Set the index of a token in an owner's token list
+pub fn set_token_index(env: &Env, owner: &Address, token_id: u128, index: u32) {
+    let key = (TOKEN_INDEX_PREFIX, owner.clone(), token_id);
+    env.storage().persistent().set(&key, &index);
+}
+
+/// Remove the index entry for a token
+pub fn remove_token_index(env: &Env, owner: &Address, token_id: u128) {
+    let key = (TOKEN_INDEX_PREFIX, owner.clone(), token_id);
+    env.storage().persistent().remove(&key);
 }
 
 // ========================
