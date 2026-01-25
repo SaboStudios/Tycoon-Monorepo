@@ -5,6 +5,7 @@ import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationService, PaginationDto, PaginatedResponse } from '../../common';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class UsersService {
@@ -12,6 +13,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
+    private readonly redisService: RedisService,
   ) { }
 
   /**
@@ -19,7 +21,12 @@ export class UsersService {
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
     const user = this.userRepository.create(createUserDto);
-    return await this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
+    
+    // Invalidate users list cache
+    await this.invalidateUsersCache();
+    
+    return savedUser;
   }
 
   /**
@@ -55,7 +62,13 @@ export class UsersService {
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
     Object.assign(user, updateUserDto);
-    return await this.userRepository.save(user);
+    const updatedUser = await this.userRepository.save(user);
+    
+    // Invalidate cache for this user and users list
+    await this.invalidateUserCache(id);
+    await this.invalidateUsersCache();
+    
+    return updatedUser;
   }
 
   /**
@@ -64,5 +77,23 @@ export class UsersService {
   async remove(id: string): Promise<void> {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
+    
+    // Invalidate cache for this user and users list
+    await this.invalidateUserCache(id);
+    await this.invalidateUsersCache();
+  }
+
+  /**
+   * Invalidate cache for a specific user
+   */
+  private async invalidateUserCache(userId: string): Promise<void> {
+    await this.redisService.del(`cache:GET:/api/v1/users/${userId}:*`);
+  }
+
+  /**
+   * Invalidate cache for users list
+   */
+  private async invalidateUsersCache(): Promise<void> {
+    await this.redisService.del('cache:GET:/api/v1/users:*');
   }
 }

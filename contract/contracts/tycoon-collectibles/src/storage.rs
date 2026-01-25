@@ -1,8 +1,12 @@
+use crate::types::Perk;
 use soroban_sdk::{Address, Env};
 
 const ADMIN_KEY: &str = "ADMIN";
 const MINTER_KEY: &str = "MINTER";
 const BALANCE_PREFIX: &str = "BAL";
+const PAUSED_KEY: &str = "PAUSED";
+const PERK_PREFIX: &str = "PERK";
+const STRENGTH_PREFIX: &str = "STRENGTH";
 
 /// Check if admin is set
 pub fn has_admin(env: &Env) -> bool {
@@ -19,6 +23,16 @@ pub fn get_admin(env: &Env) -> Address {
     env.storage().instance().get(&ADMIN_KEY).unwrap()
 }
 
+/// Check if contract is paused
+pub fn is_paused(env: &Env) -> bool {
+    env.storage().instance().get(&PAUSED_KEY).unwrap_or(false)
+}
+
+/// Set pause state
+pub fn set_paused(env: &Env, paused: bool) {
+    env.storage().instance().set(&PAUSED_KEY, &paused);
+}
+
 /// Get balance for a specific token
 pub fn get_balance(env: &Env, owner: &Address, token_id: u128) -> u64 {
     let key = (BALANCE_PREFIX, owner.clone(), token_id);
@@ -33,6 +47,83 @@ pub fn set_balance(env: &Env, owner: &Address, token_id: u128, amount: u64) {
     } else {
         env.storage().persistent().set(&key, &amount);
     }
+}
+
+/// Get perk for a token
+pub fn get_perk(env: &Env, token_id: u128) -> Perk {
+    let key = (PERK_PREFIX, token_id);
+    env.storage().persistent().get(&key).unwrap_or(Perk::None)
+}
+
+/// Set perk for a token
+pub fn set_perk(env: &Env, token_id: u128, perk: Perk) {
+    let key = (PERK_PREFIX, token_id);
+    env.storage().persistent().set(&key, &perk);
+}
+
+/// Get strength for a token
+pub fn get_strength(env: &Env, token_id: u128) -> u32 {
+    let key = (STRENGTH_PREFIX, token_id);
+    env.storage().persistent().get(&key).unwrap_or(0)
+}
+
+/// Set strength for a token
+pub fn set_strength(env: &Env, token_id: u128, strength: u32) {
+    let key = (STRENGTH_PREFIX, token_id);
+    env.storage().persistent().set(&key, &strength);
+}
+
+// ========================
+// Shop Storage Functions
+// ========================
+
+use crate::types::{CollectiblePrice, ShopConfig};
+
+const SHOP_CONFIG_KEY: &str = "SHOP_CFG";
+const PRICE_PREFIX: &str = "PRICE";
+const STOCK_PREFIX: &str = "STOCK";
+
+/// Check if shop configuration is set
+pub fn has_shop_config(env: &Env) -> bool {
+    env.storage().instance().has(&SHOP_CONFIG_KEY)
+}
+
+/// Set shop configuration (token addresses)
+pub fn set_shop_config(env: &Env, config: &ShopConfig) {
+    env.storage().instance().set(&SHOP_CONFIG_KEY, config);
+}
+
+/// Get shop configuration
+pub fn get_shop_config(env: &Env) -> Option<ShopConfig> {
+    env.storage().instance().get(&SHOP_CONFIG_KEY)
+}
+
+/// Set price for a collectible
+pub fn set_collectible_price(env: &Env, token_id: u128, price: &CollectiblePrice) {
+    let key = (PRICE_PREFIX, token_id);
+    env.storage().persistent().set(&key, price);
+}
+
+/// Get price for a collectible
+pub fn get_collectible_price(env: &Env, token_id: u128) -> Option<CollectiblePrice> {
+    let key = (PRICE_PREFIX, token_id);
+    env.storage().persistent().get(&key)
+}
+
+/// Set shop stock for a collectible
+pub fn set_shop_stock(env: &Env, token_id: u128, amount: u64) {
+    let key = (STOCK_PREFIX, token_id);
+    if amount == 0 {
+        env.storage().persistent().remove(&key);
+    } else {
+        env.storage().persistent().set(&key, &amount);
+    }
+}
+
+/// Get shop stock for a collectible
+pub fn get_shop_stock(env: &Env, token_id: u128) -> u64 {
+    let key = (STOCK_PREFIX, token_id);
+    env.storage().persistent().get(&key).unwrap_or(0)
 }
 
 pub fn set_minter(env: &Env, minter: &Address) {

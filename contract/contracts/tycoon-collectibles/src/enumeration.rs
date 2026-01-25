@@ -12,7 +12,7 @@ pub fn add_token_to_owner(env: &Env, owner: &Address, token_id: u128) {
         .unwrap_or(Vec::new(env));
 
     // Only add if not already present
-    if !tokens.contains(&token_id) {
+    if !tokens.contains(token_id) {
         tokens.push_back(token_id);
         env.storage().persistent().set(&key, &tokens);
     }

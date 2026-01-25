@@ -128,8 +128,13 @@ pub fn _safe_burn(
     }
 
     // Emit burn event
-    env.events()
-        .publish((symbol_short!("burn"),), (from.clone(), token_id, amount));
+    crate::events::emit_transfer_event(
+        env,
+        from,
+        &env.current_contract_address(),
+        token_id,
+        amount,
+    );
 
     Ok(())
 }
