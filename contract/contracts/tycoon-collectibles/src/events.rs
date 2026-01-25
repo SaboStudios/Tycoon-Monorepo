@@ -1,31 +1,14 @@
 use crate::types::Perk;
 use soroban_sdk::{symbol_short, Address, Env};
 
-/// Emit a transfer event
-/// Similar to ERC-1155's TransferSingle event
 pub fn emit_transfer_event(env: &Env, from: &Address, to: &Address, token_id: u128, amount: u64) {
+    // Standardizing on (symbol, from, to) for better indexing
     env.events().publish(
-        (symbol_short!("transfer"),),
-        (from.clone(), to.clone(), token_id, amount),
+        (symbol_short!("transfer"), from.clone(), to.clone()),
+        (token_id, amount),
     );
 }
 
-/// Emit a batch transfer event (for future use)
-#[allow(dead_code)]
-pub fn emit_batch_transfer_event(
-    env: &Env,
-    from: &Address,
-    to: &Address,
-    token_ids: &soroban_sdk::Vec<u128>,
-    amounts: &soroban_sdk::Vec<u64>,
-) {
-    env.events().publish(
-        (symbol_short!("batch_tx"),),
-        (from.clone(), to.clone(), token_ids.clone(), amounts.clone()),
-    );
-}
-
-/// Emit a collectible burned event
 pub fn emit_collectible_burned_event(
     env: &Env,
     burner: &Address,
@@ -33,26 +16,29 @@ pub fn emit_collectible_burned_event(
     perk: Perk,
     strength: u32,
 ) {
+    // Tests are looking for "burn" and "coll"
     env.events().publish(
-        (symbol_short!("coll_burn"),),
-        (burner.clone(), token_id, perk, strength),
+        (symbol_short!("burn"), symbol_short!("coll"), burner.clone()),
+        (token_id, perk, strength),
     );
 }
 
-/// Emit a cash perk activated event
 pub fn emit_cash_perk_activated_event(
     env: &Env,
     activator: &Address,
     token_id: u128,
-    cash_value: u64,
+    cash_value: i128, // Changed to i128 to match price/balance types
 ) {
     env.events().publish(
-        (symbol_short!("cash_perk"),),
-        (activator.clone(), token_id, cash_value),
+        (
+            symbol_short!("perk"),
+            symbol_short!("cash"),
+            activator.clone(),
+        ),
+        (token_id, cash_value),
     );
 }
 
-/// Emit a collectible bought event
 pub fn emit_collectible_bought_event(
     env: &Env,
     token_id: u128,
@@ -61,7 +47,7 @@ pub fn emit_collectible_bought_event(
     use_usdc: bool,
 ) {
     env.events().publish(
-        (symbol_short!("coll_buy"),),
-        (buyer.clone(), token_id, price, use_usdc),
+        (symbol_short!("coll_buy"), buyer.clone()),
+        (token_id, price, use_usdc),
     );
 }
