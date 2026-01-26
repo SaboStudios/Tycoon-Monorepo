@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -21,6 +22,7 @@ import { HealthController } from './health/health.controller';
       isGlobal: true,
       load: [appConfig, databaseConfig, redisConfig],
       envFilePath: '.env',
+      validationSchema,
     }),
 
     // Rate Limiting
@@ -60,4 +62,4 @@ import { HealthController } from './health/health.controller';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
