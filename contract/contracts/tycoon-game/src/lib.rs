@@ -4,7 +4,7 @@ mod events;
 mod storage;
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env};
-use storage::{CollectibleInfo, get_owner, get_tyc_token, get_usdc_token};
+use storage::{get_owner, get_tyc_token, get_usdc_token, CollectibleInfo};
 
 #[contract]
 pub struct TycoonContract;
@@ -12,12 +12,7 @@ pub struct TycoonContract;
 #[contractimpl]
 impl TycoonContract {
     /// Initialize the contract with token addresses and owner
-    pub fn initialize(
-        env: Env,
-        tyc_token: Address,
-        usdc_token: Address,
-        initial_owner: Address,
-    ) {
+    pub fn initialize(env: Env, tyc_token: Address, usdc_token: Address, initial_owner: Address) {
         if storage::is_initialized(&env) {
             panic!("Contract already initialized");
         }
@@ -75,7 +70,7 @@ impl TycoonContract {
             None => panic!("Cash tier does not exist"),
         }
     }
-    
+
     pub fn set_collectible_info(
         env: Env,
         token_id: u128,

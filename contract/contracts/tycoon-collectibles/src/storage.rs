@@ -1,6 +1,5 @@
-use soroban_sdk::{Address, Env, Vec};
 use crate::types::Perk;
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, Vec};
 
 const ADMIN_KEY: &str = "ADMIN";
 const MINTER_KEY: &str = "MINTER";
@@ -10,6 +9,7 @@ const PERK_PREFIX: &str = "PERK";
 const STRENGTH_PREFIX: &str = "STRENGTH";
 const OWNED_TOKENS_PREFIX: &str = "OWNED";
 const TOKEN_INDEX_PREFIX: &str = "TIDX";
+const NEXT_TOKEN_ID_KEY: &str = "NEXT_TID";
 
 /// Check if admin is set
 pub fn has_admin(env: &Env) -> bool {
@@ -49,10 +49,31 @@ pub fn set_balance(env: &Env, owner: &Address, token_id: u128, amount: u64) {
         env.storage().persistent().remove(&key);
     } else {
         env.storage().persistent().set(&key, &amount);
+    }
+}
+
+/// Set perk for a token
+pub fn set_perk(env: &Env, token_id: u128, perk: Perk) {
+    let key = (PERK_PREFIX, token_id);
+    env.storage().persistent().set(&key, &perk);
+}
+
+/// Get perk for a token
+pub fn get_perk(env: &Env, token_id: u128) -> Perk {
+    let key = (PERK_PREFIX, token_id);
+    env.storage().persistent().get(&key).unwrap_or(Perk::None)
+}
+
 /// Set strength for a token
 pub fn set_strength(env: &Env, token_id: u128, strength: u32) {
     let key = (STRENGTH_PREFIX, token_id);
     env.storage().persistent().set(&key, &strength);
+}
+
+/// Get strength for a token
+pub fn get_strength(env: &Env, token_id: u128) -> u32 {
+    let key = (STRENGTH_PREFIX, token_id);
+    env.storage().persistent().get(&key).unwrap_or(0)
 }
 
 /// Get the owned tokens Vec for an address
@@ -151,4 +172,24 @@ pub fn set_minter(env: &Env, minter: &Address) {
 
 pub fn get_minter(env: &Env) -> Option<Address> {
     env.storage().instance().get(&MINTER_KEY)
+}
+
+/// Get the next available token ID
+pub fn get_next_token_id(env: &Env) -> u128 {
+    env.storage()
+        .instance()
+        .get(&NEXT_TOKEN_ID_KEY)
+        .unwrap_or(1)
+}
+
+/// Set the next available token ID
+pub fn set_next_token_id(env: &Env, token_id: u128) {
+    env.storage().instance().set(&NEXT_TOKEN_ID_KEY, &token_id);
+}
+
+/// Increment and return the next token ID
+pub fn increment_token_id(env: &Env) -> u128 {
+    let current = get_next_token_id(env);
+    set_next_token_id(env, current + 1);
+    current
 }

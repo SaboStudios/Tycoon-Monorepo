@@ -47,6 +47,141 @@ impl TycoonCollectibles {
         Ok(())
     }
 
+    /// Stock new collectible type (admin only)
+    /// Creates a new token_id and mints initial supply to contract
+    pub fn stock_shop(
+        env: Env,
+        amount: u64,
+        perk: u32,
+        strength: u32,
+        tyc_price: u128,
+        usdc_price: u128,
+    ) -> Result<u128, CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        // Validate inputs
+        if amount == 0 {
+            return Err(CollectibleError::InvalidAmount);
+        }
+
+        // Validate perk (0-4 are valid enum values)
+        if perk > 4 {
+            return Err(CollectibleError::InvalidPerk);
+        }
+
+        // Validate strength for tiered perks
+        let perk_enum: Perk = match perk {
+            0 => Perk::None,
+            1 => Perk::CashTiered,
+            2 => Perk::TaxRefund,
+            3 => Perk::RentBoost,
+            4 => Perk::PropertyDiscount,
+            _ => return Err(CollectibleError::InvalidPerk),
+        };
+
+        if matches!(perk_enum, Perk::CashTiered | Perk::TaxRefund) {
+            if !(1..=5).contains(&strength) {
+                return Err(CollectibleError::InvalidStrength);
+            }
+        }
+
+        // Generate new token_id
+        let token_id = increment_token_id(&env);
+
+        // Store perk and strength
+        set_perk(&env, token_id, perk_enum);
+        set_strength(&env, token_id, strength);
+
+        // Store prices
+        let price = CollectiblePrice {
+            tyc_price: tyc_price as i128,
+            usdc_price: usdc_price as i128,
+        };
+        set_collectible_price(&env, token_id, &price);
+
+        // Mint to contract address (shop inventory)
+        let contract_address = env.current_contract_address();
+        _safe_mint(&env, &contract_address, token_id, amount)?;
+
+        // Set stock tracking
+        set_shop_stock(&env, token_id, amount);
+
+        // Emit event
+        emit_collectible_stocked_event(
+            &env, token_id, amount, perk, strength, tyc_price, usdc_price,
+        );
+
+        Ok(token_id)
+    }
+
+    /// Restock existing collectible (admin only)
+    pub fn restock_collectible(
+        env: Env,
+        token_id: u128,
+        additional_amount: u64,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        if additional_amount == 0 {
+            return Err(CollectibleError::InvalidAmount);
+        }
+
+        // Verify token exists by checking if it has a price
+        if get_collectible_price(&env, token_id).is_none() {
+            return Err(CollectibleError::TokenNotFound);
+        }
+
+        // Verify it's a collectible (has a perk)
+        let perk = get_perk(&env, token_id);
+        if matches!(perk, Perk::None) && get_shop_stock(&env, token_id) == 0 {
+            return Err(CollectibleError::TokenNotFound);
+        }
+
+        // Mint additional units to contract address
+        let contract_address = env.current_contract_address();
+        _safe_mint(&env, &contract_address, token_id, additional_amount)?;
+
+        // Update stock
+        let current_stock = get_shop_stock(&env, token_id);
+        let new_stock = current_stock + additional_amount;
+        set_shop_stock(&env, token_id, new_stock);
+
+        // Emit event
+        emit_collectible_restocked_event(&env, token_id, additional_amount, new_stock);
+
+        Ok(())
+    }
+
+    /// Update collectible prices (admin only)
+    pub fn update_collectible_prices(
+        env: Env,
+        token_id: u128,
+        new_tyc_price: u128,
+        new_usdc_price: u128,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        // Verify token exists
+        if get_collectible_price(&env, token_id).is_none() {
+            return Err(CollectibleError::TokenNotFound);
+        }
+
+        // Update prices
+        let price = CollectiblePrice {
+            tyc_price: new_tyc_price as i128,
+            usdc_price: new_usdc_price as i128,
+        };
+        set_collectible_price(&env, token_id, &price);
+
+        // Emit event
+        emit_price_updated_event(&env, token_id, new_tyc_price, new_usdc_price);
+
+        Ok(())
+    }
+
     /// Set a collectible for sale in the shop (admin only)
     pub fn set_collectible_for_sale(
         env: Env,

@@ -51,3 +51,42 @@ pub fn emit_collectible_bought_event(
         (token_id, price, use_usdc),
     );
 }
+
+pub fn emit_collectible_stocked_event(
+    env: &Env,
+    token_id: u128,
+    amount: u64,
+    perk: u32,
+    strength: u32,
+    tyc_price: u128,
+    usdc_price: u128,
+) {
+    env.events().publish(
+        (symbol_short!("stock"), symbol_short!("new")),
+        (token_id, amount, perk, strength, tyc_price, usdc_price),
+    );
+}
+
+pub fn emit_collectible_restocked_event(
+    env: &Env,
+    token_id: u128,
+    additional_amount: u64,
+    new_total: u64,
+) {
+    env.events().publish(
+        (symbol_short!("restock"),),
+        (token_id, additional_amount, new_total),
+    );
+}
+
+pub fn emit_price_updated_event(
+    env: &Env,
+    token_id: u128,
+    new_tyc_price: u128,
+    new_usdc_price: u128,
+) {
+    env.events().publish(
+        (symbol_short!("price"), symbol_short!("update")),
+        (token_id, new_tyc_price, new_usdc_price),
+    );
+}
