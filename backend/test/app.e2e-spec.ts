@@ -30,15 +30,14 @@ describe('AppController (e2e)', () => {
       ],
       controllers: [AppController],
       providers: [AppService],
-    })
-      .compile();
+    }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
   });
 
   it('/ (GET)', () => {
-    return request(app.getHttpServer())
+    return request(app.getHttpServer() as Parameters<typeof request>[0])
       .get('/')
       .expect(200)
       .expect('Hello World!');

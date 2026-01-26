@@ -5,7 +5,11 @@ import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { PaginationService, PaginationDto, PaginatedResponse } from '../../common';
+import {
+  PaginationService,
+  PaginationDto,
+  PaginatedResponse,
+} from '../../common';
 import { RedisService } from '../redis/redis.service';
 
 @Injectable()
@@ -15,7 +19,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   /**
    * Create a new user
@@ -33,20 +37,26 @@ export class UsersService {
     });
     
     const savedUser = await this.userRepository.save(user);
-    
+
     // Invalidate users list cache
     await this.invalidateUsersCache();
-    
+
     return savedUser;
   }
 
   /**
    * Get all users with pagination, sorting, and filtering
    */
-  async findAll(paginationDto: PaginationDto): Promise<PaginatedResponse<User>> {
+  async findAll(
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<User>> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
     const searchableFields = ['email', 'firstName', 'lastName'];
-    return await this.paginationService.paginate(queryBuilder, paginationDto, searchableFields);
+    return await this.paginationService.paginate(
+      queryBuilder,
+      paginationDto,
+      searchableFields,
+    );
   }
 
   /**
@@ -74,11 +84,11 @@ export class UsersService {
     const user = await this.findOne(id);
     Object.assign(user, updateUserDto);
     const updatedUser = await this.userRepository.save(user);
-    
+
     // Invalidate cache for this user and users list
     await this.invalidateUserCache(id);
     await this.invalidateUsersCache();
-    
+
     return updatedUser;
   }
 
@@ -88,7 +98,7 @@ export class UsersService {
   async remove(id: number): Promise<void> {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
-    
+
     // Invalidate cache for this user and users list
     await this.invalidateUserCache(id);
     await this.invalidateUsersCache();

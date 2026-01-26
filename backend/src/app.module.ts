@@ -59,6 +59,8 @@ import { PropertiesModule } from './modules/properties/properties.module';
     CommonModule,
     UsersModule,
     AuthModule,
+
+    PropertiesModule,
     ChanceModule,
   ],
   controllers: [AppController, HealthController],
