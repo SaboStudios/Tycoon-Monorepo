@@ -22,6 +22,7 @@ import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
+import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 
 @Module({
   imports: [
@@ -59,7 +60,9 @@ import { PropertiesModule } from './modules/properties/properties.module';
     CommonModule,
     UsersModule,
     AuthModule,
+    AuthModule,
     ChanceModule,
+    CommunityChestModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -79,4 +82,4 @@ import { PropertiesModule } from './modules/properties/properties.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
