@@ -1,8 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
 
 const VOUCHER_ID_START: u128 = 1_000_000_000;
-const COLLECTIBLE_ID_START: u128 = 2_000_000_000;
 
 #[contracttype]
 #[derive(Clone)]
@@ -18,6 +17,9 @@ pub enum DataKey {
     // TokenID -> Price
     CollectibleTyc(u128),
     CollectibleUsdc(u128),
+    Admin,
+    TycToken,
+    VoucherCount,
 }
 
 #[contract]
@@ -25,21 +27,92 @@ pub struct TycoonRewardSystem;
 
 #[contractimpl]
 impl TycoonRewardSystem {
-    // Internal helper to mint tokens
-    // Note: In a real contract, this would be private or protected by admin checks.
-    // For this task, we expose it via internal helpers that 'would be reused'.
-    // Since we can't export private functions easily in the contractimpl block for other contracts to usage
-    // unless strictly internal, we'll keep them here.
-    // However, the prompt asks for "internal mint, burn, and balance query helpers".
-    // I will implement internal functions outside of the `[contractimpl]` where possible or private inside it.
-    // But `contractimpl` doesn't support private methods effectively for on-chain exposure.
-    // I will implement them as private Rust functions that the contract methods use.
+    pub fn initialize(e: Env, admin: Address, tyc_token: Address) {
+        if e.storage().persistent().has(&DataKey::Admin) {
+            panic!("Already initialized");
+        }
+        e.storage().persistent().set(&DataKey::Admin, &admin);
+        e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherCount, &VOUCHER_ID_START);
+    }
 
+    pub fn mint_voucher(e: Env, to: Address, tyc_value: u128) -> u128 {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        admin.require_auth();
+
+        let mut current_id: u128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::VoucherCount)
+            .unwrap_or(VOUCHER_ID_START);
+        let token_id = current_id;
+        current_id += 1;
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherCount, &current_id);
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherValue(token_id), &tyc_value);
+
+        Self::_mint(&e, to.clone(), token_id, 1);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("V_Mint"), to, token_id), tyc_value);
+
+        token_id
+    }
+
+    pub fn redeem_voucher(_e: Env, _token_id: u128) {
+        // Wrapper entry point that panics directing to redeem_voucher_from
+        panic!("Use redeem_voucher_from instead");
+    }
+
+    pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128) {
+        redeemer.require_auth();
+
+        let tyc_value: u128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::VoucherValue(token_id))
+            .expect("Invalid token_id");
+
+        // Burn the voucher (amount=1)
+        Self::_burn(&e, redeemer.clone(), token_id, 1);
+
+        // Transfer TYC
+        let tyc_token: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::TycToken)
+            .expect("Not initialized");
+        let client = soroban_sdk::token::Client::new(&e, &tyc_token);
+
+        // Transfer from Contract to Redeemer
+        let contract_address = e.current_contract_address();
+        client.transfer(&contract_address, &redeemer, &(tyc_value as i128));
+
+        // Delete storage
+        e.storage()
+            .persistent()
+            .remove(&DataKey::VoucherValue(token_id));
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("Redeem"), redeemer, token_id), tyc_value);
+    }
+
+    // Internal helper to mint tokens
     pub fn get_balance(e: Env, owner: Address, token_id: u128) -> u64 {
         Self::balance_of(&e, owner, token_id)
     }
-
-    // Explicitly implementing the "Internal" logic as private functions or just standard functions
 }
 
 impl TycoonRewardSystem {
@@ -57,6 +130,7 @@ impl TycoonRewardSystem {
 
         e.storage().persistent().set(&key, &new_balance);
 
+        #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Mint"), to, token_id), amount);
     }
@@ -75,6 +149,7 @@ impl TycoonRewardSystem {
         let new_balance = current_balance - amount;
         e.storage().persistent().set(&key, &new_balance);
 
+        #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Burn"), from, token_id), amount);
     }
@@ -85,8 +160,6 @@ impl TycoonRewardSystem {
     }
 }
 
-// Exposing some functions for testing purposes within the contract
-// (In a real scenario we'd have a public interface calling these)
 #[contractimpl]
 impl TycoonRewardSystem {
     // Public wrapper for testing mint

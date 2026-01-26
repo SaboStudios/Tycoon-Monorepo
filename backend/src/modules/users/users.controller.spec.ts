@@ -4,6 +4,8 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { RedisRateLimitGuard } from '../../common/guards/redis-rate-limit.guard';
+import { Reflector } from '@nestjs/core';
 
 describe('UsersController', () => {
     let controller: UsersController;
@@ -25,8 +27,17 @@ describe('UsersController', () => {
                     provide: UsersService,
                     useValue: service,
                 },
+                {
+                    provide: Reflector,
+                    useValue: {
+                        getAllAndOverride: jest.fn(),
+                    },
+                },
             ],
-        }).compile();
+        })
+            .overrideGuard(RedisRateLimitGuard)
+            .useValue({ canActivate: jest.fn(() => true) })
+            .compile();
 
         controller = module.get<UsersController>(UsersController);
     });
