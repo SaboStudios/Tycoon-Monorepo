@@ -17,16 +17,20 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(
+    email: string,
+    password: string,
+  ): Promise<{ id: string; email: string; role: string } | null> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
-      const { password: _, ...result } = user;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password: _password, ...result } = user;
       return result;
     }
     return null;
   }
 
-  async login(user: any) {
+  async login(user: { id: string; email: string; role: string }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(user.id);
@@ -37,7 +41,7 @@ export class AuthService {
     };
   }
 
-  async createRefreshToken(userId: string): Promise<RefreshToken> {
+  async createRefreshToken(userId: number): Promise<RefreshToken> {
     const refreshExpiresInSeconds = this.configService.get<number>('jwt.refreshExpiresIn') || 604800;
     const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
@@ -85,7 +89,7 @@ export class AuthService {
     };
   }
 
-  async logout(userId: string): Promise<void> {
+  async logout(userId: number): Promise<void> {
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
       { isRevoked: true },

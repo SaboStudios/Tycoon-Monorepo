@@ -61,6 +61,8 @@ import { CommunityChestModule } from './modules/community-chest/community-chest.
     UsersModule,
     AuthModule,
     AuthModule,
+
+    PropertiesModule,
     ChanceModule,
     CommunityChestModule,
   ],
