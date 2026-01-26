@@ -1,8 +1,10 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -20,9 +22,13 @@ async function bootstrap() {
     }),
   );
 
+  // Global Exception Filter
+  const httpAdapterHost = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapterHost));
+
   // CORS configuration
   app.enableCors({
-    origin: configService.get('app.corsOrigin'),
+    origin: configService.get<string>('app.corsOrigin'),
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
@@ -38,4 +44,4 @@ async function bootstrap() {
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/${apiPrefix}`);
 }
-bootstrap();
+void bootstrap();

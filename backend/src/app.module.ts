@@ -10,12 +10,19 @@ import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import { CommonModule, ResponseInterceptor, HttpExceptionFilter } from './common';
+import {
+  CommonModule,
+  ResponseInterceptor,
+  HttpExceptionFilter,
+} from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { HealthController } from './health/health.controller';
+import { PropertiesModule } from './modules/properties/properties.module';
+import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 
 @Module({
   imports: [
@@ -28,10 +35,12 @@ import { HealthController } from './health/health.controller';
     }),
 
     // Rate Limiting
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({
@@ -51,6 +60,11 @@ import { HealthController } from './health/health.controller';
     CommonModule,
     UsersModule,
     AuthModule,
+    AuthModule,
+
+    PropertiesModule,
+    ChanceModule,
+    CommunityChestModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

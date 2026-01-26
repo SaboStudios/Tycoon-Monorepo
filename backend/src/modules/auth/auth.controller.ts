@@ -10,7 +10,6 @@ import {
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Controller('auth')
@@ -20,7 +19,9 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Request() req, @Body() loginDto: LoginDto) {
+  async login(
+    @Request() req: { user: { id: string; email: string; role: string } },
+  ) {
     return this.authService.login(req.user);
   }
 
@@ -33,7 +34,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req) {
+  async logout(@Request() req: { user: { id: string } }) {
     return this.authService.logout(req.user.id);
   }
   @Post('register')
