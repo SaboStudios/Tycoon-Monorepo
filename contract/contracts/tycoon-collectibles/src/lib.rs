@@ -108,7 +108,9 @@ impl TycoonCollectibles {
         set_shop_stock(&env, token_id, amount);
 
         // Emit event
-        emit_collectible_stocked_event(&env, token_id, amount, perk, strength, tyc_price, usdc_price);
+        emit_collectible_stocked_event(
+            &env, token_id, amount, perk, strength, tyc_price, usdc_price,
+        );
 
         Ok(token_id)
     }

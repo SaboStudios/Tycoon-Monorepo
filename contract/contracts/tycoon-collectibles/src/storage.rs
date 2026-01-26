@@ -1,5 +1,5 @@
-use soroban_sdk::{Address, Env, Vec};
 use crate::types::Perk;
+use soroban_sdk::{Address, Env, Vec};
 
 const ADMIN_KEY: &str = "ADMIN";
 const MINTER_KEY: &str = "MINTER";
@@ -176,7 +176,10 @@ pub fn get_minter(env: &Env) -> Option<Address> {
 
 /// Get the next available token ID
 pub fn get_next_token_id(env: &Env) -> u128 {
-    env.storage().instance().get(&NEXT_TOKEN_ID_KEY).unwrap_or(1)
+    env.storage()
+        .instance()
+        .get(&NEXT_TOKEN_ID_KEY)
+        .unwrap_or(1)
 }
 
 /// Set the next available token ID

@@ -9,8 +9,8 @@ pub enum DataKey {
     TycToken,
     UsdcToken,
     IsInitialized,
-    Collectible(u128),  // token_id -> CollectibleInfo
-    CashTier(u32),      // tier -> value
+    Collectible(u128), // token_id -> CollectibleInfo
+    CashTier(u32),     // tier -> value
 }
 
 /// Information about a collectible NFT
