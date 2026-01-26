@@ -18,11 +18,14 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
-import { RedisRateLimitGuard, RateLimit } from '../../common/guards/redis-rate-limit.guard';
+import {
+  RedisRateLimitGuard,
+  RateLimit,
+} from '../../common/guards/redis-rate-limit.guard';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   /**
    * Create a new user
@@ -44,7 +47,9 @@ export class UsersController {
   @Get()
   @UseGuards(RedisRateLimitGuard)
   @RateLimit(50, 60) // 50 requests per minute
-  async findAll(@Query() paginationDto: PaginationDto): Promise<PaginatedResponse<User>> {
+  async findAll(
+    @Query() paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<User>> {
     return await this.usersService.findAll(paginationDto);
   }
 
