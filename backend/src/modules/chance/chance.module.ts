@@ -8,4 +8,4 @@ import { Chance } from './entities/chance.entity';
   controllers: [],
   exports: [TypeOrmModule],
 })
-export class MonopolyModule {}
+export class ChanceModule {}
