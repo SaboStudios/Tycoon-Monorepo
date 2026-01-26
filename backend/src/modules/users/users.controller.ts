@@ -8,7 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
-  ParseUUIDPipe,
+  ParseIntPipe,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -56,7 +56,7 @@ export class UsersController {
   @Get(':id')
   @UseGuards(RedisRateLimitGuard)
   @RateLimit(100, 60) // 100 requests per minute
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<User> {
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<User> {
     return await this.usersService.findOne(id);
   }
 
@@ -66,7 +66,7 @@ export class UsersController {
    */
   @Patch(':id')
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<User> {
     return await this.usersService.update(id, updateUserDto);
@@ -78,7 +78,7 @@ export class UsersController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return await this.usersService.remove(id);
   }
 }
