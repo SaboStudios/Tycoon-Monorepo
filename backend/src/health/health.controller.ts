@@ -19,7 +19,7 @@ export class HealthController {
       return {
         status: 'unhealthy',
         redis: 'disconnected',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString(),
       };
     }
