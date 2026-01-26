@@ -10,13 +10,18 @@ import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import { CommonModule, ResponseInterceptor, HttpExceptionFilter } from './common';
+import {
+  CommonModule,
+  ResponseInterceptor,
+  HttpExceptionFilter,
+} from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { MonopolyModule } from './modules/monopoly/monopoly.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { HealthController } from './health/health.controller';
+import { PropertiesModule } from './modules/properties/properties.module';
 
 @Module({
   imports: [
@@ -29,10 +34,12 @@ import { HealthController } from './health/health.controller';
     }),
 
     // Rate Limiting
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({
@@ -52,7 +59,6 @@ import { HealthController } from './health/health.controller';
     CommonModule,
     UsersModule,
     AuthModule,
-    MonopolyModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -72,4 +78,4 @@ import { HealthController } from './health/health.controller';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
