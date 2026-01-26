@@ -10,8 +10,17 @@ import { RedisService } from './redis.service';
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
-        const redisConfig = configService.get('redis');
+      useFactory: (configService: ConfigService) => {
+        const redisConfig = configService.get<{
+          host: string;
+          port: number;
+          password?: string;
+          db: number;
+          ttl: number;
+        }>('redis');
+        if (!redisConfig) {
+          throw new Error('Redis configuration not found');
+        }
         return {
           store: redisStore,
           host: redisConfig.host,
