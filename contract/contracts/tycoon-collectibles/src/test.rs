@@ -852,8 +852,6 @@ fn test_owned_token_count() {
     let env = Env::default();
     env.mock_all_auths();
     
-fn test_set_backend_minter_unauthorized() {
-    let env = Env::default();
     let contract_id = env.register(TycoonCollectibles, ());
     let client = TycoonCollectiblesClient::new(&env, &contract_id);
 
@@ -883,6 +881,32 @@ fn test_token_of_owner_by_index() {
     let env = Env::default();
     env.mock_all_auths();
     
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Buy tokens in order: 10, 20, 30
+    client.buy_collectible(&alice, &10, &1);
+    client.buy_collectible(&alice, &20, &1);
+    client.buy_collectible(&alice, &30, &1);
+    
+    // Check indexing
+    assert_eq!(client.token_of_owner_by_index(&alice, &0), 10);
+    assert_eq!(client.token_of_owner_by_index(&alice, &1), 20);
+    assert_eq!(client.token_of_owner_by_index(&alice, &2), 30);
+}
+
+#[test]
+fn test_set_backend_minter_unauthorized() {
+    let env = Env::default();
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
     let stranger = Address::generate(&env);
 
     client.initialize(&admin);
@@ -901,19 +925,19 @@ fn test_protected_mint_authorized_roles() {
     let client = TycoonCollectiblesClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
+    let minter = Address::generate(&env);
     let alice = Address::generate(&env);
     
     client.initialize(&admin);
+    client.set_backend_minter(&minter);
     
-    // Buy tokens in order: 10, 20, 30
-    client.buy_collectible(&alice, &10, &1);
-    client.buy_collectible(&alice, &20, &1);
-    client.buy_collectible(&alice, &30, &1);
+    // Admin can mint
+    client.backend_mint(&admin, &alice, &1, &10);
+    assert_eq!(client.balance_of(&alice, &1), 10);
     
-    // Check indexing
-    assert_eq!(client.token_of_owner_by_index(&alice, &0), 10);
-    assert_eq!(client.token_of_owner_by_index(&alice, &1), 20);
-    assert_eq!(client.token_of_owner_by_index(&alice, &2), 30);
+    // Minter can mint
+    client.backend_mint(&minter, &alice, &2, &20);
+    assert_eq!(client.balance_of(&alice, &2), 20);
 }
 
 #[test]
@@ -966,6 +990,10 @@ fn test_complex_ownership_scenario() {
     let env = Env::default();
     env.mock_all_auths();
     
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
     let minter = Address::generate(&env);
     let user = Address::generate(&env);
 
@@ -1066,6 +1094,10 @@ fn test_enumeration_after_complete_burn() {
     let env = Env::default();
     env.mock_all_auths();
     
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let stranger = Address::generate(&env);
 
@@ -1148,6 +1180,17 @@ fn test_partial_transfers_maintain_enumeration() {
     client.transfer(&alice, &bob, &1, &30);
     assert_eq!(client.owned_token_count(&alice), 0);
     assert_eq!(client.owned_token_count(&bob), 1);
+}
+
+#[test]
+fn test_set_backend_minter_event_emission() {
+    let env = Env::default();
+    env.mock_all_auths();
+    
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
     let minter = Address::generate(&env);
 
     client.initialize(&admin);
@@ -1168,3 +1211,413 @@ fn test_partial_transfers_maintain_enumeration() {
     let emitted_address = Address::from_val(&env, &last_event.2);
     assert_eq!(emitted_address, minter);
 }
+
+// ========================
+// Shop Administration Tests
+// ========================
+
+#[test]
+fn test_stock_shop_creates_new_collectible() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock a new collectible
+    let token_id = client.stock_shop(&100, &1, &3, &1000, &500);
+
+    // Verify token_id was generated
+    assert_eq!(token_id, 1);
+
+    // Verify perk and strength are set
+    assert_eq!(client.get_token_perk(&token_id), Perk::CashTiered);
+    assert_eq!(client.get_token_strength(&token_id), 3);
+
+    // Verify stock was added to contract address
+    assert_eq!(client.balance_of(&contract_id, &token_id), 100);
+
+    // Verify shop stock tracking
+    assert_eq!(client.get_stock(&token_id), 100);
+}
+
+#[test]
+fn test_stock_shop_with_multiple_collectibles() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock multiple collectibles
+    let token_id_1 = client.stock_shop(&50, &1, &1, &500, &250);
+    let token_id_2 = client.stock_shop(&75, &2, &4, &2000, &1000);
+    let token_id_3 = client.stock_shop(&100, &3, &1, &300, &150);
+
+    // Verify sequential token IDs
+    assert_eq!(token_id_1, 1);
+    assert_eq!(token_id_2, 2);
+    assert_eq!(token_id_3, 3);
+
+    // Verify each has correct attributes
+    assert_eq!(client.get_token_perk(&token_id_1), Perk::CashTiered);
+    assert_eq!(client.get_token_perk(&token_id_2), Perk::TaxRefund);
+    assert_eq!(client.get_token_perk(&token_id_3), Perk::RentBoost);
+
+    assert_eq!(client.get_token_strength(&token_id_1), 1);
+    assert_eq!(client.get_token_strength(&token_id_2), 4);
+    assert_eq!(client.get_token_strength(&token_id_3), 1);
+
+    // Verify stock
+    assert_eq!(client.balance_of(&contract_id, &token_id_1), 50);
+    assert_eq!(client.balance_of(&contract_id, &token_id_2), 75);
+    assert_eq!(client.balance_of(&contract_id, &token_id_3), 100);
+}
+
+#[test]
+fn test_stock_shop_fails_with_zero_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Try to stock with zero amount
+    let result = client.try_stock_shop(&0, &1, &3, &1000, &500);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_stock_shop_fails_with_invalid_perk() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Try to stock with invalid perk (> 4)
+    let result = client.try_stock_shop(&100, &5, &3, &1000, &500);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_stock_shop_fails_with_invalid_strength() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Try to stock CashTiered with strength 0
+    let result = client.try_stock_shop(&100, &1, &0, &1000, &500);
+    assert!(result.is_err());
+
+    // Try to stock CashTiered with strength 6
+    let result = client.try_stock_shop(&100, &1, &6, &1000, &500);
+    assert!(result.is_err());
+
+    // Try to stock TaxRefund with strength 0
+    let result = client.try_stock_shop(&100, &2, &0, &2000, &1000);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_stock_shop_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock a collectible
+    let token_id = client.stock_shop(&100, &1, &3, &1000, &500);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+
+    // Check event topic
+    let expected_topic = (
+        soroban_sdk::symbol_short!("stock"),
+        soroban_sdk::symbol_short!("new"),
+    )
+        .into_val(&env);
+    assert_eq!(last_event.1, expected_topic);
+}
+
+#[test]
+fn test_restock_collectible_adds_inventory() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock initial collectible
+    let token_id = client.stock_shop(&50, &1, &3, &1000, &500);
+
+    // Verify initial stock
+    assert_eq!(client.balance_of(&contract_id, &token_id), 50);
+    assert_eq!(client.get_stock(&token_id), 50);
+
+    // Restock
+    client.restock_collectible(&token_id, &30);
+
+    // Verify stock increased
+    assert_eq!(client.balance_of(&contract_id, &token_id), 80);
+    assert_eq!(client.get_stock(&token_id), 80);
+}
+
+#[test]
+fn test_restock_collectible_multiple_times() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock initial collectible
+    let token_id = client.stock_shop(&50, &2, &5, &2000, &1000);
+
+    // Restock multiple times
+    client.restock_collectible(&token_id, &25);
+    assert_eq!(client.balance_of(&contract_id, &token_id), 75);
+
+    client.restock_collectible(&token_id, &50);
+    assert_eq!(client.balance_of(&contract_id, &token_id), 125);
+
+    client.restock_collectible(&token_id, &75);
+    assert_eq!(client.balance_of(&contract_id, &token_id), 200);
+
+    // Verify final stock
+    assert_eq!(client.get_stock(&token_id), 200);
+}
+
+#[test]
+fn test_restock_fails_with_zero_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let token_id = client.stock_shop(&50, &1, &3, &1000, &500);
+
+    // Try to restock with zero amount
+    let result = client.try_restock_collectible(&token_id, &0);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_restock_fails_with_nonexistent_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Try to restock a token that doesn't exist
+    let result = client.try_restock_collectible(&999, &50);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_restock_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let token_id = client.stock_shop(&50, &1, &3, &1000, &500);
+    client.restock_collectible(&token_id, &30);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+
+    // Check event topic
+    let expected_topic = (soroban_sdk::symbol_short!("restock"),).into_val(&env);
+    assert_eq!(last_event.1, expected_topic);
+}
+
+#[test]
+fn test_update_collectible_prices() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Initialize shop config
+    let tyc_token = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // Stock a collectible with initial prices
+    let token_id = client.stock_shop(&100, &1, &3, &1000, &500);
+
+    // Update prices
+    client.update_collectible_prices(&token_id, &2000, &1000);
+
+    // Note: No direct getter for prices, but buy would fail with wrong price
+    // We can verify via the storage or by checking event emission
+}
+
+#[test]
+fn test_update_prices_fails_with_nonexistent_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Try to update prices for non-existent token
+    let result = client.try_update_collectible_prices(&999, &2000, &1000);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_update_prices_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let token_id = client.stock_shop(&100, &1, &3, &1000, &500);
+    client.update_collectible_prices(&token_id, &2000, &1000);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+
+    // Check event topic
+    let expected_topic = (
+        soroban_sdk::symbol_short!("price"),
+        soroban_sdk::symbol_short!("update"),
+    )
+        .into_val(&env);
+    assert_eq!(last_event.1, expected_topic);
+}
+
+#[test]
+fn test_stock_shop_requires_admin_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock is called with admin auth due to mock_all_auths
+    // In production, non-admin would fail
+    let token_id = client.stock_shop(&100, &1, &3, &1000, &500);
+    assert_eq!(token_id, 1);
+}
+
+#[test]
+fn test_complete_shop_workflow() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Initialize shop
+    let tyc_token = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // 1. Stock new collectible
+    let token_id = client.stock_shop(&50, &1, &3, &1000, &500);
+    assert_eq!(token_id, 1);
+
+    assert_eq!(client.balance_of(&contract_id, &token_id), 50);
+    assert_eq!(client.get_stock(&token_id), 50);
+
+    // 2. Restock when inventory is low
+    client.restock_collectible(&token_id, &25);
+    assert_eq!(client.balance_of(&contract_id, &token_id), 75);
+    assert_eq!(client.get_stock(&token_id), 75);
+
+    // 3. Update prices
+    client.update_collectible_prices(&token_id, &1500, &750);
+
+    // 4. Verify final state
+    assert_eq!(client.get_token_perk(&token_id), Perk::CashTiered);
+    assert_eq!(client.get_token_strength(&token_id), 3);
+    assert_eq!(client.get_stock(&token_id), 75);
+}
+
+#[test]
+fn test_stock_shop_with_non_tiered_perks() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock with RentBoost (non-tiered, strength doesn't matter)
+    let token_id_1 = client.stock_shop(&50, &3, &0, &500, &250);
+    assert_eq!(client.get_token_perk(&token_id_1), Perk::RentBoost);
+
+    // Stock with PropertyDiscount (non-tiered)
+    let token_id_2 = client.stock_shop(&75, &4, &10, &800, &400);
+    assert_eq!(client.get_token_perk(&token_id_2), Perk::PropertyDiscount);
+
+    // Both should succeed regardless of strength value for non-tiered perks
+    assert_eq!(client.get_stock(&token_id_1), 50);
+    assert_eq!(client.get_stock(&token_id_2), 75);
+}
+

@@ -15,4 +15,6 @@ pub enum CollectibleError {
     ContractPaused = 9,
     InvalidPerk = 10,
     InvalidStrength = 11,
+    TokenNotFound = 12,
+    InvalidTokenId = 13,
 }
