@@ -22,10 +22,7 @@ import { Property } from "./entities/property.entity";
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) { }
 
-  /**
-   * Toggle mortgage state of a property
-   * PATCH /properties/:id/mortgage
-   */
+ 
   @Patch(":id/mortgage")
   @HttpCode(HttpStatus.OK)
   async toggleMortgage(

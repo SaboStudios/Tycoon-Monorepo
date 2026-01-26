@@ -16,12 +16,6 @@ export class PropertiesService {
     private propertiesRepository: Repository<Property>,
   ) { }
 
-  /**
-   * Toggle the mortgage state of a property
-   * @param id - Property ID
-   * @param isMortgaged - New mortgage state
-   * @returns Updated property
-   */
   async toggleMortgage(id: number, isMortgaged: boolean): Promise<Property> {
     const property = await this.propertiesRepository.findOne({
       where: { id },
