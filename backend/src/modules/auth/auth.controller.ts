@@ -37,4 +37,9 @@ export class AuthController {
   async logout(@Request() req: { user: { id: string } }) {
     return this.authService.logout(req.user.id);
   }
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() createUserDto: any) {
+    return this.authService.CreateUser(createUserDto);
+  }
 }
