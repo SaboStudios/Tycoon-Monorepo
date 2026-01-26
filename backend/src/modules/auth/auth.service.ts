@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,17 +6,21 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
-
+import { User } from '../users/entities/user.entity';
+import { CreateUserDto } from '../users/dto/create-user.dto';
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @InjectRepository(RefreshToken)
+    @InjectRepository(RefreshToken) 
     private readonly refreshTokenRepository: Repository<RefreshToken>,
+    @InjectRepository(User) 
+    private readonly userRepo: Repository<User>
+    
   ) {}
-
+e
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
@@ -96,4 +100,48 @@ export class AuthService {
     const saltRounds = 10;
     return await bcrypt.hash(password, saltRounds);
   }
+
+  async CreateUser(dto:any): Promise<User> {
+    const { username, address } = dto;
+    const chain = dto.chain || 'BASE';
+  try {
+
+    const existingUsername = await this.userRepo.findOne({
+      where: { username }, });
+
+      if (existingUsername) {
+      throw new ConflictException('Username already taken');
+    }
+
+     const existingAddress = await this.userRepo.findOne({
+      where: { address },
+    });
+    if (existingAddress) {
+      throw new ConflictException('Address already registered');
+    }
+
+    const user = this.userRepo.create({
+      username,
+      address,
+      chain,
+      games_played: 0,
+      game_won: 0,
+      game_lost: 0,
+      total_staked: '0',
+      total_earned: '0',
+      total_withdrawn: '0',
+    });
+
+    const savedUser = await this.userRepo.save(user);
+
+    return savedUser;
+
+    
+  } catch (error) {
+    throw new InternalServerErrorException('Failed to create user');
+  }
+
 }
+}
+
+
