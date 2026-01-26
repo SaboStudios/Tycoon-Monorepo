@@ -16,6 +16,7 @@ import { PropertiesService } from "./properties.service";
 import { CreatePropertyDto } from "./dto/create-property.dto";
 import { UpdatePropertyDto } from "./dto/update-property.dto";
 import { ToggleMortgageDto } from "./dto/toggle-mortgage.dto";
+import { GetPropertiesDto } from "./dto/get-properties.dto";
 import { Property } from "./entities/property.entity";
 
 @Controller("properties")
@@ -28,6 +29,15 @@ export class PropertiesController {
     @Body() createPropertyDto: CreatePropertyDto,
   ): Promise<Property> {
     return await this.propertiesService.create(createPropertyDto);
+  }
+
+  /**
+   * Get all properties
+   * GET /properties
+   */
+  @Get()
+  async findAll(@Query() query: GetPropertiesDto): Promise<Property[]> {
+    return await this.propertiesService.findAll(query);
   }
 
   /**
