@@ -17,7 +17,7 @@ export class RefreshToken {
   token: string;
 
   @Column()
-  userId: string;
+  userId: number;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

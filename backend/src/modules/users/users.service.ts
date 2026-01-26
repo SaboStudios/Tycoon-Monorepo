@@ -41,7 +41,7 @@ export class UsersService {
   /**
    * Get a single user by ID
    */
-  async findOne(id: string): Promise<User> {
+  async findOne(id: number): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
@@ -59,27 +59,27 @@ export class UsersService {
   /**
    * Update a user
    */
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
     Object.assign(user, updateUserDto);
     const updatedUser = await this.userRepository.save(user);
-    
+
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache(id.toString());
     await this.invalidateUsersCache();
-    
+
     return updatedUser;
   }
 
   /**
    * Delete a user
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
-    
+
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache(id.toString());
     await this.invalidateUsersCache();
   }
 
