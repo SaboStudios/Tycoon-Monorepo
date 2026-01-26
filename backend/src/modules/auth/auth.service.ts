@@ -14,17 +14,17 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @InjectRepository(RefreshToken) 
+    @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
-    @InjectRepository(User) 
+    @InjectRepository(User)
     private readonly userRepo: Repository<User>
-    
-  ) {}
+
+  ) { }
 
   async validateUser(
     email: string,
     password: string,
-  ): Promise<{ id: string; email: string; role: string } | null> {
+  ): Promise<{ id: number; email: string; role: string } | null> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -34,7 +34,7 @@ export class AuthService {
     return null;
   }
 
-  async login(user: { id: string; email: string; role: string }) {
+  async login(user: { id: number; email: string; role: string }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(user.id);
@@ -104,48 +104,6 @@ export class AuthService {
     const saltRounds = 10;
     return await bcrypt.hash(password, saltRounds);
   }
-
-  async CreateUser(dto:any): Promise<User> {
-    const { username, address } = dto;
-    const chain = dto.chain || 'BASE';
-  try {
-
-    const existingUsername = await this.userRepo.findOne({
-      where: { username }, });
-
-      if (existingUsername) {
-      throw new ConflictException('Username already taken');
-    }
-
-     const existingAddress = await this.userRepo.findOne({
-      where: { address },
-    });
-    if (existingAddress) {
-      throw new ConflictException('Address already registered');
-    }
-
-    const user = this.userRepo.create({
-      username,
-      address,
-      chain,
-      games_played: 0,
-      game_won: 0,
-      game_lost: 0,
-      total_staked: '0',
-      total_earned: '0',
-      total_withdrawn: '0',
-    });
-
-    const savedUser = await this.userRepo.save(user);
-
-    return savedUser;
-
-    
-  } catch (error) {
-    throw new InternalServerErrorException('Failed to create user');
-  }
-
-}
 }
 
 

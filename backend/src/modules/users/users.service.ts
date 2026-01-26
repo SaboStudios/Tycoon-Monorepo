@@ -19,7 +19,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   /**
    * Create a new user
@@ -27,7 +27,7 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Hash the password before saving
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-    
+
     // Create user entity with mapped fields
     const user = this.userRepository.create({
       email: createUserDto.email,
@@ -35,7 +35,7 @@ export class UsersService {
       lastName: createUserDto.lastName,
       password: hashedPassword,
     });
-    
+
     const savedUser = await this.userRepository.save(user);
 
     // Invalidate users list cache
@@ -86,7 +86,7 @@ export class UsersService {
     const updatedUser = await this.userRepository.save(user);
 
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id.toString());
+    await this.invalidateUserCache(id);
     await this.invalidateUsersCache();
 
     return updatedUser;
@@ -100,7 +100,7 @@ export class UsersService {
     await this.userRepository.remove(user);
 
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id.toString());
+    await this.invalidateUserCache(id);
     await this.invalidateUsersCache();
   }
 
