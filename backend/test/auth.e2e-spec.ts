@@ -11,74 +11,81 @@ import { CommonModule } from '../src/common/common.module';
 import { RedisModule } from '../src/modules/redis/redis.module';
 
 describe('AuthController (e2e)', () => {
-    let app: INestApplication;
+  let app: INestApplication;
 
-    beforeAll(async () => {
-        const moduleFixture: TestingModule = await Test.createTestingModule({
-            imports: [
-                ConfigModule.forRoot({
-                    isGlobal: true,
-                    ignoreEnvFile: true,
-                    load: [
-                        () => ({
-                            jwt: {
-                                secret: 'test-secret',
-                                expiresIn: 900,
-                                refreshExpiresIn: 604800,
-                            },
-                            redis: {
-                                host: 'localhost',
-                                port: 6379,
-                            },
-                        }),
-                    ],
-                }),
-                TypeOrmModule.forRoot({
-                    type: 'sqlite',
-                    database: ':memory:',
-                    entities: [User, RefreshToken],
-                    synchronize: true,
-                    dropSchema: true,
-                    logging: false,
-                }),
-                TypeOrmModule.forFeature([User, RefreshToken]),
-                CommonModule,
-                RedisModule,
-                UsersModule,
-                AuthModule,
-            ],
-        })
-            .compile();
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          ignoreEnvFile: true,
+          load: [
+            () => ({
+              jwt: {
+                secret: 'test-secret',
+                expiresIn: 900,
+                refreshExpiresIn: 604800,
+              },
+              redis: {
+                host: 'localhost',
+                port: 6379,
+              },
+            }),
+          ],
+        }),
+        TypeOrmModule.forRoot({
+          type: 'sqlite',
+          database: ':memory:',
+          entities: [User, RefreshToken],
+          synchronize: true,
+          dropSchema: true,
+          logging: false,
+        }),
+        TypeOrmModule.forFeature([User, RefreshToken]),
+        CommonModule,
+        RedisModule,
+        UsersModule,
+        AuthModule,
+      ],
+    }).compile();
 
-        app = moduleFixture.createNestApplication();
-        app.setGlobalPrefix('api/v1');
-        await app.init();
-    });
+    app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    await app.init();
+  });
 
-    it('/auth/login (POST) - Login endpoint exists', () => {
-        return request(app.getHttpServer())
-            .post('/api/v1/auth/login')
-            .send({ email: 'test@test.com', password: 'password' })
-            .expect(401); // Expect 401 for invalid credentials
-    });
+  it('/auth/login (POST) - Login endpoint exists', () => {
+    return request(app.getHttpServer() as Parameters<typeof request>[0])
+      .post('/api/v1/auth/login')
+      .send({ email: 'test@test.com', password: 'password' })
+      .expect(401); // Expect 401 for invalid credentials
+  });
 
-    it('/users (GET) - Returns paginated users list', () => {
-        return request(app.getHttpServer())
-            .get('/api/v1/users')
-            .expect(200)
-            .expect((res) => {
-                expect(res.body).toHaveProperty('data');
-                expect(res.body).toHaveProperty('meta');
-                expect(res.body.meta).toHaveProperty('page');
-                expect(res.body.meta).toHaveProperty('limit');
-                expect(res.body.meta).toHaveProperty('totalItems');
-                expect(Array.isArray(res.body.data)).toBe(true);
-            });
-    });
+  it('/users (GET) - Returns paginated users list', () => {
+    return request(app.getHttpServer() as Parameters<typeof request>[0])
+      .get('/api/v1/users')
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as {
+          data: unknown[];
+          meta: {
+            page: number;
+            limit: number;
+            totalItems: number;
+          };
+        };
+        expect(body).toHaveProperty('data');
+        expect(body).toHaveProperty('meta');
+        expect(body.meta).toHaveProperty('page');
+        expect(body.meta).toHaveProperty('limit');
+        expect(body.meta).toHaveProperty('totalItems');
+        expect(Array.isArray(body.data)).toBe(true);
+      });
+  });
 
-    afterAll(async () => {
-        if (app) {
-            await app.close();
-        }
-    });
+  afterAll(async () => {
+    if (app) {
+      await app.close();
+    }
+  });
 });

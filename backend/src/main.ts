@@ -6,7 +6,6 @@ import { AppModule } from './app.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
@@ -29,7 +28,7 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: configService.get('app.corsOrigin'),
+    origin: configService.get<string>('app.corsOrigin'),
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
@@ -45,4 +44,4 @@ async function bootstrap() {
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/${apiPrefix}`);
 }
-bootstrap();
+void bootstrap();

@@ -7,8 +7,7 @@ import {
   Min,
   Max,
   IsNotEmpty,
-  ValidateIf,
-} from "class-validator";
+} from 'class-validator';
 
 export class CreatePropertyDto {
   @IsNumber()
