@@ -12,7 +12,15 @@ export class RedisService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private configService: ConfigService,
   ) {
-    const redisConfig = this.configService.get('redis');
+    const redisConfig = configService.get<{
+      host: string;
+      port: number;
+      password?: string;
+      db: number;
+    }>('redis');
+    if (!redisConfig) {
+      throw new Error('Redis configuration not found');
+    }
     this.redis = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -22,7 +30,11 @@ export class RedisService {
   }
 
   // Session management
-  async setRefreshToken(userId: string, token: string, ttl: number = 604800): Promise<void> {
+  async setRefreshToken(
+    userId: string,
+    token: string,
+    ttl: number = 604800,
+  ): Promise<void> {
     await this.redis.setex(`refresh_token:${userId}`, ttl, token);
   }
 

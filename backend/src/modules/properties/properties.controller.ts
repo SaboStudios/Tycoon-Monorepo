@@ -22,7 +22,18 @@ import { Property } from "./entities/property.entity";
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) { }
 
- 
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async create(
+    @Body() createPropertyDto: CreatePropertyDto,
+  ): Promise<Property> {
+    return await this.propertiesService.create(createPropertyDto);
+  }
+
+  /**
+   * Toggle mortgage state of a property
+   * PATCH /properties/:id/mortgage
+   */
   @Patch(":id/mortgage")
   @HttpCode(HttpStatus.OK)
   async toggleMortgage(
