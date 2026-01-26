@@ -12,6 +12,22 @@ export class ChanceService {
     private readonly chanceRepository: Repository<Chance>,
   ) {}
 
+  async findAll(page?: number, limit?: number): Promise<Chance[]> {
+
+    const take = limit || 20;
+
+    const skip = page && page > 0 ? (page - 1) * take : 0;
+
+    return await this.chanceRepository.find({
+
+      order: { id: 'ASC' },
+
+      take,
+
+      skip,
+
+    });
+    }
   async createChance(createChanceDto: CreateChanceDto): Promise<Chance> {
     const trimmedInstruction = createChanceDto.instruction.trim();
     if (!trimmedInstruction || trimmedInstruction.length === 0) {
