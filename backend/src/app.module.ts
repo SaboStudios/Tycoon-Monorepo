@@ -14,6 +14,7 @@ import { CommonModule, ResponseInterceptor, HttpExceptionFilter } from './common
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { MonopolyModule } from './modules/monopoly/monopoly.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { HealthController } from './health/health.controller';
 
@@ -51,6 +52,7 @@ import { HealthController } from './health/health.controller';
     CommonModule,
     UsersModule,
     AuthModule,
+    MonopolyModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
