@@ -86,7 +86,7 @@ export class UsersService {
     const updatedUser = await this.userRepository.save(user);
 
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache(id.toString());
     await this.invalidateUsersCache();
 
     return updatedUser;
@@ -100,7 +100,7 @@ export class UsersService {
     await this.userRepository.remove(user);
 
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache(id.toString());
     await this.invalidateUsersCache();
   }
 

@@ -46,7 +46,7 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
     const token = this.jwtService.sign(
-      { sub: userId, type: 'refresh' } as object,
+      { sub: userId.toString(), type: 'refresh' } as object,
       { expiresIn: refreshExpiresInSeconds },
     );
 
