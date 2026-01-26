@@ -19,12 +19,4 @@ import { Property } from "./entities/property.entity";
 @Controller("properties")
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  async create(
-    @Body() createPropertyDto: CreatePropertyDto,
-  ): Promise<Property> {
-    return this.propertiesService.create(createPropertyDto);
-  }
 }
