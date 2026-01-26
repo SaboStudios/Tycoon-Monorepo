@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -24,7 +25,17 @@ export class UsersService {
    * Create a new user
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
-    const user = this.userRepository.create(createUserDto);
+    // Hash the password before saving
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    
+    // Create user entity with mapped fields
+    const user = this.userRepository.create({
+      email: createUserDto.email,
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
+      password: hashedPassword,
+    });
+    
     const savedUser = await this.userRepository.save(user);
 
     // Invalidate users list cache
@@ -51,7 +62,7 @@ export class UsersService {
   /**
    * Get a single user by ID
    */
-  async findOne(id: string): Promise<User> {
+  async findOne(id: number): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
@@ -69,7 +80,7 @@ export class UsersService {
   /**
    * Update a user
    */
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
     Object.assign(user, updateUserDto);
     const updatedUser = await this.userRepository.save(user);
@@ -84,7 +95,7 @@ export class UsersService {
   /**
    * Delete a user
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
 
@@ -96,7 +107,7 @@ export class UsersService {
   /**
    * Invalidate cache for a specific user
    */
-  private async invalidateUserCache(userId: string): Promise<void> {
+  private async invalidateUserCache(userId: number): Promise<void> {
     await this.redisService.del(`cache:GET:/api/v1/users/${userId}:*`);
   }
 

@@ -41,9 +41,8 @@ export class AuthService {
     };
   }
 
-  async createRefreshToken(userId: string): Promise<RefreshToken> {
-    const refreshExpiresInSeconds =
-      this.configService.get<number>('jwt.refreshExpiresIn') || 604800;
+  async createRefreshToken(userId: number): Promise<RefreshToken> {
+    const refreshExpiresInSeconds = this.configService.get<number>('jwt.refreshExpiresIn') || 604800;
     const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
     const token = this.jwtService.sign(
@@ -90,7 +89,7 @@ export class AuthService {
     };
   }
 
-  async logout(userId: string): Promise<void> {
+  async logout(userId: number): Promise<void> {
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
       { isRevoked: true },

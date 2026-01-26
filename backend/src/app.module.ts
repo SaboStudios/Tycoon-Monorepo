@@ -18,7 +18,7 @@ import {
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
-import { MonopolyModule } from './modules/monopoly/monopoly.module';
+import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
@@ -59,8 +59,9 @@ import { PropertiesModule } from './modules/properties/properties.module';
     CommonModule,
     UsersModule,
     AuthModule,
-    MonopolyModule,
+
     PropertiesModule,
+    ChanceModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
