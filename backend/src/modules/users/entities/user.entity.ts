@@ -4,34 +4,60 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
-@Entity('users')
+@Entity({ name: 'users' })
+@Index(['address', 'chain'])
 export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @Column({ unique: true })
-  email: string;
+  @Column({ type: 'varchar', length: 100, unique: true })
+  username: string;
 
-  @Column()
-  firstName: string;
+  @Column({ type: 'varchar', length: 100, unique: true })
+  address: string;
 
-  @Column()
-  lastName: string;
+  @Column({ type: 'varchar', length: 50, default: 'BASE' })
+  chain: string;
 
-  @Column({ nullable: true })
-  password: string;
+  @Column({ type: 'int', default: 0 })
+  games_played: number;
 
-  @Column({ default: 'user' })
-  role: string;
+  @Column({ type: 'int', default: 0 })
+  game_won: number;
 
-  @Column({ default: true })
-  isActive: boolean;
+  @Column({ type: 'int', default: 0 })
+  game_lost: number;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 8,
+    default: 0,
+  })
+  total_staked: string;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 8,
+    default: 0,
+  })
+  total_earned: string;
+
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 8,
+    default: 0,
+  })
+  total_withdrawn: string;
+
+  @CreateDateColumn({ name: 'created_at' })
+  created_at: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
 }
