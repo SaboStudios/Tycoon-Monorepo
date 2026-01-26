@@ -10,7 +10,11 @@ import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import { CommonModule, HttpExceptionFilter } from './common';
+import {
+  CommonModule,
+  ResponseInterceptor,
+  HttpExceptionFilter,
+} from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
@@ -42,12 +46,10 @@ import { PropertiesModule } from './modules/properties/properties.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const dbConfig = configService.get('database');
         if (!dbConfig) {
           throw new Error('Database configuration not found');
         }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         return dbConfig;
       },
     }),
