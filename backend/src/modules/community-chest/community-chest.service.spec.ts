@@ -5,52 +5,52 @@ import { CommunityChest } from './entities/community-chest.entity';
 import { Repository } from 'typeorm';
 
 const mockCommunityChest = {
-    id: 1,
-    instruction: 'Advance to Go',
-    type: 'advance_to_go',
-    amount: 0,
-    position: 0,
-    extra: null,
+  id: 1,
+  instruction: 'Advance to Go',
+  type: 'advance_to_go',
+  amount: 0,
+  position: 0,
+  extra: null,
 };
 
 describe('CommunityChestService', () => {
-    let service: CommunityChestService;
-    let repository: Repository<CommunityChest>;
+  let service: CommunityChestService;
+  let repository: Repository<CommunityChest>;
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                CommunityChestService,
-                {
-                    provide: getRepositoryToken(CommunityChest),
-                    useValue: {
-                        createQueryBuilder: jest.fn(() => ({
-                            orderBy: jest.fn().mockReturnThis(),
-                            limit: jest.fn().mockReturnThis(),
-                            getOne: jest.fn().mockResolvedValue(mockCommunityChest),
-                        })),
-                    },
-                },
-            ],
-        }).compile();
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CommunityChestService,
+        {
+          provide: getRepositoryToken(CommunityChest),
+          useValue: {
+            createQueryBuilder: jest.fn(() => ({
+              orderBy: jest.fn().mockReturnThis(),
+              limit: jest.fn().mockReturnThis(),
+              getOne: jest.fn().mockResolvedValue(mockCommunityChest),
+            })),
+          },
+        },
+      ],
+    }).compile();
 
-        service = module.get<CommunityChestService>(CommunityChestService);
-        repository = module.get<Repository<CommunityChest>>(
-            getRepositoryToken(CommunityChest),
-        );
+    service = module.get<CommunityChestService>(CommunityChestService);
+    repository = module.get<Repository<CommunityChest>>(
+      getRepositoryToken(CommunityChest),
+    );
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('drawCard', () => {
+    it('should return a random community chest card', async () => {
+      const result = await service.drawCard();
+      expect(result).toEqual(mockCommunityChest);
+      expect(repository.createQueryBuilder).toHaveBeenCalledWith(
+        'community_chest',
+      );
     });
-
-    it('should be defined', () => {
-        expect(service).toBeDefined();
-    });
-
-    describe('drawCard', () => {
-        it('should return a random community chest card', async () => {
-            const result = await service.drawCard();
-            expect(result).toEqual(mockCommunityChest);
-            expect(repository.createQueryBuilder).toHaveBeenCalledWith(
-                'community_chest',
-            );
-        });
-    });
+  });
 });

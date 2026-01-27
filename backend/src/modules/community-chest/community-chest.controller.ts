@@ -1,13 +1,43 @@
-import { Controller, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { CommunityChestService } from './community-chest.service';
 import { CommunityChest } from './entities/community-chest.entity';
+import { CreateCommunityChestDto } from './dto/create-community-chest.dto';
 
 @Controller('community-chest')
 export class CommunityChestController {
-    constructor(private readonly communityChestService: CommunityChestService) { }
+  constructor(private readonly communityChestService: CommunityChestService) {}
 
-    @Get('draw')
-    async draw(): Promise<CommunityChest | null> {
-        return this.communityChestService.drawCard();
-    }
+  @Get('draw')
+  async draw(): Promise<CommunityChest | null> {
+    return this.communityChestService.drawCard();
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async create(
+    @Body() createDto: CreateCommunityChestDto,
+  ): Promise<CommunityChest> {
+    return this.communityChestService.create(createDto);
+  }
+
+  @Get()
+  async findAll(): Promise<CommunityChest[]> {
+    return this.communityChestService.findAll();
+  }
+
+  @Get(':id')
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CommunityChest | null> {
+    return this.communityChestService.findOne(id);
+  }
 }
