@@ -1,10 +1,11 @@
 // src/chances/chances.controller.ts
+
 import {
   Controller,
   Get,
+  Query,
   Post,
   Body,
-  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -23,7 +24,7 @@ import { Role } from '../auth/enums/role.enum';
 import { CreateChanceDto } from './dto/create-chance.dto';
 @Controller('chances')
 export class ChanceController {
-  constructor(private readonly chanceService: ChanceService) {}
+  constructor(private readonly chanceService: ChanceService) { }
 
   @Get()
   async getAllChances(
@@ -47,6 +48,8 @@ export class ChanceController {
       data,
     };
   }
+
+  @Post()
 
   @Get('draw')
   async draw(): Promise<Chance> {

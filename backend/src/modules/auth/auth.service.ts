@@ -2,7 +2,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
-  UnauthorizedException,
+  UnauthorizedException, NotFoundException, BadRequestException 
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -22,13 +22,14 @@ export class AuthService {
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-  ) {}
+    private readonly userRepo: Repository<User>
+
+  ) { }
 
   async validateUser(
     email: string,
     password: string,
-  ): Promise<{ id: string; email: string; role: string } | null> {
+  ): Promise<{ id: number; email: string; role: string } | null> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -38,7 +39,28 @@ export class AuthService {
     return null;
   }
 
-  async login(user: { id: string; email: string; role: string }) {
+  async login(user: { id: number; email: string; role: string }) {
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = await this.createRefreshToken(Number(user.id));
+
+    return {
+      accessToken,
+      refreshToken: refreshToken.token,
+    };
+  }
+
+  async walletLogin(address: string, chain: string) {
+    if (!address || !chain) {
+      throw new BadRequestException('Address and chain are required');
+    }
+
+    const user = await this.userRepo.findOne({ where: { address, chain } });
+
+    if (!user) {
+      throw new NotFoundException('Invalid address/chain combination');
+    }
+
     const payload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(user.id);
@@ -46,6 +68,12 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: refreshToken.token,
+      user: {
+        id: user.id,
+        username: user.username,
+        address: user.address,
+        chain: user.chain,
+      },
     };
   }
 

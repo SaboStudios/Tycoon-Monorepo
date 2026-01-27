@@ -11,13 +11,16 @@ import {
   ParseIntPipe,
   Query,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   RedisRateLimitGuard,
   RateLimit,
@@ -51,6 +54,20 @@ export class UsersController {
     @Query() paginationDto: PaginationDto,
   ): Promise<PaginatedResponse<User>> {
     return await this.usersService.findAll(paginationDto);
+  }
+
+  /**
+   * Get authenticated user's profile with gameplay statistics
+   * GET /users/me/profile
+   * Requires JWT authentication
+   * Returns: username, games_played, game_won, game_lost, total_staked, total_earned, total_withdrawn
+   */
+  @Get('me/profile')
+  @UseGuards(JwtAuthGuard)
+  @UseGuards(RedisRateLimitGuard)
+  @RateLimit(100, 60) // 100 requests per minute
+  async getProfile(@Request() req: any): Promise<UserProfileDto> {
+    return await this.usersService.getProfile(req.user.id);
   }
 
   /**

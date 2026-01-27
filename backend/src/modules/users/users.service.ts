@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import {
   PaginationService,
   PaginationDto,
@@ -19,7 +20,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   /**
    * Create a new user
@@ -78,6 +79,24 @@ export class UsersService {
   }
 
   /**
+   * Get user profile with aggregated gameplay statistics
+   * Returns only non-sensitive data for authenticated users
+   */
+  async getProfile(userId: number): Promise<UserProfileDto> {
+    const user = await this.findOne(userId);
+
+    return {
+      username: user.username,
+      games_played: user.games_played,
+      game_won: user.game_won,
+      game_lost: user.game_lost,
+      total_staked: user.total_staked,
+      total_earned: user.total_earned,
+      total_withdrawn: user.total_withdrawn,
+    };
+  }
+
+  /**
    * Update a user
    */
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
@@ -86,7 +105,7 @@ export class UsersService {
     const updatedUser = await this.userRepository.save(user);
 
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id.toString());
+    await this.invalidateUserCache(id);
     await this.invalidateUsersCache();
 
     return updatedUser;
@@ -100,7 +119,7 @@ export class UsersService {
     await this.userRepository.remove(user);
 
     // Invalidate cache for this user and users list
-    await this.invalidateUserCache(id.toString());
+    await this.invalidateUserCache(id);
     await this.invalidateUsersCache();
   }
 

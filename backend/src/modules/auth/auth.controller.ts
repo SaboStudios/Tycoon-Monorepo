@@ -8,19 +8,25 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
+import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { WalletLoginDto } from './dto/wallet-login.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) { }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
-    @Request() req: { user: { id: string; email: string; role: string } },
+    @Request() req, // Type changed to 'any' or inferred
   ) {
     return this.authService.login(req.user);
   }
@@ -31,15 +37,22 @@ export class AuthController {
     return this.authService.refreshTokens(refreshTokenDto.refreshToken);
   }
 
+  @Post('wallet-login')
+  @HttpCode(HttpStatus.OK)
+  async walletLogin(@Body() body: WalletLoginDto) {
+    return this.authService.walletLogin(body.address, body.chain);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req: { user: { id: string } }) {
+  async logout(@Request() req) { // Type changed to 'any' or inferred
     return this.authService.logout(req.user.id);
   }
+
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() createUserDto: any) {
-    return this.authService.CreateUser(createUserDto);
+  async register(@Body() createUserDto: CreateUserDto) { // Type fixed
+    return this.usersService.create(createUserDto); // Service and method call corrected
   }
 }
