@@ -1,4 +1,3 @@
-#![cfg(test)]
 use super::*;
 use soroban_sdk::{testutils::Address as _, Env};
 
@@ -9,7 +8,7 @@ fn test_initialization() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
 
@@ -29,7 +28,7 @@ fn test_cannot_reinitialize() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
 
@@ -42,7 +41,7 @@ fn test_admin_can_mint() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let user = Address::generate(&e);
@@ -62,7 +61,7 @@ fn test_cannot_mint_zero() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let user = Address::generate(&e);
@@ -76,7 +75,7 @@ fn test_transfer() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let user = Address::generate(&e);
@@ -96,7 +95,7 @@ fn test_transfer_insufficient_balance() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let user = Address::generate(&e);
@@ -110,7 +109,7 @@ fn test_approve_and_transfer_from() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let spender = Address::generate(&e);
@@ -137,7 +136,7 @@ fn test_transfer_from_insufficient_allowance() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let spender = Address::generate(&e);
@@ -155,7 +154,7 @@ fn test_burn() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
 
@@ -174,7 +173,7 @@ fn test_burn_insufficient_balance() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
 
@@ -187,7 +186,7 @@ fn test_burn_from() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let spender = Address::generate(&e);
@@ -211,7 +210,7 @@ fn test_burn_from_insufficient_allowance() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let spender = Address::generate(&e);
@@ -228,7 +227,7 @@ fn test_set_admin() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let new_admin = Address::generate(&e);
@@ -244,7 +243,7 @@ fn test_new_admin_can_mint() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let contract_id = e.register_contract(None, TycoonToken);
+    let contract_id = e.register(TycoonToken, ());
     let client = TycoonTokenClient::new(&e, &contract_id);
     let admin = Address::generate(&e);
     let new_admin = Address::generate(&e);

@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { User } from '../users/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -19,6 +20,9 @@ describe('AuthService', () => {
     save: jest.Mock;
     findOne: jest.Mock;
     update: jest.Mock;
+  };
+  let userRepository: {
+    findOne: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -45,6 +49,10 @@ describe('AuthService', () => {
       update: jest.fn(),
     };
 
+    userRepository = {
+      findOne: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -63,6 +71,10 @@ describe('AuthService', () => {
         {
           provide: getRepositoryToken(RefreshToken),
           useValue: refreshTokenRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: userRepository,
         },
       ],
     }).compile();

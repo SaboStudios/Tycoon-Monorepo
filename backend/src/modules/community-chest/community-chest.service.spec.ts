@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CommunityChestService } from './community-chest.service';
 import { CommunityChest } from './entities/community-chest.entity';
-import { Repository } from 'typeorm';
 
 const mockCommunityChest = {
   id: 1,
@@ -15,29 +14,28 @@ const mockCommunityChest = {
 
 describe('CommunityChestService', () => {
   let service: CommunityChestService;
-  let repository: Repository<CommunityChest>;
+  let mockCreateQueryBuilder: jest.Mock;
 
   beforeEach(async () => {
+    mockCreateQueryBuilder = jest.fn(() => ({
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(mockCommunityChest),
+    }));
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommunityChestService,
         {
           provide: getRepositoryToken(CommunityChest),
           useValue: {
-            createQueryBuilder: jest.fn(() => ({
-              orderBy: jest.fn().mockReturnThis(),
-              limit: jest.fn().mockReturnThis(),
-              getOne: jest.fn().mockResolvedValue(mockCommunityChest),
-            })),
+            createQueryBuilder: mockCreateQueryBuilder,
           },
         },
       ],
     }).compile();
 
     service = module.get<CommunityChestService>(CommunityChestService);
-    repository = module.get<Repository<CommunityChest>>(
-      getRepositoryToken(CommunityChest),
-    );
   });
 
   it('should be defined', () => {
@@ -48,9 +46,7 @@ describe('CommunityChestService', () => {
     it('should return a random community chest card', async () => {
       const result = await service.drawCard();
       expect(result).toEqual(mockCommunityChest);
-      expect(repository.createQueryBuilder).toHaveBeenCalledWith(
-        'community_chest',
-      );
+      expect(mockCreateQueryBuilder).toHaveBeenCalledWith('community_chest');
     });
   });
 });
