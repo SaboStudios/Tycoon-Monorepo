@@ -5,9 +5,9 @@ import { CommunityChestController } from './community-chest.controller';
 import { CommunityChest } from './entities/community-chest.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([CommunityChest])],
-    controllers: [CommunityChestController],
-    providers: [CommunityChestService],
-    exports: [CommunityChestService],
+  imports: [TypeOrmModule.forFeature([CommunityChest])],
+  controllers: [CommunityChestController],
+  providers: [CommunityChestService],
+  exports: [CommunityChestService],
 })
-export class CommunityChestModule { }
+export class CommunityChestModule {}

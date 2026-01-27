@@ -1,7 +1,14 @@
 // src/chances/chances.controller.ts
-import { Controller, Get, Query, UseGuards, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  UseGuards,
   HttpCode,
-  HttpStatus } from '@nestjs/common';
+  HttpStatus,
+} from '@nestjs/common';
 import { ChanceService } from './chance.service';
 import { Chance } from './entities/chance.entity';
 
@@ -22,7 +29,12 @@ export class ChanceController {
   async getAllChances(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-  ): Promise<{ success: boolean; page: number; limit: number; data: Chance[] }> {
+  ): Promise<{
+    success: boolean;
+    page: number;
+    limit: number;
+    data: Chance[];
+  }> {
     const pageNum = page ? parseInt(page) : 1;
     const limitNum = limit ? parseInt(limit) : 20;
 
@@ -34,20 +46,18 @@ export class ChanceController {
       limit: limitNum,
       data,
     };
-      }
-      
-  @Post()
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-
-  @Roles(Role.ADMIN)
-
-  @HttpCode(HttpStatus.CREATED)
-
-  async create(@Body() createChanceDto: CreateChanceDto): Promise<Chance> {
-
-    return await this.chanceService.createChance(createChanceDto);
-
   }
 
+  @Get('draw')
+  async draw(): Promise<Chance> {
+    return await this.chanceService.drawCard();
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Body() createChanceDto: CreateChanceDto): Promise<Chance> {
+    return await this.chanceService.createChance(createChanceDto);
+  }
 }

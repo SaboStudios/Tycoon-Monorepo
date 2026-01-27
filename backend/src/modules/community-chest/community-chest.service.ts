@@ -5,18 +5,18 @@ import { CommunityChest } from './entities/community-chest.entity';
 
 @Injectable()
 export class CommunityChestService {
-    constructor(
-        @InjectRepository(CommunityChest)
-        private readonly communityChestRepository: Repository<CommunityChest>,
-    ) { }
+  constructor(
+    @InjectRepository(CommunityChest)
+    private readonly communityChestRepository: Repository<CommunityChest>,
+  ) {}
 
-    async drawCard(): Promise<CommunityChest | null> {
-        const result = await this.communityChestRepository
-            .createQueryBuilder('community_chest')
-            .orderBy('RANDOM()')
-            .limit(1)
-            .getOne();
+  async drawCard(): Promise<CommunityChest | null> {
+    const result = await this.communityChestRepository
+      .createQueryBuilder('community_chest')
+      .orderBy('RANDOM()')
+      .limit(1)
+      .getOne();
 
-        return result;
-    }
+    return result;
+  }
 }

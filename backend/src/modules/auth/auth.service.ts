@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,11 +19,10 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @InjectRepository(RefreshToken) 
+    @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
-    @InjectRepository(User) 
-    private readonly userRepo: Repository<User>
-    
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   async validateUser(
@@ -46,7 +50,8 @@ export class AuthService {
   }
 
   async createRefreshToken(userId: number): Promise<RefreshToken> {
-    const refreshExpiresInSeconds = this.configService.get<number>('jwt.refreshExpiresIn') || 604800;
+    const refreshExpiresInSeconds =
+      this.configService.get<number>('jwt.refreshExpiresIn') || 604800;
     const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
     const token = this.jwtService.sign(
@@ -105,47 +110,42 @@ export class AuthService {
     return await bcrypt.hash(password, saltRounds);
   }
 
-  async CreateUser(dto:any): Promise<User> {
+  async CreateUser(dto: any): Promise<User> {
     const { username, address } = dto;
     const chain = dto.chain || 'BASE';
-  try {
-
-    const existingUsername = await this.userRepo.findOne({
-      where: { username }, });
+    try {
+      const existingUsername = await this.userRepo.findOne({
+        where: { username },
+      });
 
       if (existingUsername) {
-      throw new ConflictException('Username already taken');
+        throw new ConflictException('Username already taken');
+      }
+
+      const existingAddress = await this.userRepo.findOne({
+        where: { address },
+      });
+      if (existingAddress) {
+        throw new ConflictException('Address already registered');
+      }
+
+      const user = this.userRepo.create({
+        username,
+        address,
+        chain,
+        games_played: 0,
+        game_won: 0,
+        game_lost: 0,
+        total_staked: '0',
+        total_earned: '0',
+        total_withdrawn: '0',
+      });
+
+      const savedUser = await this.userRepo.save(user);
+
+      return savedUser;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to create user');
     }
-
-     const existingAddress = await this.userRepo.findOne({
-      where: { address },
-    });
-    if (existingAddress) {
-      throw new ConflictException('Address already registered');
-    }
-
-    const user = this.userRepo.create({
-      username,
-      address,
-      chain,
-      games_played: 0,
-      game_won: 0,
-      game_lost: 0,
-      total_staked: '0',
-      total_earned: '0',
-      total_withdrawn: '0',
-    });
-
-    const savedUser = await this.userRepo.save(user);
-
-    return savedUser;
-
-    
-  } catch (error) {
-    throw new InternalServerErrorException('Failed to create user');
   }
-
 }
-}
-
-

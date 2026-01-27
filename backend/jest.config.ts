@@ -21,6 +21,13 @@ const config: Config = {
             statements: 80,
         },
     },
+    globals: {
+        'ts-jest': {
+            tsconfig: {
+                ignoreDeprecations: '5.0',
+            },
+        },
+    },
 };
 
 export default config;

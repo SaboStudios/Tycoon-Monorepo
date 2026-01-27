@@ -27,7 +27,7 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Hash the password before saving
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-    
+
     // Create user entity with mapped fields
     const user = this.userRepository.create({
       email: createUserDto.email,
@@ -35,7 +35,7 @@ export class UsersService {
       lastName: createUserDto.lastName,
       password: hashedPassword,
     });
-    
+
     const savedUser = await this.userRepository.save(user);
 
     // Invalidate users list cache

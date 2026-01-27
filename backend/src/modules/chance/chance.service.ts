@@ -13,29 +13,45 @@ export class ChanceService {
   ) {}
 
   async findAll(page?: number, limit?: number): Promise<Chance[]> {
-
     const take = limit || 20;
 
     const skip = page && page > 0 ? (page - 1) * take : 0;
 
     return await this.chanceRepository.find({
-
       order: { id: 'ASC' },
 
       take,
 
       skip,
-
     });
+  }
+
+  async drawCard(): Promise<Chance> {
+    const count = await this.chanceRepository.count();
+    if (count === 0) {
+      throw new BadRequestException('No chance cards available');
     }
+    const randomIndex = Math.floor(Math.random() * count);
+    const [card] = await this.chanceRepository.find({
+      skip: randomIndex,
+      take: 1,
+    });
+    return card;
+  }
   async createChance(createChanceDto: CreateChanceDto): Promise<Chance> {
     const trimmedInstruction = createChanceDto.instruction.trim();
     if (!trimmedInstruction || trimmedInstruction.length === 0) {
       throw new BadRequestException('Instruction cannot be empty');
     }
 
-    if (createChanceDto.type === ChanceType.REWARD || createChanceDto.type === ChanceType.PENALTY) {
-      if (createChanceDto.amount === undefined || createChanceDto.amount === null) {
+    if (
+      createChanceDto.type === ChanceType.REWARD ||
+      createChanceDto.type === ChanceType.PENALTY
+    ) {
+      if (
+        createChanceDto.amount === undefined ||
+        createChanceDto.amount === null
+      ) {
         throw new BadRequestException(
           `Amount is required for ${createChanceDto.type} type chance cards`,
         );
@@ -46,19 +62,32 @@ export class ChanceService {
     }
 
     if (createChanceDto.type === ChanceType.MOVE) {
-      if (createChanceDto.position === undefined || createChanceDto.position === null) {
-        throw new BadRequestException('Position is required for move type chance cards');
+      if (
+        createChanceDto.position === undefined ||
+        createChanceDto.position === null
+      ) {
+        throw new BadRequestException(
+          'Position is required for move type chance cards',
+        );
       }
       if (createChanceDto.position < 0) {
         throw new BadRequestException('Position must be a non-negative number');
       }
     }
 
-    if (createChanceDto.amount !== undefined && createChanceDto.amount !== null && createChanceDto.amount < 0) {
+    if (
+      createChanceDto.amount !== undefined &&
+      createChanceDto.amount !== null &&
+      createChanceDto.amount < 0
+    ) {
       throw new BadRequestException('Amount must be a non-negative number');
     }
 
-    if (createChanceDto.position !== undefined && createChanceDto.position !== null && createChanceDto.position < 0) {
+    if (
+      createChanceDto.position !== undefined &&
+      createChanceDto.position !== null &&
+      createChanceDto.position < 0
+    ) {
       throw new BadRequestException('Position must be a non-negative number');
     }
 

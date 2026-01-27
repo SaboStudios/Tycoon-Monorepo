@@ -84,4 +84,4 @@ import { CommunityChestModule } from './modules/community-chest/community-chest.
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
