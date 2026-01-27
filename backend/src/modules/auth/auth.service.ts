@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -37,11 +37,38 @@ export class AuthService {
   async login(user: { id: number; email: string; role: string }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = this.jwtService.sign(payload);
+    const refreshToken = await this.createRefreshToken(Number(user.id));
+
+    return {
+      accessToken,
+      refreshToken: refreshToken.token,
+    };
+  }
+
+  async walletLogin(address: string, chain: string) {
+    if (!address || !chain) {
+      throw new BadRequestException('Address and chain are required');
+    }
+
+    const user = await this.userRepo.findOne({ where: { address, chain } });
+
+    if (!user) {
+      throw new NotFoundException('Invalid address/chain combination');
+    }
+
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(user.id);
 
     return {
       accessToken,
       refreshToken: refreshToken.token,
+      user: {
+        id: user.id,
+        username: user.username,
+        address: user.address,
+        chain: user.chain,
+      },
     };
   }
 
