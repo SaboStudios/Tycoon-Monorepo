@@ -11,6 +11,7 @@ import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { WalletLoginDto } from './dto/wallet-login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -29,6 +30,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshTokens(refreshTokenDto.refreshToken);
+  }
+
+  @Post('wallet-login')
+  @HttpCode(HttpStatus.OK)
+  async walletLogin(@Body() body: WalletLoginDto) {
+    return this.authService.walletLogin(body.address, body.chain);
   }
 
   @UseGuards(JwtAuthGuard)
