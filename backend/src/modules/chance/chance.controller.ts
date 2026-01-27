@@ -1,7 +1,13 @@
-// src/chances/chances.controller.ts
-import { Controller, Get, Query, UseGuards, 
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
   HttpCode,
-  HttpStatus } from '@nestjs/common';
+  HttpStatus,
+  Post,
+  Body,
+} from '@nestjs/common';
 import { ChanceService } from './chance.service';
 import { Chance } from './entities/chance.entity';
 
@@ -16,7 +22,7 @@ import { Role } from '../auth/enums/role.enum';
 import { CreateChanceDto } from './dto/create-chance.dto';
 @Controller('chances')
 export class ChanceController {
-  constructor(private readonly chanceService: ChanceService) {}
+  constructor(private readonly chanceService: ChanceService) { }
 
   @Get()
   async getAllChances(
@@ -34,8 +40,8 @@ export class ChanceController {
       limit: limitNum,
       data,
     };
-      }
-      
+  }
+
   @Post()
 
   @UseGuards(JwtAuthGuard, RolesGuard)
