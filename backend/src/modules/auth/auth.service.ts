@@ -12,7 +12,6 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
-import { CreateUserDto } from '../users/dto/create-user.dto';
 @Injectable()
 export class AuthService {
   constructor(
@@ -138,7 +137,11 @@ export class AuthService {
     return await bcrypt.hash(password, saltRounds);
   }
 
-  async CreateUser(dto: any): Promise<User> {
+  async CreateUser(dto: {
+    username: string;
+    address: string;
+    chain?: string;
+  }): Promise<User> {
     const { username, address } = dto;
     const chain = dto.chain || 'BASE';
     try {
@@ -172,7 +175,7 @@ export class AuthService {
       const savedUser = await this.userRepo.save(user);
 
       return savedUser;
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException('Failed to create user');
     }
   }

@@ -1,5 +1,40 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String};
+use soroban_sdk::{
+    contract, contractevent, contractimpl, contracttype, token, Address, Env, MuxedAddress, String,
+};
+
+#[contractevent(data_format = "single-value")]
+pub struct MintEvent {
+    #[topic]
+    pub to: Address,
+    pub amount: i128,
+}
+
+#[contractevent]
+pub struct TransferEvent {
+    #[topic]
+    pub from: Address,
+    #[topic]
+    pub to: Address,
+    pub amount: i128,
+}
+
+#[contractevent(data_format = "single-value")]
+pub struct BurnEvent {
+    #[topic]
+    pub from: Address,
+    pub amount: i128,
+}
+
+#[contractevent]
+pub struct ApproveEvent {
+    #[topic]
+    pub from: Address,
+    #[topic]
+    pub spender: Address,
+    pub amount: i128,
+    pub expiration_ledger: u32,
+}
 
 #[contracttype]
 #[derive(Clone)]
@@ -28,8 +63,11 @@ impl TycoonToken {
         e.storage()
             .persistent()
             .set(&DataKey::Balance(admin.clone()), &initial_supply);
-        e.events()
-            .publish((String::from_str(&e, "mint"), admin), initial_supply);
+        MintEvent {
+            to: admin,
+            amount: initial_supply,
+        }
+        .publish(&e);
     }
 
     pub fn mint(e: Env, to: Address, amount: i128) {
@@ -40,7 +78,11 @@ impl TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let balance = Self::balance(e.clone(), to.clone());
+        let balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(to.clone()))
+            .unwrap_or(0);
         let new_balance = balance.checked_add(amount).expect("Balance overflow");
         e.storage()
             .persistent()
@@ -52,8 +94,7 @@ impl TycoonToken {
             &supply.checked_add(amount).expect("Supply overflow"),
         );
 
-        e.events()
-            .publish((String::from_str(&e, "mint"), to), amount);
+        MintEvent { to, amount }.publish(&e);
     }
 
     pub fn set_admin(e: Env, new_admin: Address) {
@@ -75,7 +116,7 @@ impl TycoonToken {
 }
 
 #[contractimpl]
-impl token::TokenInterface for TycoonToken {
+impl TycoonToken {
     fn allowance(e: Env, from: Address, spender: Address) -> i128 {
         e.storage()
             .persistent()
@@ -91,10 +132,13 @@ impl token::TokenInterface for TycoonToken {
         e.storage()
             .persistent()
             .set(&DataKey::Allowance(from.clone(), spender.clone()), &amount);
-        e.events().publish(
-            (String::from_str(&e, "approve"), from, spender),
-            (amount, expiration_ledger),
-        );
+        ApproveEvent {
+            from,
+            spender,
+            amount,
+            expiration_ledger,
+        }
+        .publish(&e);
     }
 
     fn balance(e: Env, id: Address) -> i128 {
@@ -104,7 +148,7 @@ impl token::TokenInterface for TycoonToken {
             .unwrap_or(0)
     }
 
-    fn transfer(e: Env, from: Address, to: Address, amount: i128) {
+    fn transfer(e: Env, from: Address, to: MuxedAddress, amount: i128) {
         from.require_auth();
         if amount < 0 {
             panic!("Amount cannot be negative");
@@ -113,7 +157,12 @@ impl token::TokenInterface for TycoonToken {
             return;
         }
 
-        let from_balance = Self::balance(e.clone(), from.clone());
+        let to_addr = to.address();
+        let from_balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(from.clone()))
+            .unwrap_or(0);
         if from_balance < amount {
             panic!("Insufficient balance");
         }
@@ -121,14 +170,22 @@ impl token::TokenInterface for TycoonToken {
             .persistent()
             .set(&DataKey::Balance(from.clone()), &(from_balance - amount));
 
-        let to_balance = Self::balance(e.clone(), to.clone());
+        let to_balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(to_addr.clone()))
+            .unwrap_or(0);
         e.storage().persistent().set(
-            &DataKey::Balance(to.clone()),
+            &DataKey::Balance(to_addr.clone()),
             &to_balance.checked_add(amount).expect("Balance overflow"),
         );
 
-        e.events()
-            .publish((String::from_str(&e, "transfer"), from, to), amount);
+        TransferEvent {
+            from,
+            to: to_addr,
+            amount,
+        }
+        .publish(&e);
     }
 
     fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
@@ -140,7 +197,11 @@ impl token::TokenInterface for TycoonToken {
             return;
         }
 
-        let allowance = Self::allowance(e.clone(), from.clone(), spender.clone());
+        let allowance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Allowance(from.clone(), spender.clone()))
+            .unwrap_or(0);
         if allowance < amount {
             panic!("Insufficient allowance");
         }
@@ -149,7 +210,11 @@ impl token::TokenInterface for TycoonToken {
             &(allowance - amount),
         );
 
-        let from_balance = Self::balance(e.clone(), from.clone());
+        let from_balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(from.clone()))
+            .unwrap_or(0);
         if from_balance < amount {
             panic!("Insufficient balance");
         }
@@ -157,14 +222,17 @@ impl token::TokenInterface for TycoonToken {
             .persistent()
             .set(&DataKey::Balance(from.clone()), &(from_balance - amount));
 
-        let to_balance = Self::balance(e.clone(), to.clone());
+        let to_balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(to.clone()))
+            .unwrap_or(0);
         e.storage().persistent().set(
             &DataKey::Balance(to.clone()),
             &to_balance.checked_add(amount).expect("Balance overflow"),
         );
 
-        e.events()
-            .publish((String::from_str(&e, "transfer"), from, to), amount);
+        TransferEvent { from, to, amount }.publish(&e);
     }
 
     fn burn(e: Env, from: Address, amount: i128) {
@@ -173,7 +241,11 @@ impl token::TokenInterface for TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let balance = Self::balance(e.clone(), from.clone());
+        let balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(from.clone()))
+            .unwrap_or(0);
         if balance < amount {
             panic!("Insufficient balance");
         }
@@ -186,8 +258,7 @@ impl token::TokenInterface for TycoonToken {
             .instance()
             .set(&DataKey::TotalSupply, &(supply - amount));
 
-        e.events()
-            .publish((String::from_str(&e, "burn"), from), amount);
+        BurnEvent { from, amount }.publish(&e);
     }
 
     fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
@@ -196,7 +267,11 @@ impl token::TokenInterface for TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let allowance = Self::allowance(e.clone(), from.clone(), spender.clone());
+        let allowance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Allowance(from.clone(), spender.clone()))
+            .unwrap_or(0);
         if allowance < amount {
             panic!("Insufficient allowance");
         }
@@ -205,7 +280,11 @@ impl token::TokenInterface for TycoonToken {
             &(allowance - amount),
         );
 
-        let balance = Self::balance(e.clone(), from.clone());
+        let balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(from.clone()))
+            .unwrap_or(0);
         if balance < amount {
             panic!("Insufficient balance");
         }
@@ -218,25 +297,9 @@ impl token::TokenInterface for TycoonToken {
             .instance()
             .set(&DataKey::TotalSupply, &(supply - amount));
 
-        e.events()
-            .publish((String::from_str(&e, "burn"), from), amount);
+        BurnEvent { from, amount }.publish(&e);
     }
 
-    fn decimals(_e: Env) -> u32 {
-        18
-    }
-
-    fn name(e: Env) -> String {
-        String::from_str(&e, "Tycoon")
-    }
-
-    fn symbol(e: Env) -> String {
-        String::from_str(&e, "TYC")
-    }
-}
-
-#[contractimpl]
-impl token::TokenMetadataInterface for TycoonToken {
     fn decimals(_e: Env) -> u32 {
         18
     }

@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::*;
 use crate::types::{Perk, CASH_TIERS};
 use soroban_sdk::{
@@ -443,7 +441,7 @@ fn test_burn_collectible_for_perk_cash_tiered() {
     assert_eq!(client.balance_of(&user, &1), 4, "Balance did not decrease!");
 
     // 4. Verify Events by checking the actual log
-    let events = env.events().all();
+    let _events = env.events().all();
 
     // If the count is still 0, we check if the perk was correct
     let cash_value = crate::types::CASH_TIERS[2];
@@ -492,7 +490,6 @@ fn test_burn_collectible_for_perk_all_tiers() {
     assert_eq!(CASH_TIERS[4], 2500); // Strength 5
 }
 
-#[test]
 #[test]
 fn test_burn_collectible_for_perk_tax_refund() {
     let env = Env::default();
@@ -708,11 +705,11 @@ fn test_pause_unpause_functionality() {
     client.initialize(&admin);
 
     // Initially not paused
-    assert_eq!(client.is_contract_paused(), false);
+    assert!(!client.is_contract_paused());
 
     // Pause
     client.set_pause(&admin, &true);
-    assert_eq!(client.is_contract_paused(), true);
+    assert!(client.is_contract_paused());
 
     // Buy collectible and set perk
     client.buy_collectible(&user, &1, &1);
@@ -724,7 +721,7 @@ fn test_pause_unpause_functionality() {
 
     // Unpause
     client.set_pause(&admin, &false);
-    assert_eq!(client.is_contract_paused(), false);
+    assert!(!client.is_contract_paused());
     assert!(!client.is_contract_paused());
 
     // Pause
@@ -979,10 +976,10 @@ fn test_enumeration_swap_remove_behavior() {
 
     // Verify 200 is gone
     let tokens = client.tokens_of(&alice);
-    assert!(!tokens.contains(&200));
-    assert!(tokens.contains(&100));
-    assert!(tokens.contains(&300));
-    assert!(tokens.contains(&400));
+    assert!(!tokens.contains(200));
+    assert!(tokens.contains(100));
+    assert!(tokens.contains(300));
+    assert!(tokens.contains(400));
 }
 
 #[test]
@@ -1053,8 +1050,8 @@ fn test_protected_mint_rejection() {
     // Verify final state
     let alice_tokens = client.tokens_of(&alice);
     assert_eq!(alice_tokens.len(), 3);
-    assert!(!alice_tokens.contains(&2));
-    assert!(!alice_tokens.contains(&4));
+    assert!(!alice_tokens.contains(2));
+    assert!(!alice_tokens.contains(4));
 
     let charlie_tokens = client.tokens_of(&charlie);
     assert_eq!(charlie_tokens.len(), 1);
@@ -1348,7 +1345,7 @@ fn test_stock_shop_emits_event() {
     client.initialize(&admin);
 
     // Stock a collectible
-    let token_id = client.stock_shop(&100, &1, &3, &1000, &500);
+    let _token_id = client.stock_shop(&100, &1, &3, &1000, &500);
 
     // Verify event was emitted
     let events = env.events().all();

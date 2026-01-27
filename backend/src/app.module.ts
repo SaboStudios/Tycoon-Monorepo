@@ -10,11 +10,7 @@ import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import {
-  CommonModule,
-  ResponseInterceptor,
-  HttpExceptionFilter,
-} from './common';
+import { CommonModule, HttpExceptionFilter } from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
@@ -47,7 +43,10 @@ import { CommunityChestModule } from './modules/community-chest/community-chest.
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const dbConfig = configService.get('database');
+        const dbConfig = configService.get('database') as Record<
+          string,
+          unknown
+        >;
         if (!dbConfig) {
           throw new Error('Database configuration not found');
         }

@@ -80,10 +80,8 @@ impl TycoonCollectibles {
             _ => return Err(CollectibleError::InvalidPerk),
         };
 
-        if matches!(perk_enum, Perk::CashTiered | Perk::TaxRefund) {
-            if !(1..=5).contains(&strength) {
-                return Err(CollectibleError::InvalidStrength);
-            }
+        if matches!(perk_enum, Perk::CashTiered | Perk::TaxRefund) && !(1..=5).contains(&strength) {
+            return Err(CollectibleError::InvalidStrength);
         }
 
         // Generate new token_id

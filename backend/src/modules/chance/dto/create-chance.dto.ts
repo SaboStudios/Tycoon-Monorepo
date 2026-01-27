@@ -13,7 +13,9 @@ import { ChanceType } from '../enums/chance-type.enum';
 export class CreateChanceDto {
   @IsString()
   @IsNotEmpty()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   instruction: string;
 
   @IsEnum(ChanceType)
@@ -32,5 +34,5 @@ export class CreateChanceDto {
 
   @IsObject()
   @IsOptional()
-  extra?: Record<string, any>;
+  extra?: Record<string, unknown>;
 }

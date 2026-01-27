@@ -16,8 +16,8 @@ export class Chance {
   instruction: string;
 
   @Column({
-    type: 'enum',
-    enum: ChanceType,
+    type: 'varchar',
+    length: 20,
   })
   type: ChanceType;
 
