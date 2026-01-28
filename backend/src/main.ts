@@ -2,12 +2,18 @@ import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
-
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { LoggerService } from './common/logger/logger.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Use Winston logger
+  const winstonLogger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  app.useLogger(winstonLogger);
+
   const configService = app.get(ConfigService);
 
   // Enable Helmet
@@ -24,7 +30,8 @@ async function bootstrap() {
 
   // Global Exception Filter
   const httpAdapterHost = app.get(HttpAdapterHost);
-  app.useGlobalFilters(new AllExceptionsFilter(httpAdapterHost));
+  const loggerService = app.get(LoggerService);
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapterHost, loggerService));
 
   // CORS configuration
   app.enableCors({
@@ -41,7 +48,10 @@ async function bootstrap() {
   const port = configService.get<number>('app.port') || 3000;
   await app.listen(port);
 
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
-  console.log(`📚 API Documentation: http://localhost:${port}/${apiPrefix}`);
+  const logger = app.get(LoggerService);
+  logger.log(`🚀 Application is running on: http://localhost:${port}`, 'Bootstrap');
+  logger.log(`📚 API Documentation: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
+  logger.log(`Environment: ${configService.get<string>('app.environment') || 'development'}`, 'Bootstrap');
+  logger.log(`Log Level: ${process.env.LOG_LEVEL || 'default'}`, 'Bootstrap');
 }
 void bootstrap();
