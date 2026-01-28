@@ -2,7 +2,9 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
-  UnauthorizedException, NotFoundException, BadRequestException 
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -21,9 +23,8 @@ export class AuthService {
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(User)
-    private readonly userRepo: Repository<User>
-
-  ) { }
+    private readonly userRepo: Repository<User>,
+  ) {}
 
   async validateUser(
     email: string,

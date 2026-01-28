@@ -20,7 +20,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   /**
    * Create a new user

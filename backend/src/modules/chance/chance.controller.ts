@@ -24,7 +24,7 @@ import { Role } from '../auth/enums/role.enum';
 import { CreateChanceDto } from './dto/create-chance.dto';
 @Controller('chances')
 export class ChanceController {
-  constructor(private readonly chanceService: ChanceService) { }
+  constructor(private readonly chanceService: ChanceService) {}
 
   @Get()
   async getAllChances(
@@ -50,7 +50,6 @@ export class ChanceController {
   }
 
   @Post()
-
   @Get('draw')
   async draw(): Promise<Chance> {
     return await this.chanceService.drawCard();
