@@ -11,25 +11,25 @@ import {
   Query,
   BadRequestException,
   ParseIntPipe,
-} from "@nestjs/common";
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiBody,
-} from "@nestjs/swagger";
-import { PropertiesService } from "./properties.service";
-import { CreatePropertyDto } from "./dto/create-property.dto";
-import { UpdatePropertyDto } from "./dto/update-property.dto";
-import { ToggleMortgageDto } from "./dto/toggle-mortgage.dto";
-import { GetPropertiesDto } from "./dto/get-properties.dto";
-import { UpdateRentStructureDto } from "./dto/update-rent-structure.dto";
-import { RentStructureResponseDto } from "./dto/rent-structure-response.dto";
-import { Property } from "./entities/property.entity";
+} from '@nestjs/swagger';
+import { PropertiesService } from './properties.service';
+import { CreatePropertyDto } from './dto/create-property.dto';
+import { UpdatePropertyDto } from './dto/update-property.dto';
+import { ToggleMortgageDto } from './dto/toggle-mortgage.dto';
+import { GetPropertiesDto } from './dto/get-properties.dto';
+import { UpdateRentStructureDto } from './dto/update-rent-structure.dto';
+import { RentStructureResponseDto } from './dto/rent-structure-response.dto';
+import { Property } from './entities/property.entity';
 
-@ApiTags("Properties")
-@Controller("properties")
+@ApiTags('Properties')
+@Controller('properties')
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) { }
 
@@ -54,10 +54,10 @@ export class PropertiesController {
    * Toggle mortgage state of a property
    * PATCH /properties/:id/mortgage
    */
-  @Patch(":id/mortgage")
+  @Patch(':id/mortgage')
   @HttpCode(HttpStatus.OK)
   async toggleMortgage(
-    @Param("id", ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body() toggleMortgageDto: ToggleMortgageDto,
   ): Promise<Property> {
     return await this.propertiesService.toggleMortgage(
@@ -70,7 +70,7 @@ export class PropertiesController {
    * Update property rent structure
    * PATCH /properties/:id/rent-structure
    */
-  @Patch(":id/rent-structure")
+  @Patch(':id/rent-structure')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update property rent structure',
@@ -111,7 +111,7 @@ export class PropertiesController {
     }
   })
   async updateRentStructure(
-    @Param("id", ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateRentStructureDto,
   ): Promise<RentStructureResponseDto> {
     return await this.propertiesService.updateRentStructure(id, updateDto);
@@ -121,7 +121,7 @@ export class PropertiesController {
    * Get property rent structure
    * GET /properties/:id/rent-structure
    */
-  @Get(":id/rent-structure")
+  @Get(':id/rent-structure')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get property rent structure',
@@ -150,10 +150,8 @@ export class PropertiesController {
     }
   })
   async getRentStructure(
-    @Param("id", ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) id: number,
   ): Promise<RentStructureResponseDto> {
     return await this.propertiesService.getPropertyRentStructure(id);
   }
 }
-
-

@@ -20,7 +20,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   /**
    * Create a new user
@@ -135,5 +135,35 @@ export class UsersService {
    */
   private async invalidateUsersCache(): Promise<void> {
     await this.redisService.del('cache:GET:/api/v1/users:*');
+  }
+
+  /**
+   * Update user game statistics atomically
+   */
+  async updateGameStats(
+    userId: number,
+    isWin: boolean,
+    stakedAmount: number,
+    earnedAmount: number,
+  ): Promise<void> {
+    const queryBuilder = this.userRepository
+      .createQueryBuilder()
+      .update(User)
+      .set({
+        games_played: () => 'games_played + 1',
+        game_won: () => (isWin ? 'game_won + 1' : 'game_won'),
+        game_lost: () => (!isWin ? 'game_lost + 1' : 'game_lost'),
+        total_staked: () => `total_staked + :stakedAmount`,
+        total_earned: () => `total_earned + :earnedAmount`,
+      })
+      .where('id = :id', { id: userId })
+      .setParameter('stakedAmount', stakedAmount)
+      .setParameter('earnedAmount', earnedAmount);
+
+    await queryBuilder.execute();
+
+    // Invalidate cache for this user and users list
+    await this.invalidateUserCache(userId);
+    await this.invalidateUsersCache();
   }
 }
