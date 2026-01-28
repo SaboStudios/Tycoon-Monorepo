@@ -117,4 +117,75 @@ describe('UsersService', () => {
       expect(repositoryMock.remove).toHaveBeenCalledWith(user);
     });
   });
+
+  describe('updateGameStats', () => {
+    let createQueryBuilderSpy: jest.SpyInstance;
+    let setSpy: jest.SpyInstance;
+    let whereSpy: jest.SpyInstance;
+    let setParameterSpy: jest.SpyInstance;
+    let executeSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      // Create spies for query builder chain
+      executeSpy = jest.fn().mockResolvedValue({});
+      setParameterSpy = jest.fn().mockReturnThis();
+      whereSpy = jest.fn().mockReturnThis();
+      setSpy = jest.fn().mockReturnThis();
+
+      const queryBuilderMock = {
+        update: jest.fn().mockReturnThis(),
+        set: setSpy,
+        where: whereSpy,
+        setParameter: setParameterSpy,
+        execute: executeSpy,
+      };
+
+      createQueryBuilderSpy = repositoryMock.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(queryBuilderMock);
+    });
+
+    it('should increment stats for a win', async () => {
+      const userId = 1;
+      const amount = 100;
+      const earnings = 200;
+
+      await service.updateGameStats(userId, true, amount, earnings);
+
+      expect(createQueryBuilderSpy).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          games_played: expect.any(Function),
+          game_won: expect.any(Function),
+          game_lost: expect.any(Function),
+          total_staked: expect.any(Function),
+          total_earned: expect.any(Function),
+        }),
+      );
+
+      // Verify logic inside set functions
+      const setCall = setSpy.mock.calls[0][0];
+      expect(setCall.games_played()).toBe('games_played + 1');
+      expect(setCall.game_won()).toBe('game_won + 1');
+      expect(setCall.game_lost()).toBe('game_lost'); // Should not increment
+      expect(setCall.total_staked()).toBe('total_staked + :stakedAmount');
+      expect(setCall.total_earned()).toBe('total_earned + :earnedAmount');
+
+      expect(whereSpy).toHaveBeenCalledWith('id = :id', { id: userId });
+      expect(setParameterSpy).toHaveBeenCalledWith('stakedAmount', amount);
+      expect(setParameterSpy).toHaveBeenCalledWith('earnedAmount', earnings);
+    });
+
+    it('should increment stats for a loss', async () => {
+      const userId = 1;
+      const amount = 100;
+      const earnings = 0;
+
+      await service.updateGameStats(userId, false, amount, earnings);
+
+      const setCall = setSpy.mock.calls[0][0];
+      expect(setCall.game_won()).toBe('game_won'); // Should not increment
+      expect(setCall.game_lost()).toBe('game_lost + 1');
+    });
+  });
 });
