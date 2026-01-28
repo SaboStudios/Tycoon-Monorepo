@@ -20,7 +20,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
-  ) { }
+  ) {}
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
@@ -46,13 +46,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req) { // Type changed to 'any' or inferred
+  async logout(@Request() req) {
+    // Type changed to 'any' or inferred
     return this.authService.logout(req.user.id);
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() createUserDto: CreateUserDto) { // Type fixed
+  async register(@Body() createUserDto: CreateUserDto) {
+    // Type fixed
     return this.usersService.create(createUserDto); // Service and method call corrected
   }
 }

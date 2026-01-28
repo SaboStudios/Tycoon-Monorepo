@@ -4,10 +4,13 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { ChanceType } from '../../chance/enums/chance-type.enum';
 
 @Entity('community_chests')
+@Index(['type']) // Index for filtering by type
+@Index(['createdAt']) // Index for sorting by creation date
 export class CommunityChest {
   @PrimaryGeneratedColumn()
   id: number;

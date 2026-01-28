@@ -7,6 +7,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityChest } from './entities/community-chest.entity';
 import { CreateCommunityChestDto } from './dto/create-community-chest.dto';
+import {
+  GetCommunityChestListDto,
+  CommunityChestSortBy,
+} from './dto/get-community-chest-list.dto';
 
 @Injectable()
 export class CommunityChestService {
@@ -59,10 +63,31 @@ export class CommunityChestService {
     }
   }
 
-  async findAll(): Promise<CommunityChest[]> {
-    return this.communityChestRepository.find({
-      order: { createdAt: 'DESC' },
-    });
+  /**
+   * Get all Community Chest cards with optional filtering and ordering
+   * Supports flexible ordering by any field and type filtering
+   * Optimized query with index on type and createdAt for efficient filtering/sorting
+   */
+  async findAll(query: GetCommunityChestListDto): Promise<CommunityChest[]> {
+    const { sortBy = CommunityChestSortBy.ID, sortOrder = 'ASC', type } = query;
+
+    const qb =
+      this.communityChestRepository.createQueryBuilder('community_chest');
+
+    // Apply type filter if provided
+    if (type) {
+      qb.andWhere('community_chest.type = :type', { type });
+    }
+
+    // Apply ordering - validate sortBy is a valid column
+    const validSortColumns = Object.values(CommunityChestSortBy);
+    const sortColumn = validSortColumns.includes(sortBy)
+      ? sortBy
+      : CommunityChestSortBy.ID;
+
+    qb.orderBy(`community_chest.${sortColumn}`, sortOrder);
+
+    return await qb.getMany();
   }
 
   async findOne(id: number): Promise<CommunityChest | null> {
