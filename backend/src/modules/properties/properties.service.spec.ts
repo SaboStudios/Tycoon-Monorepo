@@ -3,7 +3,7 @@ import { PropertiesService } from './properties.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Property } from './entities/property.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('PropertiesService', () => {
   let service: PropertiesService;
@@ -221,6 +221,197 @@ describe('PropertiesService', () => {
       expect(result.rent_one_house).toBe(0);
       expect(result.rent_hotel).toBe(0);
       expect(result.cost_of_house).toBe(0);
+    });
+  });
+
+  describe('updateRentStructure', () => {
+    const mockProperty = {
+      id: 1,
+      name: 'Park Place',
+      type: 'property',
+      position: 'top',
+      grid_row: 0,
+      grid_col: 7,
+      price: 350,
+      group_id: 8,
+      color: '#0000FF',
+      rent_site_only: 35,
+      rent_one_house: 175,
+      rent_two_houses: 500,
+      rent_three_houses: 1100,
+      rent_four_houses: 1300,
+      rent_hotel: 1500,
+      cost_of_house: 200,
+      is_mortgaged: false,
+      icon: '',
+    } as Property;
+
+    it('should update all rent fields when provided', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+      mockRepository.save.mockResolvedValue({
+        ...mockProperty,
+        rent_site_only: 50,
+        rent_one_house: 200,
+        rent_two_houses: 600,
+        rent_three_houses: 1400,
+        rent_four_houses: 1700,
+        rent_hotel: 2000,
+        cost_of_house: 250,
+      });
+
+      const updateDto = {
+        rent_site_only: 50,
+        rent_one_house: 200,
+        rent_two_houses: 600,
+        rent_three_houses: 1400,
+        rent_four_houses: 1700,
+        rent_hotel: 2000,
+        cost_of_house: 250,
+      };
+
+      const result = await service.updateRentStructure(1, updateDto);
+
+      expect(result).toBeDefined();
+      expect(result.rent_site_only).toBe(50);
+      expect(result.cost_of_house).toBe(250);
+      expect(mockRepository.save).toHaveBeenCalled();
+    });
+
+    it('should support partial updates (only one field)', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+      mockRepository.save.mockResolvedValue({
+        ...mockProperty,
+        cost_of_house: 300,
+      });
+
+      const result = await service.updateRentStructure(1, {
+        cost_of_house: 300,
+      });
+
+      expect(result.cost_of_house).toBe(300);
+      // Other fields should remain unchanged
+      expect(result.rent_site_only).toBe(mockProperty.rent_site_only);
+    });
+
+    it('should throw NotFoundException if property does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateRentStructure(999, { rent_site_only: 50 }),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        service.updateRentStructure(999, { rent_site_only: 50 }),
+      ).rejects.toThrow('Property with ID 999 not found');
+    });
+
+    it('should throw BadRequestException if no fields provided', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+
+      await expect(
+        service.updateRentStructure(1, {}),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.updateRentStructure(1, {}),
+      ).rejects.toThrow('At least one rent field must be provided');
+    });
+
+    it('should update only rent_hotel without affecting other fields', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+      mockRepository.save.mockResolvedValue({
+        ...mockProperty,
+        rent_hotel: 2500,
+      });
+
+      const result = await service.updateRentStructure(1, {
+        rent_hotel: 2500,
+      });
+
+      expect(result.rent_hotel).toBe(2500);
+      expect(result.rent_site_only).toBe(mockProperty.rent_site_only);
+    });
+
+    it('should accept decimal values', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+      mockRepository.save.mockResolvedValue({
+        ...mockProperty,
+        rent_site_only: 35.50,
+      });
+
+      const result = await service.updateRentStructure(1, {
+        rent_site_only: 35.50,
+      });
+
+      expect(result.rent_site_only).toBe(35.50);
+    });
+
+    it('should update multiple fields at once', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+      mockRepository.save.mockResolvedValue({
+        ...mockProperty,
+        rent_site_only: 40,
+        rent_one_house: 200,
+        cost_of_house: 300,
+      });
+
+      const result = await service.updateRentStructure(1, {
+        rent_site_only: 40,
+        rent_one_house: 200,
+        cost_of_house: 300,
+      });
+
+      expect(result.rent_site_only).toBe(40);
+      expect(result.rent_one_house).toBe(200);
+      expect(result.cost_of_house).toBe(300);
+    });
+  });
+
+  describe('getPropertyRentStructure', () => {
+    const mockProperty = {
+      id: 1,
+      name: 'Park Place',
+      type: 'property',
+      position: 'top',
+      grid_row: 0,
+      grid_col: 7,
+      price: 350,
+      group_id: 8,
+      color: '#0000FF',
+      rent_site_only: 35,
+      rent_one_house: 175,
+      rent_two_houses: 500,
+      rent_three_houses: 1100,
+      rent_four_houses: 1300,
+      rent_hotel: 1500,
+      cost_of_house: 200,
+      is_mortgaged: false,
+      icon: '',
+    } as Property;
+
+    it('should return property rent structure', async () => {
+      mockRepository.findOne.mockResolvedValue(mockProperty);
+
+      const result = await service.getPropertyRentStructure(1);
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe(1);
+      expect(result.name).toBe('Park Place');
+      expect(result.rent_site_only).toBe(35);
+      expect(result.rent_hotel).toBe(1500);
+      expect(result.cost_of_house).toBe(200);
+    });
+
+    it('should throw NotFoundException if property not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getPropertyRentStructure(999),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        service.getPropertyRentStructure(999),
+      ).rejects.toThrow('Property with ID 999 not found');
     });
   });
 });
