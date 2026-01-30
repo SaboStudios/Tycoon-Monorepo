@@ -90,3 +90,16 @@ pub fn emit_price_updated_event(
         (token_id, new_tyc_price, new_usdc_price),
     );
 }
+
+pub fn emit_collectible_minted_event(
+    env: &Env,
+    token_id: u128,
+    recipient: &Address,
+    perk: u32,
+    strength: u32,
+) {
+    env.events().publish(
+        (symbol_short!("coll_mint"), recipient.clone()),
+        (token_id, perk, strength),
+    );
+}
