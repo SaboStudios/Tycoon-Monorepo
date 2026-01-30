@@ -1617,3 +1617,260 @@ fn test_stock_shop_with_non_tiered_perks() {
     assert_eq!(client.get_stock(&token_id_1), 50);
     assert_eq!(client.get_stock(&token_id_2), 75);
 }
+
+// ====================================
+// Collectible Minting Tests (Backend Rewards)
+// ====================================
+
+#[test]
+fn test_mint_collectible_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Admin mints collectible with CashTiered perk, strength 3
+    let token_id = client.mint_collectible(&admin, &user, &1, &3);
+
+    // Verify token_id is in the collectible range (>= 2e9)
+    assert!(token_id >= 2_000_000_000);
+
+    // Verify balance is 1
+    assert_eq!(client.balance_of(&user, &token_id), 1);
+
+    // Verify perk and strength are stored correctly
+    assert_eq!(client.get_token_perk(&token_id), Perk::CashTiered);
+    assert_eq!(client.get_token_strength(&token_id), 3);
+
+    // Verify token is in user's enumeration
+    let tokens = client.tokens_of(&user);
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens.get(0).unwrap(), token_id);
+}
+
+#[test]
+fn test_mint_collectible_multiple_increments_id() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Mint 3 collectibles sequentially
+    let token_id_1 = client.mint_collectible(&admin, &user, &1, &1);
+    let token_id_2 = client.mint_collectible(&admin, &user, &2, &5);
+    let token_id_3 = client.mint_collectible(&admin, &user, &3, &1);
+
+    // All IDs should be in collectible range
+    assert!(token_id_1 >= 2_000_000_000);
+    assert!(token_id_2 >= 2_000_000_000);
+    assert!(token_id_3 >= 2_000_000_000);
+
+    // IDs should increment sequentially
+    assert_eq!(token_id_2, token_id_1 + 1);
+    assert_eq!(token_id_3, token_id_2 + 1);
+
+    // User should own all 3 collectibles
+    assert_eq!(client.owned_token_count(&user), 3);
+}
+
+#[test]
+fn test_mint_collectible_invalid_perk_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to mint with perk=0 (None)
+    let result = client.try_mint_collectible(&admin, &user, &0, &1);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, CollectibleError::InvalidPerk),
+        _ => panic!("Should have returned InvalidPerk error"),
+    }
+}
+
+#[test]
+fn test_mint_collectible_invalid_perk_too_high() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to mint with perk=5 (invalid)
+    let result = client.try_mint_collectible(&admin, &user, &5, &1);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, CollectibleError::InvalidPerk),
+        _ => panic!("Should have returned InvalidPerk error"),
+    }
+}
+
+#[test]
+fn test_mint_collectible_invalid_strength_zero_cashtiered() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to mint CashTiered with strength=0
+    let result = client.try_mint_collectible(&admin, &user, &1, &0);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, CollectibleError::InvalidStrength),
+        _ => panic!("Should have returned InvalidStrength error"),
+    }
+}
+
+#[test]
+fn test_mint_collectible_invalid_strength_six_taxrefund() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to mint TaxRefund with strength=6
+    let result = client.try_mint_collectible(&admin, &user, &2, &6);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, CollectibleError::InvalidStrength),
+        _ => panic!("Should have returned InvalidStrength error"),
+    }
+}
+
+#[test]
+fn test_mint_collectible_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let stranger = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Stranger (not admin/minter) tries to mint
+    let result = client.try_mint_collectible(&stranger, &user, &1, &3);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, CollectibleError::Unauthorized),
+        _ => panic!("Should have returned Unauthorized error"),
+    }
+}
+
+#[test]
+fn test_mint_collectible_minter_can_mint() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let minter = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.set_backend_minter(&minter);
+
+    // Minter calls mint_collectible
+    let token_id = client.mint_collectible(&minter, &user, &2, &4);
+
+    // Verify success
+    assert!(token_id >= 2_000_000_000);
+    assert_eq!(client.balance_of(&user, &token_id), 1);
+    assert_eq!(client.get_token_perk(&token_id), Perk::TaxRefund);
+    assert_eq!(client.get_token_strength(&token_id), 4);
+}
+
+#[test]
+fn test_mint_collectible_event_emission() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Mint collectible
+    let token_id = client.mint_collectible(&admin, &user, &4, &2);
+
+    // Get all events
+    let events = env.events().all();
+
+    // Find the CollectibleMinted event (should be the last one)
+    let last_event = events.last().unwrap();
+
+    // Verify event topics match ("coll_mint", recipient)
+    let expected_topic = (symbol_short!("coll_mint"), user.clone()).into_val(&env);
+    assert_eq!(last_event.1, expected_topic);
+
+    // Events were emitted successfully - checking topic is sufficient
+    // The event contains (token_id, perk=4, strength=2) in the data
+}
+
+#[test]
+fn test_mint_collectible_non_tiered_perks_no_strength_validation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // RentBoost (perk=3) should accept any strength
+    let token_id_1 = client.mint_collectible(&admin, &user, &3, &0);
+    assert_eq!(client.get_token_perk(&token_id_1), Perk::RentBoost);
+    assert_eq!(client.get_token_strength(&token_id_1), 0);
+
+    // PropertyDiscount (perk=4) should accept any strength
+    let token_id_2 = client.mint_collectible(&admin, &user, &4, &99);
+    assert_eq!(client.get_token_perk(&token_id_2), Perk::PropertyDiscount);
+    assert_eq!(client.get_token_strength(&token_id_2), 99);
+}

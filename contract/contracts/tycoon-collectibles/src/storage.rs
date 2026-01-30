@@ -174,6 +174,9 @@ pub fn get_minter(env: &Env) -> Option<Address> {
     env.storage().instance().get(&MINTER_KEY)
 }
 
+/// Collectible ID offset for reward collectibles (2 billion)
+pub const COLLECTIBLE_ID_OFFSET: u128 = 2_000_000_000;
+
 /// Get the next available token ID
 pub fn get_next_token_id(env: &Env) -> u128 {
     env.storage()
@@ -192,4 +195,17 @@ pub fn increment_token_id(env: &Env) -> u128 {
     let current = get_next_token_id(env);
     set_next_token_id(env, current + 1);
     current
+}
+
+/// Get the next available collectible ID (in the 2e9+ range)
+pub fn get_next_collectible_id(env: &Env) -> u128 {
+    let current = get_next_token_id(env);
+    // Initialize to offset if this is the first collectible
+    let collectible_id = if current < COLLECTIBLE_ID_OFFSET {
+        COLLECTIBLE_ID_OFFSET
+    } else {
+        current
+    };
+    set_next_token_id(env, collectible_id + 1);
+    collectible_id
 }

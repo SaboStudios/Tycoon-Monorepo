@@ -404,6 +404,64 @@ impl TycoonCollectibles {
         _safe_mint(&env, &to, token_id, amount)
     }
 
+    /// Mint a new collectible as a backend reward
+    /// Restricted to backend minter or admin only
+    /// Returns the newly created token_id
+    pub fn mint_collectible(
+        env: Env,
+        caller: Address,
+        to: Address,
+        perk: u32,
+        strength: u32,
+    ) -> Result<u128, CollectibleError> {
+        caller.require_auth();
+
+        // Authorization check - must be admin or backend minter
+        let admin = get_admin(&env);
+        let minter = get_minter(&env);
+
+        let is_admin = caller == admin;
+        let is_minter = minter.is_some() && Some(caller.clone()) == minter;
+
+        if !(is_admin || is_minter) {
+            return Err(CollectibleError::Unauthorized);
+        }
+
+        // Validate perk - cannot be None (0) or invalid value
+        if perk == 0 || perk > 4 {
+            return Err(CollectibleError::InvalidPerk);
+        }
+
+        // Convert perk to enum
+        let perk_enum: Perk = match perk {
+            1 => Perk::CashTiered,
+            2 => Perk::TaxRefund,
+            3 => Perk::RentBoost,
+            4 => Perk::PropertyDiscount,
+            _ => return Err(CollectibleError::InvalidPerk),
+        };
+
+        // Validate strength for tiered perks
+        if matches!(perk_enum, Perk::CashTiered | Perk::TaxRefund) && !(1..=5).contains(&strength) {
+            return Err(CollectibleError::InvalidStrength);
+        }
+
+        // Generate new collectible token_id (in 2e9+ range)
+        let token_id = get_next_collectible_id(&env);
+
+        // Store perk and strength
+        set_perk(&env, token_id, perk_enum);
+        set_strength(&env, token_id, strength);
+
+        // Mint 1 unit to recipient
+        _safe_mint(&env, &to, token_id, 1)?;
+
+        // Emit CollectibleMinted event
+        emit_collectible_minted_event(&env, token_id, &to, perk, strength);
+
+        Ok(token_id)
+    }
+
     /// Get the count of tokens owned by an address
     pub fn owned_token_count(env: Env, owner: Address) -> u32 {
         owned_token_count(&env, &owner)
@@ -416,6 +474,7 @@ impl TycoonCollectibles {
             .unwrap_or_else(|| panic!("Index out of bounds"))
     }
 }
+
 
 #[cfg(test)]
 mod test;
