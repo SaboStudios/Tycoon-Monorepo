@@ -239,7 +239,7 @@ export default function GameWaiting(): React.JSX.Element {
           <div className="flex gap-3 justify-center">
             <button
               type="button"
-              onClick={() => router.push("/join-room")}
+              onClick={() => router.push("/game-settings")}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
               Retry Join
@@ -459,7 +459,7 @@ export default function GameWaiting(): React.JSX.Element {
           <div className="flex justify-between mt-5 px-3">
             <button
               type="button"
-              onClick={() => router.push("/join-room")}
+              onClick={() => router.push("/game-settings")}
               className="text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200 hover:underline"
             >
               Switch Portal

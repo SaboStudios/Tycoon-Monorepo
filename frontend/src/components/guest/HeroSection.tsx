@@ -1,6 +1,4 @@
 "use client";
-import herobg from "@/public/heroBg.png";
-import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
@@ -10,18 +8,13 @@ const HeroSection: React.FC = () => {
 
   return (
     <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
-      {/* Background Image */}
-      <div className="w-full h-full overflow-hidden">
-        <Image
-          src={herobg}
-          alt="Hero Background"
-          className="w-full h-full object-cover hero-bg-zoom"
-          width={1440}
-          height={1024}
-          priority
-          quality={100}
-        />
-      </div>
+      {/* Background gradient */}
+      <div
+        className="w-full h-full overflow-hidden bg-cover bg-center"
+        style={{
+          background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 50%, #010F10 100%)",
+        }}
+      />
 
       {/* Large Background TYCOON Text */}
       <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
@@ -156,7 +149,7 @@ const HeroSection: React.FC = () => {
 
           {/* Join Room */}
           <button
-            onClick={() => router.push("/join-room")}
+            onClick={() => router.push("/game-settings")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg

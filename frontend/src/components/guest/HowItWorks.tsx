@@ -2,10 +2,17 @@
 import React, { useState } from 'react'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination, Autoplay } from 'swiper/modules'
+import { Dice6, Pyramid, Tangent, Unplug } from 'lucide-react'
 import 'swiper/css'
 import 'swiper/css/navigation'
 import 'swiper/css/pagination'
-import { slidesData } from '@/utils/slidesData'
+
+const slidesData = [
+    { icon: <Unplug className="w-[24px] h-[24px] text-[#0FF0FC]" />, outOf: "1 of 4", title: "Connect & Play", description: "Connect your Web3 wallet to start playing Tycoon. It helps you join games, save progress, and keep your rewards safe." },
+    { icon: <Dice6 className="w-[24px] h-[24px] text-[#0FF0FC]" />, outOf: "2 of 4", title: "Let the Games Begin", description: "Once you're in, join a game and play with people from around the world. Roll the dice, buy virtual properties, make deals, and try to win!" },
+    { icon: <Tangent className="w-[24px] h-[24px] text-[#0FF0FC]" />, outOf: "3 of 4", title: "Think Smart, Play Hard", description: "Tycoon isn't just about luck—it's about smart moves. Buy wisely, make good deals, and try to beat your opponents. Every choice you make counts." },
+    { icon: <Pyramid className="w-[24px] h-[24px] text-[#0FF0FC]" />, outOf: "4 of 4", title: "Rise to the Top", description: "The more you play, the higher you go! Win games, finish challenges, and earn rewards to move up the leaderboard." }
+]
 
 const HowItWorks = () => {
     const [currentSlide, setCurrentSlide] = useState(0)
@@ -15,22 +22,22 @@ const HowItWorks = () => {
 
     return (
         <section className="relative w-full h-[856px] overflow-hidden flex flex-col items-center justify-center border-y-[1px] border-[#0FF0FC]/20">
-            {/* Background Layers */}
+            {/* Background Layers (gradients per slide) */}
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out bg-cover bg-center bg-no-repeat"
-                style={{ backgroundImage: `url('/howItWorksBg1.png')`, opacity: currentSlide === 0 ? 1 : 0 }}
+                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                style={{ background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 100%)", opacity: currentSlide === 0 ? 1 : 0 }}
             />
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out bg-cover bg-center bg-no-repeat"
-                style={{ backgroundImage: `url('/howItWorksBg2.png')`, opacity: currentSlide === 1 ? 1 : 0 }}
+                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                style={{ background: "linear-gradient(225deg, #010F10 0%, #0d3538 100%)", opacity: currentSlide === 1 ? 1 : 0 }}
             />
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out bg-cover bg-center bg-no-repeat"
-                style={{ backgroundImage: `url('/howItWorksBg3.png')`, opacity: currentSlide === 2 ? 1 : 0 }}
+                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                style={{ background: "linear-gradient(315deg, #010F10 0%, #0a2a2d 100%)", opacity: currentSlide === 2 ? 1 : 0 }}
             />
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out bg-cover bg-center bg-no-repeat"
-                style={{ backgroundImage: `url('/howItWorksBg4.png')`, opacity: currentSlide === 3 ? 1 : 0 }}
+                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                style={{ background: "linear-gradient(45deg, #010F10 0%, #0d3538 100%)", opacity: currentSlide === 3 ? 1 : 0 }}
             />
 
 
