@@ -1,6 +1,6 @@
 import { utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import * as winston from 'winston';
-import * as DailyRotateFile from 'winston-daily-rotate-file';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
 /**
  * Winston logger configuration factory
@@ -26,17 +26,19 @@ export const createWinstonConfig = (environment: string = 'development') => {
     ];
 
     if (info.context && typeof info.context === 'object') {
+      const ctx = info.context as Record<string, unknown>;
       sensitiveFields.forEach((field) => {
-        if (field in info.context) {
-          info.context[field] = '[REDACTED]';
+        if (field in ctx) {
+          ctx[field] = '[REDACTED]';
         }
       });
     }
 
     if (info.message && typeof info.message === 'object') {
+      const msg = info.message as Record<string, unknown>;
       sensitiveFields.forEach((field) => {
-        if (field in info.message) {
-          info.message[field] = '[REDACTED]';
+        if (field in msg) {
+          msg[field] = '[REDACTED]';
         }
       });
     }
