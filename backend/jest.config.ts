@@ -5,7 +5,14 @@ const config: Config = {
     rootDir: 'src',
     testRegex: '.*\\.spec\\.ts$',
     transform: {
-        '^.+\\.(t|j)s$': 'ts-jest',
+        '^.+\\.(t|j)s$': [
+            'ts-jest',
+            {
+                tsconfig: {
+                    ignoreDeprecations: '5.0',
+                },
+            },
+        ],
     },
     collectCoverageFrom: ['**/*.(t|j)s'],
     coverageDirectory: '../coverage',
@@ -19,13 +26,6 @@ const config: Config = {
             functions: 80,
             lines: 80,
             statements: 80,
-        },
-    },
-    globals: {
-        'ts-jest': {
-            tsconfig: {
-                ignoreDeprecations: '5.0',
-            },
         },
     },
 };
