@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractevent, contractimpl, contracttype, token, Address, Env, MuxedAddress, String,
+    contract, contractevent, contractimpl, contracttype, Address, Env, String,
 };
 
 #[contractevent(data_format = "single-value")]
@@ -117,14 +117,14 @@ impl TycoonToken {
 
 #[contractimpl]
 impl TycoonToken {
-    fn allowance(e: Env, from: Address, spender: Address) -> i128 {
+    pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
         e.storage()
             .persistent()
             .get(&DataKey::Allowance(from, spender))
             .unwrap_or(0)
     }
 
-    fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+    pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
         from.require_auth();
         if amount < 0 {
             panic!("Amount cannot be negative");
@@ -141,14 +141,14 @@ impl TycoonToken {
         .publish(&e);
     }
 
-    fn balance(e: Env, id: Address) -> i128 {
+    pub fn balance(e: Env, id: Address) -> i128 {
         e.storage()
             .persistent()
             .get(&DataKey::Balance(id))
             .unwrap_or(0)
     }
 
-    fn transfer(e: Env, from: Address, to: MuxedAddress, amount: i128) {
+    pub fn transfer(e: Env, from: Address, to: Address, amount: i128) {
         from.require_auth();
         if amount < 0 {
             panic!("Amount cannot be negative");
@@ -157,7 +157,6 @@ impl TycoonToken {
             return;
         }
 
-        let to_addr = to.address();
         let from_balance: i128 = e
             .storage()
             .persistent()
@@ -173,22 +172,22 @@ impl TycoonToken {
         let to_balance: i128 = e
             .storage()
             .persistent()
-            .get(&DataKey::Balance(to_addr.clone()))
+            .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
         e.storage().persistent().set(
-            &DataKey::Balance(to_addr.clone()),
+            &DataKey::Balance(to.clone()),
             &to_balance.checked_add(amount).expect("Balance overflow"),
         );
 
         TransferEvent {
             from,
-            to: to_addr,
+            to,
             amount,
         }
         .publish(&e);
     }
 
-    fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
+    pub fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
         spender.require_auth();
         if amount < 0 {
             panic!("Amount cannot be negative");
@@ -235,7 +234,7 @@ impl TycoonToken {
         TransferEvent { from, to, amount }.publish(&e);
     }
 
-    fn burn(e: Env, from: Address, amount: i128) {
+    pub fn burn(e: Env, from: Address, amount: i128) {
         from.require_auth();
         if amount <= 0 {
             panic!("Amount must be positive");
@@ -261,7 +260,7 @@ impl TycoonToken {
         BurnEvent { from, amount }.publish(&e);
     }
 
-    fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
+    pub fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
         spender.require_auth();
         if amount <= 0 {
             panic!("Amount must be positive");
@@ -300,15 +299,15 @@ impl TycoonToken {
         BurnEvent { from, amount }.publish(&e);
     }
 
-    fn decimals(_e: Env) -> u32 {
+    pub fn decimals(_e: Env) -> u32 {
         18
     }
 
-    fn name(e: Env) -> String {
+    pub fn name(e: Env) -> String {
         String::from_str(&e, "Tycoon")
     }
 
-    fn symbol(e: Env) -> String {
+    pub fn symbol(e: Env) -> String {
         String::from_str(&e, "TYC")
     }
 }
