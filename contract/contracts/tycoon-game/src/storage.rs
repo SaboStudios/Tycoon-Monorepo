@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use soroban_sdk::{contracttype, Address, Env};
+use soroban_sdk::{contracttype, Address, Env, String};
 
 /// Storage keys for the contract
 #[derive(Clone)]
@@ -11,6 +11,9 @@ pub enum DataKey {
     IsInitialized,
     Collectible(u128), // token_id -> CollectibleInfo
     CashTier(u32),     // tier -> value
+    User(Address),     // address -> User
+    Registered(Address), // address -> bool
+    RewardSystem,      // reward system contract address
 }
 
 /// Information about a collectible NFT
@@ -22,6 +25,18 @@ pub struct CollectibleInfo {
     pub tyc_price: u128,
     pub usdc_price: u128,
     pub shop_stock: u64,
+}
+
+/// User information
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct User {
+    pub id: u64,
+    pub username: String,
+    pub address: Address,
+    pub registered_at: u64,
+    pub games_played: u32,
+    pub games_won: u32,
 }
 
 /// Get the owner address from storage
@@ -91,4 +106,43 @@ pub fn set_cash_tier(env: &Env, tier: u32, value: u128) {
     env.storage()
         .persistent()
         .set(&DataKey::CashTier(tier), &value);
+}
+
+/// Get reward system address
+pub fn get_reward_system(env: &Env) -> Address {
+    env.storage().instance().get(&DataKey::RewardSystem).unwrap()
+}
+
+/// Set reward system address
+pub fn set_reward_system(env: &Env, address: &Address) {
+    env.storage().instance().set(&DataKey::RewardSystem, address);
+}
+
+/// Check if address is registered
+pub fn is_registered(env: &Env, address: &Address) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Registered(address.clone()))
+        .unwrap_or(false)
+}
+
+/// Set registered flag for address
+pub fn set_registered(env: &Env, address: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Registered(address.clone()), &true);
+}
+
+/// Get user by address
+pub fn get_user(env: &Env, address: &Address) -> Option<User> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::User(address.clone()))
+}
+
+/// Set user data
+pub fn set_user(env: &Env, address: &Address, user: &User) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::User(address.clone()), user);
 }
