@@ -3,8 +3,8 @@
 mod events;
 mod storage;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env};
-use storage::{get_owner, get_tyc_token, get_usdc_token, CollectibleInfo};
+use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
+use storage::{get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User};
 
 #[contract]
 pub struct TycoonContract;
@@ -12,7 +12,7 @@ pub struct TycoonContract;
 #[contractimpl]
 impl TycoonContract {
     /// Initialize the contract with token addresses and owner
-    pub fn initialize(env: Env, tyc_token: Address, usdc_token: Address, initial_owner: Address) {
+    pub fn initialize(env: Env, tyc_token: Address, usdc_token: Address, initial_owner: Address, reward_system: Address) {
         if storage::is_initialized(&env) {
             panic!("Contract already initialized");
         }
@@ -22,6 +22,7 @@ impl TycoonContract {
         storage::set_tyc_token(&env, &tyc_token);
         storage::set_usdc_token(&env, &usdc_token);
         storage::set_owner(&env, &initial_owner);
+        storage::set_reward_system(&env, &reward_system);
         storage::set_initialized(&env);
     }
 
@@ -99,6 +100,52 @@ impl TycoonContract {
         owner.require_auth();
 
         storage::set_cash_tier(&env, tier, value);
+    }
+
+    pub fn register_player(env: Env, username: String, caller: Address) {
+        caller.require_auth();
+
+        // Check if already registered
+        if storage::is_registered(&env, &caller) {
+            panic!("Address already registered");
+        }
+
+        // Validate username length (3-20 chars)
+        let len = username.len();
+        if len < 3 || len > 20 {
+            panic!("Username must be 3-20 characters");
+        }
+
+        // Create user
+        let user = User {
+            id: env.ledger().sequence() as u64,
+            username: username.clone(),
+            address: caller.clone(),
+            registered_at: env.ledger().timestamp(),
+            games_played: 0,
+            games_won: 0,
+        };
+
+        // Store user and mark as registered
+        storage::set_user(&env, &caller, &user);
+        storage::set_registered(&env, &caller);
+    }
+
+    pub fn mint_registration_voucher(env: Env, player: Address) {
+        let owner = get_owner(&env);
+        owner.require_auth();
+
+        // Mint 2 TYC voucher via reward system
+        let reward_system = storage::get_reward_system(&env);
+        let _token_id: u128 = env.invoke_contract(
+            &reward_system,
+            &Symbol::new(&env, "mint_voucher"),
+            soroban_sdk::vec![&env, player.into_val(&env), 2_0000000u128.into_val(&env)]
+        );
+    }
+
+    pub fn get_user(env: Env, address: Address) -> Option<User> {
+        storage::get_user(&env, &address)
     }
 }
 
