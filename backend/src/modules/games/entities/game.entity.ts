@@ -17,6 +17,12 @@ export class Game {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id: number;
 
+  @Column({ type: 'varchar', length: 50, default: 'PUBLIC' })
+  mode: string;
+
+  @Column({ type: 'int', unsigned: true, default: 4, name: 'number_of_players' })
+  numberOfPlayers: number;
+
   @Column({ type: 'varchar', length: 50, default: GameStatus.PENDING })
   status: string;
 
