@@ -1,0 +1,25 @@
+[
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "agentId", "type": "uint256" },
+      { "internalType": "int128", "name": "value", "type": "int128" },
+      { "internalType": "uint8", "name": "valueDecimals", "type": "uint8" },
+      { "internalType": "string", "name": "tag1", "type": "string" },
+      { "internalType": "string", "name": "tag2", "type": "string" },
+      { "internalType": "string", "name": "endpoint", "type": "string" },
+      { "internalType": "string", "name": "feedbackURI", "type": "string" },
+      { "internalType": "bytes32", "name": "feedbackHash", "type": "bytes32" }
+    ],
+    "name": "giveFeedback",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getIdentityRegistry",
+    "outputs": [{ "internalType": "address", "name": "identityRegistry", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

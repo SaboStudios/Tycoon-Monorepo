@@ -1,0 +1,67 @@
+[
+  {
+    "inputs": [
+      {"internalType": "address", "name": "_agentAddress", "type": "address"},
+      {"internalType": "bool", "name": "_won", "type": "bool"},
+      {"internalType": "uint256", "name": "_finalBalance", "type": "uint256"},
+      {"internalType": "uint256", "name": "_propertiesBought", "type": "uint256"},
+      {"internalType": "uint256", "name": "_tradesProposed", "type": "uint256"},
+      {"internalType": "uint256", "name": "_tradesAccepted", "type": "uint256"},
+      {"internalType": "uint256", "name": "_housesBuilt", "type": "uint256"},
+      {"internalType": "uint256", "name": "_hotelsBuilt", "type": "uint256"},
+      {"internalType": "bool", "name": "_wentBankrupt", "type": "bool"}
+    ],
+    "name": "updateAgentStats",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "statsUpdater",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllAgents",
+    "outputs": [{"internalType": "uint256[]", "name": "", "type": "uint256[]"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "_tokenId", "type": "uint256"}],
+    "name": "getAgent",
+    "outputs": [
+      {"internalType": "string", "name": "name", "type": "string"},
+      {"internalType": "string", "name": "playStyle", "type": "string"},
+      {"internalType": "uint8", "name": "difficultyLevel", "type": "uint8"},
+      {"internalType": "address", "name": "agentAddress", "type": "address"},
+      {"internalType": "bytes", "name": "publicKey", "type": "bytes"},
+      {"internalType": "uint64", "name": "registeredAt", "type": "uint64"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "_tokenId", "type": "uint256"}],
+    "name": "getAgentStats",
+    "outputs": [
+      {"internalType": "uint256", "name": "gamesPlayed", "type": "uint256"},
+      {"internalType": "uint256", "name": "gamesWon", "type": "uint256"},
+      {"internalType": "uint256", "name": "gamesLost", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalPropertiesBought", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalTradesProposed", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalTradesAccepted", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalBankruptcies", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalHousesBuilt", "type": "uint256"},
+      {"internalType": "uint256", "name": "totalHotelsBuilt", "type": "uint256"},
+      {"internalType": "uint256", "name": "cumulativeFinalBalance", "type": "uint256"},
+      {"internalType": "uint256", "name": "longestWinStreak", "type": "uint256"},
+      {"internalType": "uint256", "name": "currentWinStreak", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

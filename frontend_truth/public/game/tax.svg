@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20">
+  <!-- Money bag body (green) -->
+  <path d="M5 8 Q10 12 15 8 L15 15 Q10 18 5 15 Z" fill="#228B22" stroke="#006400" stroke-width="0.5"/>
+  <!-- Bag tie -->
+  <line x1="5" y1="8" x2="15" y2="8" stroke="#006400" stroke-width="1"/>
+  <!-- Coins inside -->
+  <circle cx="8" cy="11" r="0.6" fill="#FFD700"/>
+  <circle cx="10" cy="12" r="0.6" fill="#FFD700"/>
+  <circle cx="12" cy="11" r="0.6" fill="#FFD700"/>
+  <!-- Red "X" for tax -->
+  <line x1="6" y1="6" x2="14" y2="14" stroke="#FF0000" stroke-width="1.5"/>
+  <line x1="6" y1="14" x2="14" y2="6" stroke="#FF0000" stroke-width="1.5"/>
+</svg>
