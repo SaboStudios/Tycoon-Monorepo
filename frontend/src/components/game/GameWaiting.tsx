@@ -8,19 +8,40 @@ import React, {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PiTelegramLogoLight } from "react-icons/pi";
-import { FaXTwitter, FaCoins } from "react-icons/fa6";
-import { SiFarcaster } from "react-icons/si";
-import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
+import {
+  Copy,
+  Home,
+  Coins,
+  Share2,
+  Send,
+  MessageCircle,
+  Users,
+  Loader2,
+} from "lucide-react";
 import { toast } from "react-toastify";
+import { Spinner } from "@/components/ui/spinner";
 
-// --- TYPES & CONSTANTS ---
+// --- TYPES ---
 export interface PlayerSymbol {
   name: string;
   value: string;
   emoji: string;
 }
 
+export interface StatusMessage {
+  id: string;
+  text: string;
+  timestamp: Date;
+  type: "info" | "join" | "leave" | "system";
+}
+
+export interface GamePlayer {
+  address: string;
+  username: string;
+  symbol: string;
+}
+
+// --- CONSTANTS ---
 const SYMBOLS: PlayerSymbol[] = [
   { name: "Ship", value: "ship", emoji: "🚢" },
   { name: "Car", value: "car", emoji: "🚗" },
@@ -28,10 +49,18 @@ const SYMBOLS: PlayerSymbol[] = [
   { name: "Truck", value: "truck", emoji: "🚚" },
 ];
 
-const COPY_FEEDBACK_MS = 2000;
+const MOCK_STATUS_MESSAGES: StatusMessage[] = [
+  { id: "1", text: "Lobby created. Waiting for players...", timestamp: new Date(), type: "system" },
+  { id: "2", text: "Player1 joined the lobby", timestamp: new Date(), type: "join" },
+  { id: "3", text: "Player2 joined the lobby", timestamp: new Date(), type: "join" },
+];
 
-// --- DUMMY DATA FOR UI TESTING ---
-const DUMMY_PLAYERS = [
+const COPY_FEEDBACK_MS = 2000;
+const MOCK_AUTO_START_SECONDS = 60; // Countdown for demo
+const MIN_PLAYERS_TO_START = 2;
+
+// --- MOCK DATA ---
+const DUMMY_PLAYERS: GamePlayer[] = [
   { address: "0x123...abc", username: "Player1", symbol: "ship" },
   { address: "0x456...def", username: "Player2", symbol: "car" },
 ];
@@ -40,45 +69,59 @@ const DUMMY_GAME_CONFIG = {
   code: "TYCOON",
   maxPlayers: 4,
   stakeLabel: "10 USDC",
-  stakeValue: BigInt("10000000"), 
+  stakeValue: BigInt("10000000"),
 };
-// --------------------------------
 
+/**
+ * Game waiting lobby component.
+ * Renders: player list, game code, start button, chat/status messages, share links.
+ * Uses mock data for demonstration. Tycoon colors (#00F0FF, #010F10).
+ */
 export default function GameWaiting(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawGameCode = searchParams.get("gameCode") ?? DUMMY_GAME_CONFIG.code;
   const gameCode = rawGameCode.trim().toUpperCase();
 
-  // Local UI state
-  const [gamePlayers, setGamePlayers] = useState<any[]>(DUMMY_PLAYERS);
+  const [gamePlayers, setGamePlayers] = useState<GamePlayer[]>(DUMMY_PLAYERS);
   const [playerSymbol, setPlayerSymbol] = useState<PlayerSymbol | null>(null);
-  const [isJoined, setIsJoined] = useState<boolean>(false);
+  const [isJoined, setIsJoined] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [copySuccessFarcaster, setCopySuccessFarcaster] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [contractGameLoading, setContractGameLoading] = useState<boolean>(true);
-  const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [contractGameLoading, setContractGameLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [countdown, setCountdown] = useState(MOCK_AUTO_START_SECONDS);
+  const [statusMessages, setStatusMessages] = useState<StatusMessage[]>(MOCK_STATUS_MESSAGES);
+  const isHost = true; // Mock: current user is host
 
   const mountedRef = useRef(true);
+
   useEffect(() => {
     mountedRef.current = true;
     const timer = setTimeout(() => {
       setLoading(false);
       setContractGameLoading(false);
     }, 1500);
-
     return () => {
       mountedRef.current = false;
       clearTimeout(timer);
     };
   }, []);
 
-  // Compute available symbols based on taken symbols
+  // Mock countdown timer for auto-start
+  useEffect(() => {
+    if (!mountedRef.current || loading) return;
+    const interval = setInterval(() => {
+      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const availableSymbols = useMemo(() => {
-    const taken = new Set(gamePlayers.map((p: any) => p.symbol));
-    return SYMBOLS.filter((s: PlayerSymbol) => !taken.has(s.value));
+    const taken = new Set(gamePlayers.map((p) => p.symbol));
+    return SYMBOLS.filter((s) => !taken.has(s.value));
   }, [gamePlayers]);
 
   const origin = useMemo(() => {
@@ -113,9 +156,7 @@ export default function GameWaiting(): React.JSX.Element {
 
   const telegramShareUrl = useMemo(
     () =>
-      `https://t.me/share/url?url=${encodeURIComponent(
-        gameUrl
-      )}&text=${encodeURIComponent(shareText)}`,
+      `https://t.me/share/url?url=${encodeURIComponent(gameUrl)}&text=${encodeURIComponent(shareText)}`,
     [gameUrl, shareText]
   );
 
@@ -130,13 +171,17 @@ export default function GameWaiting(): React.JSX.Element {
     [farcasterShareText, farcasterMiniappUrl]
   );
 
+  const canStartGame = useMemo(() => {
+    return gamePlayers.length >= MIN_PLAYERS_TO_START && isHost;
+  }, [gamePlayers.length, isHost]);
+
   const handleCopyLink = useCallback(async () => {
     if (!gameUrl) {
       setError("No shareable URL available.");
       return;
     }
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(gameUrl);
       } else {
         const el = document.createElement("textarea");
@@ -163,7 +208,7 @@ export default function GameWaiting(): React.JSX.Element {
       return;
     }
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(farcasterMiniappUrl);
       } else {
         const el = document.createElement("textarea");
@@ -180,7 +225,7 @@ export default function GameWaiting(): React.JSX.Element {
       setTimeout(() => setCopySuccessFarcaster(null), COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("copy farcaster failed", err);
-      setError("Failed to copy Farcaster link. Try manually selecting the text.");
+      setError("Failed to copy Farcaster link.");
     }
   }, [farcasterMiniappUrl]);
 
@@ -193,7 +238,14 @@ export default function GameWaiting(): React.JSX.Element {
     const toastId = toast.loading("Joining the lobby...");
     setTimeout(() => {
       setIsJoined(true);
-      setGamePlayers(prev => [...prev, { address: "0xYOU", username: "You", symbol: playerSymbol.value }]);
+      setGamePlayers((prev: GamePlayer[]) => [
+        ...prev,
+        { address: "0xYOU", username: "You", symbol: playerSymbol.value },
+      ]);
+      setStatusMessages((prev: StatusMessage[]) => [
+        ...prev,
+        { id: `join-${Date.now()}`, text: "You joined the lobby", timestamp: new Date(), type: "join" },
+      ]);
       toast.update(toastId, {
         render: "Successfully joined the game!",
         type: "success",
@@ -208,19 +260,26 @@ export default function GameWaiting(): React.JSX.Element {
     setActionLoading(true);
     setTimeout(() => {
       setIsJoined(false);
-      setGamePlayers(prev => prev.filter((p: any) => p.address !== "0xYOU"));
+      setGamePlayers((prev: GamePlayer[]) => prev.filter((p: GamePlayer) => p.address !== "0xYOU"));
       setPlayerSymbol(null);
       setActionLoading(false);
     }, 1000);
   }, []);
 
+  const handleStartGame = useCallback(() => {
+    if (!canStartGame) return;
+    toast.success("Starting game...");
+    // In real app: navigate to game room or trigger contract
+  }, [canStartGame]);
+
   const handleGoHome = useCallback(() => router.push("/"), [router]);
 
+  // Loading fallback
   if (loading || contractGameLoading) {
     return (
-      <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
-        <div className="flex flex-col items-center space-y-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-3 border-[#00F0FF] border-opacity-50"></div>
+      <section className="w-full min-h-[calc(100dvh-87px)] flex items-center justify-center bg-[#010F10]">
+        <div className="flex flex-col items-center gap-4">
+          <Spinner size="lg" />
           <p className="text-[#00F0FF] text-lg font-semibold font-orbitron animate-pulse">
             Entering the Lobby...
           </p>
@@ -229,14 +288,15 @@ export default function GameWaiting(): React.JSX.Element {
     );
   }
 
+  // Error state
   if (error || !gamePlayers) {
     return (
-      <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
+      <section className="w-full min-h-[calc(100dvh-87px)] flex items-center justify-center bg-[#010F10]">
         <div className="space-y-3 text-center bg-[#0A1A1B]/80 p-6 rounded-xl shadow-lg border border-red-500/50">
           <p className="text-red-400 text-lg font-bold font-orbitron animate-pulse">
             {error ?? "Game Portal Closed"}
           </p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex gap-3 justify-center flex-wrap">
             <button
               type="button"
               onClick={() => router.push("/game-settings")}
@@ -262,16 +322,18 @@ export default function GameWaiting(): React.JSX.Element {
   const showShareSection = true;
 
   return (
-    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
-      <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
+    <section className="w-full min-h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
+      <main className="w-full min-h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6 py-8">
         <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-5 sm:p-6 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
-          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
+          {/* Header & Game Code */}
+          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent">
             Tycoon Lobby
-            <span className="block text-base text-[#00F0FF] mt-1 font-extrabold shadow-text">
+            <span className="block text-base text-[#00F0FF] mt-1 font-extrabold">
               Code: {gameCode}
             </span>
           </h2>
 
+          {/* Player count & progress */}
           <div className="text-center space-y-3 mb-6">
             <p className="text-[#869298] text-sm font-semibold">
               {playersJoinedCount === maxPlayersThreshold
@@ -282,31 +344,38 @@ export default function GameWaiting(): React.JSX.Element {
               <div
                 className="bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] h-full transition-all duration-500 ease-out"
                 style={{ width: `${(playersJoinedCount / maxPlayersThreshold) * 100}%` }}
-              ></div>
+              />
             </div>
-            <p className="text-[#00F0FF] text-lg font-bold">
+            <p className="text-[#00F0FF] text-lg font-bold flex items-center justify-center gap-2">
+              <Users className="w-5 h-5" />
               Players Ready: {playersJoinedCount}/{maxPlayersThreshold}
             </p>
             <p className="text-yellow-400 text-lg font-bold flex items-center justify-center gap-2 animate-pulse">
-                <FaCoins className="w-6 h-6" />
-                Entry Stake: {DUMMY_GAME_CONFIG.stakeLabel}
+              <Coins className="w-6 h-6" />
+              Entry Stake: {DUMMY_GAME_CONFIG.stakeLabel}
             </p>
 
+            {/* Mock auto-start countdown */}
+            <p className="text-[#869298] text-xs">
+              Auto-start in: <span className="text-[#00F0FF] font-bold">{countdown}s</span>
+            </p>
+
+            {/* Player slots */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 justify-center">
-              {Array.from({ length: maxPlayersThreshold }).map((_, index: number) => {
+              {Array.from({ length: maxPlayersThreshold }).map((_, index) => {
                 const player = gamePlayers[index];
                 return (
                   <div
                     key={index}
                     className="bg-[#010F10]/70 p-3 rounded-lg border border-[#00F0FF]/30 flex flex-col items-center justify-center shadow-md hover:shadow-[#00F0FF]/50 transition-shadow duration-300"
                   >
-                    <span className="text-4xl mb-1 animate-bounce-slow">
+                    <span className="text-4xl mb-1">
                       {player
-                        ? SYMBOLS.find((s: PlayerSymbol) => s.value === player.symbol)?.emoji
+                        ? SYMBOLS.find((s) => s.value === player.symbol)?.emoji ?? "❓"
                         : "❓"}
                     </span>
                     <p className="text-[#F0F7F7] text-xs font-semibold truncate max-w-[80px]">
-                      {player?.username || "Slot Open"}
+                      {player?.username ?? "Slot Open"}
                     </p>
                   </div>
                 );
@@ -314,6 +383,25 @@ export default function GameWaiting(): React.JSX.Element {
             </div>
           </div>
 
+          {/* Chat / Status messages */}
+          <div className="mb-6 bg-[#010F10]/50 p-4 rounded-xl border border-[#00F0FF]/30 max-h-32 overflow-y-auto">
+            <h3 className="text-sm font-bold text-[#00F0FF] mb-2 flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" />
+              Status
+            </h3>
+            <ul className="space-y-1 text-xs text-[#869298]">
+              {statusMessages.slice(-5).map((msg: StatusMessage) => (
+                <li key={msg.id} className="flex items-start gap-2">
+                  <span className="text-[#00F0FF]/70 shrink-0">
+                    [{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}]
+                  </span>
+                  <span>{msg.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Share section */}
           {showShareSection && (
             <div className="mt-6 space-y-5 bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
               <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">
@@ -334,15 +422,13 @@ export default function GameWaiting(): React.JSX.Element {
                     type="button"
                     onClick={handleCopyLink}
                     disabled={actionLoading}
-                    className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
+                    className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50"
                   >
-                    <IoCopyOutline className="w-5 h-5" />
+                    <Copy className="w-5 h-5" />
                   </button>
                 </div>
                 {copySuccess && (
-                  <p className="text-green-400 text-xs text-center animate-fade-in">
-                    {copySuccess}
-                  </p>
+                  <p className="text-green-400 text-xs text-center">{copySuccess}</p>
                 )}
               </div>
 
@@ -360,15 +446,13 @@ export default function GameWaiting(): React.JSX.Element {
                     type="button"
                     onClick={handleCopyFarcasterLink}
                     disabled={actionLoading}
-                    className="flex items-center justify-center bg-gradient-to-r from-[#A100FF] to-[#00F0FF] text-white p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
+                    className="flex items-center justify-center bg-gradient-to-r from-[#A100FF] to-[#00F0FF] text-white p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50"
                   >
-                    <IoCopyOutline className="w-5 h-5" />
+                    <Copy className="w-5 h-5" />
                   </button>
                 </div>
                 {copySuccessFarcaster && (
-                  <p className="text-green-400 text-xs text-center animate-fade-in">
-                    {copySuccessFarcaster}
-                  </p>
+                  <p className="text-green-400 text-xs text-center">{copySuccessFarcaster}</p>
                 )}
               </div>
 
@@ -377,30 +461,34 @@ export default function GameWaiting(): React.JSX.Element {
                   href={telegramShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 hover:scale-110"
+                  aria-label="Share on Telegram"
                 >
-                  <PiTelegramLogoLight className="w-6 h-6" />
+                  <Send className="w-6 h-6" />
                 </a>
                 <a
                   href={twitterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 hover:scale-110"
+                  aria-label="Share on X"
                 >
-                  <FaXTwitter className="w-6 h-6" />
+                  <Share2 className="w-6 h-6" />
                 </a>
                 <a
                   href={farcasterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 hover:scale-110"
+                  aria-label="Share on Farcaster"
                 >
-                  <SiFarcaster className="w-6 h-6" />
+                  <MessageCircle className="w-6 h-6" />
                 </a>
               </div>
             </div>
           )}
 
+          {/* Join flow (if not joined) */}
           {!isJoined && (
             <div className="mt-6 space-y-5">
               <div className="flex flex-col bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
@@ -413,8 +501,8 @@ export default function GameWaiting(): React.JSX.Element {
                 <select
                   id="symbol"
                   value={playerSymbol?.value ?? ""}
-                  onChange={(e) => {
-                    const selected = SYMBOLS.find((s: PlayerSymbol) => s.value === e.target.value);
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                    const selected = SYMBOLS.find((s) => s.value === e.target.value);
                     setPlayerSymbol(selected ?? null);
                   }}
                   className="bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm shadow-inner"
@@ -437,26 +525,54 @@ export default function GameWaiting(): React.JSX.Element {
               <button
                 type="button"
                 onClick={handleJoinGame}
-                className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!playerSymbol || actionLoading}
+                className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                {actionLoading ? "Entering..." : "Join the Battle"}
+                {actionLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Entering...
+                  </span>
+                ) : (
+                  "Join the Battle"
+                )}
               </button>
             </div>
           )}
 
+          {/* Host: Start Game button (enabled when min players joined) */}
+          {isHost && isJoined && (
+            <button
+              type="button"
+              onClick={handleStartGame}
+              disabled={!canStartGame}
+              className="w-full mt-6 bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              Start Game
+            </button>
+          )}
+
+          {/* Leave game (when joined) */}
           {isJoined && (
             <button
               type="button"
               onClick={handleLeaveGame}
-              className="w-full mt-6 bg-gradient-to-r from-[#FF4D4D] to-[#FF00AA] text-white text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-red-500/50 transform hover:scale-105 disabled:opacity-50"
               disabled={actionLoading}
+              className="w-full mt-4 bg-gradient-to-r from-[#FF4D4D] to-[#FF00AA] text-white text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-red-500/50 hover:scale-[1.02] disabled:opacity-50"
             >
-              {actionLoading ? "Exiting..." : "Abandon Ship"}
+              {actionLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Exiting...
+                </span>
+              ) : (
+                "Abandon Ship"
+              )}
             </button>
           )}
 
-          <div className="flex justify-between mt-5 px-3">
+          {/* Footer links */}
+          <div className="flex justify-between mt-5 px-3 flex-wrap gap-2">
             <button
               type="button"
               onClick={() => router.push("/game-settings")}
@@ -469,12 +585,12 @@ export default function GameWaiting(): React.JSX.Element {
               onClick={handleGoHome}
               className="flex items-center text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200 hover:underline"
             >
-              <IoHomeOutline className="mr-1 w-4 h-4" /> Back to HQ
+              <Home className="mr-1 w-4 h-4" /> Back to HQ
             </button>
           </div>
 
           {error && (
-            <p className="text-red-400 text-xs mt-3 text-center bg-red-900/50 p-2 rounded-lg animate-pulse">
+            <p className="text-red-400 text-xs mt-3 text-center bg-red-900/50 p-2 rounded-lg">
               {error}
             </p>
           )}
