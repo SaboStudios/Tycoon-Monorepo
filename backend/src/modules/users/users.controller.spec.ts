@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { GamePlayersService } from '../games/game-players.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
@@ -26,6 +27,10 @@ describe('UsersController', () => {
         {
           provide: UsersService,
           useValue: service,
+        },
+        {
+          provide: GamePlayersService,
+          useValue: { findGamesByUser: jest.fn() },
         },
         {
           provide: Reflector,
