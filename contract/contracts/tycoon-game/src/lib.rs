@@ -3,8 +3,11 @@
 mod events;
 mod storage;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
-use storage::{get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User};
+use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol, Vec};
+use storage::{
+    get_owner, get_tyc_token, get_usdc_token, get_user, is_registered, next_game_id, set_game,
+    set_game_players, CollectibleInfo, Game, GameSettings, GameStatus, GameType, User,
+};
 
 #[contract]
 pub struct TycoonContract;
@@ -146,6 +149,103 @@ impl TycoonContract {
 
     pub fn get_user(env: Env, address: Address) -> Option<User> {
         storage::get_user(&env, &address)
+    }
+
+    /// Create a new human-vs-human game. Creator must be registered.
+    /// For private games, code must be non-empty. number_of_players must be 2–8.
+    /// If stake_amount > 0, USDC is transferred from creator to the contract.
+    pub fn create_game(
+        env: Env,
+        creator: Address,
+        creator_username: String,
+        game_type: GameType,
+        player_symbol: u32,
+        number_of_players: u32,
+        code: String,
+        starting_balance: u128,
+        stake_amount: u128,
+    ) -> u64 {
+        creator.require_auth();
+
+        // Creator must be registered
+        if !is_registered(&env, &creator) {
+            panic!("Creator must be registered");
+        }
+
+        // Optional: verify username matches stored user
+        if let Some(user) = get_user(&env, &creator) {
+            if user.username != creator_username {
+                panic!("Username does not match registered user");
+            }
+        }
+
+        // Private game requires non-empty code
+        if matches!(game_type, GameType::Private) && code.is_empty() {
+            panic!("Private game requires a code");
+        }
+
+        // Validate number_of_players (2–8)
+        if number_of_players < 2 || number_of_players > 8 {
+            panic!("number_of_players must be between 2 and 8");
+        }
+
+        // If stake required, transfer USDC from creator to contract
+        if stake_amount > 0 {
+            let usdc_token = storage::get_usdc_token(&env);
+            let token_client = token::Client::new(&env, &usdc_token);
+            let contract_address = env.current_contract_address();
+            token_client.transfer(&creator, &contract_address, &(stake_amount as i128));
+        }
+
+        let game_id = next_game_id(&env);
+        let created_at = env.ledger().timestamp();
+
+        let settings = GameSettings {
+            game_type: game_type.clone(),
+            number_of_players,
+            starting_balance,
+            stake_amount,
+            code: code.clone(),
+            player_symbol,
+        };
+
+        let game = Game {
+            id: game_id,
+            creator: creator.clone(),
+            settings: settings.clone(),
+            status: GameStatus::Waiting,
+            created_at,
+        };
+
+        set_game(&env, game_id, &game);
+
+        let mut players: Vec<Address> = Vec::new(&env);
+        players.push_back(creator.clone());
+        set_game_players(&env, game_id, &players);
+
+        let event_data = events::GameCreatedData {
+            game_id,
+            creator: creator.clone(),
+            game_type,
+            number_of_players,
+            starting_balance,
+            stake_amount,
+            code,
+            player_symbol,
+        };
+        events::emit_game_created(&env, &event_data);
+
+        game_id
+    }
+
+    /// Get game by id (for tests and clients)
+    pub fn get_game(env: Env, game_id: u64) -> Option<Game> {
+        storage::get_game(&env, game_id)
+    }
+
+    /// Get players for a game (creator is first)
+    pub fn get_game_players(env: Env, game_id: u64) -> Vec<Address> {
+        storage::get_game_players(&env, game_id)
     }
 }
 

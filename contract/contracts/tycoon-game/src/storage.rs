@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use soroban_sdk::{contracttype, Address, Env, String};
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
 /// Storage keys for the contract
 #[derive(Clone)]
@@ -9,11 +9,54 @@ pub enum DataKey {
     TycToken,
     UsdcToken,
     IsInitialized,
-    Collectible(u128), // token_id -> CollectibleInfo
-    CashTier(u32),     // tier -> value
-    User(Address),     // address -> User
+    Collectible(u128),   // token_id -> CollectibleInfo
+    CashTier(u32),       // tier -> value
+    User(Address),       // address -> User
     Registered(Address), // address -> bool
-    RewardSystem,      // reward system contract address
+    RewardSystem,       // reward system contract address
+    Game(u64),           // game_id -> Game
+    GamePlayers(u64),    // game_id -> Vec<Address>
+    NextGameId,          // u64
+}
+
+/// Game visibility: public (anyone can join) or private (requires code)
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub enum GameType {
+    Public,
+    Private,
+}
+
+/// Game lifecycle status
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub enum GameStatus {
+    Waiting,   // accepting players
+    InProgress,
+    Finished,
+}
+
+/// Settings for a game (balance, stake, player count, code)
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct GameSettings {
+    pub game_type: GameType,
+    pub number_of_players: u32,
+    pub starting_balance: u128,
+    pub stake_amount: u128,
+    pub code: String,
+    pub player_symbol: u32, // creator's chosen symbol/piece id
+}
+
+/// A created game (human vs human)
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct Game {
+    pub id: u64,
+    pub creator: Address,
+    pub settings: GameSettings,
+    pub status: GameStatus,
+    pub created_at: u64,
 }
 
 /// Information about a collectible NFT
@@ -145,4 +188,46 @@ pub fn set_user(env: &Env, address: &Address, user: &User) {
     env.storage()
         .persistent()
         .set(&DataKey::User(address.clone()), user);
+}
+
+/// Get next game id and increment
+pub fn next_game_id(env: &Env) -> u64 {
+    let key = DataKey::NextGameId;
+    let id: u64 = env
+        .storage()
+        .instance()
+        .get(&key)
+        .unwrap_or(0);
+    let next = id + 1;
+    env.storage().instance().set(&key, &next);
+    next
+}
+
+/// Get game by id
+pub fn get_game(env: &Env, game_id: u64) -> Option<Game> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Game(game_id))
+}
+
+/// Set game
+pub fn set_game(env: &Env, game_id: u64, game: &Game) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Game(game_id), game);
+}
+
+/// Get players for a game (ordered list; creator is first)
+pub fn get_game_players(env: &Env, game_id: u64) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::GamePlayers(game_id))
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+/// Set game players (creator first, then joiners)
+pub fn set_game_players(env: &Env, game_id: u64, players: &Vec<Address>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::GamePlayers(game_id), players);
 }
