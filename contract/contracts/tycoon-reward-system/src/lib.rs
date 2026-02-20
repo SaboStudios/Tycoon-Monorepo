@@ -19,6 +19,7 @@ pub enum DataKey {
     CollectibleUsdc(u128),
     Admin,
     TycToken,
+    UsdcToken,
     VoucherCount,
 }
 
@@ -27,12 +28,13 @@ pub struct TycoonRewardSystem;
 
 #[contractimpl]
 impl TycoonRewardSystem {
-    pub fn initialize(e: Env, admin: Address, tyc_token: Address) {
+    pub fn initialize(e: Env, admin: Address, tyc_token: Address, usdc_token: Address) {
         if e.storage().persistent().has(&DataKey::Admin) {
             panic!("Already initialized");
         }
         e.storage().persistent().set(&DataKey::Admin, &admin);
         e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
+        e.storage().persistent().set(&DataKey::UsdcToken, &usdc_token);
         e.storage()
             .persistent()
             .set(&DataKey::VoucherCount, &VOUCHER_ID_START);
@@ -107,6 +109,59 @@ impl TycoonRewardSystem {
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Redeem"), redeemer, token_id), tyc_value);
+    }
+
+    /// Withdraw funds from the contract (admin only)
+    /// 
+    /// # Arguments
+    /// * `token` - Token address to withdraw (must be TYC or configured USDC)
+    /// * `to` - Recipient address
+    /// * `amount` - Amount to withdraw
+    /// 
+    /// # Panics
+    /// * If caller is not admin
+    /// * If token is not in allowlist (TYC or USDC)
+    /// * If contract has insufficient balance
+    pub fn withdraw_funds(e: Env, token: Address, to: Address, amount: u128) {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        admin.require_auth();
+
+        // Validate token is in allowlist (TYC or USDC)
+        let tyc_token: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::TycToken)
+            .expect("Not initialized");
+        let usdc_token: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::UsdcToken)
+            .expect("Not initialized");
+
+        if token != tyc_token && token != usdc_token {
+            panic!("Invalid token: not in allowlist");
+        }
+
+        // Create token client and check balance
+        let token_client = soroban_sdk::token::Client::new(&e, &token);
+        let contract_address = e.current_contract_address();
+        let balance = token_client.balance(&contract_address);
+
+        if balance < amount as i128 {
+            panic!("Insufficient contract balance");
+        }
+
+        // Transfer from contract to recipient
+        token_client.transfer(&contract_address, &to, &(amount as i128));
+
+        // Emit withdrawal event
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("Withdraw"), token.clone(), to), amount);
     }
 
     // Internal helper to mint tokens
