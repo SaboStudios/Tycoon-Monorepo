@@ -19,6 +19,52 @@ export class GamePlayersService {
     private readonly gameRepository: Repository<Game>,
   ) {}
 
+  /**
+   * Get available balance (balance minus trade_locked_balance).
+   */
+  getAvailableBalance(player: GamePlayer): number {
+    const balance = player.balance;
+    const locked = parseFloat(player.trade_locked_balance ?? '0');
+    return Math.max(0, balance - locked);
+  }
+
+  /**
+   * Lock funds during trade negotiation.
+   */
+  async lockBalance(playerId: number, amount: number): Promise<GamePlayer> {
+    if (amount <= 0) {
+      throw new BadRequestException('Lock amount must be positive');
+    }
+    const player = await this.findOne(playerId);
+    const available = this.getAvailableBalance(player);
+    if (amount > available) {
+      throw new BadRequestException(
+        `Cannot lock ${amount}: available balance is ${available}`,
+      );
+    }
+    const currentLocked = parseFloat(player.trade_locked_balance ?? '0');
+    player.trade_locked_balance = (currentLocked + amount).toFixed(2);
+    return this.gamePlayerRepository.save(player);
+  }
+
+  /**
+   * Unlock funds when trade is cancelled or completed.
+   */
+  async unlockBalance(playerId: number, amount: number): Promise<GamePlayer> {
+    if (amount <= 0) {
+      throw new BadRequestException('Unlock amount must be positive');
+    }
+    const player = await this.findOne(playerId);
+    const currentLocked = parseFloat(player.trade_locked_balance ?? '0');
+    if (amount > currentLocked) {
+      throw new BadRequestException(
+        `Cannot unlock ${amount}: locked balance is ${currentLocked}`,
+      );
+    }
+    player.trade_locked_balance = Math.max(0, currentLocked - amount).toFixed(2);
+    return this.gamePlayerRepository.save(player);
+  }
+
   async findOne(id: number): Promise<GamePlayer> {
     const player = await this.gamePlayerRepository.findOne({ where: { id } });
     if (!player) {
