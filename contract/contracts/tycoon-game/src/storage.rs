@@ -16,6 +16,7 @@ pub enum DataKey {
     RewardSystem,       // reward system contract address
     Game(u64),           // game_id -> Game
     GamePlayers(u64),    // game_id -> Vec<Address>
+    GamePlayerSymbols(u64), // game_id -> Vec<u32> (symbols taken)
     NextGameId,          // u64
 }
 
@@ -230,4 +231,19 @@ pub fn set_game_players(env: &Env, game_id: u64, players: &Vec<Address>) {
     env.storage()
         .persistent()
         .set(&DataKey::GamePlayers(game_id), players);
+}
+
+/// Get taken player symbols for a game
+pub fn get_game_player_symbols(env: &Env, game_id: u64) -> Vec<u32> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::GamePlayerSymbols(game_id))
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+/// Set game player symbols (creator + joiners)
+pub fn set_game_player_symbols(env: &Env, game_id: u64, symbols: &Vec<u32>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::GamePlayerSymbols(game_id), symbols);
 }

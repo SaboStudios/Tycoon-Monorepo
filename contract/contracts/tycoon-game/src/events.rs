@@ -28,3 +28,20 @@ pub fn emit_game_created(env: &Env, data: &GameCreatedData) {
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }
+
+/// Data payload for PlayerJoined event
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PlayerJoinedData {
+    pub game_id: u64,
+    pub player: Address,
+    pub player_symbol: u32,
+    pub joined_count: u32,
+}
+
+/// Emit PlayerJoined event
+pub fn emit_player_joined(env: &Env, data: &PlayerJoinedData) {
+    let topics = (Symbol::new(env, "PlayerJoined"), data.player.clone());
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
