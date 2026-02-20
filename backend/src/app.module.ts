@@ -19,6 +19,7 @@ import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
+import { GamesModule } from './modules/games/games.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { CommunityChestModule } from './modules/community-chest/community-chest.
     PropertiesModule,
     ChanceModule,
     CommunityChestModule,
+    GamesModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
