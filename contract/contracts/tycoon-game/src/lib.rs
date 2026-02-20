@@ -5,8 +5,9 @@ mod storage;
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol, Vec};
 use storage::{
-    get_owner, get_tyc_token, get_usdc_token, get_user, is_registered, next_game_id, set_game,
-    set_game_players, CollectibleInfo, Game, GameSettings, GameStatus, GameType, User,
+    get_game, get_game_player_symbols, get_game_players, get_owner, get_tyc_token, get_usdc_token,
+    get_user, is_registered, next_game_id, set_game, set_game_player_symbols, set_game_players,
+    CollectibleInfo, Game, GameSettings, GameStatus, GameType, User,
 };
 
 #[contract]
@@ -223,6 +224,10 @@ impl TycoonContract {
         players.push_back(creator.clone());
         set_game_players(&env, game_id, &players);
 
+        let mut symbols: Vec<u32> = Vec::new(&env);
+        symbols.push_back(player_symbol);
+        set_game_player_symbols(&env, game_id, &symbols);
+
         let event_data = events::GameCreatedData {
             game_id,
             creator: creator.clone(),
@@ -246,6 +251,84 @@ impl TycoonContract {
     /// Get players for a game (creator is first)
     pub fn get_game_players(env: Env, game_id: u64) -> Vec<Address> {
         storage::get_game_players(&env, game_id)
+    }
+
+    /// Join a pending (Waiting) game. Player must be registered.
+    /// For private games, join_code must match. Symbol must not be taken. Max players enforced.
+    pub fn join_game(
+        env: Env,
+        game_id: u64,
+        player: Address,
+        player_username: String,
+        player_symbol: u32,
+        join_code: String,
+    ) {
+        player.require_auth();
+
+        // Player must be registered
+        if !is_registered(&env, &player) {
+            panic!("Player must be registered");
+        }
+
+        // Verify username matches
+        if let Some(user) = get_user(&env, &player) {
+            if user.username != player_username {
+                panic!("Username does not match registered user");
+            }
+        }
+
+        let game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
+        if !matches!(game.status, GameStatus::Waiting) {
+            panic!("Game is not accepting players");
+        }
+
+        // Private game: validate join code
+        if matches!(game.settings.game_type, GameType::Private)
+            && game.settings.code != join_code
+        {
+            panic!("Invalid join code");
+        }
+
+        // Max players check
+        let players = get_game_players(&env, game_id);
+        if players.len() as u32 >= game.settings.number_of_players {
+            panic!("Game is full");
+        }
+
+        // Symbol must not be taken
+        let taken_symbols = get_game_player_symbols(&env, game_id);
+        for i in 0..taken_symbols.len() {
+            if taken_symbols.get(i) == Some(player_symbol) {
+                panic!("Symbol already taken");
+            }
+        }
+
+        // Transfer stake if required
+        if game.settings.stake_amount > 0 {
+            let usdc_token = storage::get_usdc_token(&env);
+            let token_client = token::Client::new(&env, &usdc_token);
+            let contract_address = env.current_contract_address();
+            token_client.transfer(&player, &contract_address, &(game.settings.stake_amount as i128));
+        }
+
+        // Add player
+        let mut new_players = players;
+        new_players.push_back(player.clone());
+        set_game_players(&env, game_id, &new_players);
+
+        // Add symbol to taken list
+        let mut new_symbols = taken_symbols;
+        new_symbols.push_back(player_symbol);
+        set_game_player_symbols(&env, game_id, &new_symbols);
+
+        let joined_count = new_players.len() as u32;
+        let event_data = events::PlayerJoinedData {
+            game_id,
+            player: player.clone(),
+            player_symbol,
+            joined_count,
+        };
+        events::emit_player_joined(&env, &event_data);
     }
 }
 
