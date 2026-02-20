@@ -8,9 +8,6 @@ export default function GamePlayPage() {
         <p className="mt-4 text-center text-sm text-[var(--tycoon-text)]/80">
           Multiplayer game board flow will be mounted here.
         </p>
-        <p className="mt-2 text-center text-xs text-[var(--tycoon-text)]/60">
-          Future-ready: support `roomId` via query param or dynamic segment.
-        </p>
       </div>
     </section>
   );
