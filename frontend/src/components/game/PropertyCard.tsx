@@ -29,8 +29,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 }) => {
     const isCompact = variant === 'compact';
 
-    // Base card styles
-    let cardClasses = `flex flex-col border-2 rounded-lg overflow-hidden transition-all duration-200 bg-white
+    const cardClasses = `flex flex-col border-2 rounded-lg overflow-hidden transition-all duration-200 bg-white
     ${isSelectable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1' : ''}
     ${isSelected ? 'border-blue-500 shadow-md ring-2 ring-blue-300' : 'border-gray-800 shadow-sm'}
     ${isCompact ? 'w-32 h-40' : 'w-48 h-64'}
