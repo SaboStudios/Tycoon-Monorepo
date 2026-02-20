@@ -1,3 +1,5 @@
+import JoinRoomForm from "@/components/settings/JoinRoomForm";
+
 export default function JoinRoomPage() {
   return (
     <section className="min-h-screen w-full bg-[var(--tycoon-bg)] flex flex-col items-center justify-center px-4">
@@ -5,9 +7,8 @@ export default function JoinRoomPage() {
         <h1 className="font-orbitron text-2xl font-bold text-[var(--tycoon-accent)] text-center mb-6">
           Join Room
         </h1>
-        <div className="rounded-lg border border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] p-6 text-center text-[var(--tycoon-text)]/60">
-          {/* Placeholder for join form */}
-          Form coming soon
+        <div className="rounded-lg border border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] p-6">
+          <JoinRoomForm />
         </div>
       </div>
     </section>
