@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { Spinner } from "@/components/ui/spinner";
+import { PlayerList } from "@/components/game/PlayerList";
 
 // --- TYPES ---
 export interface PlayerSymbol {
@@ -360,27 +361,16 @@ export default function GameWaiting(): React.JSX.Element {
               Auto-start in: <span className="text-[#00F0FF] font-bold">{countdown}s</span>
             </p>
 
-            {/* Player slots */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 justify-center">
-              {Array.from({ length: maxPlayersThreshold }).map((_, index) => {
-                const player = gamePlayers[index];
-                return (
-                  <div
-                    key={index}
-                    className="bg-[#010F10]/70 p-3 rounded-lg border border-[#00F0FF]/30 flex flex-col items-center justify-center shadow-md hover:shadow-[#00F0FF]/50 transition-shadow duration-300"
-                  >
-                    <span className="text-4xl mb-1">
-                      {player
-                        ? SYMBOLS.find((s) => s.value === player.symbol)?.emoji ?? "❓"
-                        : "❓"}
-                    </span>
-                    <p className="text-[#F0F7F7] text-xs font-semibold truncate max-w-[80px]">
-                      {player?.username ?? "Slot Open"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+            {/* Player slots (reusable PlayerList) */}
+            <PlayerList
+              players={gamePlayers.map((p, i) => ({
+                id: p.address,
+                name: p.username,
+                symbol: p.symbol,
+                state: i === 0 ? ("host" as const) : undefined,
+              }))}
+              maxPlayers={maxPlayersThreshold}
+            />
           </div>
 
           {/* Chat / Status messages */}
