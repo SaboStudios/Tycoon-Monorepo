@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import "./globals.css";
+import Navbar from "@/components/shared/Navbar";
+import NavbarMobile from "@/components/shared/NavbarMobile";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +30,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
+        <Navbar />
         {children}
+        <NavbarMobile />
       </body>
     </html>
   );
