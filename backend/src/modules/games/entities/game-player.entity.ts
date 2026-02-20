@@ -12,6 +12,8 @@ import { GamePlayerSymbol } from '../enums/game-player-symbol.enum';
 @Index(['game_id'])
 @Index(['user_id'])
 @Index(['game_id', 'user_id'])
+@Index(['game_id', 'in_jail'])
+@Index(['user_id', 'in_jail'])
 export class GamePlayer {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id: number;

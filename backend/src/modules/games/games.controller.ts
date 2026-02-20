@@ -1,20 +1,35 @@
 import {
   Body,
   Controller,
+  Get,
   Patch,
   Param,
   ParseIntPipe,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
+import { ApiTags, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
 import { GamePlayersService } from './game-players.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
+import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@ApiTags('games')
 @Controller('games')
 export class GamesController {
   constructor(private readonly gamePlayersService: GamePlayersService) {}
+
+  @Get(':gameId/players')
+  @ApiOperation({ summary: 'Get players for a game' })
+  @ApiOkResponse({ description: 'Paginated list of game players' })
+  async getPlayers(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Query() dto: GetGamePlayersDto,
+  ) {
+    return this.gamePlayersService.findPlayersByGame(gameId, dto);
+  }
 
   @Patch(':gameId/players/:playerId')
   @UseGuards(JwtAuthGuard)
