@@ -14,6 +14,7 @@ pub enum DataKey {
     User(Address),     // address -> User
     Registered(Address), // address -> bool
     RewardSystem,      // reward system contract address
+    BackendGameController, // backend game controller address
 }
 
 /// Information about a collectible NFT
@@ -145,4 +146,14 @@ pub fn set_user(env: &Env, address: &Address, user: &User) {
     env.storage()
         .persistent()
         .set(&DataKey::User(address.clone()), user);
+}
+
+/// Get backend game controller address
+pub fn get_backend_game_controller(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::BackendGameController)
+}
+
+/// Set backend game controller address
+pub fn set_backend_game_controller(env: &Env, address: &Address) {
+    env.storage().instance().set(&DataKey::BackendGameController, address);
 }

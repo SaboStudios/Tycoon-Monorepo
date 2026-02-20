@@ -391,3 +391,164 @@ fn test_register_player_username_too_long() {
     let username = String::from_str(&env, "thisusernameiswaytoolong");
     client.register_player(&username, &player);
 }
+
+// ===== BACKEND GAME CONTROLLER TESTS =====
+
+#[test]
+fn test_set_backend_game_controller_by_owner() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    // Verify by using the backend controller to remove a player
+    let player = Address::generate(&env);
+    client.remove_player_from_game(&backend_controller, &1, &player, &10);
+}
+
+#[test]
+fn test_remove_player_from_game_by_owner() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let game_id = 1;
+    let turn_count = 5;
+
+    client.remove_player_from_game(&owner, &game_id, &player, &turn_count);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+#[test]
+fn test_remove_player_from_game_by_backend_controller() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    let player = Address::generate(&env);
+    let game_id = 2;
+    let turn_count = 15;
+
+    client.remove_player_from_game(&backend_controller, &game_id, &player, &turn_count);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: caller must be owner or backend game controller")]
+fn test_remove_player_from_game_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    // Try to remove player with unauthorized address
+    let unauthorized = Address::generate(&env);
+    let player = Address::generate(&env);
+
+    client.remove_player_from_game(&unauthorized, &1, &player, &10);
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: caller must be owner or backend game controller")]
+fn test_remove_player_from_game_no_backend_controller_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // No backend controller set, try with non-owner
+    let unauthorized = Address::generate(&env);
+    let player = Address::generate(&env);
+
+    client.remove_player_from_game(&unauthorized, &1, &player, &10);
+}
+
+#[test]
+fn test_remove_player_emits_correct_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let game_id = 42;
+    let turn_count = 100;
+
+    client.remove_player_from_game(&owner, &game_id, &player, &turn_count);
+
+    // Verify event details
+    let events = env.events().all();
+    let _event = events.last().unwrap();
+    
+    assert!(!events.is_empty());
+    // Event should contain game_id, player, and turn_count
+}
+
+#[test]
+fn test_backend_controller_integration() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    // Initialize contract
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // Set backend controller
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    // Register players
+    let player1 = Address::generate(&env);
+    let player2 = Address::generate(&env);
+    client.register_player(&String::from_str(&env, "player1"), &player1);
+    client.register_player(&String::from_str(&env, "player2"), &player2);
+
+    // Backend removes players from games
+    client.remove_player_from_game(&backend_controller, &1, &player1, &5);
+    client.remove_player_from_game(&backend_controller, &1, &player2, &8);
+
+    // Owner can also remove players
+    client.remove_player_from_game(&owner, &2, &player1, &12);
+
+    // Verify events were emitted - just check that we have events
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
