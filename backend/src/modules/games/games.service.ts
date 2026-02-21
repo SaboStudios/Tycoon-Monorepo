@@ -1,18 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
-
-const DEFAULT_SETTINGS = {
-  auction: true,
-  rentInPrison: false,
-  mortgage: true,
-  evenBuild: true,
-  randomizePlayOrder: true,
-  startingCash: 1500,
-};
 
 /**
  * Generate a unique game code
@@ -35,7 +27,8 @@ export class GamesService {
     @InjectRepository(GameSettings)
     private readonly gameSettingsRepository: Repository<GameSettings>,
     private readonly dataSource: DataSource,
-  ) {}
+    private readonly configService: ConfigService,
+  ) { }
 
   /**
    * Generate a unique game code, retrying if collision occurs
@@ -144,8 +137,24 @@ export class GamesService {
       });
       const savedGame = await queryRunner.manager.save(game);
 
+      const defaultSettings = this.configService.get<{
+        auction: boolean;
+        rentInPrison: boolean;
+        mortgage: boolean;
+        evenBuild: boolean;
+        randomizePlayOrder: boolean;
+        startingCash: number;
+      }>('game.defaultSettings') || {
+        auction: true,
+        rentInPrison: false,
+        mortgage: true,
+        evenBuild: true,
+        randomizePlayOrder: true,
+        startingCash: 1500,
+      };
+
       const settingsPayload = {
-        ...DEFAULT_SETTINGS,
+        ...defaultSettings,
         ...(dto.settings ?? {}),
       };
 
