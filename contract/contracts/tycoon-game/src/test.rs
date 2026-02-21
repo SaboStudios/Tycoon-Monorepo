@@ -1062,3 +1062,44 @@ fn test_start_game_unauthorized_fails() {
     // In mock_all_auths() mode, it might still pass if we don't set auth carefully.
     client.start_game(&game_id);
 }
+
+#[test]
+fn test_start_game_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &2,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "joiner");
+    client.register_player(&player_username, &player);
+    client.join_game(
+        &game_id,
+        &player,
+        &player_username,
+        &2,
+        &String::from_str(&env, ""),
+    );
+
+    client.start_game(&game_id);
+
+    let events = env.events().all();
+    assert!(!events.is_empty(), "GameStarted event should be emitted");
+}
