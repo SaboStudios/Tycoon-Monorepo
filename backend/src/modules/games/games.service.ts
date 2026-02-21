@@ -165,9 +165,6 @@ export class GamesService {
       return {
         id: savedGame.id,
         code: savedGame.code,
-        mode: savedGame.mode,
-        number_of_players: savedGame.number_of_players,
-        status: savedGame.status,
         mode: savedGame.mode as string,
         number_of_players: savedGame.number_of_players,
         status: savedGame.status as string,
