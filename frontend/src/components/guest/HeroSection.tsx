@@ -97,6 +97,7 @@ const HeroSection: React.FC = () => {
         <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
           {/* Continue Game */}
           <button
+            onClick={() => router.push("/game-settings")}
             className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
             <svg
@@ -149,7 +150,7 @@ const HeroSection: React.FC = () => {
 
           {/* Join Room */}
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => router.push("/join-room")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg

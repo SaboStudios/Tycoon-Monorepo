@@ -96,7 +96,7 @@ export class GamePlayersService {
   private async isGameStarted(gameId: number): Promise<boolean> {
     const game = await this.gameRepository.findOne({ where: { id: gameId } });
     if (!game) return false;
-    return ['started', 'ended'].includes(game.status?.toLowerCase());
+    return game.status === GameStatus.RUNNING || game.status === GameStatus.FINISHED;
   }
 
   async update(
