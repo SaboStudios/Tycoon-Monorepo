@@ -1,4 +1,4 @@
-#![no_std]
+cd#![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
 
 const VOUCHER_ID_START: u128 = 1_000_000_000;

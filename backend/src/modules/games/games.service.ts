@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Game, GameStatus, GameMode } from './entities/game.entity';
+import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 
@@ -58,18 +58,23 @@ export class GamesService {
       attempts++;
     }
 
-    throw new Error('Failed to generate unique game code after multiple attempts');
+    throw new Error(
+      'Failed to generate unique game code after multiple attempts',
+    );
   }
 
   /**
    * Create a game with optional settings in a single transaction.
    * Uses defaults if no settings provided. Rollback on failure.
    */
-  async create(dto: CreateGameDto, creatorId: number): Promise<{
+  async create(
+    dto: CreateGameDto,
+    creatorId: number,
+  ): Promise<{
     id: number;
     code: string;
     mode: string;
-    numberOfPlayers: number;
+    number_of_players: number;
     status: string;
     is_ai: boolean;
     is_minipay: boolean;
@@ -129,7 +134,7 @@ export class GamesService {
         id: savedGame.id,
         code: savedGame.code,
         mode: savedGame.mode,
-        numberOfPlayers: savedGame.number_of_players,
+        number_of_players: savedGame.number_of_players,
         status: savedGame.status,
         is_ai: savedGame.is_ai,
         is_minipay: savedGame.is_minipay,
