@@ -62,6 +62,38 @@ export class GamesService {
   }
 
   /**
+   * Find a game by ID with relations (creator, winner, nextPlayer)
+   */
+  async findById(id: number): Promise<Game> {
+    const game = await this.gameRepository.findOne({
+      where: { id },
+      relations: ['creator', 'winner', 'nextPlayer'],
+    });
+
+    if (!game) {
+      throw new NotFoundException(`Game with ID ${id} not found`);
+    }
+
+    return game;
+  }
+
+  /**
+   * Find a game by unique code with relations (creator, winner, nextPlayer)
+   */
+  async findByCode(code: string): Promise<Game> {
+    const game = await this.gameRepository.findOne({
+      where: { code: code.toUpperCase() },
+      relations: ['creator', 'winner', 'nextPlayer'],
+    });
+
+    if (!game) {
+      throw new NotFoundException(`Game with code ${code} not found`);
+    }
+
+    return game;
+  }
+
+  /**
    * Create a game with optional settings in a single transaction.
    * Uses defaults if no settings provided. Rollback on failure.
    */

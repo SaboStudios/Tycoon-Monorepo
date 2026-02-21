@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
