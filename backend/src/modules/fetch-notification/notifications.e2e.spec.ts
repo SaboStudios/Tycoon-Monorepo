@@ -1,11 +1,11 @@
 // src/notifications/tests/notifications.e2e.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { NotificationsModule } from '../notifications.module';
-import { Notification, NotificationType } from '../entities/notification.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { NotificationsModule } from './notifications.module';
+import { Notification, NotificationType } from './entities/notification.entity';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
