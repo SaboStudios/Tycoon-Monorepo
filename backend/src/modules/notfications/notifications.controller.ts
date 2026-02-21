@@ -20,6 +20,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { Types } from 'mongoose';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService, PaginatedNotificationsResult } from './notifications.service';
@@ -101,7 +102,7 @@ export class NotificationsController {
     return this.notificationsService.findAllForUser(userId, query);
   }
 
-  @Patch(':id')
+@Patch(':id')
 @HttpCode(HttpStatus.OK)
 @ApiOperation({
   summary: 'Mark a notification as read',

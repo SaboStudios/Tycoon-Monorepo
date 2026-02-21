@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GamePlayer } from './entities/game-player.entity';
-import { Game, GameStatus } from './entities/game.entity';
+import { Game } from './entities/game.entity';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetUserGamesDto } from './dto/get-user-games.dto';
@@ -96,7 +96,7 @@ export class GamePlayersService {
   private async isGameStarted(gameId: number): Promise<boolean> {
     const game = await this.gameRepository.findOne({ where: { id: gameId } });
     if (!game) return false;
-    return game.status === GameStatus.STARTED || game.status === GameStatus.ENDED;
+    return ['started', 'ended'].includes(game.status?.toLowerCase());
   }
 
   async update(

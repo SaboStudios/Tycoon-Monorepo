@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Game, GameStatus } from './entities/game.entity';
+import { Game } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 
@@ -51,7 +51,7 @@ export class GamesService {
       const game = queryRunner.manager.create(Game, {
         mode: dto.mode,
         numberOfPlayers: dto.numberOfPlayers,
-        status: GameStatus.PENDING,
+        status: 'pending',
       });
       const savedGame = await queryRunner.manager.save(game);
 
