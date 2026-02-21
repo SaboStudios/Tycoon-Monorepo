@@ -101,7 +101,7 @@ export class GamesService {
     id: number;
     code: string;
     mode: string;
-    numberOfPlayers: number;
+    number_of_players: number;
     status: string;
     is_ai: boolean;
     is_minipay: boolean;
@@ -161,7 +161,7 @@ export class GamesService {
         id: savedGame.id,
         code: savedGame.code,
         mode: savedGame.mode,
-        numberOfPlayers: savedGame.number_of_players,
+        number_of_players: savedGame.number_of_players,
         status: savedGame.status,
         is_ai: savedGame.is_ai,
         is_minipay: savedGame.is_minipay,
