@@ -16,7 +16,13 @@ pub struct TycoonContract;
 #[contractimpl]
 impl TycoonContract {
     /// Initialize the contract with token addresses and owner
-    pub fn initialize(env: Env, tyc_token: Address, usdc_token: Address, initial_owner: Address, reward_system: Address) {
+    pub fn initialize(
+        env: Env,
+        tyc_token: Address,
+        usdc_token: Address,
+        initial_owner: Address,
+        reward_system: Address,
+    ) {
         if storage::is_initialized(&env) {
             panic!("Contract already initialized");
         }
@@ -144,7 +150,7 @@ impl TycoonContract {
         let _token_id: u128 = env.invoke_contract(
             &reward_system,
             &Symbol::new(&env, "mint_voucher"),
-            soroban_sdk::vec![&env, player.into_val(&env), 2_0000000u128.into_val(&env)]
+            soroban_sdk::vec![&env, player.into_val(&env), 2_0000000u128.into_val(&env)],
         );
     }
 
@@ -283,9 +289,7 @@ impl TycoonContract {
         }
 
         // Private game: validate join code
-        if matches!(game.settings.game_type, GameType::Private)
-            && game.settings.code != join_code
-        {
+        if matches!(game.settings.game_type, GameType::Private) && game.settings.code != join_code {
             panic!("Invalid join code");
         }
 
@@ -308,7 +312,11 @@ impl TycoonContract {
             let usdc_token = storage::get_usdc_token(&env);
             let token_client = token::Client::new(&env, &usdc_token);
             let contract_address = env.current_contract_address();
-            token_client.transfer(&player, &contract_address, &(game.settings.stake_amount as i128));
+            token_client.transfer(
+                &player,
+                &contract_address,
+                &(game.settings.stake_amount as i128),
+            );
         }
 
         // Add player
@@ -329,6 +337,76 @@ impl TycoonContract {
             joined_count,
         };
         events::emit_player_joined(&env, &event_data);
+    }
+
+    /// Transition a game from Waiting to InProgress.
+    /// Only the creator can start the game. Requires at least 2 players.
+    pub fn start_game(env: Env, game_id: u64) {
+        let mut game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
+
+        game.creator.require_auth();
+
+        if !matches!(game.status, GameStatus::Waiting) {
+            panic!("Game is already started or finished");
+        }
+
+        let players = get_game_players(&env, game_id);
+        let player_count = players.len() as u32;
+
+        if player_count < 2 {
+            panic!("Not enough players to start");
+        }
+
+        game.status = GameStatus::InProgress;
+        set_game(&env, game_id, &game);
+
+        let event_data = events::GameStartedData {
+            game_id,
+            player_count,
+        };
+        events::emit_game_started(&env, &event_data);
+    }
+
+    /// Voluntary exit during an ongoing game.
+    /// Validates caller is an active player and game is InProgress.
+    /// Emits PlayerExited event.
+    pub fn exit_game(env: Env, game_id: u64, player: Address) {
+        player.require_auth();
+
+        let game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
+
+        if !matches!(game.status, GameStatus::InProgress) {
+            panic!("Game is not ongoing");
+        }
+
+        // Validate player is actively in the game and remove them
+        let players = get_game_players(&env, game_id);
+        let mut new_players = Vec::new(&env);
+        let mut found = false;
+
+        for p in players.iter() {
+            if p == player {
+                found = true;
+            } else {
+                new_players.push_back(p);
+            }
+        }
+
+        if !found {
+            panic!("Player is not in the game");
+        }
+
+        set_game_players(&env, game_id, &new_players);
+
+        // TODO: Future Payout Logic Stub
+        // Implement payout bounds distinguishing between voluntary exits and bankruptcies,
+        // re-allocating escrowed stakes to surviving game players evenly vs burn metrics.
+
+        let event_data = events::PlayerExitedData {
+            game_id,
+            player: player.clone(),
+        };
+        events::emit_player_exited(&env, &event_data);
     }
 }
 

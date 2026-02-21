@@ -5,7 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 /**
  * Enum for game mode
@@ -117,4 +120,17 @@ export class Game {
     nullable: true,
   })
   placements: GamePlacements | null;
+
+  // Relations
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'creator_id' })
+  creator: User;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'winner_id' })
+  winner: User | null;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'next_player_id' })
+  nextPlayer: User | null;
 }
