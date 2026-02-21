@@ -3,15 +3,14 @@ import { GamesService } from './games.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { CreateGameDto } from './dto/create-game.dto';
+import { PaginationService } from '../../common';
+import { GetGamesDto } from './dto/get-games.dto';
 
 describe('GamesService', () => {
   let service: GamesService;
-  let gameRepository: Repository<Game>;
-  let gameSettingsRepository: Repository<GameSettings>;
-  let dataSource: DataSource;
 
   const mockGameRepository = {
     findOne: jest.fn(),
@@ -40,6 +39,10 @@ describe('GamesService', () => {
     createQueryRunner: jest.fn(() => mockQueryRunner),
   };
 
+  const mockPaginationService = {
+    paginate: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -56,15 +59,14 @@ describe('GamesService', () => {
           provide: DataSource,
           useValue: mockDataSource,
         },
+        {
+          provide: PaginationService,
+          useValue: mockPaginationService,
+        },
       ],
     }).compile();
 
     service = module.get<GamesService>(GamesService);
-    gameRepository = module.get<Repository<Game>>(getRepositoryToken(Game));
-    gameSettingsRepository = module.get<Repository<GameSettings>>(
-      getRepositoryToken(GameSettings),
-    );
-    dataSource = module.get<DataSource>(DataSource);
   });
 
   afterEach(() => {
@@ -281,10 +283,122 @@ describe('GamesService', () => {
         throw new Error('Database error');
       });
 
-      await expect(service.create(dto, creatorId)).rejects.toThrow('Database error');
+      await expect(service.create(dto, creatorId)).rejects.toThrow(
+        'Database error',
+      );
 
       expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.release).toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll', () => {
+    const qb = {
+      andWhere: jest.fn().mockReturnThis(),
+    };
+
+    beforeEach(() => {
+      mockGameRepository.createQueryBuilder = jest.fn().mockReturnValue(qb);
+    });
+
+    it('should build query with all supported filters and paginate', async () => {
+      const dto: GetGamesDto = {
+        userId: 3,
+        status: GameStatus.RUNNING,
+        mode: GameMode.PUBLIC,
+        isAi: true,
+        isMinipay: false,
+        chain: 'base',
+        activeOnly: true,
+        startedOrPending: true,
+        page: 2,
+        limit: 5,
+      };
+
+      const paginatedResult = {
+        data: [],
+        meta: {
+          page: 2,
+          limit: 5,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: true,
+        },
+      };
+
+      mockPaginationService.paginate.mockResolvedValue(paginatedResult);
+
+      const result = await service.findAll(dto);
+
+      expect(mockGameRepository.createQueryBuilder).toHaveBeenCalledWith('g');
+      expect(qb.andWhere).toHaveBeenCalledWith('g.creator_id = :userId', {
+        userId: 3,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('g.status = :status', {
+        status: GameStatus.RUNNING,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('g.mode = :mode', {
+        mode: GameMode.PUBLIC,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('g.is_ai = :isAi', {
+        isAi: true,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('g.is_minipay = :isMinipay', {
+        isMinipay: false,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('g.chain = :chain', {
+        chain: 'base',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('g.status = :activeStatus', {
+        activeStatus: GameStatus.RUNNING,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'g.status IN (:...startedStatuses)',
+        {
+          startedStatuses: [GameStatus.PENDING, GameStatus.RUNNING],
+        },
+      );
+
+      expect(mockPaginationService.paginate).toHaveBeenCalledWith(
+        qb,
+        expect.objectContaining({
+          page: 2,
+          limit: 5,
+          sortBy: 'created_at',
+          sortOrder: 'DESC',
+        }),
+        ['code', 'chain'],
+      );
+      expect(result).toEqual(paginatedResult);
+    });
+
+    it('should apply default sorting when not provided', async () => {
+      const dto: GetGamesDto = {};
+      const paginatedResult = {
+        data: [],
+        meta: {
+          page: 1,
+          limit: 10,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      };
+
+      mockPaginationService.paginate.mockResolvedValue(paginatedResult);
+
+      await service.findAll(dto);
+
+      expect(mockPaginationService.paginate).toHaveBeenCalledWith(
+        qb,
+        expect.objectContaining({
+          sortBy: 'created_at',
+          sortOrder: 'DESC',
+        }),
+        ['code', 'chain'],
+      );
     });
   });
 });
