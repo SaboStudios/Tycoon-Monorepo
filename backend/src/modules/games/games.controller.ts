@@ -16,6 +16,7 @@ import {
   ApiOperation,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
@@ -37,6 +38,48 @@ export class GamesController {
   @ApiCreatedResponse({ description: 'Game and settings created' })
   async create(@Body() dto: CreateGameDto) {
     return this.gamesService.create(dto);
+  }
+
+  @Get('code/:code')
+  @ApiOperation({ summary: 'Get a game by its unique code' })
+  @ApiOkResponse({
+    description: 'Game found with relations',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        mode: 'PUBLIC',
+        status: 'PENDING',
+        creator: { id: 1, email: 'user@example.com', username: 'player1' },
+        winner: null,
+        nextPlayer: null,
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  async findByCode(@Param('code') code: string) {
+    return this.gamesService.findByCode(code);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a game by ID' })
+  @ApiOkResponse({
+    description: 'Game found with relations',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        mode: 'PUBLIC',
+        status: 'PENDING',
+        creator: { id: 1, email: 'user@example.com', username: 'player1' },
+        winner: null,
+        nextPlayer: null,
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  async findById(@Param('id', ParseIntPipe) id: number) {
+    return this.gamesService.findById(id);
   }
 
   @Get(':gameId/players')
