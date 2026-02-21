@@ -1,4 +1,3 @@
-// src/modules/notifications/notifications.controller.ts
 import {
   Controller,
   Get,
@@ -7,6 +6,11 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Post,
+  Param,
+  Patch,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -16,6 +20,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { Types } from 'mongoose';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService, PaginatedNotificationsResult } from './notifications.service';
@@ -96,4 +101,53 @@ export class NotificationsController {
     const userId = extractUserId(req);
     return this.notificationsService.findAllForUser(userId, query);
   }
+
+@Patch(':id')
+@HttpCode(HttpStatus.OK)
+@ApiOperation({
+  summary: 'Mark a notification as read',
+  description:
+    'Marks a specific notification as read. User can only update their own notifications.',
+})
+@ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+async markAsRead(
+  @Req() req: Request,
+  @Param('id') id: string,
+) {
+  const userId = extractUserId(req);
+
+  const updated = await this.notificationsService.markAsRead(
+    id,
+    userId,
+  );
+
+  if (!updated) {
+    throw new NotFoundException(
+      'Notification not found or not owned by user',
+    );
+  }
+
+  return updated;
+}
+
+@Post('read-all')
+@HttpCode(HttpStatus.OK)
+@ApiOperation({
+  summary: 'Mark all notifications as read',
+  description:
+    'Marks all unread notifications for the authenticated user as read.',
+})
+@ApiOkResponse({
+  schema: {
+    properties: {
+      modifiedCount: { type: 'number', example: 5 },
+    },
+  },
+})
+@ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+async markAllAsRead(@Req() req: Request) {
+  const userId = extractUserId(req);
+
+  return this.notificationsService.markAllAsRead(userId);
+}
 }
