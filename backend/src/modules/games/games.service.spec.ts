@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { DataSource, Repository } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
 import { CreateGameDto } from './dto/create-game.dto';
 
 describe('GamesService', () => {
@@ -68,6 +69,95 @@ describe('GamesService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('findById', () => {
+    it('should return a game with relations when found', async () => {
+      const mockGame = {
+        id: 1,
+        code: 'ABC123',
+        mode: GameMode.PUBLIC,
+        status: GameStatus.PENDING,
+        creator: { id: 1, email: 'user@example.com', username: 'player1' },
+        winner: null,
+        nextPlayer: null,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      const result = await service.findById(1);
+
+      expect(mockGameRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 1 },
+        relations: ['creator', 'winner', 'nextPlayer'],
+      });
+      expect(result).toEqual(mockGame);
+    });
+
+    it('should throw NotFoundException when game not found', async () => {
+      mockGameRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findById(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findById(999)).rejects.toThrow(
+        'Game with ID 999 not found',
+      );
+    });
+  });
+
+  describe('findByCode', () => {
+    it('should return a game with relations when found', async () => {
+      const mockGame = {
+        id: 1,
+        code: 'ABC123',
+        mode: GameMode.PUBLIC,
+        status: GameStatus.PENDING,
+        creator: { id: 1, email: 'user@example.com', username: 'player1' },
+        winner: null,
+        nextPlayer: null,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      const result = await service.findByCode('abc123');
+
+      expect(mockGameRepository.findOne).toHaveBeenCalledWith({
+        where: { code: 'ABC123' },
+        relations: ['creator', 'winner', 'nextPlayer'],
+      });
+      expect(result).toEqual(mockGame);
+    });
+
+    it('should throw NotFoundException when game not found', async () => {
+      mockGameRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findByCode('NOTFOUND')).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.findByCode('NOTFOUND')).rejects.toThrow(
+        'Game with code NOTFOUND not found',
+      );
+    });
+
+    it('should convert code to uppercase before searching', async () => {
+      const mockGame = {
+        id: 1,
+        code: 'ABC123',
+        mode: GameMode.PUBLIC,
+        status: GameStatus.PENDING,
+        creator: { id: 1, email: 'user@example.com' },
+        winner: null,
+        nextPlayer: null,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      await service.findByCode('abc123');
+
+      expect(mockGameRepository.findOne).toHaveBeenCalledWith({
+        where: { code: 'ABC123' },
+        relations: ['creator', 'winner', 'nextPlayer'],
+      });
+    });
   });
 
   describe('create', () => {
