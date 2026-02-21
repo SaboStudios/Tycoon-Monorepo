@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Game, GameMode, GameStatus } from './entities/game.entity';
+import { Game, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
+import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
+import { GetGamesDto } from './dto/get-games.dto';
 
 const DEFAULT_SETTINGS = {
   auction: true,
@@ -35,7 +37,56 @@ export class GamesService {
     @InjectRepository(GameSettings)
     private readonly gameSettingsRepository: Repository<GameSettings>,
     private readonly dataSource: DataSource,
+    private readonly paginationService: PaginationService,
   ) {}
+
+  async findAll(dto: GetGamesDto): Promise<PaginatedResponse<Game>> {
+    const qb = this.gameRepository.createQueryBuilder('g');
+
+    if (dto.userId !== undefined) {
+      qb.andWhere('g.creator_id = :userId', { userId: dto.userId });
+    }
+
+    if (dto.status !== undefined) {
+      qb.andWhere('g.status = :status', { status: dto.status });
+    }
+
+    if (dto.mode !== undefined) {
+      qb.andWhere('g.mode = :mode', { mode: dto.mode });
+    }
+
+    if (dto.isAi !== undefined) {
+      qb.andWhere('g.is_ai = :isAi', { isAi: dto.isAi });
+    }
+
+    if (dto.isMinipay !== undefined) {
+      qb.andWhere('g.is_minipay = :isMinipay', { isMinipay: dto.isMinipay });
+    }
+
+    if (dto.chain !== undefined) {
+      qb.andWhere('g.chain = :chain', { chain: dto.chain });
+    }
+
+    if (dto.activeOnly === true) {
+      qb.andWhere('g.status = :activeStatus', {
+        activeStatus: GameStatus.RUNNING,
+      });
+    }
+
+    if (dto.startedOrPending === true) {
+      qb.andWhere('g.status IN (:...startedStatuses)', {
+        startedStatuses: [GameStatus.PENDING, GameStatus.RUNNING],
+      });
+    }
+
+    const sortBy = dto.sortBy || 'created_at';
+    const sortOrder = dto.sortOrder || SortOrder.DESC;
+
+    return this.paginationService.paginate(qb, { ...dto, sortBy, sortOrder }, [
+      'code',
+      'chain',
+    ]);
+  }
 
   /**
    * Generate a unique game code, retrying if collision occurs
