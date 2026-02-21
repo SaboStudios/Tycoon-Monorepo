@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Game, GameStatus } from './entities/game.entity';
+import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 
@@ -31,7 +31,7 @@ export class GamesService {
   async create(dto: CreateGameDto): Promise<{
     id: number;
     mode: string;
-    numberOfPlayers: number;
+    number_of_players: number;
     status: string;
     created_at: Date;
     settings: {
@@ -49,8 +49,8 @@ export class GamesService {
 
     try {
       const game = queryRunner.manager.create(Game, {
-        mode: dto.mode,
-        numberOfPlayers: dto.numberOfPlayers,
+        mode: GameMode[dto.mode as keyof typeof GameMode],
+        number_of_players: dto.numberOfPlayers,
         status: GameStatus.PENDING,
       });
       const savedGame = await queryRunner.manager.save(game);
@@ -76,7 +76,7 @@ export class GamesService {
       return {
         id: savedGame.id,
         mode: savedGame.mode,
-        numberOfPlayers: savedGame.numberOfPlayers,
+        number_of_players: savedGame.number_of_players,
         status: savedGame.status,
         created_at: savedGame.created_at,
         settings: {
