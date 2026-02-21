@@ -6,6 +6,7 @@ use soroban_sdk::{
     token::{StellarAssetClient, TokenClient},
     Address, Env, String,
 };
+use crate::storage::GameType;
 
 // Helper function to create a mock token contract
 fn create_token_contract<'a>(env: &Env, admin: &Address) -> (Address, TokenClient<'a>) {
@@ -390,4 +391,553 @@ fn test_register_player_username_too_long() {
     let player = Address::generate(&env);
     let username = String::from_str(&env, "thisusernameiswaytoolong");
     client.register_player(&username, &player);
+}
+
+// ===== CREATE GAME (HUMAN VS HUMAN) TESTS =====
+
+#[test]
+fn test_create_game_public_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "creator1");
+    client.register_player(&username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    assert_eq!(game_id, 1);
+
+    let game = client.get_game(&game_id);
+    assert!(game.is_some());
+    let g = game.unwrap();
+    assert_eq!(g.id, 1);
+    assert_eq!(g.creator, creator);
+    assert_eq!(g.settings.number_of_players, 4);
+    assert_eq!(g.settings.stake_amount, 0);
+    assert!(matches!(g.settings.game_type, GameType::Public));
+
+    let players = client.get_game_players(&game_id);
+    assert_eq!(players.len(), 1);
+    assert_eq!(players.get(0), Some(creator));
+}
+
+#[test]
+fn test_create_game_private_with_code_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "host");
+    client.register_player(&username, &creator);
+
+    let code = String::from_str(&env, "SECRET123");
+    let game_id = client.create_game(
+        &creator,
+        &username,
+        &GameType::Private,
+        &2,
+        &2,
+        &code,
+        &500_0000,
+        &0,
+    );
+
+    assert_eq!(game_id, 1);
+    let game = client.get_game(&game_id).unwrap();
+    assert!(matches!(game.settings.game_type, GameType::Private));
+    assert_eq!(game.settings.code, String::from_str(&env, "SECRET123"));
+}
+
+#[test]
+fn test_create_game_with_stake_transfers_usdc() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "staker");
+    client.register_player(&username, &creator);
+
+    let usdc_admin = StellarAssetClient::new(&env, &usdc_token);
+    usdc_admin.mint(&creator, &1000); // 1000 * 10^7 = 1000 USDC (7 decimals)
+
+    let stake = 100u128; // 100 base units
+    let game_id = client.create_game(
+        &creator,
+        &username,
+        &GameType::Public,
+        &0,
+        &2,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &stake,
+    );
+
+    assert_eq!(game_id, 1);
+    let usdc_client = TokenClient::new(&env, &usdc_token);
+    assert_eq!(usdc_client.balance(&contract_id), 100);
+    assert_eq!(usdc_client.balance(&creator), 900);
+}
+
+#[test]
+#[should_panic(expected = "Creator must be registered")]
+fn test_create_game_unregistered_creator_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "nobody");
+
+    client.create_game(
+        &creator,
+        &username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Private game requires a code")]
+fn test_create_game_private_without_code_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "host");
+    client.register_player(&username, &creator);
+
+    client.create_game(
+        &creator,
+        &username,
+        &GameType::Private,
+        &1,
+        &2,
+        &String::from_str(&env, ""),
+        &500_0000,
+        &0,
+    );
+}
+
+#[test]
+#[should_panic(expected = "number_of_players must be between 2 and 8")]
+fn test_create_game_invalid_players_too_few_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "host");
+    client.register_player(&username, &creator);
+
+    client.create_game(
+        &creator,
+        &username,
+        &GameType::Public,
+        &1,
+        &1,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+}
+
+#[test]
+#[should_panic(expected = "number_of_players must be between 2 and 8")]
+fn test_create_game_invalid_players_too_many_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "host");
+    client.register_player(&username, &creator);
+
+    client.create_game(
+        &creator,
+        &username,
+        &GameType::Public,
+        &1,
+        &9,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+}
+
+#[test]
+fn test_create_game_emits_game_created_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let username = String::from_str(&env, "emitter");
+    client.register_player(&username, &creator);
+
+    let _game_id = client.create_game(
+        &creator,
+        &username,
+        &GameType::Public,
+        &1,
+        &2,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let events = env.events().all();
+    assert!(!events.is_empty(), "GameCreated event should be emitted");
+}
+
+// ===== JOIN GAME TESTS =====
+
+#[test]
+fn test_join_game_public_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "joiner");
+    client.register_player(&player_username, &player);
+
+    client.join_game(
+        &game_id,
+        &player,
+        &player_username,
+        &2,
+        &String::from_str(&env, ""),
+    );
+
+    let players = client.get_game_players(&game_id);
+    assert_eq!(players.len(), 2);
+    assert_eq!(players.get(0), Some(creator));
+    assert_eq!(players.get(1), Some(player));
+}
+
+#[test]
+fn test_join_game_private_with_correct_code_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let code = String::from_str(&env, "SECRET99");
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Private,
+        &1,
+        &2,
+        &code,
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "friend");
+    client.register_player(&player_username, &player);
+
+    client.join_game(&game_id, &player, &player_username, &2, &code);
+
+    let players = client.get_game_players(&game_id);
+    assert_eq!(players.len(), 2);
+}
+
+#[test]
+#[should_panic(expected = "Invalid join code")]
+fn test_join_game_private_with_wrong_code_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let code = String::from_str(&env, "SECRET99");
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Private,
+        &1,
+        &2,
+        &code,
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "stranger");
+    client.register_player(&player_username, &player);
+
+    let wrong_code = String::from_str(&env, "WRONG");
+    client.join_game(&game_id, &player, &player_username, &2, &wrong_code);
+}
+
+#[test]
+fn test_join_game_with_stake_transfers_usdc() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let usdc_admin = StellarAssetClient::new(&env, &usdc_token);
+    usdc_admin.mint(&creator, &500);
+    let stake = 100u128;
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &2,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &stake,
+    );
+
+    let player = Address::generate(&env);
+    usdc_admin.mint(&player, &500);
+    let player_username = String::from_str(&env, "joiner");
+    client.register_player(&player_username, &player);
+
+    client.join_game(
+        &game_id,
+        &player,
+        &player_username,
+        &2,
+        &String::from_str(&env, ""),
+    );
+
+    let usdc_client = TokenClient::new(&env, &usdc_token);
+    assert_eq!(usdc_client.balance(&contract_id), 200); // creator 100 + joiner 100
+    assert_eq!(usdc_client.balance(&player), 400);
+}
+
+#[test]
+#[should_panic(expected = "Player must be registered")]
+fn test_join_game_unregistered_player_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &2,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "nobody");
+    // player not registered
+
+    client.join_game(
+        &game_id,
+        &player,
+        &player_username,
+        &2,
+        &String::from_str(&env, ""),
+    );
+}
+
+#[test]
+#[should_panic(expected = "Symbol already taken")]
+fn test_join_game_symbol_already_taken_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "joiner");
+    client.register_player(&player_username, &player);
+
+    client.join_game(
+        &game_id,
+        &player,
+        &player_username,
+        &1,
+        &String::from_str(&env, ""),
+    );
+}
+
+#[test]
+#[should_panic(expected = "Game is full")]
+fn test_join_game_full_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &2,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let player1 = Address::generate(&env);
+    let username1 = String::from_str(&env, "player1");
+    client.register_player(&username1, &player1);
+    client.join_game(&game_id, &player1, &username1, &2, &String::from_str(&env, ""));
+
+    let player2 = Address::generate(&env);
+    let username2 = String::from_str(&env, "player2");
+    client.register_player(&username2, &player2);
+    client.join_game(&game_id, &player2, &username2, &3, &String::from_str(&env, ""));
+}
+
+#[test]
+fn test_join_game_emits_player_joined_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let player = Address::generate(&env);
+    let player_username = String::from_str(&env, "joiner");
+    client.register_player(&player_username, &player);
+
+    client.join_game(
+        &game_id,
+        &player,
+        &player_username,
+        &2,
+        &String::from_str(&env, ""),
+    );
+
+    let events = env.events().all();
+    assert!(!events.is_empty(), "PlayerJoined event should be emitted");
 }

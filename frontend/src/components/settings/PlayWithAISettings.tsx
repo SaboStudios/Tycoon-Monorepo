@@ -84,8 +84,8 @@ export function PlayWithAISettings() {
 
         toast.success("Initializing On-Chain Session... Minting Game Assets.")
 
-        // Navigate to game (mock route)
-        router.push(`/game-room-loading`)
+        // Navigate to AI game with generated code
+        router.push(`/ai-play/game/${mockGameCode}`)
 
         setIsLoading(false)
     }

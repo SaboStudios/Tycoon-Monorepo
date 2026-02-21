@@ -9,6 +9,10 @@ import { Repository } from 'typeorm';
 import { GamePlayer } from './entities/game-player.entity';
 import { Game, GameStatus } from './entities/game.entity';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
+import { GetGamePlayersDto } from './dto/get-game-players.dto';
+import { GetUserGamesDto } from './dto/get-user-games.dto';
+import { PaginationService } from '../../common/services/pagination.service';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class GamePlayersService {
@@ -17,6 +21,7 @@ export class GamePlayersService {
     private readonly gamePlayerRepository: Repository<GamePlayer>,
     @InjectRepository(Game)
     private readonly gameRepository: Repository<Game>,
+    private readonly paginationService: PaginationService,
   ) {}
 
   /**
@@ -128,5 +133,64 @@ export class GamePlayersService {
     }
 
     return this.gamePlayerRepository.save(player);
+  }
+
+  /**
+   * Get players for a game with filters and pagination.
+   * Uses indexes on game_id, user_id, in_jail.
+   */
+  async findPlayersByGame(
+    gameId: number,
+    dto: GetGamePlayersDto,
+  ): Promise<PaginatedResponse<GamePlayer>> {
+    const game = await this.gameRepository.findOne({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException(`Game ${gameId} not found`);
+    }
+
+    const qb = this.gamePlayerRepository
+      .createQueryBuilder('gp')
+      .where('gp.game_id = :gameId', { gameId });
+
+    if (dto.userId !== undefined) {
+      qb.andWhere('gp.user_id = :userId', { userId: dto.userId });
+    }
+    if (dto.inJail !== undefined) {
+      qb.andWhere('gp.in_jail = :inJail', { inJail: dto.inJail });
+    }
+    if (dto.activeTurn === true) {
+      qb.andWhere('gp.turn_order = 1');
+    }
+    if (dto.balanceMin !== undefined) {
+      qb.andWhere('gp.balance >= :balanceMin', { balanceMin: dto.balanceMin });
+    }
+    if (dto.balanceMax !== undefined) {
+      qb.andWhere('gp.balance <= :balanceMax', { balanceMax: dto.balanceMax });
+    }
+
+    return this.paginationService.paginate(qb, dto, []);
+  }
+
+  /**
+   * Get games for a user with filters and pagination.
+   * Joins game_players with games. Uses indexes on user_id, game_id.
+   */
+  async findGamesByUser(
+    userId: number,
+    dto: GetUserGamesDto,
+  ): Promise<PaginatedResponse<Game>> {
+    const qb = this.gameRepository
+      .createQueryBuilder('g')
+      .innerJoin('game_players', 'gp', 'gp.game_id = g.id')
+      .where('gp.user_id = :userId', { userId });
+
+    if (dto.gameId !== undefined) {
+      qb.andWhere('g.id = :gameId', { gameId: dto.gameId });
+    }
+    if (dto.inJail !== undefined) {
+      qb.andWhere('gp.in_jail = :inJail', { inJail: dto.inJail });
+    }
+
+    return this.paginationService.paginate(qb, dto, []);
   }
 }
