@@ -212,7 +212,7 @@ describe('GamesService', () => {
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('code');
       expect(result.mode).toBe(GameMode.PUBLIC);
-      expect(result.numberOfPlayers).toBe(4);
+      expect(result.number_of_players).toBe(4);
       expect(result.creator_id).toBe(creatorId);
       expect(result.is_ai).toBe(false);
       expect(result.is_minipay).toBe(false);
