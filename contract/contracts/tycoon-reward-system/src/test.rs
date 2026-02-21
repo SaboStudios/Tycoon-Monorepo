@@ -55,7 +55,7 @@ fn test_voucher_flow() {
 
     // 2. Mint Voucher
     let tyc_value = 500u128;
-    let token_id = client.mint_voucher(&user, &tyc_value);
+    let token_id = client.mint_voucher(&admin, &user, &tyc_value);
 
     // Verify Voucher Minted
     assert_eq!(client.get_balance(&user, &token_id), 1);
@@ -353,6 +353,212 @@ fn test_withdraw_funds_invalid_token_reverts() {
     // Admin attempts to withdraw with invalid token - should panic
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.withdraw_funds(&invalid_token_id, &recipient, &1000);
+    }));
+    assert!(res.is_err());
+}
+
+// ============================================
+// Tests for Backend Minter (Issue #101)
+// ============================================
+
+#[test]
+fn test_set_backend_minter_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let backend_minter = Address::generate(&env);
+
+    // Register TYC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+
+    // Register USDC Token
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    // Set backend minter (admin only)
+    client.set_backend_minter(&admin, &backend_minter.clone());
+
+    // Verify backend minter is set
+    let minter = client.get_backend_minter();
+    assert_eq!(minter, Some(backend_minter));
+}
+
+#[test]
+fn test_set_backend_minter_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+
+    // Register TYC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+
+    // Register USDC Token
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    // Try to set backend minter as non-admin - should panic
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.set_backend_minter(&unauthorized, &unauthorized.clone());
+    }));
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_backend_minter_can_mint() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let backend_minter = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    // Register TYC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+
+    // Register USDC Token
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let contract_address = contract_id.clone();
+
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    // Fund the contract
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_address, &10000);
+
+    // Set backend minter
+    client.set_backend_minter(&admin, &backend_minter.clone());
+
+    // Backend minter can mint
+    let tyc_value = 500u128;
+    let token_id = client.mint_voucher(&backend_minter, &user, &tyc_value);
+
+    // Verify
+    assert_eq!(client.get_balance(&user, &token_id), 1);
+}
+
+#[test]
+fn test_non_admin_non_minter_cannot_mint() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let backend_minter = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    // Register TYC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+
+    // Register USDC Token
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let contract_address = contract_id.clone();
+
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    // Fund the contract
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_address, &10000);
+
+    // Set backend minter
+    client.set_backend_minter(&admin, &backend_minter.clone());
+
+    // Unauthorized user tries to mint - should panic
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.mint_voucher(&unauthorized, &user, &500);
+    }));
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_clear_backend_minter() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let backend_minter = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    // Register TYC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+
+    // Register USDC Token
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let contract_address = contract_id.clone();
+
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    // Fund the contract
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_address, &10000);
+
+    // Set backend minter
+    client.set_backend_minter(&admin, &backend_minter.clone());
+    assert_eq!(client.get_backend_minter(), Some(backend_minter.clone()));
+
+    // Clear backend minter
+    client.clear_backend_minter(&admin);
+    // Verify it's cleared (will return zero address)
+
+    // Now backend minter cannot mint
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.mint_voucher(&backend_minter, &user, &500);
     }));
     assert!(res.is_err());
 }
