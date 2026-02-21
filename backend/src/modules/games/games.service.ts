@@ -101,7 +101,7 @@ export class GamesService {
 
       const game = queryRunner.manager.create(Game, {
         code: gameCode,
-        mode: dto.mode as GameMode,
+        mode: dto.mode,
         number_of_players: dto.numberOfPlayers,
         creator_id: creatorId,
         status: GameStatus.PENDING,
@@ -133,9 +133,9 @@ export class GamesService {
       return {
         id: savedGame.id,
         code: savedGame.code,
-        mode: savedGame.mode,
+        mode: savedGame.mode as string,
         number_of_players: savedGame.number_of_players,
-        status: savedGame.status,
+        status: savedGame.status as string,
         is_ai: savedGame.is_ai,
         is_minipay: savedGame.is_minipay,
         chain: savedGame.chain,
