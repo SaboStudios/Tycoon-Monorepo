@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Game, GameStatus } from './entities/game.entity';
+import { Game, GameStatus, GameMode } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 
@@ -49,8 +49,8 @@ export class GamesService {
 
     try {
       const game = queryRunner.manager.create(Game, {
-        mode: dto.mode,
-        numberOfPlayers: dto.numberOfPlayers,
+        mode: dto.mode as GameMode,
+        number_of_players: dto.numberOfPlayers,
         status: GameStatus.PENDING,
       });
       const savedGame = await queryRunner.manager.save(game);
@@ -76,7 +76,7 @@ export class GamesService {
       return {
         id: savedGame.id,
         mode: savedGame.mode,
-        numberOfPlayers: savedGame.numberOfPlayers,
+        numberOfPlayers: savedGame.number_of_players,
         status: savedGame.status,
         created_at: savedGame.created_at,
         settings: {

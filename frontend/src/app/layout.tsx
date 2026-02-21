@@ -4,6 +4,8 @@ import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
 import "./globals.css";
+import Navbar from "@/components/shared/Navbar";
+import NavbarMobile from "@/components/shared/NavbarMobile";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,9 +32,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <ToastProvider />
-        <ScrollToTopBtn />
         {children}
+        <NavbarMobile />
       </body>
     </html>
   );
