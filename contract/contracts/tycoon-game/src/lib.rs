@@ -366,6 +366,48 @@ impl TycoonContract {
         };
         events::emit_game_started(&env, &event_data);
     }
+
+    /// Voluntary exit during an ongoing game.
+    /// Validates caller is an active player and game is InProgress.
+    /// Emits PlayerExited event.
+    pub fn exit_game(env: Env, game_id: u64, player: Address) {
+        player.require_auth();
+
+        let game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
+
+        if !matches!(game.status, GameStatus::InProgress) {
+            panic!("Game is not ongoing");
+        }
+
+        // Validate player is actively in the game and remove them
+        let players = get_game_players(&env, game_id);
+        let mut new_players = Vec::new(&env);
+        let mut found = false;
+
+        for p in players.iter() {
+            if p == player {
+                found = true;
+            } else {
+                new_players.push_back(p);
+            }
+        }
+
+        if !found {
+            panic!("Player is not in the game");
+        }
+
+        set_game_players(&env, game_id, &new_players);
+
+        // TODO: Future Payout Logic Stub
+        // Implement payout bounds distinguishing between voluntary exits and bankruptcies,
+        // re-allocating escrowed stakes to surviving game players evenly vs burn metrics.
+
+        let event_data = events::PlayerExitedData {
+            game_id,
+            player: player.clone(),
+        };
+        events::emit_player_exited(&env, &event_data);
+    }
 }
 
 mod test;
