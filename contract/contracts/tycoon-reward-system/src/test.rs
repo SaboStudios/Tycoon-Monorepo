@@ -1,6 +1,6 @@
 extern crate std;
 use crate::{DataKey, TycoonRewardSystem, TycoonRewardSystemClient};
-use soroban_sdk::testutils::{Address as TestAddress, Events};
+use soroban_sdk::testutils::Events;
 use soroban_sdk::{token, Env};
 
 #[test]
