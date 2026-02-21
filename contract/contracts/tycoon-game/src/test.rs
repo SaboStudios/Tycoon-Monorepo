@@ -1062,3 +1062,105 @@ fn test_start_game_unauthorized_fails() {
     // In mock_all_auths() mode, it might still pass if we don't set auth carefully.
     client.start_game(&game_id);
 }
+
+// ===== EXPLICIT VIEW TESTS (ISSUE #113) =====
+
+#[test]
+fn test_get_user_view() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "view_user");
+    client.register_player(&username, &player);
+
+    let fetched_user = client.get_user(&player);
+    assert!(fetched_user.is_some());
+    let u = fetched_user.unwrap();
+    assert_eq!(u.username, username);
+    assert_eq!(u.address, player);
+    
+    // Testing unregistered player
+    let random = Address::generate(&env);
+    let not_found = client.get_user(&random);
+    assert!(not_found.is_none());
+}
+
+#[test]
+fn test_get_game_view() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let fetched_game = client.get_game(&game_id);
+    assert!(fetched_game.is_some());
+    let g = fetched_game.unwrap();
+    assert_eq!(g.id, game_id);
+    assert_eq!(g.creator, creator);
+    assert_eq!(g.settings.number_of_players, 4);
+
+    let not_found = client.get_game(&9999);
+    assert!(not_found.is_none());
+}
+
+#[test]
+fn test_get_game_players_view() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let creator = Address::generate(&env);
+    let creator_username = String::from_str(&env, "host");
+    client.register_player(&creator_username, &creator);
+
+    let game_id = client.create_game(
+        &creator,
+        &creator_username,
+        &GameType::Public,
+        &1,
+        &4,
+        &String::from_str(&env, ""),
+        &1_000_0000,
+        &0,
+    );
+
+    let init_players = client.get_game_players(&game_id);
+    assert_eq!(init_players.len(), 1);
+    assert_eq!(init_players.get(0).unwrap(), creator);
+
+    let joiner = Address::generate(&env);
+    let joiner_username = String::from_str(&env, "joiner");
+    client.register_player(&joiner_username, &joiner);
+
+    client.join_game(&game_id, &joiner, &joiner_username, &2, &String::from_str(&env, ""));
+
+    let updated_players = client.get_game_players(&game_id);
+    assert_eq!(updated_players.len(), 2);
+    assert_eq!(updated_players.get(0).unwrap(), creator);
+    assert_eq!(updated_players.get(1).unwrap(), joiner);
+}
