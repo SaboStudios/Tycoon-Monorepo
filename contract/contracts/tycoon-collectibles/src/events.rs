@@ -103,3 +103,22 @@ pub fn emit_collectible_minted_event(
         (token_id, perk, strength),
     );
 }
+
+/// Emit event for non-cash perk activation (stubs for future implementation)
+/// Used for: ExtraTurn, JailFree, DoubleRent, RollBoost, Teleport, Shield, PropertyDiscount, RollExact
+pub fn emit_perk_activated_event(
+    env: &Env,
+    activator: &Address,
+    token_id: u128,
+    perk: Perk,
+    strength: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("perk"),
+            symbol_short!("activate"),
+            activator.clone(),
+        ),
+        (token_id, perk, strength),
+    );
+}
