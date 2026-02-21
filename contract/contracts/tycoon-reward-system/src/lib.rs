@@ -21,6 +21,7 @@ pub enum DataKey {
     TycToken,
     UsdcToken,
     VoucherCount,
+    Paused,
     // Backend minter address (optional - None if not set)
     BackendMinter,
 }
@@ -29,6 +30,11 @@ pub enum DataKey {
 pub struct TycoonRewardSystem;
 
 #[contractimpl]
+/// Emergency Pause/Unpause
+///
+/// The admin can pause the contract in case of vulnerability or exploit. While paused, redeem_voucher_from is disabled.
+/// Use pause(env) to pause, unpause(env) to resume. Only admin can call these functions.
+/// Events are emitted for Paused/Unpaused. This mechanism is for emergency use only.
 impl TycoonRewardSystem {
     pub fn initialize(e: Env, admin: Address, tyc_token: Address, usdc_token: Address) {
         if e.storage().persistent().has(&DataKey::Admin) {
@@ -36,10 +42,41 @@ impl TycoonRewardSystem {
         }
         e.storage().persistent().set(&DataKey::Admin, &admin);
         e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
-        e.storage().persistent().set(&DataKey::UsdcToken, &usdc_token);
+        e.storage()
+            .persistent()
+            .set(&DataKey::UsdcToken, &usdc_token);
         e.storage()
             .persistent()
             .set(&DataKey::VoucherCount, &VOUCHER_ID_START);
+        e.storage().persistent().set(&DataKey::Paused, &false);
+    }
+
+    /// Emergency pause contract (admin only)
+    /// Use in case of vulnerability or exploit. Pauses redeem functionality.
+    pub fn pause(e: Env) {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        admin.require_auth();
+        e.storage().persistent().set(&DataKey::Paused, &true);
+        #[allow(deprecated)]
+        e.events().publish((symbol_short!("Paused"),), true);
+    }
+
+    /// Emergency unpause contract (admin only)
+    /// Use to resume normal operation after emergency.
+    pub fn unpause(e: Env) {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        admin.require_auth();
+        e.storage().persistent().set(&DataKey::Paused, &false);
+        #[allow(deprecated)]
+        e.events().publish((symbol_short!("Unpaused"),), false);
     }
 
     /// Set the backend minter address (admin only)
@@ -176,16 +213,21 @@ impl TycoonRewardSystem {
 
     pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128) {
         redeemer.require_auth();
-
+        let paused: bool = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false);
+        if paused {
+            panic!("Contract is paused");
+        }
         let tyc_value: u128 = e
             .storage()
             .persistent()
             .get(&DataKey::VoucherValue(token_id))
             .expect("Invalid token_id");
-
         // Burn the voucher (amount=1)
         Self::_burn(&e, redeemer.clone(), token_id, 1);
-
         // Transfer TYC
         let tyc_token: Address = e
             .storage()
@@ -193,28 +235,25 @@ impl TycoonRewardSystem {
             .get(&DataKey::TycToken)
             .expect("Not initialized");
         let client = soroban_sdk::token::Client::new(&e, &tyc_token);
-
         // Transfer from Contract to Redeemer
         let contract_address = e.current_contract_address();
         client.transfer(&contract_address, &redeemer, &(tyc_value as i128));
-
         // Delete storage
         e.storage()
             .persistent()
             .remove(&DataKey::VoucherValue(token_id));
-
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Redeem"), redeemer, token_id), tyc_value);
     }
 
     /// Withdraw funds from the contract (admin only)
-    /// 
+    ///
     /// # Arguments
     /// * `token` - Token address to withdraw (must be TYC or configured USDC)
     /// * `to` - Recipient address
     /// * `amount` - Amount to withdraw
-    /// 
+    ///
     /// # Panics
     /// * If caller is not admin
     /// * If token is not in allowlist (TYC or USDC)
@@ -325,4 +364,5 @@ impl TycoonRewardSystem {
     }
 }
 
+#[cfg(test)]
 mod test;
