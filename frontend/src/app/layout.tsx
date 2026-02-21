@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
+import { ToastProvider } from "@/components/providers/toast-provider";
+import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,6 +30,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
+        <ToastProvider />
+        <ScrollToTopBtn />
         {children}
       </body>
     </html>
