@@ -13,6 +13,7 @@ import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetUserGamesDto } from './dto/get-user-games.dto';
 import { PaginationService } from '../../common/services/pagination.service';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+import { GameStatus } from './entities/game.entity';
 
 @Injectable()
 export class GamePlayersService {
