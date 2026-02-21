@@ -59,3 +59,63 @@ pub fn emit_game_started(env: &Env, data: &GameStartedData) {
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }
+
+/// Data payload for PlayerLeft event
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PlayerLeftData {
+    pub game_id: u64,
+    pub player: Address,
+}
+
+/// Emit PlayerLeft event
+pub fn emit_player_left(env: &Env, data: &PlayerLeftData) {
+    let topics = (Symbol::new(env, "PlayerLeft"), data.player.clone());
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
+
+/// Data payload for PlayerExited event
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PlayerExitedData {
+    pub game_id: u64,
+    pub player: Address,
+}
+
+/// Emit PlayerExited event
+pub fn emit_player_exited(env: &Env, data: &PlayerExitedData) {
+    let topics = (Symbol::new(env, "PlayerExited"), data.player.clone());
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
+
+/// Data payload for GameEnded event
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct GameEndedData {
+    pub game_id: u64,
+    pub winner: Option<Address>,
+}
+
+/// Emit GameEnded event
+pub fn emit_game_ended(env: &Env, data: &GameEndedData) {
+    let topics = (Symbol::new(env, "GameEnded"), data.game_id);
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
+
+/// Data payload for PlayerRemoved event
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PlayerRemovedData {
+    pub game_id: u64,
+    pub player: Address,
+}
+
+/// Emit PlayerRemoved event
+pub fn emit_player_removed(env: &Env, data: &PlayerRemovedData) {
+    let topics = (Symbol::new(env, "PlayerRemoved"), data.player.clone());
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
