@@ -1,7 +1,7 @@
 extern crate std;
 use crate::{DataKey, TycoonRewardSystem, TycoonRewardSystemClient};
-use soroban_sdk::testutils::Events;
-use soroban_sdk::{token, Env};
+use soroban_sdk::testutils::{Address as TestAddress, Events};
+use soroban_sdk::{token, Address, Env};
 
 #[test]
 fn test_simple_event() {
@@ -149,7 +149,7 @@ fn test_redeem_fails_when_paused() {
     client.initialize(&admin, &tyc_token_id, &usdc_token_id);
     token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id, &10000);
     let tyc_value = 500u128;
-    let token_id = client.mint_voucher(&user, &tyc_value);
+    let token_id = client.mint_voucher(&admin, &user, &tyc_value);
     // Pause contract
     client.pause();
     // Redeem should fail
