@@ -2,9 +2,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SelectQueryBuilder } from 'typeorm';
-import { NotificationsService } from '../notifications.service';
-import { Notification, NotificationType } from '../entities/notification.entity';
-import { GetNotificationsQueryDto } from '../dto/get-notifications-query.dto';
+import { NotificationsService } from './notifications.service';
+import { Notification, NotificationType } from './entities/notification.entity';
+import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 
 // ─── Factory Helpers ─────────────────────────────────────────────────────────
 

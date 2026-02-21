@@ -20,7 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaginatedNotificationsResponseDto } from './dto/paginated-notifications-response.dto';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import { UnreadCountResponseDto } from './dto/unread-count-response.dto';
-import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -64,7 +64,10 @@ export class NotificationsController {
     @CurrentUser() user: JwtPayload,
     @Query() query: GetNotificationsQueryDto,
   ): Promise<PaginatedNotificationsResponseDto> {
-    return this.notificationsService.findAllForUser(user.sub, query);
+    return this.notificationsService.findAllForUser(
+      String(user.sub ?? user.id),
+      query,
+    );
   }
 
   /**
@@ -87,7 +90,9 @@ export class NotificationsController {
   async getUnreadCount(
     @CurrentUser() user: JwtPayload,
   ): Promise<UnreadCountResponseDto> {
-    const count = await this.notificationsService.getUnreadCount(user.sub);
+    const count = await this.notificationsService.getUnreadCount(
+      String(user.sub ?? user.id),
+    );
     return { count };
   }
 }

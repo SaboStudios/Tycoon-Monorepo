@@ -1,14 +1,14 @@
 // src/notifications/tests/notifications.controller.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationsController } from '../notifications.controller';
-import { NotificationsService } from '../notifications.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { NotificationType } from '../entities/notification.entity';
-import { GetNotificationsQueryDto } from '../dto/get-notifications-query.dto';
+import { NotificationsController } from './notifications.controller';
+import { NotificationsService } from './notifications.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { NotificationType } from './entities/notification.entity';
+import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import {
   PaginatedNotificationsResponseDto,
   PaginationMetaDto,
-} from '../dto/paginated-notifications-response.dto';
+} from './dto/paginated-notifications-response.dto';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

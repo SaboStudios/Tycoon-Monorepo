@@ -1,4 +1,4 @@
-// src/notifications/entities/notification.entity.ts
+// src/modules/fetch-notification/entities/notification.entity.ts
 import {
   Entity,
   Column,
@@ -25,7 +25,11 @@ export class Notification {
   @Index('idx_notifications_user_id')
   userId: string;
 
-  @Column({ type: 'enum', enum: NotificationType, default: NotificationType.SYSTEM })
+  @Column({
+    type: 'enum',
+    enum: NotificationType,
+    default: NotificationType.SYSTEM,
+  })
   @Index('idx_notifications_type')
   type: NotificationType;
 
