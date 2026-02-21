@@ -1,4 +1,3 @@
-// src/modules/notifications/notifications.controller.ts
 import {
   Controller,
   Get,
@@ -115,11 +114,6 @@ async markAsRead(
   @Param('id') id: string,
 ) {
   const userId = extractUserId(req);
-
-  // 🔐 Validate ObjectId before querying
-  if (!Types.ObjectId.isValid(id)) {
-    throw new BadRequestException('Invalid notification ID');
-  }
 
   const updated = await this.notificationsService.markAsRead(
     id,
