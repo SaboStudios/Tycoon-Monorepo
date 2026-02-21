@@ -45,3 +45,17 @@ pub fn emit_player_joined(env: &Env, data: &PlayerJoinedData) {
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }
+/// Data payload for GameStarted event
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct GameStartedData {
+    pub game_id: u64,
+    pub player_count: u32,
+}
+
+/// Emit GameStarted event
+pub fn emit_game_started(env: &Env, data: &GameStartedData) {
+    let topics = (Symbol::new(env, "GameStarted"), data.game_id);
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
