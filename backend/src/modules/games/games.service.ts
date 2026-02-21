@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Game, GameStatus, GameMode } from './entities/game.entity';
@@ -59,6 +59,38 @@ export class GamesService {
     }
 
     throw new Error('Failed to generate unique game code after multiple attempts');
+  }
+
+  /**
+   * Find a game by ID with relations (creator, winner, nextPlayer)
+   */
+  async findById(id: number): Promise<Game> {
+    const game = await this.gameRepository.findOne({
+      where: { id },
+      relations: ['creator', 'winner', 'nextPlayer'],
+    });
+
+    if (!game) {
+      throw new NotFoundException(`Game with ID ${id} not found`);
+    }
+
+    return game;
+  }
+
+  /**
+   * Find a game by unique code with relations (creator, winner, nextPlayer)
+   */
+  async findByCode(code: string): Promise<Game> {
+    const game = await this.gameRepository.findOne({
+      where: { code: code.toUpperCase() },
+      relations: ['creator', 'winner', 'nextPlayer'],
+    });
+
+    if (!game) {
+      throw new NotFoundException(`Game with code ${code} not found`);
+    }
+
+    return game;
   }
 
   /**
