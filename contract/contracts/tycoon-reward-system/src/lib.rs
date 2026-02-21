@@ -21,6 +21,8 @@ pub enum DataKey {
     TycToken,
     UsdcToken,
     VoucherCount,
+    // Backend minter address (optional - None if not set)
+    BackendMinter,
 }
 
 #[contract]
@@ -40,13 +42,108 @@ impl TycoonRewardSystem {
             .set(&DataKey::VoucherCount, &VOUCHER_ID_START);
     }
 
-    pub fn mint_voucher(e: Env, to: Address, tyc_value: u128) -> u128 {
+    /// Set the backend minter address (admin only)
+    /// 
+    /// # Arguments
+    /// * `admin` - Admin address for authentication
+    /// * `new_minter` - Address to set as backend minter.
+    /// 
+    /// # Panics
+    /// * If caller is not admin
+    pub fn set_backend_minter(e: Env, admin: Address, new_minter: Address) {
+        // Get stored admin for validation
+        let stored_admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        
+        // Verify caller is admin
+        if admin != stored_admin {
+            panic!("Unauthorized: only admin can set backend minter");
+        }
+        admin.require_auth();
+
+        // Store the new minter
+        e.storage()
+            .persistent()
+            .set(&DataKey::BackendMinter, &new_minter);
+
+        // Emit event
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("set_min"), new_minter), ());
+    }
+
+    /// Clear the backend minter address (admin only)
+    /// 
+    /// # Arguments
+    /// * `admin` - Admin address for authentication
+    /// 
+    /// # Panics
+    /// * If caller is not admin
+    pub fn clear_backend_minter(e: Env, admin: Address) {
+        // Get stored admin for validation
+        let stored_admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        
+        // Verify caller is admin
+        if admin != stored_admin {
+            panic!("Unauthorized: only admin can clear backend minter");
+        }
+        admin.require_auth();
+
+        // Remove the backend minter
+        e.storage()
+            .persistent()
+            .remove(&DataKey::BackendMinter);
+
+        // Emit event
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("clr_min"),), ());
+    }
+
+    /// Get the current backend minter address
+    /// Returns None if not set
+    pub fn get_backend_minter(e: Env) -> Option<Address> {
+        if e.storage().persistent().has(&DataKey::BackendMinter) {
+            Some(e.storage()
+                .persistent()
+                .get(&DataKey::BackendMinter)
+                .unwrap())
+        } else {
+            None
+        }
+    }
+
+    pub fn mint_voucher(e: Env, caller: Address, to: Address, tyc_value: u128) -> u128 {
         let admin: Address = e
             .storage()
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        admin.require_auth();
+        caller.require_auth();
+
+        // Check if caller is admin or backend minter
+        let backend_minter: Option<Address> = if e.storage().persistent().has(&DataKey::BackendMinter) {
+            Some(e.storage()
+                .persistent()
+                .get(&DataKey::BackendMinter)
+                .unwrap())
+        } else {
+            None
+        };
+
+        let is_admin = caller == admin;
+        let is_backend_minter = backend_minter.is_some() && backend_minter.unwrap() == caller;
+
+        if !is_admin && !is_backend_minter {
+            panic!("Unauthorized: only admin or backend minter can mint");
+        }
 
         let mut current_id: u128 = e
             .storage()
