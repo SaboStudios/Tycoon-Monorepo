@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GamesService } from './games.service';
+import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
@@ -44,6 +45,10 @@ describe('GamesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GamesService,
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
+        },
         {
           provide: getRepositoryToken(Game),
           useValue: mockGameRepository,
@@ -281,7 +286,9 @@ describe('GamesService', () => {
         throw new Error('Database error');
       });
 
-      await expect(service.create(dto, creatorId)).rejects.toThrow('Database error');
+      await expect(service.create(dto, creatorId)).rejects.toThrow(
+        'Database error',
+      );
 
       expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.release).toHaveBeenCalled();

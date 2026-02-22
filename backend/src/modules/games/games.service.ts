@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Game, GameMode, GameStatus } from './entities/game.entity';
+import { Game, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 
@@ -28,7 +28,7 @@ export class GamesService {
     private readonly gameSettingsRepository: Repository<GameSettings>,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   /**
    * Generate a unique game code, retrying if collision occurs
