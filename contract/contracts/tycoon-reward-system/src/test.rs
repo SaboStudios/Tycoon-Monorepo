@@ -562,3 +562,83 @@ fn test_clear_backend_minter() {
     }));
     assert!(res.is_err());
 }
+
+#[test]
+fn test_owned_token_count() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Setup
+    let admin = Address::generate(&env);
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+
+    // Register TYC and USDC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    // Initial count should be zero
+    assert_eq!(client.owned_token_count(&user1), 0);
+    assert_eq!(client.owned_token_count(&user2), 0);
+
+    // Mint voucher for user1
+    let tyc_value = 500u128;
+    let token_id_1 = client.mint_voucher(&admin, &user1, &tyc_value);
+    
+    assert_eq!(client.owned_token_count(&user1), 1);
+
+    // Mint another voucher for user1
+    let token_id_2 = client.mint_voucher(&admin, &user1, &tyc_value);
+    assert_eq!(client.owned_token_count(&user1), 2);
+
+    // Balance of tokens
+    assert_eq!(client.get_balance(&user1, &token_id_1), 1);
+    assert_eq!(client.get_balance(&user1, &token_id_2), 1);
+
+    // Transfer token_id_1 from user1 to user2
+    client.transfer(&user1, &user2, &token_id_1, &1);
+
+    // After transfer, user1 loses token_id_1, user2 gains it
+    assert_eq!(client.owned_token_count(&user1), 1); // Only has token_id_2
+    assert_eq!(client.owned_token_count(&user2), 1); // Has token_id_1
+
+    // Transfer token_id_2 from user1 to user2
+    client.transfer(&user1, &user2, &token_id_2, &1);
+
+    // After transfer, user1 has 0
+    assert_eq!(client.owned_token_count(&user1), 0);
+    assert_eq!(client.owned_token_count(&user2), 2);
+
+    // Fund contract with TYC before redeem
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id.clone(), &10000);
+
+    // User2 redeems token_id_1 -> burns token_id_1
+    client.redeem_voucher_from(&user2, &token_id_1);
+
+    // After burn, user2 count decreases
+    assert_eq!(client.owned_token_count(&user2), 1); // Only has token_id_2 left
+    
+    // User2 redeems token_id_2 -> burns token_id_2
+    client.redeem_voucher_from(&user2, &token_id_2);
+
+    // After burn, user2 count is 0
+    assert_eq!(client.owned_token_count(&user2), 0);
+
+    // Non-owner should have zero
+    let user3 = Address::generate(&env);
+    assert_eq!(client.owned_token_count(&user3), 0);
+}

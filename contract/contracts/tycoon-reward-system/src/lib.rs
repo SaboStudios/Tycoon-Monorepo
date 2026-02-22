@@ -24,6 +24,8 @@ pub enum DataKey {
     Paused,
     // Backend minter address (optional - None if not set)
     BackendMinter,
+    // (Owner) -> Total distinct vouchers owned
+    OwnedTokenCount(Address),
 }
 
 #[contract]
@@ -304,6 +306,37 @@ impl TycoonRewardSystem {
     pub fn get_balance(e: Env, owner: Address, token_id: u128) -> u64 {
         Self::balance_of(&e, owner, token_id)
     }
+
+    /// Get the number of distinct voucher tokens owned by an address
+    pub fn owned_token_count(e: Env, owner: Address) -> u32 {
+        e.storage()
+            .persistent()
+            .get(&DataKey::OwnedTokenCount(owner))
+            .unwrap_or(0)
+    }
+
+    /// Transfer vouchers from one address to another
+    pub fn transfer(e: Env, from: Address, to: Address, token_id: u128, amount: u64) {
+        from.require_auth();
+
+        let paused: bool = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false);
+        if paused {
+            panic!("Contract is paused");
+        }
+
+        Self::_burn(&e, from.clone(), token_id, amount);
+        Self::_mint(&e, to.clone(), token_id, amount);
+
+        #[allow(deprecated)]
+        e.events().publish(
+            (symbol_short!("Transfer"), from, to, token_id),
+            amount,
+        );
+    }
 }
 
 impl TycoonRewardSystem {
@@ -320,6 +353,13 @@ impl TycoonRewardSystem {
             .expect("Balance overflow");
 
         e.storage().persistent().set(&key, &new_balance);
+
+        // Update OwnedTokenCount if receiving this token for the first time
+        if current_balance == 0 {
+            let count_key = DataKey::OwnedTokenCount(to.clone());
+            let current_count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
+            e.storage().persistent().set(&count_key, &(current_count + 1));
+        }
 
         #[allow(deprecated)]
         e.events()
@@ -338,7 +378,25 @@ impl TycoonRewardSystem {
         }
 
         let new_balance = current_balance - amount;
-        e.storage().persistent().set(&key, &new_balance);
+        if new_balance == 0 {
+            e.storage().persistent().remove(&key);
+        } else {
+            e.storage().persistent().set(&key, &new_balance);
+        }
+
+        // Update OwnedTokenCount if losing the last of this token
+        if current_balance > 0 && new_balance == 0 {
+            let count_key = DataKey::OwnedTokenCount(from.clone());
+            let current_count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
+            if current_count > 0 {
+                let updated_count = current_count - 1;
+                if updated_count == 0 {
+                    e.storage().persistent().remove(&count_key);
+                } else {
+                    e.storage().persistent().set(&count_key, &updated_count);
+                }
+            }
+        }
 
         #[allow(deprecated)]
         e.events()
