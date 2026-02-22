@@ -86,4 +86,4 @@ import { GamesModule } from './modules/games/games.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -11,7 +11,9 @@ export class GetUserGamesDto extends PaginationDto {
   @Min(1)
   gameId?: number;
 
-  @ApiPropertyOptional({ description: 'Filter by in_jail status of the player in that game' })
+  @ApiPropertyOptional({
+    description: 'Filter by in_jail status of the player in that game',
+  })
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()

@@ -7,8 +7,10 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { GameSettings } from './game-settings.entity';
 
 /**
  * Enum for game mode
@@ -43,6 +45,10 @@ export interface GamePlacements {
 @Entity({ name: 'games' })
 @Index('idx_games_status', ['status'])
 @Index('idx_games_creator_id', ['creator_id'])
+@Index('idx_games_mode', ['mode'])
+@Index('idx_games_is_ai', ['is_ai'])
+@Index('idx_games_is_minipay', ['is_minipay'])
+@Index('idx_games_chain', ['chain'])
 export class Game {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id: number;
@@ -133,4 +139,10 @@ export class Game {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'next_player_id' })
   nextPlayer: User | null;
+
+  @OneToOne(() => GameSettings, (settings) => settings.game, {
+    cascade: true,
+    eager: true,
+  })
+  settings: GameSettings;
 }

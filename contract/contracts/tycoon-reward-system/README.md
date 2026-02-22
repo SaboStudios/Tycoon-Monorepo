@@ -49,6 +49,32 @@ cargo test
 - **Formatting**: `cargo fmt`
 - **Linting**: `cargo clippy`
 
+## Emergency Pause/Unpause
+
+The contract includes an emergency pause mechanism for use in case of vulnerabilities or exploits. Only the admin can invoke these functions:
+
+- `pause(env)`: Pauses the contract. While paused, `redeem_voucher_from` is disabled and will revert if called.
+- `unpause(env)`: Resumes normal contract operation.
+
+Events are emitted for both Paused and Unpaused actions. This mechanism is intended for emergency use only to prevent further voucher redemptions if an issue is detected.
+
+**Usage Example:**
+
+```rust
+// Admin pauses the contract
+tycoon_reward_system.pause(env);
+
+// Attempting to redeem while paused will fail
+// tycoon_reward_system.redeem_voucher_from(env, user, token_id); // panics
+
+// Admin unpauses the contract
+tycoon_reward_system.unpause(env);
+```
+
+- Only the admin can pause or unpause. Unauthorized attempts will revert.
+- When paused, all voucher redemptions are blocked.
+- Use this feature only in emergencies.
+
 ## License
 
 [License Information Here]
