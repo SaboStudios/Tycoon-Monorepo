@@ -231,4 +231,65 @@ export class GamePlayersService {
 
     return this.paginationService.paginate(qb, dto, []);
   }
+
+  async advanceTurn(
+    gameId: number,
+    currentUserId: number,
+    options?: { isTimeout?: boolean; now?: string },
+  ): Promise<void> {
+    const game = await this.gameRepository.findOne({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException(`Game ${gameId} not found`);
+    }
+
+    const players = await this.gamePlayerRepository.find({
+      where: { game_id: gameId },
+      order: { turn_order: 'ASC' },
+    });
+
+    if (players.length === 0) {
+      throw new BadRequestException('No players found for this game');
+    }
+
+    const currentIndex = players.findIndex(
+      (player) => player.user_id === currentUserId,
+    );
+
+    if (currentIndex === -1) {
+      throw new NotFoundException(
+        `User ${currentUserId} is not a player in game ${gameId}`,
+      );
+    }
+
+    const currentPlayer = players[currentIndex];
+    const isTimeout = options?.isTimeout ?? false;
+    const now = options?.now ?? Date.now().toString();
+
+    if (isTimeout) {
+      currentPlayer.consecutive_timeouts += 1;
+      currentPlayer.last_timeout_turn_start = currentPlayer.turn_start;
+    } else {
+      currentPlayer.consecutive_timeouts = 0;
+    }
+    currentPlayer.turn_start = null;
+
+    let nextPlayer = currentPlayer;
+    for (let offset = 1; offset <= players.length; offset++) {
+      const index = (currentIndex + offset) % players.length;
+      const candidate = players[index];
+      if (!candidate.in_jail) {
+        nextPlayer = candidate;
+        break;
+      }
+    }
+
+    nextPlayer.turn_start = now;
+    nextPlayer.turn_count += 1;
+    nextPlayer.consecutive_timeouts = 0;
+    nextPlayer.rolled = 0;
+
+    await this.gamePlayerRepository.save([currentPlayer, nextPlayer]);
+    game.next_player_id = nextPlayer.user_id;
+    await this.gameRepository.save(game);
+  }
 }

@@ -1,59 +1,53 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GamePlayersService } from './game-players.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Game, GameStatus } from './entities/game.entity';
-import { GamePlayer } from './entities/game-player.entity';
 import { Repository } from 'typeorm';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { GamePlayersService } from './game-players.service';
+import { Game } from './entities/game.entity';
+import { GamePlayer } from './entities/game-player.entity';
 import { PaginationService } from '../../common/services/pagination.service';
 
 describe('GamePlayersService', () => {
   let service: GamePlayersService;
-  let gamePlayerRepository: Repository<GamePlayer>;
   let gameRepository: Repository<Game>;
-
-  const mockGamePlayerRepository = {
-    findOne: jest.fn(),
-    createQueryBuilder: jest.fn(),
-    delete: jest.fn(),
-  };
+  let gamePlayerRepository: Repository<GamePlayer>;
 
   const mockGameRepository = {
     findOne: jest.fn(),
+    save: jest.fn(),
   };
 
-  const mockQueryBuilder = {
-    update: jest.fn().mockReturnThis(),
-    set: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockReturnThis(),
-    execute: jest.fn().mockResolvedValue(undefined),
+  const mockGamePlayerRepository = {
+    find: jest.fn(),
+    save: jest.fn(),
+  };
+
+  const mockPaginationService = {
+    paginate: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GamePlayersService,
-        PaginationService,
+        {
+          provide: getRepositoryToken(Game),
+          useValue: mockGameRepository,
+        },
         {
           provide: getRepositoryToken(GamePlayer),
           useValue: mockGamePlayerRepository,
         },
         {
-          provide: getRepositoryToken(Game),
-          useValue: mockGameRepository,
+          provide: PaginationService,
+          useValue: mockPaginationService,
         },
       ],
     }).compile();
 
     service = module.get<GamePlayersService>(GamePlayersService);
+    gameRepository = module.get<Repository<Game>>(getRepositoryToken(Game));
     gamePlayerRepository = module.get<Repository<GamePlayer>>(
       getRepositoryToken(GamePlayer),
-    );
-    gameRepository = module.get<Repository<Game>>(getRepositoryToken(Game));
-
-    (gamePlayerRepository.createQueryBuilder as jest.Mock).mockReturnValue(
-      mockQueryBuilder,
     );
   });
 
@@ -61,73 +55,215 @@ describe('GamePlayersService', () => {
     jest.clearAllMocks();
   });
 
-  describe('leaveGameForUser', () => {
-    it('throws when game does not exist', async () => {
-      (gameRepository.findOne as jest.Mock).mockResolvedValue(null);
+  describe('advanceTurn', () => {
+    it('rotates to the next non-jailed player and updates next_player_id', async () => {
+      const game: Game = {
+        id: 1,
+        code: 'ABC123',
+        mode: null,
+        creator_id: 1,
+        status: null,
+        winner_id: null,
+        number_of_players: 3,
+        next_player_id: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+        is_ai: false,
+        is_minipay: false,
+        chain: null,
+        duration: null,
+        started_at: null,
+        contract_game_id: null,
+        placements: null,
+        creator: null,
+        winner: null,
+        nextPlayer: null,
+      } as unknown as Game;
 
-      await expect(service.leaveGameForUser(1, 10)).rejects.toThrow(
-        NotFoundException,
+      const players: GamePlayer[] = [
+        {
+          id: 1,
+          game_id: 1,
+          user_id: 1,
+          symbol: 'A',
+          position: 0,
+          balance: 0,
+          in_jail: false,
+          in_jail_rolls: 0,
+          circle: 0,
+          turn_order: 1,
+          turn_start: '100',
+          consecutive_timeouts: 0,
+          turn_count: 0,
+          last_timeout_turn_start: null,
+          trade_locked_balance: '0.00',
+          rolled: null,
+          address: null,
+        } as unknown as GamePlayer,
+        {
+          id: 2,
+          game_id: 1,
+          user_id: 2,
+          symbol: 'B',
+          position: 0,
+          balance: 0,
+          in_jail: true,
+          in_jail_rolls: 0,
+          circle: 0,
+          turn_order: 2,
+          turn_start: null,
+          consecutive_timeouts: 0,
+          turn_count: 0,
+          last_timeout_turn_start: null,
+          trade_locked_balance: '0.00',
+          rolled: null,
+          address: null,
+        } as unknown as GamePlayer,
+        {
+          id: 3,
+          game_id: 1,
+          user_id: 3,
+          symbol: 'C',
+          position: 0,
+          balance: 0,
+          in_jail: false,
+          in_jail_rolls: 0,
+          circle: 0,
+          turn_order: 3,
+          turn_start: null,
+          consecutive_timeouts: 0,
+          turn_count: 0,
+          last_timeout_turn_start: null,
+          trade_locked_balance: '0.00',
+          rolled: null,
+          address: null,
+        } as unknown as GamePlayer,
+      ];
+
+      mockGameRepository.findOne.mockResolvedValue(game);
+      mockGameRepository.save.mockImplementation(async (g) => g);
+      mockGamePlayerRepository.find.mockResolvedValue(players);
+      mockGamePlayerRepository.save.mockImplementation(
+        async (entities) => entities,
+      );
+
+      await service.advanceTurn(1, 1, { isTimeout: false, now: '200' });
+
+      expect(gamePlayerRepository.find).toHaveBeenCalledWith({
+        where: { game_id: 1 },
+        order: { turn_order: 'ASC' },
+      });
+
+      expect(gamePlayerRepository.save).toHaveBeenCalledTimes(1);
+      const savedArgs = (gamePlayerRepository.save as jest.Mock).mock
+        .calls[0][0];
+      const [savedCurrent, savedNext] = savedArgs as GamePlayer[];
+
+      expect(savedCurrent.user_id).toBe(1);
+      expect(savedCurrent.turn_start).toBeNull();
+      expect(savedCurrent.consecutive_timeouts).toBe(0);
+
+      expect(savedNext.user_id).toBe(3);
+      expect(savedNext.turn_start).toBe('200');
+      expect(savedNext.turn_count).toBe(1);
+      expect(savedNext.consecutive_timeouts).toBe(0);
+      expect(savedNext.rolled).toBe(0);
+
+      expect(gameRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 1,
+          next_player_id: 3,
+        }),
       );
     });
 
-    it('throws when game is not pending', async () => {
-      (gameRepository.findOne as jest.Mock).mockResolvedValue({
+    it('increments consecutive_timeouts on timeout', async () => {
+      const game: Game = {
         id: 1,
-        status: GameStatus.STARTED,
-      } as Game);
+        code: 'ABC123',
+        mode: null,
+        creator_id: 1,
+        status: null,
+        winner_id: null,
+        number_of_players: 2,
+        next_player_id: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+        is_ai: false,
+        is_minipay: false,
+        chain: null,
+        duration: null,
+        started_at: null,
+        contract_game_id: null,
+        placements: null,
+        creator: null,
+        winner: null,
+        nextPlayer: null,
+      } as unknown as Game;
 
-      await expect(service.leaveGameForUser(1, 10)).rejects.toThrow(
-        BadRequestException,
+      const players: GamePlayer[] = [
+        {
+          id: 1,
+          game_id: 1,
+          user_id: 1,
+          symbol: 'A',
+          position: 0,
+          balance: 0,
+          in_jail: false,
+          in_jail_rolls: 0,
+          circle: 0,
+          turn_order: 1,
+          turn_start: '100',
+          consecutive_timeouts: 1,
+          turn_count: 0,
+          last_timeout_turn_start: null,
+          trade_locked_balance: '0.00',
+          rolled: null,
+          address: null,
+        } as unknown as GamePlayer,
+        {
+          id: 2,
+          game_id: 1,
+          user_id: 2,
+          symbol: 'B',
+          position: 0,
+          balance: 0,
+          in_jail: false,
+          in_jail_rolls: 0,
+          circle: 0,
+          turn_order: 2,
+          turn_start: null,
+          consecutive_timeouts: 0,
+          turn_count: 0,
+          last_timeout_turn_start: null,
+          trade_locked_balance: '0.00',
+          rolled: null,
+          address: null,
+        } as unknown as GamePlayer,
+      ];
+
+      mockGameRepository.findOne.mockResolvedValue(game);
+      mockGameRepository.save.mockImplementation(async (g) => g);
+      mockGamePlayerRepository.find.mockResolvedValue(players);
+      mockGamePlayerRepository.save.mockImplementation(
+        async (entities) => entities,
       );
-    });
 
-    it('throws when user is not a player in the game', async () => {
-      (gameRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 1,
-        status: GameStatus.PENDING,
-      } as Game);
-      (gamePlayerRepository.findOne as jest.Mock).mockResolvedValue(null);
+      await service.advanceTurn(1, 1, { isTimeout: true, now: '200' });
 
-      await expect(service.leaveGameForUser(1, 10)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
+      const savedArgs = (gamePlayerRepository.save as jest.Mock).mock
+        .calls[0][0];
+      const [savedCurrent, savedNext] = savedArgs as GamePlayer[];
 
-    it('deletes player and compacts turn order when player has turn_order', async () => {
-      (gameRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 1,
-        status: GameStatus.PENDING,
-      } as Game);
-      (gamePlayerRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 42,
-        game_id: 1,
-        user_id: 10,
-        turn_order: 2,
-      } as GamePlayer);
+      expect(savedCurrent.user_id).toBe(1);
+      expect(savedCurrent.consecutive_timeouts).toBe(2);
+      expect(savedCurrent.last_timeout_turn_start).toBe('100');
+      expect(savedCurrent.turn_start).toBeNull();
 
-      await service.leaveGameForUser(1, 10);
-
-      expect(mockQueryBuilder.update).toHaveBeenCalled();
-      expect(mockQueryBuilder.execute).toHaveBeenCalled();
-      expect(gamePlayerRepository.delete).toHaveBeenCalledWith(42);
-    });
-
-    it('deletes player without updating turn order when turn_order is null', async () => {
-      (gameRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 1,
-        status: GameStatus.PENDING,
-      } as Game);
-      (gamePlayerRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 43,
-        game_id: 1,
-        user_id: 11,
-        turn_order: null,
-      } as GamePlayer);
-
-      await service.leaveGameForUser(1, 11);
-
-      expect(mockQueryBuilder.update).not.toHaveBeenCalled();
-      expect(gamePlayerRepository.delete).toHaveBeenCalledWith(43);
+      expect(savedNext.user_id).toBe(2);
+      expect(savedNext.turn_start).toBe('200');
+      expect(savedNext.turn_count).toBe(1);
+      expect(savedNext.rolled).toBe(0);
     });
   });
 });

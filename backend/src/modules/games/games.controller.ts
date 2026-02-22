@@ -29,6 +29,7 @@ import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { CreateGameDto } from './dto/create-game.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
+import { GetGamesDto } from './dto/get-games.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('games')
@@ -78,6 +79,38 @@ export class GamesController {
   ) {
     const creatorId = req.user.id;
     return this.gamesService.create(dto, creatorId);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get games with filters and pagination' })
+  @ApiOkResponse({
+    description: 'Paginated list of games with metadata',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 1,
+            code: 'ABC123',
+            mode: 'PUBLIC',
+            status: 'PENDING',
+            is_ai: false,
+            is_minipay: false,
+            chain: 'base',
+          },
+        ],
+        meta: {
+          page: 1,
+          limit: 10,
+          totalItems: 1,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+    },
+  })
+  async findAll(@Query() dto: GetGamesDto) {
+    return this.gamesService.findAll(dto);
   }
 
   @Get('code/:code')

@@ -43,6 +43,10 @@ export interface GamePlacements {
 @Entity({ name: 'games' })
 @Index('idx_games_status', ['status'])
 @Index('idx_games_creator_id', ['creator_id'])
+@Index('idx_games_mode', ['mode'])
+@Index('idx_games_is_ai', ['is_ai'])
+@Index('idx_games_is_minipay', ['is_minipay'])
+@Index('idx_games_chain', ['chain'])
 export class Game {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id: number;
