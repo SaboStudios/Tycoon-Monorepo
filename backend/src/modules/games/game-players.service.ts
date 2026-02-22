@@ -67,7 +67,9 @@ export class GamePlayersService {
         `Cannot unlock ${amount}: locked balance is ${currentLocked}`,
       );
     }
-    player.trade_locked_balance = Math.max(0, currentLocked - amount).toFixed(2);
+    player.trade_locked_balance = Math.max(0, currentLocked - amount).toFixed(
+      2,
+    );
     return this.gamePlayerRepository.save(player);
   }
 
@@ -94,10 +96,45 @@ export class GamePlayersService {
     return player;
   }
 
+  async leaveGameForUser(gameId: number, userId: number): Promise<void> {
+    const game = await this.gameRepository.findOne({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException(`Game ${gameId} not found`);
+    }
+    if (game.status !== GameStatus.PENDING) {
+      throw new BadRequestException('Cannot leave game after it has started');
+    }
+
+    const player = await this.gamePlayerRepository.findOne({
+      where: { game_id: gameId, user_id: userId },
+    });
+    if (!player) {
+      throw new NotFoundException(
+        `User ${userId} is not a player in game ${gameId}`,
+      );
+    }
+
+    if (player.turn_order !== null) {
+      await this.gamePlayerRepository
+        .createQueryBuilder()
+        .update(GamePlayer)
+        .set({ turn_order: () => 'turn_order - 1' })
+        .where('game_id = :gameId', { gameId })
+        .andWhere('turn_order > :turnOrder', {
+          turnOrder: player.turn_order,
+        })
+        .execute();
+    }
+
+    await this.gamePlayerRepository.delete(player.id);
+  }
+
   private async isGameStarted(gameId: number): Promise<boolean> {
     const game = await this.gameRepository.findOne({ where: { id: gameId } });
     if (!game) return false;
-    return game.status === GameStatus.RUNNING || game.status === GameStatus.FINISHED;
+    return (
+      game.status === GameStatus.RUNNING || game.status === GameStatus.FINISHED
+    );
   }
 
   async update(

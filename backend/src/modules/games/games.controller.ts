@@ -11,6 +11,7 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  Delete,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import {
@@ -147,5 +148,15 @@ export class GamesController {
       isAdmin,
     );
     return player;
+  }
+
+  @Delete(':gameId/players/me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async leaveGame(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    await this.gamePlayersService.leaveGameForUser(gameId, req.user.id);
   }
 }
