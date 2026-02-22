@@ -7,8 +7,10 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { GameSettings } from './game-settings.entity';
 
 /**
  * Enum for game mode
@@ -137,4 +139,10 @@ export class Game {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'next_player_id' })
   nextPlayer: User | null;
+
+  @OneToOne(() => GameSettings, (settings) => settings.game, {
+    cascade: true,
+    eager: true,
+  })
+  settings: GameSettings;
 }

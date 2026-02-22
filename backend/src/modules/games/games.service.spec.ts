@@ -186,24 +186,20 @@ describe('GamesService', () => {
         chain: null,
         contract_game_id: null,
         created_at: new Date(),
+        settings: {
+          auction: true,
+          rentInPrison: false,
+          mortgage: true,
+          evenBuild: true,
+          randomizePlayOrder: true,
+          startingCash: 1500,
+        },
       };
       mockQueryRunner.manager.create.mockReturnValue(mockGame);
       mockQueryRunner.manager.save.mockResolvedValue(mockGame);
 
-      // Mock settings creation
-      const mockSettings = {
-        game_id: 1,
-        auction: true,
-        rentInPrison: false,
-        mortgage: true,
-        evenBuild: true,
-        randomizePlayOrder: true,
-        startingCash: 1500,
-      };
       mockQueryRunner.manager.create.mockReturnValueOnce(mockGame);
-      mockQueryRunner.manager.create.mockReturnValueOnce(mockSettings);
       mockQueryRunner.manager.save.mockResolvedValueOnce(mockGame);
-      mockQueryRunner.manager.save.mockResolvedValueOnce(mockSettings);
 
       const result = await service.create(dto, creatorId);
 
@@ -245,23 +241,20 @@ describe('GamesService', () => {
         chain: 'ethereum',
         contract_game_id: '0x123abc',
         created_at: new Date(),
+        settings: {
+          auction: true,
+          rentInPrison: false,
+          mortgage: true,
+          evenBuild: true,
+          randomizePlayOrder: true,
+          startingCash: 1500,
+        },
       };
       mockQueryRunner.manager.create.mockReturnValue(mockGame);
       mockQueryRunner.manager.save.mockResolvedValue(mockGame);
 
-      const mockSettings = {
-        game_id: 2,
-        auction: true,
-        rentInPrison: false,
-        mortgage: true,
-        evenBuild: true,
-        randomizePlayOrder: true,
-        startingCash: 1500,
-      };
       mockQueryRunner.manager.create.mockReturnValueOnce(mockGame);
-      mockQueryRunner.manager.create.mockReturnValueOnce(mockSettings);
       mockQueryRunner.manager.save.mockResolvedValueOnce(mockGame);
-      mockQueryRunner.manager.save.mockResolvedValueOnce(mockSettings);
 
       const result = await service.create(dto, creatorId);
 

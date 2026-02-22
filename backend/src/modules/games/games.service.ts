@@ -182,6 +182,11 @@ export class GamesService {
       // Generate unique game code
       const gameCode = await this.generateUniqueCode();
 
+      const settingsPayload = {
+        ...DEFAULT_SETTINGS,
+        ...(dto.settings ?? {}),
+      };
+
       const game = queryRunner.manager.create(Game, {
         code: gameCode,
         mode: dto.mode,
@@ -192,24 +197,16 @@ export class GamesService {
         is_minipay: dto.is_minipay ?? false,
         chain: dto.chain ?? null,
         contract_game_id: dto.contract_game_id ?? null,
+        settings: {
+          auction: settingsPayload.auction,
+          rentInPrison: settingsPayload.rentInPrison,
+          mortgage: settingsPayload.mortgage,
+          evenBuild: settingsPayload.evenBuild,
+          randomizePlayOrder: settingsPayload.randomizePlayOrder,
+          startingCash: settingsPayload.startingCash,
+        },
       });
       const savedGame = await queryRunner.manager.save(game);
-
-      const settingsPayload = {
-        ...DEFAULT_SETTINGS,
-        ...(dto.settings ?? {}),
-      };
-
-      const gameSettings = queryRunner.manager.create(GameSettings, {
-        game_id: savedGame.id,
-        auction: settingsPayload.auction,
-        rentInPrison: settingsPayload.rentInPrison,
-        mortgage: settingsPayload.mortgage,
-        evenBuild: settingsPayload.evenBuild,
-        randomizePlayOrder: settingsPayload.randomizePlayOrder,
-        startingCash: settingsPayload.startingCash,
-      });
-      await queryRunner.manager.save(gameSettings);
 
       await queryRunner.commitTransaction();
 
@@ -226,12 +223,12 @@ export class GamesService {
         creator_id: savedGame.creator_id,
         created_at: savedGame.created_at,
         settings: {
-          auction: settingsPayload.auction,
-          rentInPrison: settingsPayload.rentInPrison,
-          mortgage: settingsPayload.mortgage,
-          evenBuild: settingsPayload.evenBuild,
-          randomizePlayOrder: settingsPayload.randomizePlayOrder,
-          startingCash: settingsPayload.startingCash,
+          auction: savedGame.settings.auction,
+          rentInPrison: savedGame.settings.rentInPrison,
+          mortgage: savedGame.settings.mortgage,
+          evenBuild: savedGame.settings.evenBuild,
+          randomizePlayOrder: savedGame.settings.randomizePlayOrder,
+          startingCash: savedGame.settings.startingCash,
         },
       };
     } catch (err) {
