@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { PaginationService } from '../../common/services/pagination.service';
 import { RedisService } from '../redis/redis.service';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -24,6 +25,10 @@ describe('UsersService', () => {
     set: jest.fn(),
     del: jest.fn(),
     deleteByPattern: jest.fn(),
+  };
+
+  const mockAdminLogsService = {
+    createLog: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -41,6 +46,10 @@ describe('UsersService', () => {
         {
           provide: RedisService,
           useValue: mockRedisService,
+        },
+        {
+          provide: AdminLogsService,
+          useValue: mockAdminLogsService,
         },
       ],
     }).compile();
