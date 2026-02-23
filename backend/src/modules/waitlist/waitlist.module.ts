@@ -5,9 +5,9 @@ import { WaitlistService } from './waitlist.service';
 import { WaitlistController } from './waitlist.controller';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Waitlist])],
-    controllers: [WaitlistController],
-    providers: [WaitlistService],
-    exports: [WaitlistService],
+  imports: [TypeOrmModule.forFeature([Waitlist])],
+  controllers: [WaitlistController],
+  providers: [WaitlistService],
+  exports: [WaitlistService],
 })
-export class WaitlistModule { }
+export class WaitlistModule {}

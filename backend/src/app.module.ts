@@ -23,6 +23,7 @@ import { CommunityChestModule } from './modules/community-chest/community-chest.
 import { GamesModule } from './modules/games/games.module';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ShopModule } from './modules/shop/shop.module';
+import { SkinsModule } from './modules/skins/skins.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { ShopModule } from './modules/shop/shop.module';
     GamesModule,
     WaitlistModule,
     ShopModule,
+    SkinsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -90,4 +92,4 @@ import { ShopModule } from './modules/shop/shop.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
