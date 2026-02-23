@@ -14,6 +14,7 @@ import { redisConfig } from './config/redis.config';
 import { CommonModule, HttpExceptionFilter } from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
@@ -69,6 +70,7 @@ import { ShopModule } from './modules/shop/shop.module';
     ChanceModule,
     CommunityChestModule,
     GamesModule,
+    AdminLogsModule,
     WaitlistModule,
     ShopModule,
   ],

@@ -13,6 +13,17 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import * as express from 'express';
+
+interface RequestWithUser extends express.Request {
+  user: {
+    id: number;
+    email: string;
+    role: string;
+    is_admin: boolean;
+  };
+}
+
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { GamePlayersService } from '../games/game-players.service';
@@ -114,8 +125,9 @@ export class UsersController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
+    @Request() req: RequestWithUser,
   ): Promise<User> {
-    return await this.usersService.update(id, updateUserDto);
+    return await this.usersService.update(id, updateUserDto, req.user.id, req);
   }
 
   /**
@@ -125,7 +137,10 @@ export class UsersController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return await this.usersService.remove(id);
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: RequestWithUser,
+  ): Promise<void> {
+    return await this.usersService.remove(id, req.user.id, req);
   }
 }

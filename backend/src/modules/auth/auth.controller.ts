@@ -14,6 +14,11 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { WalletLoginDto } from './dto/wallet-login.dto';
+import { JwtPayload } from './interfaces/jwt-payload.interface';
+
+interface RequestWithUser {
+  user: JwtPayload;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -25,10 +30,13 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Request() req, // Type changed to 'any' or inferred
-  ) {
-    return this.authService.login(req.user);
+  async login(@Request() req: RequestWithUser) {
+    return this.authService.login({
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      is_admin: req.user.is_admin,
+    });
   }
 
   @Post('refresh')
@@ -46,15 +54,13 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req) {
-    // Type changed to 'any' or inferred
-    return this.authService.logout(req.user.id);
+  async logout(@Request() req: RequestWithUser) {
+    return this.authService.logout(req.user.sub);
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() createUserDto: CreateUserDto) {
-    // Type fixed
-    return this.usersService.create(createUserDto); // Service and method call corrected
+    return this.usersService.create(createUserDto);
   }
 }

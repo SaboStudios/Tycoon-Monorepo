@@ -75,6 +75,9 @@ export class User {
   })
   total_withdrawn: string;
 
+  @Column({ type: 'boolean', default: false })
+  is_suspended: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
