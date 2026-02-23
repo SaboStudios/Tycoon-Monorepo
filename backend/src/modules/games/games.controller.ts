@@ -30,6 +30,7 @@ import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { CreateGameDto } from './dto/create-game.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetGamesDto } from './dto/get-games.dto';
+import { RollDiceDto } from './dto/roll-dice.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('games')
@@ -181,6 +182,20 @@ export class GamesController {
       isAdmin,
     );
     return player;
+  }
+
+  @Post(':gameId/players/:playerId/roll-dice')
+  async rollDice(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: RollDiceDto,
+  ) {
+    return this.gamePlayersService.rollDice(
+      gameId,
+      playerId,
+      dto.dice1,
+      dto.dice2,
+    );
   }
 
   @Delete(':gameId/players/me')
