@@ -24,6 +24,8 @@ import { CommunityChestModule } from './modules/community-chest/community-chest.
 import { GamesModule } from './modules/games/games.module';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ShopModule } from './modules/shop/shop.module';
+import { SkinsModule } from './modules/skins/skins.module';
+import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 
 @Module({
   imports: [
@@ -73,6 +75,8 @@ import { ShopModule } from './modules/shop/shop.module';
     AdminLogsModule,
     WaitlistModule,
     ShopModule,
+    SkinsModule,
+    BoardStylesModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

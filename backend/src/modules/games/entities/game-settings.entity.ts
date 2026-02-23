@@ -5,9 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToOne,
+  ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { Game } from './game.entity';
+import { BoardStyle } from '../../board-styles/entities/board-style.entity';
 
 /**
  * Game settings entity matching game_settings table DDL.
@@ -24,6 +26,18 @@ export class GameSettings {
   @OneToOne(() => Game, (game) => game.settings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'game_id' })
   game: Game;
+
+  @Column({
+    type: 'int',
+    unsigned: true,
+    name: 'board_style_id',
+    nullable: true,
+  })
+  board_style_id: number | null;
+
+  @ManyToOne(() => BoardStyle)
+  @JoinColumn({ name: 'board_style_id' })
+  boardStyle: BoardStyle | null;
 
   @Column({ type: 'boolean', default: false })
   auction: boolean;
