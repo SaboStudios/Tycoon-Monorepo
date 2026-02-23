@@ -8,9 +8,11 @@ import {
   ManyToOne,
   JoinColumn,
   OneToOne,
+  OneToMany,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { GameSettings } from './game-settings.entity';
+import { GamePlayer } from './game-player.entity';
 
 /**
  * Enum for game mode
@@ -145,4 +147,7 @@ export class Game {
     eager: true,
   })
   settings: GameSettings;
+
+  @OneToMany(() => GamePlayer, (player) => player.game)
+  players: GamePlayer[];
 }
