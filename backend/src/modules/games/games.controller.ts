@@ -30,6 +30,7 @@ import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
+import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetGamesDto } from './dto/get-games.dto';
 import { RollDiceDto } from './dto/roll-dice.dto';
@@ -156,6 +157,44 @@ export class GamesController {
   @ApiNotFoundResponse({ description: 'Game not found' })
   async findById(@Param('id', ParseIntPipe) id: number) {
     return this.gamesService.findById(id);
+  }
+
+  @Patch(':id/settings')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update game settings (creator only, PENDING only)' })
+  @ApiOkResponse({
+    description: 'Game settings updated successfully',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        status: 'PENDING',
+        settings: {
+          auction: true,
+          rentInPrison: false,
+          mortgage: true,
+          evenBuild: true,
+          randomizePlayOrder: true,
+          startingCash: 1500,
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Cannot update settings after game has started',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only the game creator can update settings',
+  })
+  @ApiNotFoundResponse({ description: 'Game or settings not found' })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  async updateSettings(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateGameSettingsDto,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.gamesService.updateSettings(id, dto, req.user.id);
   }
 
   @Patch(':id')
