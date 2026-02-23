@@ -22,6 +22,8 @@ import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 import { GamesModule } from './modules/games/games.module';
+import { WaitlistModule } from './modules/waitlist/waitlist.module';
+import { ShopModule } from './modules/shop/shop.module';
 
 @Module({
   imports: [
@@ -69,6 +71,8 @@ import { GamesModule } from './modules/games/games.module';
     CommunityChestModule,
     GamesModule,
     AdminLogsModule,
+    WaitlistModule,
+    ShopModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -88,4 +92,4 @@ import { GamesModule } from './modules/games/games.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
