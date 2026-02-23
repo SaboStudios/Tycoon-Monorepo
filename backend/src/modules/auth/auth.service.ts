@@ -14,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
+import { Role } from './enums/role.enum';
 @Injectable()
 export class AuthService {
   constructor(
@@ -35,6 +36,33 @@ export class AuthService {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password: _password, ...result } = user;
       return result;
+    }
+    return null;
+  }
+
+  async validateAdmin(
+    email: string,
+    password: string,
+  ): Promise<{
+    id: number;
+    email: string;
+    role: string;
+    is_admin: boolean;
+  } | null> {
+    const user = await this.usersService.findByEmail(email);
+    if (
+      user &&
+      (user.role === Role.ADMIN || user.is_admin) &&
+      (await bcrypt.compare(password, user.password))
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password: _password, ...result } = user;
+      return result as {
+        id: number;
+        email: string;
+        role: string;
+        is_admin: boolean;
+      };
     }
     return null;
   }
