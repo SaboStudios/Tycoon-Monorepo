@@ -1,4 +1,12 @@
-import { Controller, Get, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import * as express from 'express';
 import {
   ApiOperation,
   ApiResponse,
@@ -7,6 +15,7 @@ import {
 } from '@nestjs/swagger';
 import { WaitlistService } from './waitlist.service';
 import { WaitlistPaginationDto } from './dto/waitlist-pagination.dto';
+import { ExportWaitlistDto } from './dto/export-waitlist.dto';
 import { Waitlist } from './entities/waitlist.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -44,5 +53,17 @@ export class WaitlistAdminController {
       ...paginatedData,
       stats,
     };
+  }
+
+  @Get('export')
+  @RateLimit(10, 60)
+  @ApiOperation({
+    summary: 'Export waitlist entries as CSV or Excel',
+  })
+  async export(
+    @Query() exportWaitlistDto: ExportWaitlistDto,
+    @Res() res: express.Response,
+  ): Promise<void> {
+    await this.waitlistService.exportWaitlist(exportWaitlistDto, res);
   }
 }

@@ -8,8 +8,6 @@ import { WaitlistPaginationDto } from './dto/waitlist-pagination.dto';
 
 describe('WaitlistService', () => {
   let service: WaitlistService;
-  let repository: Repository<Waitlist>;
-  let paginationService: PaginationService;
 
   const mockWaitlistRepository = {
     create: jest.fn(),
@@ -40,8 +38,6 @@ describe('WaitlistService', () => {
     }).compile();
 
     service = module.get<WaitlistService>(WaitlistService);
-    repository = module.get<Repository<Waitlist>>(getRepositoryToken(Waitlist));
-    paginationService = module.get<PaginationService>(PaginationService);
   });
 
   it('should be defined', () => {
@@ -120,6 +116,50 @@ describe('WaitlistService', () => {
         withEmail: 40,
       });
       expect(mockWaitlistRepository.count).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('exportWaitlist', () => {
+    it('should export waitlist as CSV', async () => {
+      const dto = { format: 'csv' };
+      const mockRes = {
+        setHeader: jest.fn(),
+        write: jest.fn(),
+        end: jest.fn(),
+        pipe: jest.fn(),
+        on: jest.fn(),
+        once: jest.fn(),
+        emit: jest.fn(),
+      } as any;
+
+      const mockQueryBuilder = {
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        stream: jest.fn().mockResolvedValue({
+          [Symbol.asyncIterator]: async function* () {
+            await Promise.resolve();
+            yield {
+              waitlist_id: 1,
+              waitlist_wallet_address: '0x123',
+              waitlist_email_address: 'test@example.com',
+              waitlist_telegram_username: 'test',
+              waitlist_created_at: new Date(),
+            };
+          },
+        }),
+      } as any;
+
+      mockWaitlistRepository.createQueryBuilder.mockReturnValue(
+        mockQueryBuilder,
+      );
+
+      await service.exportWaitlist(dto as any, mockRes);
+
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'text/csv',
+      );
+      expect(mockQueryBuilder.stream).toHaveBeenCalled();
     });
   });
 });
