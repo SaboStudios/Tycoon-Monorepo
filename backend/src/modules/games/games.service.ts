@@ -81,6 +81,8 @@ export class GamesService {
     const sortBy = dto.sortBy || 'created_at';
     const sortOrder = dto.sortOrder || SortOrder.DESC;
 
+    qb.leftJoinAndSelect('g.settings', 'settings');
+
     return this.paginationService.paginate(qb, { ...dto, sortBy, sortOrder }, [
       'code',
       'chain',
@@ -114,13 +116,18 @@ export class GamesService {
   }
 
   /**
-   * Find a game by ID with relations (creator, winner, nextPlayer)
+   * Find a game by ID with relations (creator, winner, nextPlayer, settings).
+   * Single query via leftJoinAndSelect to avoid N+1.
    */
   async findById(id: number): Promise<Game> {
-    const game = await this.gameRepository.findOne({
-      where: { id },
-      relations: ['creator', 'winner', 'nextPlayer'],
-    });
+    const game = await this.gameRepository
+      .createQueryBuilder('g')
+      .leftJoinAndSelect('g.creator', 'creator')
+      .leftJoinAndSelect('g.winner', 'winner')
+      .leftJoinAndSelect('g.nextPlayer', 'nextPlayer')
+      .leftJoinAndSelect('g.settings', 'settings')
+      .where('g.id = :id', { id })
+      .getOne();
 
     if (!game) {
       throw new NotFoundException(`Game with ID ${id} not found`);
@@ -130,13 +137,18 @@ export class GamesService {
   }
 
   /**
-   * Find a game by unique code with relations (creator, winner, nextPlayer)
+   * Find a game by unique code with relations (creator, winner, nextPlayer, settings).
+   * Single query via leftJoinAndSelect to avoid N+1.
    */
   async findByCode(code: string): Promise<Game> {
-    const game = await this.gameRepository.findOne({
-      where: { code: code.toUpperCase() },
-      relations: ['creator', 'winner', 'nextPlayer'],
-    });
+    const game = await this.gameRepository
+      .createQueryBuilder('g')
+      .leftJoinAndSelect('g.creator', 'creator')
+      .leftJoinAndSelect('g.winner', 'winner')
+      .leftJoinAndSelect('g.nextPlayer', 'nextPlayer')
+      .leftJoinAndSelect('g.settings', 'settings')
+      .where('g.code = :code', { code: code.toUpperCase() })
+      .getOne();
 
     if (!game) {
       throw new NotFoundException(`Game with code ${code} not found`);
