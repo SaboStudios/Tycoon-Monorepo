@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use soroban_sdk::{contracttype, Address, Env, Symbol};
+use soroban_sdk::{Address, Env, Symbol};
 
 /// Emit a FundsWithdrawn events
 pub fn emit_funds_withdrawn(env: &Env, token: &Address, to: &Address, amount: u128) {

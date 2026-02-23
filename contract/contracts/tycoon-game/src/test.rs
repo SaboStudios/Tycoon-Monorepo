@@ -1,7 +1,6 @@
 #![cfg(test)]
 
 use super::*;
-use crate::storage::GameType;
 use soroban_sdk::{
     testutils::{Address as _, Events},
     token::{StellarAssetClient, TokenClient},
