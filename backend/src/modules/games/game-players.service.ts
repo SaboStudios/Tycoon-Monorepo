@@ -232,6 +232,51 @@ export class GamePlayersService {
     return this.paginationService.paginate(qb, dto, []);
   }
 
+  async rollDice(
+    gameId: number,
+    playerId: number,
+    dice1: number,
+    dice2: number,
+  ): Promise<GamePlayer> {
+    const player = await this.findByGameAndPlayer(gameId, playerId);
+    const BOARD_SIZE = 40;
+    const START_BONUS = 200;
+    const JAIL_POSITION = 10;
+    const MAX_JAIL_ROLLS = 3;
+
+    if (player.rolled === 1) {
+      throw new BadRequestException('Player has already rolled this turn');
+    }
+
+    const total = dice1 + dice2;
+    const oldPosition = player.position;
+    const newPosition = (oldPosition + total) % BOARD_SIZE;
+
+    if (player.in_jail) {
+      player.in_jail_rolls += 1;
+      if (dice1 === dice2) {
+        player.in_jail = false;
+        player.in_jail_rolls = 0;
+        player.position = newPosition;
+      } else if (player.in_jail_rolls >= MAX_JAIL_ROLLS) {
+        player.in_jail = false;
+        player.in_jail_rolls = 0;
+        player.position = newPosition;
+      }
+    } else {
+      player.position = newPosition;
+      if (newPosition < oldPosition) {
+        player.circle += 1;
+        player.balance += START_BONUS;
+      }
+    }
+
+    player.rolls += 1;
+    player.rolled = 1;
+
+    return this.gamePlayerRepository.save(player);
+  }
+
   async advanceTurn(
     gameId: number,
     currentUserId: number,
