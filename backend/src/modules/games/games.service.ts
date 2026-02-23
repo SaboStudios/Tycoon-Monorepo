@@ -342,8 +342,7 @@ export class GamesService {
 
     const updates: Partial<GameSettings> = {};
     if (dto.auction !== undefined) updates.auction = dto.auction;
-    if (dto.rentInPrison !== undefined)
-      updates.rentInPrison = dto.rentInPrison;
+    if (dto.rentInPrison !== undefined) updates.rentInPrison = dto.rentInPrison;
     if (dto.mortgage !== undefined) updates.mortgage = dto.mortgage;
     if (dto.evenBuild !== undefined) updates.evenBuild = dto.evenBuild;
     if (dto.randomizePlayOrder !== undefined)

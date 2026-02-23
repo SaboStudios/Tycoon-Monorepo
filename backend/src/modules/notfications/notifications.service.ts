@@ -107,14 +107,14 @@ export class NotificationsService {
     notificationId: string,
     userId: string,
   ): Promise<Notification | null> {
-    return this.notificationModel
+    return (await this.notificationModel
       .findOneAndUpdate(
         { _id: notificationId, recipientId: userId },
         { isRead: true },
         { new: true },
       )
       .lean()
-      .exec() as unknown as Notification | null;
+      .exec()) as unknown as Notification | null;
   }
 
   /**

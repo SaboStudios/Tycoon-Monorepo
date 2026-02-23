@@ -30,6 +30,9 @@ export class User {
   @Column({ type: 'varchar', length: 20, default: Role.USER })
   role: Role;
 
+  @Column({ type: 'boolean', default: false })
+  is_admin: boolean;
+
   @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
   username: string;
 
