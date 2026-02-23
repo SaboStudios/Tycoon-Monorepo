@@ -13,10 +13,18 @@ import { GetGamesDto } from './dto/get-games.dto';
 describe('GamesService', () => {
   let service: GamesService;
 
+  const mockGetOne = jest.fn();
+  const mockQueryBuilder = {
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    getOne: mockGetOne,
+  };
+
   const mockGameRepository = {
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
 
   const mockGameSettingsRepository = {
@@ -88,21 +96,39 @@ describe('GamesService', () => {
         creator: { id: 1, email: 'user@example.com', username: 'player1' },
         winner: null,
         nextPlayer: null,
+        settings: {},
       };
 
-      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockGetOne.mockResolvedValue(mockGame);
 
       const result = await service.findById(1);
 
-      expect(mockGameRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
-        relations: ['creator', 'winner', 'nextPlayer'],
+      expect(mockGameRepository.createQueryBuilder).toHaveBeenCalledWith('g');
+      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+        'g.creator',
+        'creator',
+      );
+      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+        'g.winner',
+        'winner',
+      );
+      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+        'g.nextPlayer',
+        'nextPlayer',
+      );
+      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+        'g.settings',
+        'settings',
+      );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('g.id = :id', {
+        id: 1,
       });
+      expect(mockQueryBuilder.getOne).toHaveBeenCalled();
       expect(result).toEqual(mockGame);
     });
 
     it('should throw NotFoundException when game not found', async () => {
-      mockGameRepository.findOne.mockResolvedValue(null);
+      mockGetOne.mockResolvedValue(null);
 
       await expect(service.findById(999)).rejects.toThrow(NotFoundException);
       await expect(service.findById(999)).rejects.toThrow(
@@ -121,21 +147,23 @@ describe('GamesService', () => {
         creator: { id: 1, email: 'user@example.com', username: 'player1' },
         winner: null,
         nextPlayer: null,
+        settings: {},
       };
 
-      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockGetOne.mockResolvedValue(mockGame);
 
       const result = await service.findByCode('abc123');
 
-      expect(mockGameRepository.findOne).toHaveBeenCalledWith({
-        where: { code: 'ABC123' },
-        relations: ['creator', 'winner', 'nextPlayer'],
+      expect(mockGameRepository.createQueryBuilder).toHaveBeenCalledWith('g');
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('g.code = :code', {
+        code: 'ABC123',
       });
+      expect(mockQueryBuilder.getOne).toHaveBeenCalled();
       expect(result).toEqual(mockGame);
     });
 
     it('should throw NotFoundException when game not found', async () => {
-      mockGameRepository.findOne.mockResolvedValue(null);
+      mockGetOne.mockResolvedValue(null);
 
       await expect(service.findByCode('NOTFOUND')).rejects.toThrow(
         NotFoundException,
@@ -154,15 +182,15 @@ describe('GamesService', () => {
         creator: { id: 1, email: 'user@example.com' },
         winner: null,
         nextPlayer: null,
+        settings: {},
       };
 
-      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockGetOne.mockResolvedValue(mockGame);
 
       await service.findByCode('abc123');
 
-      expect(mockGameRepository.findOne).toHaveBeenCalledWith({
-        where: { code: 'ABC123' },
-        relations: ['creator', 'winner', 'nextPlayer'],
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('g.code = :code', {
+        code: 'ABC123',
       });
     });
   });
@@ -293,10 +321,11 @@ describe('GamesService', () => {
   describe('findAll', () => {
     const qb = {
       andWhere: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
     };
 
     beforeEach(() => {
-      mockGameRepository.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      mockGameRepository.createQueryBuilder.mockReturnValue(qb);
     });
 
     it('should build query with all supported filters and paginate', async () => {
