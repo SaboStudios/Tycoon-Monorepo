@@ -8,7 +8,9 @@ import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 
 // ─── Factory Helpers ─────────────────────────────────────────────────────────
 
-const makeNotification = (overrides: Partial<Notification> = {}): Notification =>
+const makeNotification = (
+  overrides: Partial<Notification> = {},
+): Notification =>
   ({
     id: 'notif-uuid-1',
     userId: 'user-uuid-1',
@@ -18,7 +20,7 @@ const makeNotification = (overrides: Partial<Notification> = {}): Notification =
     isRead: false,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     ...overrides,
-  } as Notification);
+  }) as Notification;
 
 // ─── Mock Repository ─────────────────────────────────────────────────────────
 
@@ -69,7 +71,10 @@ describe('NotificationsService', () => {
     const userId = 'user-uuid-1';
 
     it('should return paginated notifications with correct meta', async () => {
-      const notifications = [makeNotification(), makeNotification({ id: 'notif-uuid-2' })];
+      const notifications = [
+        makeNotification(),
+        makeNotification({ id: 'notif-uuid-2' }),
+      ];
       const total = 42;
       const qb = createMockQueryBuilder(notifications, total);
       mockRepository.createQueryBuilder.mockReturnValue(qb);
@@ -93,11 +98,18 @@ describe('NotificationsService', () => {
       const qb = createMockQueryBuilder([], 0);
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
-      await service.findAllForUser(userId, { page: 1, limit: 20, isRead: false });
-
-      expect(qb.andWhere).toHaveBeenCalledWith('notification.isRead = :isRead', {
+      await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
         isRead: false,
       });
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'notification.isRead = :isRead',
+        {
+          isRead: false,
+        },
+      );
     });
 
     it('should NOT apply isRead filter when undefined', async () => {
@@ -140,7 +152,10 @@ describe('NotificationsService', () => {
       const qb = createMockQueryBuilder([], 50);
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.findAllForUser(userId, { page: 2, limit: 20 });
+      const result = await service.findAllForUser(userId, {
+        page: 2,
+        limit: 20,
+      });
 
       expect(result.meta.hasPreviousPage).toBe(true);
       expect(result.meta.hasNextPage).toBe(true);
@@ -150,7 +165,10 @@ describe('NotificationsService', () => {
       const qb = createMockQueryBuilder([], 20);
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.findAllForUser(userId, { page: 1, limit: 20 });
+      const result = await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+      });
 
       expect(result.meta.hasNextPage).toBe(false);
       expect(result.meta.totalPages).toBe(1);
@@ -160,7 +178,10 @@ describe('NotificationsService', () => {
       const qb = createMockQueryBuilder([], 0);
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.findAllForUser(userId, { page: 1, limit: 20 });
+      const result = await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+      });
 
       expect(result.data).toEqual([]);
       expect(result.meta.total).toBe(0);
@@ -176,7 +197,10 @@ describe('NotificationsService', () => {
       const qb = createMockQueryBuilder([notification], 1);
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.findAllForUser(userId, { page: 1, limit: 20 });
+      const result = await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+      });
       const dto = result.data[0];
 
       expect(dto.id).toBe(notification.id);

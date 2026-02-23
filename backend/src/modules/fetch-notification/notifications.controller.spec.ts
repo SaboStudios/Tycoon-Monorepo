@@ -90,7 +90,11 @@ describe('NotificationsController', () => {
         makePaginatedResponse({ data: [] }),
       );
 
-      const query: GetNotificationsQueryDto = { page: 1, limit: 20, isRead: false };
+      const query: GetNotificationsQueryDto = {
+        page: 1,
+        limit: 20,
+        isRead: false,
+      };
       await controller.getNotifications(mockUser as any, query);
 
       expect(mockNotificationsService.findAllForUser).toHaveBeenCalledWith(
@@ -121,10 +125,10 @@ describe('NotificationsController', () => {
       const expected = makePaginatedResponse();
       mockNotificationsService.findAllForUser.mockResolvedValue(expected);
 
-      const result = await controller.getNotifications(
-        mockUser as any,
-        { page: 1, limit: 20 },
-      );
+      const result = await controller.getNotifications(mockUser as any, {
+        page: 1,
+        limit: 20,
+      });
 
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);

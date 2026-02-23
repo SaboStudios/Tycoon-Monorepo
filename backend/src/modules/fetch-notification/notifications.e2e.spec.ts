@@ -44,7 +44,9 @@ const buildQb = (data: Notification[], count: number) => ({
 });
 
 const mockRepository = {
-  createQueryBuilder: jest.fn(() => buildQb(mockNotifications, mockNotifications.length)),
+  createQueryBuilder: jest.fn(() =>
+    buildQb(mockNotifications, mockNotifications.length),
+  ),
   count: jest.fn().mockResolvedValue(1), // 1 unread
 };
 
