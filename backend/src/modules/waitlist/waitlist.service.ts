@@ -5,16 +5,19 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, IsNull } from 'typeorm';
 import { Waitlist } from './entities/waitlist.entity';
 import { CreateWaitlistDto } from './dto/create-waitlist.dto';
 import { WaitlistResponseDto } from './dto/waitlist-response.dto';
+import { WaitlistPaginationDto } from './dto/waitlist-pagination.dto';
+import { PaginationService, PaginatedResponse, SortOrder } from '../../common';
 
 @Injectable()
 export class WaitlistService {
   constructor(
     @InjectRepository(Waitlist)
     private readonly waitlistRepository: Repository<Waitlist>,
+    private readonly paginationService: PaginationService,
   ) {}
 
   /**
@@ -75,8 +78,79 @@ export class WaitlistService {
 
   async findAll(): Promise<Waitlist[]> {
     return this.waitlistRepository.find({
-      order: { created_at: 'DESC' },
+      order: { created_at: SortOrder.DESC },
     });
+  }
+
+  /**
+   * Get all waitlist entries with pagination, sorting and filtering for admin.
+   */
+  async findAllAdmin(
+    paginationDto: WaitlistPaginationDto,
+  ): Promise<PaginatedResponse<Waitlist>> {
+    const { wallet, email, telegram, sortBy, sortOrder } = paginationDto;
+
+    const queryBuilder = this.waitlistRepository.createQueryBuilder('waitlist');
+
+    // Apply filters
+    if (wallet) {
+      queryBuilder.andWhere('waitlist.wallet_address ILIKE :wallet', {
+        wallet: `%${wallet}%`,
+      });
+    }
+    if (email) {
+      queryBuilder.andWhere('waitlist.email_address ILIKE :email', {
+        email: `%${email}%`,
+      });
+    }
+    if (telegram) {
+      queryBuilder.andWhere('waitlist.telegram_username ILIKE :telegram', {
+        telegram: `%${telegram}%`,
+      });
+    }
+  }
+
+    // Apply specific sorting logic if requested
+    if (sortBy === 'newest') {
+      queryBuilder.orderBy('waitlist.created_at', sortOrder || SortOrder.DESC);
+    } else if (sortBy === 'wallet') {
+      queryBuilder.orderBy(
+        'waitlist.wallet_address',
+        sortOrder || SortOrder.ASC,
+      );
+    } else if (sortBy === 'email') {
+      queryBuilder.orderBy(
+        'waitlist.email_address',
+        sortOrder || SortOrder.ASC,
+      );
+    } else if (sortBy) {
+      // Default to entity field sorting if it's a valid field
+      queryBuilder.orderBy(`waitlist.${sortBy}`, sortOrder || SortOrder.ASC);
+    } else {
+      // Default sort
+      queryBuilder.orderBy('waitlist.created_at', SortOrder.DESC);
+    }
+
+    return await this.paginationService.paginate(queryBuilder, paginationDto);
+  }
+
+  /**
+   * Get aggregate statistics for the waitlist.
+   */
+  async getStats() {
+    const total = await this.waitlistRepository.count();
+    const withWallet = await this.waitlistRepository.count({
+      where: { wallet_address: Not(IsNull()) },
+    });
+    const withEmail = await this.waitlistRepository.count({
+      where: { email_address: Not(IsNull()) },
+    });
+
+    return {
+      totalItems: total,
+      withWallet,
+      withEmail,
+    };
   }
 
   // ---------------------------------------------------------------------------

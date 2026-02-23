@@ -3,15 +3,22 @@ import { UnauthorizedException } from '@nestjs/common';
 import { AdminAuthController } from './admin-auth.controller';
 import { AuthService } from './auth.service';
 import { Role } from './enums/role.enum';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { Request } from 'express';
 
 describe('AdminAuthController', () => {
   let controller: AdminAuthController;
   let authService: Partial<AuthService>;
+  let adminLogsService: Partial<AdminLogsService>;
 
   beforeEach(async () => {
     authService = {
       validateAdmin: jest.fn(),
       login: jest.fn(),
+    };
+
+    adminLogsService = {
+      createLog: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -20,6 +27,10 @@ describe('AdminAuthController', () => {
         {
           provide: AuthService,
           useValue: authService,
+        },
+        {
+          provide: AdminLogsService,
+          useValue: adminLogsService,
         },
       ],
     }).compile();
@@ -51,7 +62,12 @@ describe('AdminAuthController', () => {
         refreshToken: 'mock-refresh-token',
       });
 
-      const result = await controller.login(adminLoginDto);
+      const mockRequest = {
+        ip: '127.0.0.1',
+        headers: { 'user-agent': 'jest' },
+      } as unknown as Request;
+
+      const result = await controller.login(adminLoginDto, mockRequest);
 
       expect(result).toEqual({
         accessToken: 'mock-access-token',
@@ -77,9 +93,14 @@ describe('AdminAuthController', () => {
 
       (authService.validateAdmin as jest.Mock).mockResolvedValue(null);
 
-      await expect(controller.login(adminLoginDto)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      const mockRequest = {
+        ip: '127.0.0.1',
+        headers: { 'user-agent': 'jest' },
+      } as unknown as Request;
+
+      await expect(
+        controller.login(adminLoginDto, mockRequest),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

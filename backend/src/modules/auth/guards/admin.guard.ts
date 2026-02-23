@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 /**
  * AdminGuard - Use this guard to restrict access to admin-only endpoints.
@@ -17,7 +18,7 @@ export class AdminGuard implements CanActivate {
   canActivate(
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<{ user: JwtPayload }>();
     const user = request.user;
 
     if (!user || user.is_admin !== true) {
