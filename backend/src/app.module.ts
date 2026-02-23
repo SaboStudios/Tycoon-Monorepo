@@ -22,6 +22,7 @@ import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 import { GamesModule } from './modules/games/games.module';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
+import { ShopModule } from './modules/shop/shop.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
     CommunityChestModule,
     GamesModule,
     WaitlistModule,
+    ShopModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
