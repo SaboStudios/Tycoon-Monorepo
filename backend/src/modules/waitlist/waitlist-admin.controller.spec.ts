@@ -13,6 +13,7 @@ describe('WaitlistAdminController', () => {
   const mockWaitlistService = {
     findAllAdmin: jest.fn(),
     getStats: jest.fn(),
+    exportWaitlist: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -61,6 +62,20 @@ describe('WaitlistAdminController', () => {
       });
       expect(service.findAllAdmin).toHaveBeenCalledWith(dto);
       expect(service.getStats).toHaveBeenCalled();
+    });
+  });
+
+  describe('export', () => {
+    it('should call service.exportWaitlist', async () => {
+      const dto = { format: 'csv' };
+      const mockRes = {};
+
+      await controller.export(dto as any, mockRes as any);
+
+      expect(mockWaitlistService.exportWaitlist).toHaveBeenCalledWith(
+        dto,
+        mockRes,
+      );
     });
   });
 });
