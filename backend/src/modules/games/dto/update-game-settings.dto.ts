@@ -27,7 +27,10 @@ export class UpdateGameSettingsDto {
   @IsBoolean()
   randomizePlayOrder?: boolean;
 
-  @ApiPropertyOptional({ description: 'Starting cash per player', minimum: 100 })
+  @ApiPropertyOptional({
+    description: 'Starting cash per player',
+    minimum: 100,
+  })
   @IsOptional()
   @IsInt()
   @Min(100)
