@@ -155,15 +155,21 @@ describe('UsersService', () => {
       expect(createQueryBuilderSpy).toHaveBeenCalled();
       expect(setSpy).toHaveBeenCalledWith(
         expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           games_played: expect.any(Function),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           game_won: expect.any(Function),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           game_lost: expect.any(Function),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           total_staked: expect.any(Function),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           total_earned: expect.any(Function),
         }),
       );
 
       // Verify logic inside set functions
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const setCall = setSpy.mock.calls[0][0] as Record<string, () => string>;
       expect(setCall.games_played()).toBe('games_played + 1');
       expect(setCall.game_won()).toBe('game_won + 1');
@@ -183,6 +189,7 @@ describe('UsersService', () => {
 
       await service.updateGameStats(userId, false, amount, earnings);
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const setCall = setSpy.mock.calls[0][0] as Record<string, () => string>;
       expect(setCall.game_won()).toBe('game_won'); // Should not increment
       expect(setCall.game_lost()).toBe('game_lost + 1');
