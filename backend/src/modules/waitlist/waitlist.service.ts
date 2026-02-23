@@ -108,7 +108,6 @@ export class WaitlistService {
         telegram: `%${telegram}%`,
       });
     }
-  }
 
     // Apply specific sorting logic if requested
     if (sortBy === 'newest') {
