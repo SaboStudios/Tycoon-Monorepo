@@ -23,11 +23,13 @@ import {
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { CreateGameDto } from './dto/create-game.dto';
+import { UpdateGameDto } from './dto/update-game.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetGamesDto } from './dto/get-games.dto';
 import { RollDiceDto } from './dto/roll-dice.dto';
@@ -154,6 +156,44 @@ export class GamesController {
   @ApiNotFoundResponse({ description: 'Game not found' })
   async findById(@Param('id', ParseIntPipe) id: number) {
     return this.gamesService.findById(id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Partially update a game' })
+  @ApiOkResponse({
+    description: 'Game updated successfully',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        status: 'RUNNING',
+        next_player_id: 2,
+        winner_id: null,
+        started_at: '2024-01-15T10:30:00.000Z',
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input or illegal status transition',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only game creator or admin can update this game',
+  })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateGameDto,
+    @Req() req: Request & { user: { id: number; role?: string } },
+  ) {
+    return this.gamesService.update(
+      id,
+      dto,
+      req.user.id,
+      req.user.role ?? 'user',
+    );
   }
 
   @Get(':gameId/players')
