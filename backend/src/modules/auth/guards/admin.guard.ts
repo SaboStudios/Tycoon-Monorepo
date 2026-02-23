@@ -1,8 +1,8 @@
 import {
-    Injectable,
-    CanActivate,
-    ExecutionContext,
-    ForbiddenException,
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 
@@ -14,17 +14,16 @@ import { Observable } from 'rxjs';
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
-    canActivate(
-        context: ExecutionContext,
-    ): boolean | Promise<boolean> | Observable<boolean> {
-        const request = context.switchToHttp().getRequest();
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        const user = request.user as { is_admin?: boolean } | undefined;
+  canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> | Observable<boolean> {
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
 
-        if (!user || user.is_admin !== true) {
-            throw new ForbiddenException('Access denied. Admin role required.');
-        }
-
-        return true;
+    if (!user || user.is_admin !== true) {
+      throw new ForbiddenException('Access denied. Admin role required.');
     }
+
+    return true;
+  }
 }

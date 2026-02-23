@@ -34,7 +34,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly gamePlayersService: GamePlayersService,
-  ) { }
+  ) {}
 
   /**
    * Create a new user
