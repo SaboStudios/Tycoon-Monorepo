@@ -8,17 +8,8 @@ import {
   NotificationType,
 } from './notification.entity';
 
-const MOCK_OBJECT_ID = '507f1f77bcf86cd799439011';
-
 describe('Notification Entity', () => {
   let model: Model<Notification>;
-
-  const validNotificationData = {
-    type: NotificationType.NEW_MESSAGE,
-    recipientId: MOCK_OBJECT_ID,
-    message: 'You have a new message',
-    isRead: false,
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -84,24 +75,28 @@ describe('Notification Entity', () => {
     it('should require the type field', () => {
       const typePath = NotificationSchema.path('type');
       expect(typePath).toBeDefined();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       expect((typePath as any).isRequired).toBe(true);
     });
 
     it('should require the recipientId field', () => {
       const recipientPath = NotificationSchema.path('recipientId');
       expect(recipientPath).toBeDefined();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       expect((recipientPath as any).isRequired).toBe(true);
     });
 
     it('should require the message field', () => {
       const messagePath = NotificationSchema.path('message');
       expect(messagePath).toBeDefined();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       expect((messagePath as any).isRequired).toBe(true);
     });
 
     it('should default isRead to false', () => {
       const isReadPath = NotificationSchema.path('isRead');
-      expect(isReadPath.defaultValue).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect((isReadPath as any).options.default).toBe(false);
     });
 
     it('should have timestamps enabled', () => {

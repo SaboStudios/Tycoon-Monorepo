@@ -50,7 +50,7 @@ describe('NotificationsController', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          const req = context.switchToHttp().getRequest() as { user: any };
+          const req = context.switchToHttp().getRequest();
           req.user = { id: MOCK_USER_ID };
           return true;
         },
@@ -80,7 +80,9 @@ describe('NotificationsController', () => {
     };
 
     it('should return paginated notifications', async () => {
-      mockNotificationsService.findAllForUser.mockResolvedValue(paginatedResult);
+      mockNotificationsService.findAllForUser.mockResolvedValue(
+        paginatedResult,
+      );
 
       const result = await controller.getNotifications(mockRequest(), query);
 
@@ -92,7 +94,9 @@ describe('NotificationsController', () => {
     });
 
     it('should pass the correct userId from req.user.id', async () => {
-      mockNotificationsService.findAllForUser.mockResolvedValue(paginatedResult);
+      mockNotificationsService.findAllForUser.mockResolvedValue(
+        paginatedResult,
+      );
 
       await controller.getNotifications(mockRequest('custom-user-id'), query);
 
@@ -103,7 +107,9 @@ describe('NotificationsController', () => {
     });
 
     it('should fall back to req.user.sub when id is not present', async () => {
-      mockNotificationsService.findAllForUser.mockResolvedValue(paginatedResult);
+      mockNotificationsService.findAllForUser.mockResolvedValue(
+        paginatedResult,
+      );
       const subRequest = {
         user: { sub: 'sub-user-id' },
       } as unknown as Request;
