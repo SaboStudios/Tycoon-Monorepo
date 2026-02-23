@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { GamePlayer } from './entities/game-player.entity';
 import { Game } from './entities/game.entity';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
+import { JoinGameDto } from './dto/join-game.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetUserGamesDto } from './dto/get-user-games.dto';
 import { PaginationService } from '../../common/services/pagination.service';
@@ -129,7 +130,7 @@ export class GamePlayersService {
   async addPlayerToGame(
     gameId: number,
     userId: number,
-    options?: { address?: string | null },
+    dto?: JoinGameDto,
   ): Promise<GamePlayer> {
     const game = await this.gameRepository.findOne({
       where: { id: gameId },
@@ -152,7 +153,7 @@ export class GamePlayersService {
       game_id: gameId,
       user_id: userId,
       balance: startingCash,
-      address: options?.address ?? null,
+      address: dto?.address ?? null,
     });
     return this.gamePlayerRepository.save(player);
   }
@@ -218,6 +219,18 @@ export class GamePlayersService {
 
     if (dto.address !== undefined) {
       player.address = dto.address;
+    }
+
+    if (dto.balance !== undefined) {
+      player.balance = dto.balance;
+    }
+
+    if (dto.position !== undefined) {
+      player.position = dto.position;
+    }
+
+    if (dto.turn_order !== undefined) {
+      player.turn_order = dto.turn_order;
     }
 
     if (dto.trade_locked_balance !== undefined) {
