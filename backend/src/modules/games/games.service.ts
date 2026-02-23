@@ -11,6 +11,7 @@ import { Game, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
+import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
 
@@ -308,5 +309,52 @@ export class GamesService {
 
     await this.gameRepository.update(id, updates);
     return this.findById(id);
+  }
+
+  /**
+   * Update game settings. Only the creator can update, and only when game is PENDING.
+   */
+  async updateSettings(
+    gameId: number,
+    dto: UpdateGameSettingsDto,
+    userId: number,
+  ): Promise<Game> {
+    const game = await this.findById(gameId);
+
+    if (game.creator_id !== userId) {
+      throw new ForbiddenException(
+        'Only the game creator can update game settings',
+      );
+    }
+
+    if (game.status !== GameStatus.PENDING) {
+      throw new BadRequestException(
+        'Cannot update settings after the game has started',
+      );
+    }
+
+    const settings = game.settings;
+    if (!settings) {
+      throw new NotFoundException(
+        `Settings not found for game with ID ${gameId}`,
+      );
+    }
+
+    const updates: Partial<GameSettings> = {};
+    if (dto.auction !== undefined) updates.auction = dto.auction;
+    if (dto.rentInPrison !== undefined)
+      updates.rentInPrison = dto.rentInPrison;
+    if (dto.mortgage !== undefined) updates.mortgage = dto.mortgage;
+    if (dto.evenBuild !== undefined) updates.evenBuild = dto.evenBuild;
+    if (dto.randomizePlayOrder !== undefined)
+      updates.randomizePlayOrder = dto.randomizePlayOrder;
+    if (dto.startingCash !== undefined) updates.startingCash = dto.startingCash;
+
+    if (Object.keys(updates).length === 0) {
+      return game;
+    }
+
+    await this.gameSettingsRepository.update(settings.id, updates);
+    return this.findById(gameId);
   }
 }
