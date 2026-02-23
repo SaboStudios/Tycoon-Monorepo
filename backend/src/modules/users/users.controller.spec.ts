@@ -56,8 +56,10 @@ describe('UsersController', () => {
       const dto: CreateUserDto = {
         email: 'test@example.com',
         password: 'password',
+        firstName: 'Test',
+        lastName: 'User',
       };
-      const result = { id: '1', ...dto } as User;
+      const result = { id: 1, ...dto } as unknown as User;
       (service.create as jest.Mock).mockResolvedValue(result);
 
       expect(await controller.create(dto)).toBe(result);
@@ -67,31 +69,32 @@ describe('UsersController', () => {
 
   describe('findAll', () => {
     it('should return an array of users', async () => {
-      const result = [{ id: '1', email: 'test@example.com' }] as User[];
+      const result = [{ id: 1, email: 'test@example.com' }] as unknown as User[];
       (service.findAll as jest.Mock).mockResolvedValue(result);
 
-      expect(await controller.findAll()).toBe(result);
+      expect(await controller.findAll({ page: 1, limit: 10 })).toBe(result);
     });
   });
 
   describe('findOne', () => {
     it('should return a user', async () => {
-      const result = { id: '1', email: 'test@example.com' } as User;
+      const result = { id: 1, email: 'test@example.com' } as unknown as User;
       (service.findOne as jest.Mock).mockResolvedValue(result);
 
-      expect(await controller.findOne('1')).toBe(result);
-      expect(service.findOne).toHaveBeenCalledWith('1');
+      expect(await controller.findOne(1)).toBe(result);
+      expect(service.findOne).toHaveBeenCalledWith(1);
     });
   });
 
   describe('update', () => {
     it('should call service.update', async () => {
       const dto: UpdateUserDto = { email: 'updated@example.com' };
-      const result = { id: '1', email: 'updated@example.com' } as User;
+      const result = { id: 1, email: 'updated@example.com' } as unknown as User;
       (service.update as jest.Mock).mockResolvedValue(result);
 
-      expect(await controller.update('1', dto)).toBe(result);
-      expect(service.update).toHaveBeenCalledWith('1', dto);
+      const mockRequest = { user: { id: 1 } } as any;
+      expect(await controller.update(1, dto, mockRequest)).toBe(result);
+      expect(service.update).toHaveBeenCalledWith(1, dto, 1, mockRequest);
     });
   });
 
@@ -99,8 +102,9 @@ describe('UsersController', () => {
     it('should call service.remove', async () => {
       (service.remove as jest.Mock).mockResolvedValue(undefined);
 
-      await controller.remove('1');
-      expect(service.remove).toHaveBeenCalledWith('1');
+      const mockRequest = { user: { id: 1 } } as any;
+      await controller.remove(1, mockRequest);
+      expect(service.remove).toHaveBeenCalledWith(1, 1, mockRequest);
     });
   });
 });
