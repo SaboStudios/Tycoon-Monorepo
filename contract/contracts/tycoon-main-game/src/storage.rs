@@ -12,6 +12,8 @@ pub enum DataKey {
     Owner,
     /// The reward system contract address used for voucher minting.
     RewardSystem,
+    /// The USDC token contract address used for stake refunds.
+    UsdcToken,
     /// Tracks whether the contract has been initialized.
     IsInitialized,
     /// Marks whether a given address has registered as a player.
@@ -30,10 +32,9 @@ pub enum DataKey {
 
 /// Lifecycle state of a Tycoon game.
 ///
-/// Mirrors `TycoonLib.sol` GameStatus.
 /// - `Pending`  — Game created, waiting for players.
 /// - `Ongoing`  — Game is actively being played.
-/// - `Ended`    — Game has concluded and a winner was determined.
+/// - `Ended`    — Game has concluded.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GameStatus {
@@ -47,7 +48,6 @@ pub enum GameStatus {
 
 /// Who can join a Tycoon game.
 ///
-/// Mirrors `TycoonLib.sol` GameMode.
 /// - `Public`  — Open to any registered player.
 /// - `Private` — Requires a matching room code.
 #[contracttype]
@@ -67,7 +67,7 @@ pub enum GameMode {
 ///
 /// Mirrors `TycoonLib.sol` GameSettings struct.
 /// Stored separately from `Game` so settings can be read without loading
-/// the full game state (which includes the dynamic `joined_players` list).
+/// the full game state.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GameSettings {
@@ -88,9 +88,8 @@ pub struct GameSettings {
 /// Full state of a Tycoon game instance.
 ///
 /// Mirrors `TycoonLib.sol` Game struct.
-/// `joined_players` is stored inline as a `Vec<Address>` — on Soroban
-/// this is serialized as part of the struct's XDR representation, which
-/// is acceptable for up to 8 players (the game maximum).
+/// `joined_players` is stored inline as a `Vec<Address>` — serialized as
+/// part of the struct's XDR representation, acceptable for up to 8 players.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Game {
@@ -114,7 +113,7 @@ pub struct Game {
     pub ai: bool,
     /// Amount each player stakes to enter (in token units). Zero for free games.
     pub stake_per_player: u128,
-    /// Total staked amount across all joined players (`stake_per_player * joined_players.len()`).
+    /// Total staked amount across all joined players.
     pub total_staked: u128,
     /// Ledger timestamp when the game was created.
     pub created_at: u64,
@@ -170,6 +169,23 @@ pub fn set_reward_system(env: &Env, address: &Address) {
 }
 
 // -----------------------------------------------------------------------
+// USDC token helpers
+// -----------------------------------------------------------------------
+
+/// Retrieves the USDC token address used for stake refunds. Panics if not set.
+pub fn get_usdc_token(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::UsdcToken)
+        .expect("USDC token not set")
+}
+
+/// Stores the USDC token address.
+pub fn set_usdc_token(env: &Env, address: &Address) {
+    env.storage().instance().set(&DataKey::UsdcToken, address);
+}
+
+// -----------------------------------------------------------------------
 // Player registration helpers
 // -----------------------------------------------------------------------
 
@@ -190,7 +206,7 @@ pub fn set_registered(env: &Env, address: &Address) {
 // Game ID counter
 // -----------------------------------------------------------------------
 
-/// Increments and returns the next game ID.
+/// Increments and returns the next game ID, starting at 1.
 pub fn next_game_id(env: &Env) -> u64 {
     let id: u64 = env
         .storage()
@@ -211,7 +227,7 @@ pub fn get_game(env: &Env, game_id: u64) -> Option<Game> {
     env.storage().persistent().get(&DataKey::Game(game_id))
 }
 
-/// Persists a game by its ID.
+/// Persists a game, keyed by `game.id`.
 pub fn set_game(env: &Env, game: &Game) {
     env.storage()
         .persistent()
