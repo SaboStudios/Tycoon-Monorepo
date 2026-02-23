@@ -92,4 +92,4 @@ import { ShopModule } from './modules/shop/shop.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
