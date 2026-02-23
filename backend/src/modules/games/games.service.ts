@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Game, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
+import { UpdateGameDto } from './dto/update-game.dto';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
 
@@ -239,5 +245,56 @@ export class GamesService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Partially update a game by ID.
+   * Validates status transitions (no FINISHED/CANCELLED → RUNNING).
+   * Only admin or game creator can update.
+   */
+  async update(
+    id: number,
+    dto: UpdateGameDto,
+    userId: number,
+    userRole: string,
+  ): Promise<Game> {
+    const game = await this.findById(id);
+
+    if (userRole !== 'admin' && game.creator_id !== userId) {
+      throw new ForbiddenException(
+        'Only the game creator or an admin can update this game',
+      );
+    }
+
+    if (dto.status !== undefined) {
+      const from = game.status;
+      const to = dto.status;
+      if (
+        (from === GameStatus.FINISHED || from === GameStatus.CANCELLED) &&
+        to === GameStatus.RUNNING
+      ) {
+        throw new BadRequestException(
+          `Cannot transition game status from ${from} to RUNNING`,
+        );
+      }
+    }
+
+    const updates: Partial<Game> = {};
+    if (dto.status !== undefined) updates.status = dto.status;
+    if (dto.nextPlayerId !== undefined)
+      updates.next_player_id = dto.nextPlayerId;
+    if (dto.winnerId !== undefined) updates.winner_id = dto.winnerId;
+    if (dto.placements !== undefined) updates.placements = dto.placements;
+    if (dto.contract_game_id !== undefined)
+      updates.contract_game_id = dto.contract_game_id;
+    if (dto.startTime !== undefined)
+      updates.started_at = new Date(dto.startTime);
+
+    if (Object.keys(updates).length === 0) {
+      return game;
+    }
+
+    await this.gameRepository.update(id, updates);
+    return this.findById(id);
   }
 }
