@@ -45,7 +45,7 @@ function extractUserId(req: Request): string {
 @UseGuards(JwtAuthGuard)
 @Controller('api/notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) { }
+  constructor(private readonly notificationsService: NotificationsService) {}
 
   /**
    * GET /api/notifications

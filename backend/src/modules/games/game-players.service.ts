@@ -25,7 +25,7 @@ export class GamePlayersService {
     @InjectRepository(Game)
     private readonly gameRepository: Repository<Game>,
     private readonly paginationService: PaginationService,
-  ) { }
+  ) {}
 
   /**
    * Get available balance (balance minus trade_locked_balance).

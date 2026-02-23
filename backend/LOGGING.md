@@ -43,11 +43,13 @@ NODE_ENV=production
 ### Environment-specific Defaults
 
 **Development:**
+
 - Log Level: `debug`
 - Transports: Console (colored, human-readable format)
 - File Logging: Disabled
 
 **Production:**
+
 - Log Level: `info`
 - Transports: File (JSON format)
 - Console Logging: Disabled (unless `LOG_CONSOLE=true`)
@@ -59,6 +61,7 @@ NODE_ENV=production
 - Retention: 14 days for combined/error logs, 7 days for HTTP logs
 
 **Test:**
+
 - Log Level: `error`
 - Transports: Console
 - File Logging: Disabled
@@ -189,16 +192,19 @@ Errors are logged with comprehensive context:
 In production, you can:
 
 1. **View Recent Logs**:
+
    ```bash
    tail -f logs/combined-$(date +%Y-%m-%d).log
    ```
 
 2. **View Error Logs Only**:
+
    ```bash
    tail -f logs/error-$(date +%Y-%m-%d).log
    ```
 
 3. **Search Logs**:
+
    ```bash
    grep "search term" logs/combined-*.log
    ```
