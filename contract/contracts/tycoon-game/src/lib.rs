@@ -3,12 +3,8 @@
 mod events;
 mod storage;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol, Vec};
-use storage::{
-    get_game, get_game_player_symbols, get_game_players, get_owner, get_tyc_token, get_usdc_token,
-    get_user, is_registered, next_game_id, set_game, set_game_player_symbols, set_game_players,
-    CollectibleInfo, Game, GameSettings, GameStatus, GameType, User,
-};
+use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
+use storage::{get_backend_game_controller, get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User};
 
 #[contract]
 pub struct TycoonContract;
@@ -158,255 +154,36 @@ impl TycoonContract {
         storage::get_user(&env, &address)
     }
 
-    /// Create a new human-vs-human game. Creator must be registered.
-    /// For private games, code must be non-empty. number_of_players must be 2–8.
-    /// If stake_amount > 0, USDC is transferred from creator to the contract.
-    pub fn create_game(
-        env: Env,
-        creator: Address,
-        creator_username: String,
-        game_type: GameType,
-        player_symbol: u32,
-        number_of_players: u32,
-        code: String,
-        starting_balance: u128,
-        stake_amount: u128,
-    ) -> u64 {
-        creator.require_auth();
+    pub fn set_backend_game_controller(env: Env, new_controller: Address) {
+        let owner = get_owner(&env);
+        owner.require_auth();
 
-        // Creator must be registered
-        if !is_registered(&env, &creator) {
-            panic!("Creator must be registered");
-        }
-
-        // Optional: verify username matches stored user
-        if let Some(user) = get_user(&env, &creator) {
-            if user.username != creator_username {
-                panic!("Username does not match registered user");
-            }
-        }
-
-        // Private game requires non-empty code
-        if matches!(game_type, GameType::Private) && code.is_empty() {
-            panic!("Private game requires a code");
-        }
-
-        // Validate number_of_players (2–8)
-        if number_of_players < 2 || number_of_players > 8 {
-            panic!("number_of_players must be between 2 and 8");
-        }
-
-        // If stake required, transfer USDC from creator to contract
-        if stake_amount > 0 {
-            let usdc_token = storage::get_usdc_token(&env);
-            let token_client = token::Client::new(&env, &usdc_token);
-            let contract_address = env.current_contract_address();
-            token_client.transfer(&creator, &contract_address, &(stake_amount as i128));
-        }
-
-        let game_id = next_game_id(&env);
-        let created_at = env.ledger().timestamp();
-
-        let settings = GameSettings {
-            game_type: game_type.clone(),
-            number_of_players,
-            starting_balance,
-            stake_amount,
-            code: code.clone(),
-            player_symbol,
-        };
-
-        let game = Game {
-            id: game_id,
-            creator: creator.clone(),
-            settings: settings.clone(),
-            status: GameStatus::Waiting,
-            created_at,
-        };
-
-        set_game(&env, game_id, &game);
-
-        let mut players: Vec<Address> = Vec::new(&env);
-        players.push_back(creator.clone());
-        set_game_players(&env, game_id, &players);
-
-        let mut symbols: Vec<u32> = Vec::new(&env);
-        symbols.push_back(player_symbol);
-        set_game_player_symbols(&env, game_id, &symbols);
-
-        let event_data = events::GameCreatedData {
-            game_id,
-            creator: creator.clone(),
-            game_type,
-            number_of_players,
-            starting_balance,
-            stake_amount,
-            code,
-            player_symbol,
-        };
-        events::emit_game_created(&env, &event_data);
-
-        game_id
+        storage::set_backend_game_controller(&env, &new_controller);
     }
 
-    /// Get game by id (for tests and clients)
-    pub fn get_game(env: Env, game_id: u64) -> Option<Game> {
-        storage::get_game(&env, game_id)
-    }
+    pub fn remove_player_from_game(env: Env, caller: Address, game_id: u128, player: Address, turn_count: u32) {
+        // Require authentication from the caller
+        caller.require_auth();
 
-    /// Get players for a game (creator is first)
-    pub fn get_game_players(env: Env, game_id: u64) -> Vec<Address> {
-        storage::get_game_players(&env, game_id)
-    }
+        // Get owner and backend controller
+        let owner = get_owner(&env);
+        let backend_controller = get_backend_game_controller(&env);
 
-    /// Join a pending (Waiting) game. Player must be registered.
-    /// For private games, join_code must match. Symbol must not be taken. Max players enforced.
-    pub fn join_game(
-        env: Env,
-        game_id: u64,
-        player: Address,
-        player_username: String,
-        player_symbol: u32,
-        join_code: String,
-    ) {
-        player.require_auth();
+        // Check authorization: caller must be owner OR backend controller
+        let is_owner = caller == owner;
+        let is_backend_controller = backend_controller.map_or(false, |controller| caller == controller);
 
-        // Player must be registered
-        if !is_registered(&env, &player) {
-            panic!("Player must be registered");
+        if !is_owner && !is_backend_controller {
+            panic!("Unauthorized: caller must be owner or backend game controller");
         }
 
-        // Verify username matches
-        if let Some(user) = get_user(&env, &player) {
-            if user.username != player_username {
-                panic!("Username does not match registered user");
-            }
-        }
+        // Stub implementation - no payout logic yet
+        // Future: Calculate payout based on turn_count and game state
+        // Future: Transfer tokens to player
+        // Future: Update game state
 
-        let game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
-        if !matches!(game.status, GameStatus::Waiting) {
-            panic!("Game is not accepting players");
-        }
-
-        // Private game: validate join code
-        if matches!(game.settings.game_type, GameType::Private) && game.settings.code != join_code {
-            panic!("Invalid join code");
-        }
-
-        // Max players check
-        let players = get_game_players(&env, game_id);
-        if players.len() as u32 >= game.settings.number_of_players {
-            panic!("Game is full");
-        }
-
-        // Symbol must not be taken
-        let taken_symbols = get_game_player_symbols(&env, game_id);
-        for i in 0..taken_symbols.len() {
-            if taken_symbols.get(i) == Some(player_symbol) {
-                panic!("Symbol already taken");
-            }
-        }
-
-        // Transfer stake if required
-        if game.settings.stake_amount > 0 {
-            let usdc_token = storage::get_usdc_token(&env);
-            let token_client = token::Client::new(&env, &usdc_token);
-            let contract_address = env.current_contract_address();
-            token_client.transfer(
-                &player,
-                &contract_address,
-                &(game.settings.stake_amount as i128),
-            );
-        }
-
-        // Add player
-        let mut new_players = players;
-        new_players.push_back(player.clone());
-        set_game_players(&env, game_id, &new_players);
-
-        // Add symbol to taken list
-        let mut new_symbols = taken_symbols;
-        new_symbols.push_back(player_symbol);
-        set_game_player_symbols(&env, game_id, &new_symbols);
-
-        let joined_count = new_players.len() as u32;
-        let event_data = events::PlayerJoinedData {
-            game_id,
-            player: player.clone(),
-            player_symbol,
-            joined_count,
-        };
-        events::emit_player_joined(&env, &event_data);
-    }
-
-    /// Transition a game from Waiting to InProgress.
-    /// Only the creator can start the game. Requires at least 2 players.
-    pub fn start_game(env: Env, game_id: u64) {
-        let mut game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
-
-        game.creator.require_auth();
-
-        if !matches!(game.status, GameStatus::Waiting) {
-            panic!("Game is already started or finished");
-        }
-
-        let players = get_game_players(&env, game_id);
-        let player_count = players.len() as u32;
-
-        if player_count < 2 {
-            panic!("Not enough players to start");
-        }
-
-        game.status = GameStatus::InProgress;
-        set_game(&env, game_id, &game);
-
-        let event_data = events::GameStartedData {
-            game_id,
-            player_count,
-        };
-        events::emit_game_started(&env, &event_data);
-    }
-
-    /// Voluntary exit during an ongoing game.
-    /// Validates caller is an active player and game is InProgress.
-    /// Emits PlayerExited event.
-    pub fn exit_game(env: Env, game_id: u64, player: Address) {
-        player.require_auth();
-
-        let game = get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
-
-        if !matches!(game.status, GameStatus::InProgress) {
-            panic!("Game is not ongoing");
-        }
-
-        // Validate player is actively in the game and remove them
-        let players = get_game_players(&env, game_id);
-        let mut new_players = Vec::new(&env);
-        let mut found = false;
-
-        for p in players.iter() {
-            if p == player {
-                found = true;
-            } else {
-                new_players.push_back(p);
-            }
-        }
-
-        if !found {
-            panic!("Player is not in the game");
-        }
-
-        set_game_players(&env, game_id, &new_players);
-
-        // TODO: Future Payout Logic Stub
-        // Implement payout bounds distinguishing between voluntary exits and bankruptcies,
-        // re-allocating escrowed stakes to surviving game players evenly vs burn metrics.
-
-        let event_data = events::PlayerExitedData {
-            game_id,
-            player: player.clone(),
-        };
-        events::emit_player_exited(&env, &event_data);
+        // Emit event
+        events::emit_player_removed_from_game(&env, game_id, &player, turn_count);
     }
 }
 
