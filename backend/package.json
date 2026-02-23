@@ -17,7 +17,10 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migration:generate": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:generate src/database/migrations/migration",
+    "migration:run": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:run",
+    "migration:revert": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:revert"
   },
   "dependencies": {
     "@keyv/redis": "^5.1.6",
