@@ -3,5 +3,5 @@ export interface JwtPayload {
   id?: number;
   email: string;
   role: string;
-  is_admin?: boolean;
+  is_admin: boolean;
 }

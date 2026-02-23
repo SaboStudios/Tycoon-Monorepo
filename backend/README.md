@@ -79,6 +79,7 @@ docker-compose up -d
 ```
 
 This will start:
+
 - PostgreSQL database on port 5432
 - pgAdmin on port 5050 (access at http://localhost:5050)
   - Email: admin@tycoon.com
@@ -151,13 +152,13 @@ backend/
 
 ### Users Module
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/users` | Create a new user |
-| GET | `/api/v1/users` | Get all users |
-| GET | `/api/v1/users/:id` | Get user by ID |
-| PATCH | `/api/v1/users/:id` | Update user |
-| DELETE | `/api/v1/users/:id` | Delete user |
+| Method | Endpoint            | Description       |
+| ------ | ------------------- | ----------------- |
+| POST   | `/api/v1/users`     | Create a new user |
+| GET    | `/api/v1/users`     | Get all users     |
+| GET    | `/api/v1/users/:id` | Get user by ID    |
+| PATCH  | `/api/v1/users/:id` | Update user       |
+| DELETE | `/api/v1/users/:id` | Delete user       |
 
 ### Example Requests
 
@@ -225,18 +226,18 @@ The compiled output will be in the `dist/` directory.
 
 ## 🔧 Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run start` | Start the application |
-| `npm run start:dev` | Start in development mode with hot-reload |
-| `npm run start:debug` | Start in debug mode |
-| `npm run start:prod` | Start in production mode |
-| `npm run build` | Build the application |
-| `npm run format` | Format code using Prettier |
-| `npm run lint` | Lint code using ESLint |
-| `npm run test` | Run unit tests |
-| `npm run test:e2e` | Run end-to-end tests |
-| `npm run test:cov` | Run tests with coverage |
+| Script                | Description                               |
+| --------------------- | ----------------------------------------- |
+| `npm run start`       | Start the application                     |
+| `npm run start:dev`   | Start in development mode with hot-reload |
+| `npm run start:debug` | Start in debug mode                       |
+| `npm run start:prod`  | Start in production mode                  |
+| `npm run build`       | Build the application                     |
+| `npm run format`      | Format code using Prettier                |
+| `npm run lint`        | Lint code using ESLint                    |
+| `npm run test`        | Run unit tests                            |
+| `npm run test:e2e`    | Run end-to-end tests                      |
+| `npm run test:cov`    | Run tests with coverage                   |
 
 ## 🗄️ Database Management
 
@@ -287,21 +288,21 @@ nest g service modules/products
 
 ## 🔐 Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NODE_ENV` | Environment (development/production) | `development` |
-| `PORT` | Application port | `3000` |
-| `API_PREFIX` | Global API prefix | `api/v1` |
-| `DB_HOST` | Database host | `localhost` |
-| `DB_PORT` | Database port | `5432` |
-| `DB_USERNAME` | Database username | `postgres` |
-| `DB_PASSWORD` | Database password | `postgres` |
-| `DB_DATABASE` | Database name | `tycoon_db` |
-| `DB_SYNCHRONIZE` | Auto-sync entities (dev only) | `true` |
-| `DB_LOGGING` | Enable SQL logging | `true` |
-| `JWT_SECRET` | JWT secret key | - |
-| `JWT_EXPIRATION` | JWT expiration time | `1d` |
-| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:3000` |
+| Variable         | Description                          | Default                 |
+| ---------------- | ------------------------------------ | ----------------------- |
+| `NODE_ENV`       | Environment (development/production) | `development`           |
+| `PORT`           | Application port                     | `3000`                  |
+| `API_PREFIX`     | Global API prefix                    | `api/v1`                |
+| `DB_HOST`        | Database host                        | `localhost`             |
+| `DB_PORT`        | Database port                        | `5432`                  |
+| `DB_USERNAME`    | Database username                    | `postgres`              |
+| `DB_PASSWORD`    | Database password                    | `postgres`              |
+| `DB_DATABASE`    | Database name                        | `tycoon_db`             |
+| `DB_SYNCHRONIZE` | Auto-sync entities (dev only)        | `true`                  |
+| `DB_LOGGING`     | Enable SQL logging                   | `true`                  |
+| `JWT_SECRET`     | JWT secret key                       | -                       |
+| `JWT_EXPIRATION` | JWT expiration time                  | `1d`                    |
+| `CORS_ORIGIN`    | Allowed CORS origin                  | `http://localhost:3000` |
 
 ## 📚 Additional Resources
 

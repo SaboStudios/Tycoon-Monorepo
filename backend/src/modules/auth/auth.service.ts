@@ -15,6 +15,7 @@ import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { Role } from './enums/role.enum';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -30,12 +31,22 @@ export class AuthService {
   async validateUser(
     email: string,
     password: string,
-  ): Promise<{ id: number; email: string; role: string } | null> {
+  ): Promise<{
+    id: number;
+    email: string;
+    role: string;
+    is_admin: boolean;
+  } | null> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password: _password, ...result } = user;
-      return result;
+      return result as {
+        id: number;
+        email: string;
+        role: string;
+        is_admin: boolean;
+      };
     }
     return null;
   }
@@ -67,8 +78,18 @@ export class AuthService {
     return null;
   }
 
-  async login(user: { id: number; email: string; role: string }) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+  async login(user: {
+    id: number;
+    email: string;
+    role: string;
+    is_admin: boolean;
+  }) {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      is_admin: user.is_admin,
+    };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(Number(user.id));
 
@@ -89,7 +110,12 @@ export class AuthService {
       throw new NotFoundException('Invalid address/chain combination');
     }
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      is_admin: user.is_admin,
+    };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(user.id);
 
@@ -144,7 +170,12 @@ export class AuthService {
 
     // Generate new tokens
     const user = refreshToken.user;
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      is_admin: user.is_admin,
+    };
     const accessToken = this.jwtService.sign(payload);
     const newRefreshToken = await this.createRefreshToken(user.id);
 

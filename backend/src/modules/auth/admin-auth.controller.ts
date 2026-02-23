@@ -35,11 +35,11 @@ export class AdminAuthController {
 
     this.logger.log(`Successful admin login for email: ${adminLoginDto.email}`);
 
-    // login expects { id: number; email: string; role: string }
     return this.authService.login({
       id: user.id,
       email: user.email,
       role: user.role,
+      is_admin: user.is_admin,
     });
   }
 }

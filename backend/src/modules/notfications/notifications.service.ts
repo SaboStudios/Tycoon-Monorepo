@@ -34,7 +34,7 @@ export class NotificationsService {
   constructor(
     @InjectModel(Notification.name)
     private readonly notificationModel: Model<Notification>,
-  ) { }
+  ) {}
 
   /**
    * Creates a new notification document.
