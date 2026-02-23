@@ -31,7 +31,7 @@ export class AdminLogsService {
       adminId,
       action,
       targetId,
-      details,
+      details: details as Record<string, any>,
       ipAddress: req?.ip || req?.headers['x-forwarded-for']?.toString(),
       userAgent: req?.headers['user-agent'],
     };

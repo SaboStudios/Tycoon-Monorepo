@@ -25,16 +25,18 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
-  ) { }
+  ) {}
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Request() req: RequestWithUser) {
     return this.authService.login({
-      ...req.user,
-      id: req.user.id || req.user.sub,
-    } as any);
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      is_admin: req.user.is_admin,
+    });
   }
 
   @Post('refresh')
