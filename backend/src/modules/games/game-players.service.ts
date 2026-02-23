@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -94,6 +95,66 @@ export class GamePlayersService {
       );
     }
     return player;
+  }
+
+  /**
+   * Find a player by game and user (if any). Used to enforce one user per game.
+   */
+  async findByGameAndUser(
+    gameId: number,
+    userId: number,
+  ): Promise<GamePlayer | null> {
+    return this.gamePlayerRepository.findOne({
+      where: { game_id: gameId, user_id: userId },
+    });
+  }
+
+  /**
+   * Ensures the user is not already in the game. Call before inserting a new GamePlayer.
+   * @throws ConflictException if user is already a player in the game
+   */
+  async assertUserNotInGame(gameId: number, userId: number): Promise<void> {
+    const existing = await this.findByGameAndUser(gameId, userId);
+    if (existing) {
+      throw new ConflictException(
+        'User is already a player in this game (duplicate join not allowed)',
+      );
+    }
+  }
+
+  /**
+   * Add a user to a game (join). Validates at service level that the user is not already
+   * in the game, then inserts. Use this as the single entry point for adding players.
+   */
+  async addPlayerToGame(
+    gameId: number,
+    userId: number,
+    options?: { address?: string | null },
+  ): Promise<GamePlayer> {
+    const game = await this.gameRepository.findOne({
+      where: { id: gameId },
+      relations: ['settings'],
+    });
+    if (!game) {
+      throw new NotFoundException(`Game ${gameId} not found`);
+    }
+    if (game.status !== GameStatus.PENDING) {
+      throw new BadRequestException(
+        'Cannot join game after it has started',
+      );
+    }
+
+    await this.assertUserNotInGame(gameId, userId);
+
+    const startingCash =
+      game.settings?.startingCash ?? 1500;
+    const player = this.gamePlayerRepository.create({
+      game_id: gameId,
+      user_id: userId,
+      balance: startingCash,
+      address: options?.address ?? null,
+    });
+    return this.gamePlayerRepository.save(player);
   }
 
   async leaveGameForUser(gameId: number, userId: number): Promise<void> {

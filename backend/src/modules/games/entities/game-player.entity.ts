@@ -15,7 +15,7 @@ import { User } from '../../users/entities/user.entity';
 @Entity({ name: 'game_players' })
 @Index(['game_id'])
 @Index(['user_id'])
-@Index(['game_id', 'user_id'])
+@Index(['game_id', 'user_id'], { unique: true })
 @Index(['game_id', 'in_jail'])
 @Index(['user_id', 'in_jail'])
 export class GamePlayer {
