@@ -11,11 +11,13 @@ import { LocalStrategy } from './strategies/local.strategy';
 import { UsersModule } from '../users/users.module';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
+import { AdminLogsModule } from '../admin-logs/admin-logs.module';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
+    AdminLogsModule,
     TypeOrmModule.forFeature([RefreshToken, User]),
     JwtModule.registerAsync({
       imports: [ConfigModule],

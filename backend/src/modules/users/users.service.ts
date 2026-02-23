@@ -12,6 +12,8 @@ import {
   PaginatedResponse,
 } from '../../common';
 import { RedisService } from '../redis/redis.service';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { Request } from 'express';
 
 @Injectable()
 export class UsersService {
@@ -20,6 +22,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
+    private readonly adminLogsService: AdminLogsService,
   ) {}
 
   /**
@@ -100,8 +103,57 @@ export class UsersService {
   /**
    * Update a user
    */
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+    adminId?: number,
+    req?: Request,
+  ): Promise<User> {
     const user = await this.findOne(id);
+
+    // Track changes for audit log if performed by an admin
+    if (adminId) {
+      if (
+        updateUserDto.role !== undefined &&
+        updateUserDto.role !== user.role
+      ) {
+        await this.adminLogsService.createLog(
+          adminId,
+          'USER_ROLE_CHANGE',
+          id,
+          { from: user.role, to: updateUserDto.role },
+          req,
+        );
+      }
+      if (
+        updateUserDto.is_admin !== undefined &&
+        updateUserDto.is_admin !== user.is_admin
+      ) {
+        await this.adminLogsService.createLog(
+          adminId,
+          'USER_ADMIN_STATUS_CHANGE',
+          id,
+          { from: user.is_admin, to: updateUserDto.is_admin },
+          req,
+        );
+      }
+      if (
+        updateUserDto.is_suspended !== undefined &&
+        updateUserDto.is_suspended !== user.is_suspended
+      ) {
+        await this.adminLogsService.createLog(
+          adminId,
+          updateUserDto.is_suspended ? 'USER_SUSPENDED' : 'USER_UNSUSPENDED',
+          id,
+          undefined,
+          req,
+        );
+      }
+
+      // Generic modification log if nothing specific was logged but something changed
+      // (Simplified: we already logged the most important ones as per requirement)
+    }
+
     Object.assign(user, updateUserDto);
     const updatedUser = await this.userRepository.save(user);
 
@@ -115,9 +167,19 @@ export class UsersService {
   /**
    * Delete a user
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: number, adminId?: number, req?: Request): Promise<void> {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
+
+    if (adminId) {
+      await this.adminLogsService.createLog(
+        adminId,
+        'USER_DELETED',
+        id,
+        { email: user.email },
+        req,
+      );
+    }
 
     // Invalidate cache for this user and users list
     await this.invalidateUserCache(id);

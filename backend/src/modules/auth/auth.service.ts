@@ -38,7 +38,11 @@ export class AuthService {
     is_admin: boolean;
   } | null> {
     const user = await this.usersService.findByEmail(email);
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (
+      user &&
+      !user.is_suspended &&
+      (await bcrypt.compare(password, user.password))
+    ) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password: _password, ...result } = user;
       return result as {
@@ -63,6 +67,7 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
     if (
       user &&
+      !user.is_suspended &&
       (user.role === Role.ADMIN || user.is_admin) &&
       (await bcrypt.compare(password, user.password))
     ) {
