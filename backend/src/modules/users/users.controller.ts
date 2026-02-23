@@ -23,6 +23,7 @@ import { GetUserGamesDto } from '../games/dto/get-user-games.dto';
 import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import {
   RedisRateLimitGuard,
   RateLimit,
@@ -33,7 +34,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly gamePlayersService: GamePlayersService,
-  ) {}
+  ) { }
 
   /**
    * Create a new user
@@ -53,7 +54,7 @@ export class UsersController {
    * Cached automatically by CacheInterceptor
    */
   @Get()
-  @UseGuards(RedisRateLimitGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard, RedisRateLimitGuard)
   @RateLimit(50, 60) // 50 requests per minute
   async findAll(
     @Query() paginationDto: PaginationDto,
@@ -71,7 +72,9 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @UseGuards(RedisRateLimitGuard)
   @RateLimit(100, 60) // 100 requests per minute
-  async getProfile(@Request() req: any): Promise<UserProfileDto> {
+  async getProfile(
+    @Request() req: { user: { id: number } },
+  ): Promise<UserProfileDto> {
     return await this.usersService.getProfile(req.user.id);
   }
 
@@ -107,6 +110,7 @@ export class UsersController {
    * PATCH /users/:id
    */
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
@@ -119,6 +123,7 @@ export class UsersController {
    * DELETE /users/:id
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return await this.usersService.remove(id);
