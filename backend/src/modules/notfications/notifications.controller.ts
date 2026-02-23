@@ -9,7 +9,6 @@ import {
   Post,
   Param,
   Patch,
-  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -20,8 +19,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { Types } from 'mongoose';
 
+import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   NotificationsService,
@@ -35,8 +34,8 @@ import { NotificationCountDto } from './dto/notification-count.dto';
  * Handles both `id` (custom) and `sub` (standard JWT claim) formats.
  */
 function extractUserId(req: Request): string {
-  const user = req.user as Record<string, unknown>;
-  const id = (user?.id ?? user?.sub) as string | undefined;
+  const user = req.user as JwtPayload | undefined;
+  const id = user?.id?.toString() ?? user?.sub?.toString();
   if (!id) throw new Error('User ID not found in JWT payload');
   return id;
 }
@@ -46,7 +45,7 @@ function extractUserId(req: Request): string {
 @UseGuards(JwtAuthGuard)
 @Controller('api/notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(private readonly notificationsService: NotificationsService) { }
 
   /**
    * GET /api/notifications
