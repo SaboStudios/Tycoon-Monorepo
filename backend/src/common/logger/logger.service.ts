@@ -1,4 +1,8 @@
-import { Injectable, Inject, LoggerService as NestLoggerService } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  LoggerService as NestLoggerService,
+} from '@nestjs/common';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 

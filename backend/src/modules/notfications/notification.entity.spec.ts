@@ -2,7 +2,11 @@
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Model } from 'mongoose';
-import { Notification, NotificationSchema, NotificationType } from './notification.entity';
+import {
+  Notification,
+  NotificationSchema,
+  NotificationType,
+} from './notification.entity';
 
 const MOCK_OBJECT_ID = '507f1f77bcf86cd799439011';
 
@@ -70,7 +74,9 @@ describe('Notification Entity', () => {
       const indexes = NotificationSchema.indexes();
       const compoundIndex = indexes.find(
         ([fields]) =>
-          'recipientId' in fields && 'isRead' in fields && 'createdAt' in fields,
+          'recipientId' in fields &&
+          'isRead' in fields &&
+          'createdAt' in fields,
       );
       expect(compoundIndex).toBeDefined();
     });
@@ -94,7 +100,7 @@ describe('Notification Entity', () => {
     });
 
     it('should default isRead to false', () => {
-      const isReadPath = NotificationSchema.path('isRead') as any;
+      const isReadPath = NotificationSchema.path('isRead');
       expect(isReadPath.defaultValue).toBe(false);
     });
 

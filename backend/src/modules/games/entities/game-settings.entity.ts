@@ -17,7 +17,7 @@ export class GameSettings {
   @Column({ type: 'int', unsigned: true, unique: true })
   game_id: number;
 
-  @OneToOne(() => Game, { onDelete: 'CASCADE' })
+  @OneToOne(() => Game, (game) => game.settings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'game_id' })
   game: Game;
 

@@ -308,13 +308,13 @@ describe('PropertiesService', () => {
     it('should throw BadRequestException if no fields provided', async () => {
       mockRepository.findOne.mockResolvedValue(mockProperty);
 
-      await expect(
-        service.updateRentStructure(1, {}),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.updateRentStructure(1, {})).rejects.toThrow(
+        BadRequestException,
+      );
 
-      await expect(
-        service.updateRentStructure(1, {}),
-      ).rejects.toThrow('At least one rent field must be provided');
+      await expect(service.updateRentStructure(1, {})).rejects.toThrow(
+        'At least one rent field must be provided',
+      );
     });
 
     it('should update only rent_hotel without affecting other fields', async () => {
@@ -336,14 +336,14 @@ describe('PropertiesService', () => {
       mockRepository.findOne.mockResolvedValue(mockProperty);
       mockRepository.save.mockResolvedValue({
         ...mockProperty,
-        rent_site_only: 35.50,
+        rent_site_only: 35.5,
       });
 
       const result = await service.updateRentStructure(1, {
-        rent_site_only: 35.50,
+        rent_site_only: 35.5,
       });
 
-      expect(result.rent_site_only).toBe(35.50);
+      expect(result.rent_site_only).toBe(35.5);
     });
 
     it('should update multiple fields at once', async () => {
@@ -405,13 +405,13 @@ describe('PropertiesService', () => {
     it('should throw NotFoundException if property not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.getPropertyRentStructure(999),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getPropertyRentStructure(999)).rejects.toThrow(
+        NotFoundException,
+      );
 
-      await expect(
-        service.getPropertyRentStructure(999),
-      ).rejects.toThrow('Property with ID 999 not found');
+      await expect(service.getPropertyRentStructure(999)).rejects.toThrow(
+        'Property with ID 999 not found',
+      );
     });
   });
 });

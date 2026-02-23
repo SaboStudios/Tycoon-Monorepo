@@ -8,6 +8,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
+import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
 import { CommonModule, HttpExceptionFilter } from './common';
@@ -26,7 +27,7 @@ import { GamesModule } from './modules/games/games.module';
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, redisConfig],
+      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
       envFilePath: '.env',
       validationSchema,
     }),

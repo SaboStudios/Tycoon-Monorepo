@@ -31,7 +31,7 @@ import { Property } from './entities/property.entity';
 @ApiTags('Properties')
 @Controller('properties')
 export class PropertiesController {
-  constructor(private readonly propertiesService: PropertiesService) { }
+  constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -74,13 +74,14 @@ export class PropertiesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update property rent structure',
-    description: 'Update rent tiers and house costs for a property. Supports partial updates - only provided fields will be updated.'
+    description:
+      'Update rent tiers and house costs for a property. Supports partial updates - only provided fields will be updated.',
   })
   @ApiParam({
     name: 'id',
     description: 'Property ID',
     type: Number,
-    example: 1
+    example: 1,
   })
   @ApiBody({ type: UpdateRentStructureDto })
   @ApiResponse({
@@ -95,9 +96,9 @@ export class PropertiesController {
       example: {
         statusCode: 400,
         message: ['rent_site_only cannot be negative'],
-        error: 'Bad Request'
-      }
-    }
+        error: 'Bad Request',
+      },
+    },
   })
   @ApiResponse({
     status: 404,
@@ -106,9 +107,9 @@ export class PropertiesController {
       example: {
         statusCode: 404,
         message: 'Property with ID 999 not found',
-        error: 'Not Found'
-      }
-    }
+        error: 'Not Found',
+      },
+    },
   })
   async updateRentStructure(
     @Param('id', ParseIntPipe) id: number,
@@ -125,13 +126,13 @@ export class PropertiesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get property rent structure',
-    description: 'Retrieve current rent tiers and house costs for a property'
+    description: 'Retrieve current rent tiers and house costs for a property',
   })
   @ApiParam({
     name: 'id',
     description: 'Property ID',
     type: Number,
-    example: 1
+    example: 1,
   })
   @ApiResponse({
     status: 200,
@@ -145,9 +146,9 @@ export class PropertiesController {
       example: {
         statusCode: 404,
         message: 'Property with ID 999 not found',
-        error: 'Not Found'
-      }
-    }
+        error: 'Not Found',
+      },
+    },
   })
   async getRentStructure(
     @Param('id', ParseIntPipe) id: number,

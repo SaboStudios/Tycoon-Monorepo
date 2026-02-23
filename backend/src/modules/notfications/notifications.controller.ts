@@ -23,7 +23,10 @@ import type { Request } from 'express';
 import { Types } from 'mongoose';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { NotificationsService, PaginatedNotificationsResult } from './notifications.service';
+import {
+  NotificationsService,
+  PaginatedNotificationsResult,
+} from './notifications.service';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import { NotificationCountDto } from './dto/notification-count.dto';
 
@@ -102,52 +105,46 @@ export class NotificationsController {
     return this.notificationsService.findAllForUser(userId, query);
   }
 
-@Patch(':id')
-@HttpCode(HttpStatus.OK)
-@ApiOperation({
-  summary: 'Mark a notification as read',
-  description:
-    'Marks a specific notification as read. User can only update their own notifications.',
-})
-@ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
-async markAsRead(
-  @Req() req: Request,
-  @Param('id') id: string,
-) {
-  const userId = extractUserId(req);
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark a notification as read',
+    description:
+      'Marks a specific notification as read. User can only update their own notifications.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+  async markAsRead(@Req() req: Request, @Param('id') id: string) {
+    const userId = extractUserId(req);
 
-  const updated = await this.notificationsService.markAsRead(
-    id,
-    userId,
-  );
+    const updated = await this.notificationsService.markAsRead(id, userId);
 
-  if (!updated) {
-    throw new NotFoundException(
-      'Notification not found or not owned by user',
-    );
+    if (!updated) {
+      throw new NotFoundException(
+        'Notification not found or not owned by user',
+      );
+    }
+
+    return updated;
   }
 
-  return updated;
-}
-
-@Post('read-all')
-@HttpCode(HttpStatus.OK)
-@ApiOperation({
-  summary: 'Mark all notifications as read',
-  description:
-    'Marks all unread notifications for the authenticated user as read.',
-})
-@ApiOkResponse({
-  schema: {
-    properties: {
-      modifiedCount: { type: 'number', example: 5 },
+  @Post('read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark all notifications as read',
+    description:
+      'Marks all unread notifications for the authenticated user as read.',
+  })
+  @ApiOkResponse({
+    schema: {
+      properties: {
+        modifiedCount: { type: 'number', example: 5 },
+      },
     },
-  },
-})
-@ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
-async markAllAsRead(@Req() req: Request) {
-  const userId = extractUserId(req);
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+  async markAllAsRead(@Req() req: Request) {
+    const userId = extractUserId(req);
 
-  return this.notificationsService.markAllAsRead(userId);
-}
+    return this.notificationsService.markAllAsRead(userId);
+  }
 }

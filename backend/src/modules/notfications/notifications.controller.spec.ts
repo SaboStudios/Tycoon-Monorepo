@@ -87,7 +87,10 @@ describe('NotificationsController', () => {
 
       await controller.getNotifications(mockRequest('custom-user-id'), query);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith('custom-user-id', query);
+      expect(service.findAllForUser).toHaveBeenCalledWith(
+        'custom-user-id',
+        query,
+      );
     });
 
     it('should fall back to req.user.sub when id is not present', async () => {
@@ -118,7 +121,9 @@ describe('NotificationsController', () => {
     });
 
     it('should propagate service errors', async () => {
-      service.findAllForUser.mockRejectedValue(new Error('DB connection failed'));
+      service.findAllForUser.mockRejectedValue(
+        new Error('DB connection failed'),
+      );
 
       await expect(
         controller.getNotifications(mockRequest(), query),
@@ -127,11 +132,18 @@ describe('NotificationsController', () => {
 
     it('should pass custom pagination params to service', async () => {
       const customQuery: GetNotificationsQueryDto = { page: 3, limit: 10 };
-      service.findAllForUser.mockResolvedValue({ ...paginatedResult, page: 3, limit: 10 } as any);
+      service.findAllForUser.mockResolvedValue({
+        ...paginatedResult,
+        page: 3,
+        limit: 10,
+      } as any);
 
       await controller.getNotifications(mockRequest(), customQuery);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith(MOCK_USER_ID, customQuery);
+      expect(service.findAllForUser).toHaveBeenCalledWith(
+        MOCK_USER_ID,
+        customQuery,
+      );
     });
   });
 

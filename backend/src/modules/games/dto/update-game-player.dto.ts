@@ -24,7 +24,9 @@ export class UpdateGamePlayerDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? parseFloat(value) : value,
+  )
   trade_locked_balance?: number;
 
   /** Admin/system only */

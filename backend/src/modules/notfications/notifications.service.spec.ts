@@ -81,15 +81,18 @@ describe('NotificationsService', () => {
     const query: GetNotificationsQueryDto = { page: 1, limit: 20 };
 
     it('should return paginated notifications', async () => {
-      const notifications = [mockNotification, { ...mockNotification, _id: '2' }];
-      (MockModel as any).find.mockReturnValue(
-        buildQueryMock(notifications),
-      );
+      const notifications = [
+        mockNotification,
+        { ...mockNotification, _id: '2' },
+      ];
+      (MockModel as any).find.mockReturnValue(buildQueryMock(notifications));
       (MockModel as any).countDocuments.mockResolvedValue(2);
 
       const result = await service.findAllForUser(MOCK_USER_ID, query);
 
-      expect((MockModel as any).find).toHaveBeenCalledWith({ recipientId: MOCK_USER_ID });
+      expect((MockModel as any).find).toHaveBeenCalledWith({
+        recipientId: MOCK_USER_ID,
+      });
       expect(result.data).toHaveLength(2);
       expect(result.total).toBe(2);
       expect(result.page).toBe(1);
@@ -100,7 +103,10 @@ describe('NotificationsService', () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
       (MockModel as any).countDocuments.mockResolvedValue(45);
 
-      const result = await service.findAllForUser(MOCK_USER_ID, { page: 1, limit: 20 });
+      const result = await service.findAllForUser(MOCK_USER_ID, {
+        page: 1,
+        limit: 20,
+      });
 
       expect(result.totalPages).toBe(3); // ceil(45/20) = 3
     });
@@ -109,7 +115,10 @@ describe('NotificationsService', () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
       (MockModel as any).countDocuments.mockResolvedValue(50);
 
-      const result = await service.findAllForUser(MOCK_USER_ID, { page: 1, limit: 20 });
+      const result = await service.findAllForUser(MOCK_USER_ID, {
+        page: 1,
+        limit: 20,
+      });
 
       expect(result.hasNextPage).toBe(true);
       expect(result.hasPreviousPage).toBe(false);
@@ -119,7 +128,10 @@ describe('NotificationsService', () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
       (MockModel as any).countDocuments.mockResolvedValue(50);
 
-      const result = await service.findAllForUser(MOCK_USER_ID, { page: 2, limit: 20 });
+      const result = await service.findAllForUser(MOCK_USER_ID, {
+        page: 2,
+        limit: 20,
+      });
 
       expect(result.hasPreviousPage).toBe(true);
     });
@@ -128,7 +140,10 @@ describe('NotificationsService', () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
       (MockModel as any).countDocuments.mockResolvedValue(20);
 
-      const result = await service.findAllForUser(MOCK_USER_ID, { page: 1, limit: 20 });
+      const result = await service.findAllForUser(MOCK_USER_ID, {
+        page: 1,
+        limit: 20,
+      });
 
       expect(result.hasNextPage).toBe(false);
     });
@@ -193,7 +208,10 @@ describe('NotificationsService', () => {
       };
       (MockModel as any).findOneAndUpdate.mockReturnValue(chain);
 
-      const result = await service.markAsRead(mockNotification._id, MOCK_USER_ID);
+      const result = await service.markAsRead(
+        mockNotification._id,
+        MOCK_USER_ID,
+      );
 
       expect((MockModel as any).findOneAndUpdate).toHaveBeenCalledWith(
         { _id: mockNotification._id, recipientId: MOCK_USER_ID },
