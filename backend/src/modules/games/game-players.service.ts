@@ -25,7 +25,7 @@ export class GamePlayersService {
     @InjectRepository(Game)
     private readonly gameRepository: Repository<Game>,
     private readonly paginationService: PaginationService,
-  ) {}
+  ) { }
 
   /**
    * Get available balance (balance minus trade_locked_balance).
@@ -312,7 +312,6 @@ export class GamePlayersService {
     const player = await this.findByGameAndPlayer(gameId, playerId);
     const BOARD_SIZE = 40;
     const START_BONUS = 200;
-    const JAIL_POSITION = 10;
     const MAX_JAIL_ROLLS = 3;
 
     if (player.rolled === 1) {
