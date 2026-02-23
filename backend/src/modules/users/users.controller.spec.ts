@@ -69,7 +69,9 @@ describe('UsersController', () => {
 
   describe('findAll', () => {
     it('should return an array of users', async () => {
-      const result = [{ id: 1, email: 'test@example.com' }] as unknown as User[];
+      const result = [
+        { id: 1, email: 'test@example.com' },
+      ] as unknown as User[];
       (service.findAll as jest.Mock).mockResolvedValue(result);
 
       expect(await controller.findAll({ page: 1, limit: 10 })).toBe(result);
