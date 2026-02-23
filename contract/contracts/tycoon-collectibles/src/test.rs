@@ -2050,7 +2050,7 @@ fn test_perk_enum_values() {
     // Verify all perk variants exist and can be compared
     // This test ensures the enum has all 12 variants (including None)
     assert!(true); // The enum compiles with all variants, which is the main verification
-    
+
     // Additional verification: mint each perk and check it returns the correct perk
     let env = Env::default();
     env.mock_all_auths();

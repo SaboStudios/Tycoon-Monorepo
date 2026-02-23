@@ -9,15 +9,15 @@ pub enum DataKey {
     TycToken,
     UsdcToken,
     IsInitialized,
-    Collectible(u128),   // token_id -> CollectibleInfo
-    CashTier(u32),       // tier -> value
-    User(Address),       // address -> User
-    Registered(Address), // address -> bool
-    RewardSystem,       // reward system contract address
-    Game(u64),           // game_id -> Game
-    GamePlayers(u64),    // game_id -> Vec<Address>
+    Collectible(u128),      // token_id -> CollectibleInfo
+    CashTier(u32),          // tier -> value
+    User(Address),          // address -> User
+    Registered(Address),    // address -> bool
+    RewardSystem,           // reward system contract address
+    Game(u64),              // game_id -> Game
+    GamePlayers(u64),       // game_id -> Vec<Address>
     GamePlayerSymbols(u64), // game_id -> Vec<u32> (symbols taken)
-    NextGameId,          // u64
+    NextGameId,             // u64
 }
 
 /// Game visibility: public (anyone can join) or private (requires code)
@@ -32,7 +32,7 @@ pub enum GameType {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub enum GameStatus {
-    Waiting,   // accepting players
+    Waiting, // accepting players
     InProgress,
     Finished,
 }
@@ -154,12 +154,17 @@ pub fn set_cash_tier(env: &Env, tier: u32, value: u128) {
 
 /// Get reward system address
 pub fn get_reward_system(env: &Env) -> Address {
-    env.storage().instance().get(&DataKey::RewardSystem).unwrap()
+    env.storage()
+        .instance()
+        .get(&DataKey::RewardSystem)
+        .unwrap()
 }
 
 /// Set reward system address
 pub fn set_reward_system(env: &Env, address: &Address) {
-    env.storage().instance().set(&DataKey::RewardSystem, address);
+    env.storage()
+        .instance()
+        .set(&DataKey::RewardSystem, address);
 }
 
 /// Check if address is registered
@@ -194,11 +199,7 @@ pub fn set_user(env: &Env, address: &Address, user: &User) {
 /// Get next game id and increment
 pub fn next_game_id(env: &Env) -> u64 {
     let key = DataKey::NextGameId;
-    let id: u64 = env
-        .storage()
-        .instance()
-        .get(&key)
-        .unwrap_or(0);
+    let id: u64 = env.storage().instance().get(&key).unwrap_or(0);
     let next = id + 1;
     env.storage().instance().set(&key, &next);
     next
@@ -206,9 +207,7 @@ pub fn next_game_id(env: &Env) -> u64 {
 
 /// Get game by id
 pub fn get_game(env: &Env, game_id: u64) -> Option<Game> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Game(game_id))
+    env.storage().persistent().get(&DataKey::Game(game_id))
 }
 
 /// Set game

@@ -598,7 +598,7 @@ fn test_owned_token_count() {
     // Mint voucher for user1
     let tyc_value = 500u128;
     let token_id_1 = client.mint_voucher(&admin, &user1, &tyc_value);
-    
+
     assert_eq!(client.owned_token_count(&user1), 1);
 
     // Mint another voucher for user1
@@ -631,7 +631,7 @@ fn test_owned_token_count() {
 
     // After burn, user2 count decreases
     assert_eq!(client.owned_token_count(&user2), 1); // Only has token_id_2 left
-    
+
     // User2 redeems token_id_2 -> burns token_id_2
     client.redeem_voucher_from(&user2, &token_id_2);
 

@@ -1774,6 +1774,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tycoon-main-game"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk 23.4.1",
+]
+
+[[package]]
 name = "tycoon-reward-system"
 version = "0.1.0"
 dependencies = [
