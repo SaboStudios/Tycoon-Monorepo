@@ -74,7 +74,9 @@ export class UpdateGamePlayerDto {
   trade_locked_balance?: number;
 
   /** Admin/system only */
-  @ApiPropertyOptional({ description: 'Whether player is in jail (admin only)' })
+  @ApiPropertyOptional({
+    description: 'Whether player is in jail (admin only)',
+  })
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) =>

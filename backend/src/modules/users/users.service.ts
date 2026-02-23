@@ -93,6 +93,7 @@ export class UsersService {
       total_staked: user.total_staked,
       total_earned: user.total_earned,
       total_withdrawn: user.total_withdrawn,
+      is_admin: user.is_admin,
     };
   }
 

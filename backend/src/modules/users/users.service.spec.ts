@@ -61,7 +61,7 @@ describe('UsersService', () => {
         firstName: 'Test',
         lastName: 'User',
       };
-      const user = { id: '1', ...createUserDto };
+      const user = { id: '1', is_admin: false, ...createUserDto };
       repositoryMock.create!.mockReturnValue(user);
       repositoryMock.save!.mockReturnValue(user);
 
@@ -96,24 +96,24 @@ describe('UsersService', () => {
       const user = { id: '1', email: 'test@example.com' };
       repositoryMock.findOne!.mockReturnValue(user);
 
-      const result = await service.findOne('1');
+      const result = await service.findOne(1);
       expect(result).toEqual(user);
     });
 
     it('should throw NotFoundException if user not found', async () => {
       repositoryMock.findOne!.mockReturnValue(null);
 
-      await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(1)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('remove', () => {
     it('should remove a user', async () => {
-      const user = { id: '1', email: 'test@example.com' };
+      const user = { id: 1, email: 'test@example.com', is_admin: false };
       repositoryMock.findOne!.mockReturnValue(user);
       repositoryMock.remove!.mockReturnValue(user);
 
-      await service.remove('1');
+      await service.remove(1);
       expect(repositoryMock.remove).toHaveBeenCalledWith(user);
     });
   });
@@ -164,7 +164,7 @@ describe('UsersService', () => {
       );
 
       // Verify logic inside set functions
-      const setCall = setSpy.mock.calls[0][0];
+      const setCall = setSpy.mock.calls[0][0] as Record<string, () => string>;
       expect(setCall.games_played()).toBe('games_played + 1');
       expect(setCall.game_won()).toBe('game_won + 1');
       expect(setCall.game_lost()).toBe('game_lost'); // Should not increment
@@ -183,7 +183,7 @@ describe('UsersService', () => {
 
       await service.updateGameStats(userId, false, amount, earnings);
 
-      const setCall = setSpy.mock.calls[0][0];
+      const setCall = setSpy.mock.calls[0][0] as Record<string, () => string>;
       expect(setCall.game_won()).toBe('game_won'); // Should not increment
       expect(setCall.game_lost()).toBe('game_lost + 1');
     });
