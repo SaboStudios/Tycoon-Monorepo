@@ -1,10 +1,11 @@
 import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
+    Injectable,
+    CanActivate,
+    ExecutionContext,
+    ForbiddenException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 /**
  * AdminGuard - Use this guard to restrict access to admin-only endpoints.
@@ -14,16 +15,16 @@ import { Observable } from 'rxjs';
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
-  canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    canActivate(
+        context: ExecutionContext,
+    ): boolean | Promise<boolean> | Observable<boolean> {
+        const request = context.switchToHttp().getRequest<{ user: JwtPayload }>();
+        const user = request.user;
 
-    if (!user || user.is_admin !== true) {
-      throw new ForbiddenException('Access denied. Admin role required.');
+        if (!user || user.is_admin !== true) {
+            throw new ForbiddenException('Access denied. Admin role required.');
+        }
+
+        return true;
     }
-
-    return true;
-  }
 }
