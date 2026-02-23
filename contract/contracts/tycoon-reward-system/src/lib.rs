@@ -82,11 +82,11 @@ impl TycoonRewardSystem {
     }
 
     /// Set the backend minter address (admin only)
-    /// 
+    ///
     /// # Arguments
     /// * `admin` - Admin address for authentication
     /// * `new_minter` - Address to set as backend minter.
-    /// 
+    ///
     /// # Panics
     /// * If caller is not admin
     pub fn set_backend_minter(e: Env, admin: Address, new_minter: Address) {
@@ -96,7 +96,7 @@ impl TycoonRewardSystem {
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        
+
         // Verify caller is admin
         if admin != stored_admin {
             panic!("Unauthorized: only admin can set backend minter");
@@ -115,10 +115,10 @@ impl TycoonRewardSystem {
     }
 
     /// Clear the backend minter address (admin only)
-    /// 
+    ///
     /// # Arguments
     /// * `admin` - Admin address for authentication
-    /// 
+    ///
     /// # Panics
     /// * If caller is not admin
     pub fn clear_backend_minter(e: Env, admin: Address) {
@@ -128,7 +128,7 @@ impl TycoonRewardSystem {
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        
+
         // Verify caller is admin
         if admin != stored_admin {
             panic!("Unauthorized: only admin can clear backend minter");
@@ -136,24 +136,23 @@ impl TycoonRewardSystem {
         admin.require_auth();
 
         // Remove the backend minter
-        e.storage()
-            .persistent()
-            .remove(&DataKey::BackendMinter);
+        e.storage().persistent().remove(&DataKey::BackendMinter);
 
         // Emit event
         #[allow(deprecated)]
-        e.events()
-            .publish((symbol_short!("clr_min"),), ());
+        e.events().publish((symbol_short!("clr_min"),), ());
     }
 
     /// Get the current backend minter address
     /// Returns None if not set
     pub fn get_backend_minter(e: Env) -> Option<Address> {
         if e.storage().persistent().has(&DataKey::BackendMinter) {
-            Some(e.storage()
-                .persistent()
-                .get(&DataKey::BackendMinter)
-                .unwrap())
+            Some(
+                e.storage()
+                    .persistent()
+                    .get(&DataKey::BackendMinter)
+                    .unwrap(),
+            )
         } else {
             None
         }
@@ -168,14 +167,17 @@ impl TycoonRewardSystem {
         caller.require_auth();
 
         // Check if caller is admin or backend minter
-        let backend_minter: Option<Address> = if e.storage().persistent().has(&DataKey::BackendMinter) {
-            Some(e.storage()
-                .persistent()
-                .get(&DataKey::BackendMinter)
-                .unwrap())
-        } else {
-            None
-        };
+        let backend_minter: Option<Address> =
+            if e.storage().persistent().has(&DataKey::BackendMinter) {
+                Some(
+                    e.storage()
+                        .persistent()
+                        .get(&DataKey::BackendMinter)
+                        .unwrap(),
+                )
+            } else {
+                None
+            };
 
         let is_admin = caller == admin;
         let is_backend_minter = backend_minter.is_some() && backend_minter.unwrap() == caller;
@@ -332,10 +334,8 @@ impl TycoonRewardSystem {
         Self::_mint(&e, to.clone(), token_id, amount);
 
         #[allow(deprecated)]
-        e.events().publish(
-            (symbol_short!("Transfer"), from, to, token_id),
-            amount,
-        );
+        e.events()
+            .publish((symbol_short!("Transfer"), from, to, token_id), amount);
     }
 }
 
@@ -358,7 +358,9 @@ impl TycoonRewardSystem {
         if current_balance == 0 {
             let count_key = DataKey::OwnedTokenCount(to.clone());
             let current_count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
-            e.storage().persistent().set(&count_key, &(current_count + 1));
+            e.storage()
+                .persistent()
+                .set(&count_key, &(current_count + 1));
         }
 
         #[allow(deprecated)]

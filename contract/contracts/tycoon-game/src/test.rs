@@ -1083,7 +1083,7 @@ fn test_get_user_view() {
     let u = fetched_user.unwrap();
     assert_eq!(u.username, username);
     assert_eq!(u.address, player);
-    
+
     // Testing unregistered player
     let random = Address::generate(&env);
     let not_found = client.get_user(&random);
@@ -1157,7 +1157,13 @@ fn test_get_game_players_view() {
     let joiner_username = String::from_str(&env, "joiner");
     client.register_player(&joiner_username, &joiner);
 
-    client.join_game(&game_id, &joiner, &joiner_username, &2, &String::from_str(&env, ""));
+    client.join_game(
+        &game_id,
+        &joiner,
+        &joiner_username,
+        &2,
+        &String::from_str(&env, ""),
+    );
 
     let updated_players = client.get_game_players(&game_id);
     assert_eq!(updated_players.len(), 2);

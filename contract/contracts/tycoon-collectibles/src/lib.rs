@@ -552,6 +552,5 @@ impl TycoonCollectibles {
     }
 }
 
-
 #[cfg(test)]
 mod test;
