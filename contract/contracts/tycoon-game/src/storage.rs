@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use soroban_sdk::{contracttype, Address, Env, String};
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
 /// Storage keys for the contract
 #[derive(Clone)]
@@ -111,12 +111,17 @@ pub fn set_cash_tier(env: &Env, tier: u32, value: u128) {
 
 /// Get reward system address
 pub fn get_reward_system(env: &Env) -> Address {
-    env.storage().instance().get(&DataKey::RewardSystem).unwrap()
+    env.storage()
+        .instance()
+        .get(&DataKey::RewardSystem)
+        .unwrap()
 }
 
 /// Set reward system address
 pub fn set_reward_system(env: &Env, address: &Address) {
-    env.storage().instance().set(&DataKey::RewardSystem, address);
+    env.storage()
+        .instance()
+        .set(&DataKey::RewardSystem, address);
 }
 
 /// Check if address is registered

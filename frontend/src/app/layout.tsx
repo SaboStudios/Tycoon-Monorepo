@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
+import { ToastProvider } from "@/components/providers/toast-provider";
+import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
 import "./globals.css";
+import Navbar from "@/components/shared/Navbar";
+import NavbarMobile from "@/components/shared/NavbarMobile";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,9 +30,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
         {children}
+        <NavbarMobile />
       </body>
     </html>
   );

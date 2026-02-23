@@ -15,9 +15,11 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
+import { GamePlayersService } from '../games/game-players.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
+import { GetUserGamesDto } from '../games/dto/get-user-games.dto';
 import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,7 +30,10 @@ import {
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly gamePlayersService: GamePlayersService,
+  ) {}
 
   /**
    * Create a new user
@@ -68,6 +73,21 @@ export class UsersController {
   @RateLimit(100, 60) // 100 requests per minute
   async getProfile(@Request() req: any): Promise<UserProfileDto> {
     return await this.usersService.getProfile(req.user.id);
+  }
+
+  /**
+   * Get games for a user
+   * GET /users/:id/games
+   * Filters: gameId, inJail. Supports pagination.
+   */
+  @Get(':id/games')
+  @UseGuards(RedisRateLimitGuard)
+  @RateLimit(100, 60)
+  async getGames(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() dto: GetUserGamesDto,
+  ) {
+    return this.gamePlayersService.findGamesByUser(id, dto);
   }
 
   /**

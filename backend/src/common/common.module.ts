@@ -1,14 +1,13 @@
 import { Module, Global, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { PaginationService } from './services/pagination.service';
 import { LoggerModule } from './logger/logger.module';
-import { LoggerService } from './logger/logger.service';
 import { HttpLoggerMiddleware } from './middleware/http-logger.middleware';
 
 @Global()
 @Module({
   imports: [LoggerModule],
   providers: [PaginationService],
-  exports: [PaginationService, LoggerService],
+  exports: [PaginationService, LoggerModule],
 })
 export class CommonModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

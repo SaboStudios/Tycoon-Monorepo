@@ -1,7 +1,5 @@
 #![no_std]
-use soroban_sdk::{
-    contract, contractevent, contractimpl, contracttype, Address, Env, String,
-};
+use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, Env, String};
 
 #[contractevent(data_format = "single-value")]
 pub struct MintEvent {
@@ -179,12 +177,7 @@ impl TycoonToken {
             &to_balance.checked_add(amount).expect("Balance overflow"),
         );
 
-        TransferEvent {
-            from,
-            to,
-            amount,
-        }
-        .publish(&e);
+        TransferEvent { from, to, amount }.publish(&e);
     }
 
     pub fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {

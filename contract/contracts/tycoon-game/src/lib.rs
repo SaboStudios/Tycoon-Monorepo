@@ -12,7 +12,13 @@ pub struct TycoonContract;
 #[contractimpl]
 impl TycoonContract {
     /// Initialize the contract with token addresses and owner
-    pub fn initialize(env: Env, tyc_token: Address, usdc_token: Address, initial_owner: Address, reward_system: Address) {
+    pub fn initialize(
+        env: Env,
+        tyc_token: Address,
+        usdc_token: Address,
+        initial_owner: Address,
+        reward_system: Address,
+    ) {
         if storage::is_initialized(&env) {
             panic!("Contract already initialized");
         }
@@ -140,7 +146,7 @@ impl TycoonContract {
         let _token_id: u128 = env.invoke_contract(
             &reward_system,
             &Symbol::new(&env, "mint_voucher"),
-            soroban_sdk::vec![&env, player.into_val(&env), 2_0000000u128.into_val(&env)]
+            soroban_sdk::vec![&env, player.into_val(&env), 2_0000000u128.into_val(&env)],
         );
     }
 
