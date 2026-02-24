@@ -12,7 +12,7 @@ import { ShopItem } from './shop-item.entity';
 import { Coupon } from '../../coupons/entities/coupon.entity';
 
 @Entity({ name: 'purchases' })
-@Index(['user_id'])
+@Index(['user_id', 'created_at'])
 @Index(['shop_item_id'])
 @Index(['created_at'])
 export class Purchase {
@@ -37,6 +37,12 @@ export class Purchase {
   quantity: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
+  unit_price: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  total_price: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
   original_price: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
@@ -58,8 +64,20 @@ export class Purchase {
   @Column({ type: 'varchar', length: 10, default: 'USD' })
   currency: string;
 
+  @Column({ type: 'varchar', length: 50, default: 'balance' })
+  payment_method: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  transaction_id: string;
+
   @Column({ type: 'varchar', length: 50, default: 'completed' })
   status: string;
+
+  @Column({ type: 'boolean', default: false })
+  is_gift: boolean;
+
+  @Column({ type: 'int', nullable: true })
+  gift_id: number;
 
   @Column({ type: 'json', nullable: true })
   metadata: Record<string, unknown>;

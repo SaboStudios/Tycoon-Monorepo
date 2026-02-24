@@ -1,12 +1,6 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableIndex,
-  TableForeignKey,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableIndex, TableForeignKey } from 'typeorm';
 
-export class CreatePurchasesTable1740380000000 implements MigrationInterface {
+export class CreatePurchasesTable1740370000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({
@@ -45,36 +39,6 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
             scale: 2,
           },
           {
-            name: 'original_price',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-          },
-          {
-            name: 'discount_amount',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-            default: 0,
-          },
-          {
-            name: 'final_price',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-          },
-          {
-            name: 'coupon_id',
-            type: 'int',
-            isNullable: true,
-          },
-          {
-            name: 'coupon_code',
-            type: 'varchar',
-            length: '50',
-            isNullable: true,
-          },
-          {
             name: 'currency',
             type: 'varchar',
             length: '10',
@@ -91,12 +55,6 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
             type: 'varchar',
             length: '100',
             isNullable: true,
-          },
-          {
-            name: 'status',
-            type: 'varchar',
-            length: '50',
-            default: "'completed'",
           },
           {
             name: 'is_gift',
@@ -123,6 +81,7 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
       true,
     );
 
+    // Create indexes
     await queryRunner.createIndex(
       'purchases',
       new TableIndex({
@@ -134,7 +93,7 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
     await queryRunner.createIndex(
       'purchases',
       new TableIndex({
-        name: 'IDX_PURCHASES_SHOP_ITEM_ID',
+        name: 'IDX_PURCHASES_SHOP_ITEM',
         columnNames: ['shop_item_id'],
       }),
     );
@@ -147,6 +106,7 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
       }),
     );
 
+    // Create foreign keys
     await queryRunner.createForeignKey(
       'purchases',
       new TableForeignKey({
@@ -170,9 +130,9 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
     await queryRunner.createForeignKey(
       'purchases',
       new TableForeignKey({
-        columnNames: ['coupon_id'],
+        columnNames: ['gift_id'],
         referencedColumnNames: ['id'],
-        referencedTableName: 'coupons',
+        referencedTableName: 'gifts',
         onDelete: 'SET NULL',
       }),
     );

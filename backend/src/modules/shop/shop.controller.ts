@@ -25,6 +25,7 @@ import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { FilterShopItemsDto } from './dto/filter-shop-items.dto';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
+import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 import { ShopItem } from './entities/shop-item.entity';
 import { Purchase } from './entities/purchase.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -147,8 +148,36 @@ export class ShopController {
   }
 
   /**
+   * POST /shop/gift
+   * Purchase an item and send it as a gift
+   */
+  @Post('gift')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Purchase and gift an item to another user' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Item purchased and gift sent successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request or business rule violation.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'User or shop item not found.',
+  })
+  async purchaseAndGift(
+    @CurrentUser() user: { id: number },
+    @Body() purchaseAndGiftDto: PurchaseAndGiftDto,
+  ) {
+    return this.shopService.purchaseAndGift(user.id, purchaseAndGiftDto);
+  }
+
+  /**
    * GET /shop/purchases
-   * Get user's purchase history
+   * Get purchase history for the authenticated user
    */
   @Get('purchases')
   @UseGuards(JwtAuthGuard)
@@ -156,14 +185,14 @@ export class ShopController {
   @ApiOperation({ summary: 'Get purchase history' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Purchase history retrieved.',
+    description: 'Purchase history retrieved successfully.',
   })
-  getUserPurchases(
+  async getPurchaseHistory(
     @CurrentUser() user: { id: number },
-    @Query('page', ParseIntPipe) page: number = 1,
-    @Query('limit', ParseIntPipe) limit: number = 20,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
   ) {
-    return this.purchaseService.getUserPurchases(user.id, page, limit);
+    return this.shopService.getPurchaseHistory(user.id, page, limit);
   }
 
   /**

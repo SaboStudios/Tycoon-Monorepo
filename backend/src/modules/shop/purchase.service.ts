@@ -69,6 +69,8 @@ export class PurchaseService {
         user_id: userId,
         shop_item_id: shopItem.id,
         quantity,
+        unit_price: shopItem.price,
+        total_price: String(calculation.original_price),
         original_price: String(calculation.original_price),
         discount_amount: String(calculation.discount_amount),
         final_price: String(calculation.final_price),
