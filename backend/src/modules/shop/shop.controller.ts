@@ -10,24 +10,39 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ShopService, PaginatedShopItems } from './shop.service';
+import { PurchaseService } from './purchase.service';
 import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { FilterShopItemsDto } from './dto/filter-shop-items.dto';
+import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { ShopItem } from './entities/shop-item.entity';
+import { Purchase } from './entities/purchase.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('shop')
-@Controller('shop/items')
+@Controller('shop')
 export class ShopController {
-  constructor(private readonly shopService: ShopService) {}
+  constructor(
+    private readonly shopService: ShopService,
+    private readonly purchaseService: PurchaseService,
+  ) {}
 
   /**
    * POST /shop/items
    * Create a new shop item (admin use)
    */
-  @Post()
+  @Post('items')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new shop item' })
   @ApiResponse({
@@ -43,7 +58,7 @@ export class ShopController {
    * GET /shop/items
    * List all items with optional filters (type, rarity, active) and pagination
    */
-  @Get()
+  @Get('items')
   @ApiOperation({ summary: 'List shop items with optional filters' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -56,7 +71,7 @@ export class ShopController {
   /**
    * GET /shop/items/:id
    */
-  @Get(':id')
+  @Get('items/:id')
   @ApiOperation({ summary: 'Get a shop item by ID' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -75,7 +90,7 @@ export class ShopController {
   /**
    * PATCH /shop/items/:id
    */
-  @Patch(':id')
+  @Patch('items/:id')
   @ApiOperation({ summary: 'Update a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -94,7 +109,7 @@ export class ShopController {
    * DELETE /shop/items/:id
    * Soft-deletes by setting active = false
    */
-  @Delete(':id')
+  @Delete('items/:id')
   @ApiOperation({ summary: 'Deactivate (soft-delete) a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -104,5 +119,71 @@ export class ShopController {
   })
   remove(@Param('id', ParseIntPipe) id: number): Promise<ShopItem> {
     return this.shopService.remove(id);
+  }
+
+  /**
+   * POST /shop/purchase
+   * Create a purchase with optional coupon validation
+   */
+  @Post('purchase')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Purchase a shop item with optional coupon' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Purchase completed successfully.',
+    type: Purchase,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid purchase or coupon.',
+  })
+  createPurchase(
+    @CurrentUser() user: { id: number },
+    @Body() createPurchaseDto: CreatePurchaseDto,
+  ): Promise<Purchase> {
+    return this.purchaseService.createPurchase(user.id, createPurchaseDto);
+  }
+
+  /**
+   * GET /shop/purchases
+   * Get user's purchase history
+   */
+  @Get('purchases')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get purchase history' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Purchase history retrieved.',
+  })
+  getUserPurchases(
+    @CurrentUser() user: { id: number },
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 20,
+  ) {
+    return this.purchaseService.getUserPurchases(user.id, page, limit);
+  }
+
+  /**
+   * GET /shop/purchases/:id
+   * Get a specific purchase
+   */
+  @Get('purchases/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get purchase details' })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Purchase details.',
+    type: Purchase,
+  })
+  getPurchase(
+    @CurrentUser() user: { id: number },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<Purchase> {
+    return this.purchaseService.getPurchaseById(id, user.id);
   }
 }
