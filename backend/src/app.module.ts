@@ -26,6 +26,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ShopModule } from './modules/shop/shop.module';
 import { SkinsModule } from './modules/skins/skins.module';
 import { BoardStylesModule } from './modules/board-styles/board-styles.module';
+import { GiftsModule } from './modules/gifts/gifts.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { BoardStylesModule } from './modules/board-styles/board-styles.module';
     ShopModule,
     SkinsModule,
     BoardStylesModule,
+    GiftsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
