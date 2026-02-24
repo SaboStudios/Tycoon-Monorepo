@@ -27,8 +27,10 @@ interface RequestWithUser extends express.Request {
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { GamePlayersService } from '../games/game-players.service';
+import { UserPreferencesService } from './user-preferences.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserPreferenceDto } from './dto/update-user-preference.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
 import { GetUserGamesDto } from '../games/dto/get-user-games.dto';
 import { User } from './entities/user.entity';
@@ -45,6 +47,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly gamePlayersService: GamePlayersService,
+    private readonly userPreferencesService: UserPreferencesService,
   ) {}
 
   /**
@@ -102,6 +105,32 @@ export class UsersController {
     @Query() dto: GetUserGamesDto,
   ) {
     return this.gamePlayersService.findGamesByUser(id, dto);
+  }
+
+  /**
+   * Get authenticated user's preferences
+   * GET /users/preferences
+   */
+  @Get('preferences')
+  @UseGuards(JwtAuthGuard)
+  async getPreferences(@Request() req: { user: { id: number } }) {
+    return await this.userPreferencesService.getPreferences(req.user.id);
+  }
+
+  /**
+   * Update authenticated user's preferences
+   * PATCH /users/preferences
+   */
+  @Patch('preferences')
+  @UseGuards(JwtAuthGuard)
+  async updatePreferences(
+    @Request() req: { user: { id: number } },
+    @Body() dto: UpdateUserPreferenceDto,
+  ) {
+    return await this.userPreferencesService.updatePreferences(
+      req.user.id,
+      dto,
+    );
   }
 
   /**

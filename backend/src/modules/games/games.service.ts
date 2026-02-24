@@ -38,7 +38,7 @@ export class GamesService {
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
     private readonly paginationService: PaginationService,
-  ) { }
+  ) {}
 
   async findAll(dto: GetGamesDto): Promise<PaginatedResponse<Game>> {
     const qb = this.gameRepository.createQueryBuilder('g');
@@ -292,7 +292,9 @@ export class GamesService {
       }
     }
 
-    const updates: Partial<Omit<Game, 'creator' | 'winner' | 'nextPlayer' | 'settings' | 'players'>> = {};
+    const updates: Partial<
+      Omit<Game, 'creator' | 'winner' | 'nextPlayer' | 'settings' | 'players'>
+    > = {};
     if (dto.status !== undefined) updates.status = dto.status;
     if (dto.nextPlayerId !== undefined)
       updates.next_player_id = dto.nextPlayerId;

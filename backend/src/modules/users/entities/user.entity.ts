@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
 import { Role } from '../../auth/enums/role.enum';
+import { UserPreference } from './user-preference.entity';
 
 @Entity({ name: 'users' })
 @Index(['address', 'chain'])
@@ -83,4 +85,9 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
+
+  @OneToOne(() => UserPreference, (preference) => preference.user, {
+    cascade: true,
+  })
+  preference: UserPreference;
 }
