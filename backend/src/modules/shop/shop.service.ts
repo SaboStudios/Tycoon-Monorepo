@@ -10,6 +10,7 @@ import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 import { UsersService } from '../users/users.service';
 import { GiftsService } from '../gifts/gifts.service';
 import { Gift } from '../gifts/entities/gift.entity';
+import { GiftStatus } from '../gifts/enums/gift-status.enum';
 
 export interface PaginatedShopItems {
   data: ShopItem[];
@@ -182,7 +183,7 @@ export class ShopService {
         shop_item_id,
         quantity,
         message,
-        status: 'pending',
+        status: GiftStatus.PENDING,
         expiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         metadata: {
           purchase_id: savedPurchase.id,
