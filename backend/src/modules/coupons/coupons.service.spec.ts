@@ -3,12 +3,14 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CouponsService } from './coupons.service';
 import { Coupon } from './entities/coupon.entity';
+import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CouponType } from './enums/coupon-type.enum';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 
 describe('CouponsService', () => {
   let service: CouponsService;
   let repository: Repository<Coupon>;
+  let usageLogRepository: Repository<CouponUsageLog>;
 
   const mockCoupon: Partial<Coupon> = {
     id: 1,
@@ -43,6 +45,21 @@ describe('CouponsService', () => {
     })),
   };
 
+  const mockUsageLogRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    createQueryBuilder: jest.fn(() => ({
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getCount: jest.fn(),
+      getMany: jest.fn(),
+    })),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -51,11 +68,18 @@ describe('CouponsService', () => {
           provide: getRepositoryToken(Coupon),
           useValue: mockRepository,
         },
+        {
+          provide: getRepositoryToken(CouponUsageLog),
+          useValue: mockUsageLogRepository,
+        },
       ],
     }).compile();
 
     service = module.get<CouponsService>(CouponsService);
     repository = module.get<Repository<Coupon>>(getRepositoryToken(Coupon));
+    usageLogRepository = module.get<Repository<CouponUsageLog>>(
+      getRepositoryToken(CouponUsageLog),
+    );
   });
 
   afterEach(() => {

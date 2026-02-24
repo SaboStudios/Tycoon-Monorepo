@@ -27,6 +27,7 @@ import { ValidateCouponDto, CouponValidationResult } from './dto/validate-coupon
 import { Coupon } from './entities/coupon.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('coupons')
 @Controller('coupons')
@@ -116,5 +117,51 @@ export class CouponsController {
   })
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     await this.couponsService.remove(id);
+  }
+
+  @Get(':id/usage-logs')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get coupon usage logs (Admin only)' })
+  @ApiParam({ name: 'id', description: 'Coupon ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Coupon usage logs retrieved.',
+  })
+  getCouponUsageLogs(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 20,
+  ) {
+    return this.couponsService.getCouponUsageLogs(id, undefined, page, limit);
+  }
+
+  @Get(':id/statistics')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get coupon usage statistics (Admin only)' })
+  @ApiParam({ name: 'id', description: 'Coupon ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Coupon statistics retrieved.',
+  })
+  getCouponStatistics(@Param('id', ParseIntPipe) id: number) {
+    return this.couponsService.getCouponStatistics(id);
+  }
+
+  @Get('my/usage-logs')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get my coupon usage history' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User coupon usage logs retrieved.',
+  })
+  getMyUsageLogs(
+    @CurrentUser() user: { id: number },
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 20,
+  ) {
+    return this.couponsService.getCouponUsageLogs(undefined, user.id, page, limit);
   }
 }

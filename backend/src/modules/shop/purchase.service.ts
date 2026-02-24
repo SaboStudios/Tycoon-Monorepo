@@ -35,6 +35,8 @@ export class PurchaseService {
   async createPurchase(
     userId: number,
     createPurchaseDto: CreatePurchaseDto,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<Purchase> {
     const { shop_item_id, quantity = 1, coupon_code } = createPurchaseDto;
 
@@ -82,9 +84,27 @@ export class PurchaseService {
 
       const savedPurchase = await queryRunner.manager.save(purchase);
 
-      // If coupon was used, increment its usage
-      if (calculation.coupon_id) {
+      // If coupon was used, increment its usage and log it
+      if (calculation.coupon_id && calculation.coupon_code) {
         await this.couponsService.incrementUsage(calculation.coupon_id);
+        
+        // Log coupon usage for audit trail
+        await this.couponsService.logCouponUsage(
+          calculation.coupon_id,
+          userId,
+          calculation.coupon_code,
+          calculation.original_price,
+          calculation.discount_amount,
+          calculation.final_price,
+          savedPurchase.id,
+          ipAddress,
+          userAgent,
+          {
+            shop_item_id: shopItem.id,
+            shop_item_name: shopItem.name,
+            quantity,
+          },
+        );
       }
 
       await queryRunner.commitTransaction();
