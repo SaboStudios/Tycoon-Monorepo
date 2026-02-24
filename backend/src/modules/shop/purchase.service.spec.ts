@@ -66,6 +66,7 @@ describe('PurchaseService', () => {
     findByCode: jest.fn(),
     calculateDiscount: jest.fn(),
     incrementUsage: jest.fn(),
+    logCouponUsage: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -168,6 +169,7 @@ describe('PurchaseService', () => {
       });
       mockCouponsService.findByCode.mockResolvedValue(mockCoupon);
       mockCouponsService.calculateDiscount.mockReturnValue(20);
+      mockCouponsService.logCouponUsage.mockResolvedValue({});
       mockPurchaseRepository.create.mockReturnValue(mockPurchase);
       mockQueryRunner.manager.save.mockResolvedValue(mockPurchase);
       mockPurchaseRepository.findOne.mockResolvedValue(mockPurchase);
@@ -177,6 +179,7 @@ describe('PurchaseService', () => {
       expect(result.discount_amount).toBe('20.00');
       expect(result.final_price).toBe('80.00');
       expect(mockCouponsService.incrementUsage).toHaveBeenCalledWith(1);
+      expect(mockCouponsService.logCouponUsage).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if shop item not found', async () => {

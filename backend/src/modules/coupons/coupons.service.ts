@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
 import { Coupon } from './entities/coupon.entity';
+import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { FilterCouponsDto } from './dto/filter-coupons.dto';
@@ -28,6 +29,8 @@ export class CouponsService {
   constructor(
     @InjectRepository(Coupon)
     private readonly couponRepository: Repository<Coupon>,
+    @InjectRepository(CouponUsageLog)
+    private readonly couponUsageLogRepository: Repository<CouponUsageLog>,
   ) {}
 
   async create(createCouponDto: CreateCouponDto): Promise<Coupon> {
@@ -259,5 +262,115 @@ export class CouponsService {
     await this.incrementUsage(validation.coupon.id);
 
     return validation.discount_amount || 0;
+  }
+
+  /**
+   * Log coupon usage for audit trail
+   */
+  async logCouponUsage(
+    couponId: number,
+    userId: number,
+    couponCode: string,
+    originalAmount: number,
+    discountAmount: number,
+    finalAmount: number,
+    purchaseId?: number,
+    ipAddress?: string,
+    userAgent?: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<CouponUsageLog> {
+    const log = this.couponUsageLogRepository.create({
+      coupon_id: couponId,
+      user_id: userId,
+      purchase_id: purchaseId,
+      coupon_code: couponCode,
+      original_amount: String(originalAmount),
+      discount_amount: String(discountAmount),
+      final_amount: String(finalAmount),
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      metadata,
+    });
+
+    return this.couponUsageLogRepository.save(log);
+  }
+
+  /**
+   * Get coupon usage logs with pagination
+   */
+  async getCouponUsageLogs(
+    couponId?: number,
+    userId?: number,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{
+    data: CouponUsageLog[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
+    const qb = this.couponUsageLogRepository
+      .createQueryBuilder('log')
+      .leftJoinAndSelect('log.coupon', 'coupon')
+      .leftJoinAndSelect('log.user', 'user')
+      .leftJoinAndSelect('log.purchase', 'purchase')
+      .orderBy('log.created_at', 'DESC');
+
+    if (couponId) {
+      qb.andWhere('log.coupon_id = :couponId', { couponId });
+    }
+
+    if (userId) {
+      qb.andWhere('log.user_id = :userId', { userId });
+    }
+
+    const total = await qb.getCount();
+    const data = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Get coupon usage statistics
+   */
+  async getCouponStatistics(couponId: number): Promise<{
+    total_uses: number;
+    total_discount_given: number;
+    total_revenue_impact: number;
+    unique_users: number;
+    average_discount: number;
+  }> {
+    const logs = await this.couponUsageLogRepository.find({
+      where: { coupon_id: couponId },
+    });
+
+    const totalUses = logs.length;
+    const totalDiscountGiven = logs.reduce(
+      (sum, log) => sum + parseFloat(log.discount_amount),
+      0,
+    );
+    const totalRevenueImpact = logs.reduce(
+      (sum, log) => sum + parseFloat(log.final_amount),
+      0,
+    );
+    const uniqueUsers = new Set(logs.map((log) => log.user_id)).size;
+    const averageDiscount = totalUses > 0 ? totalDiscountGiven / totalUses : 0;
+
+    return {
+      total_uses: totalUses,
+      total_discount_given: totalDiscountGiven,
+      total_revenue_impact: totalRevenueImpact,
+      unique_users: uniqueUsers,
+      average_discount: averageDiscount,
+    };
   }
 }

@@ -11,6 +11,7 @@ import {
   Post,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -19,6 +20,7 @@ import {
   ApiTags,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { ShopService, PaginatedShopItems } from './shop.service';
 import { PurchaseService } from './purchase.service';
 import { CreateShopItemDto } from './dto/create-shop-item.dto';
@@ -143,8 +145,16 @@ export class ShopController {
   createPurchase(
     @CurrentUser() user: { id: number },
     @Body() createPurchaseDto: CreatePurchaseDto,
+    @Req() req: Request,
   ): Promise<Purchase> {
-    return this.purchaseService.createPurchase(user.id, createPurchaseDto);
+    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string);
+    const userAgent = req.headers['user-agent'];
+    return this.purchaseService.createPurchase(
+      user.id,
+      createPurchaseDto,
+      ipAddress,
+      userAgent,
+    );
   }
 
   /**
