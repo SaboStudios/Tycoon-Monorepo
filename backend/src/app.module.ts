@@ -27,6 +27,7 @@ import { ShopModule } from './modules/shop/shop.module';
 import { SkinsModule } from './modules/skins/skins.module';
 import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { GiftsModule } from './modules/gifts/gifts.module';
     SkinsModule,
     BoardStylesModule,
     GiftsModule,
+    CouponsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
