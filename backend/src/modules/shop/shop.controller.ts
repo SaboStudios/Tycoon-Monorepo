@@ -12,20 +12,32 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ShopService, PaginatedShopItems } from './shop.service';
+import { PurchaseService } from './purchase.service';
 import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { FilterShopItemsDto } from './dto/filter-shop-items.dto';
+import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 import { ShopItem } from './entities/shop-item.entity';
+import { Purchase } from './entities/purchase.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('shop')
 @Controller('shop')
 export class ShopController {
-  constructor(private readonly shopService: ShopService) {}
+  constructor(
+    private readonly shopService: ShopService,
+    private readonly purchaseService: PurchaseService,
+  ) {}
 
   /**
    * POST /shop/items
@@ -111,6 +123,31 @@ export class ShopController {
   }
 
   /**
+   * POST /shop/purchase
+   * Create a purchase with optional coupon validation
+   */
+  @Post('purchase')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Purchase a shop item with optional coupon' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Purchase completed successfully.',
+    type: Purchase,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid purchase or coupon.',
+  })
+  createPurchase(
+    @CurrentUser() user: { id: number },
+    @Body() createPurchaseDto: CreatePurchaseDto,
+  ): Promise<Purchase> {
+    return this.purchaseService.createPurchase(user.id, createPurchaseDto);
+  }
+
+  /**
    * POST /shop/gift
    * Purchase an item and send it as a gift
    */
@@ -152,9 +189,30 @@ export class ShopController {
   })
   async getPurchaseHistory(
     @CurrentUser() user: { id: number },
-    @Query('page', ParseIntPipe) page: number = 1,
-    @Query('limit', ParseIntPipe) limit: number = 20,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
   ) {
     return this.shopService.getPurchaseHistory(user.id, page, limit);
+  }
+
+  /**
+   * GET /shop/purchases/:id
+   * Get a specific purchase
+   */
+  @Get('purchases/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get purchase details' })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Purchase details.',
+    type: Purchase,
+  })
+  getPurchase(
+    @CurrentUser() user: { id: number },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<Purchase> {
+    return this.purchaseService.getPurchaseById(id, user.id);
   }
 }

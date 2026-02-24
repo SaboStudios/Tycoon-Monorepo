@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ShopController } from './shop.controller';
 import { ShopService } from './shop.service';
+import { PurchaseService } from './purchase.service';
 import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 
 describe('ShopController', () => {
   let controller: ShopController;
   let service: ShopService;
+  let purchaseService: PurchaseService;
 
   const mockShopService = {
     create: jest.fn(),
@@ -17,6 +19,14 @@ describe('ShopController', () => {
     getPurchaseHistory: jest.fn(),
   };
 
+  const mockPurchaseService = {
+    createPurchase: jest.fn(),
+    getUserPurchases: jest.fn(),
+    getPurchaseById: jest.fn(),
+    calculatePurchasePrice: jest.fn(),
+    validatePurchaseEligibility: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ShopController],
@@ -25,11 +35,16 @@ describe('ShopController', () => {
           provide: ShopService,
           useValue: mockShopService,
         },
+        {
+          provide: PurchaseService,
+          useValue: mockPurchaseService,
+        },
       ],
     }).compile();
 
     controller = module.get<ShopController>(ShopController);
     service = module.get<ShopService>(ShopService);
+    purchaseService = module.get<PurchaseService>(PurchaseService);
   });
 
   afterEach(() => {
