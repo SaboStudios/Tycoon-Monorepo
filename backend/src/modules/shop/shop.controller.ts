@@ -23,7 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('shop')
-@Controller('shop/items')
+@Controller('shop')
 export class ShopController {
   constructor(private readonly shopService: ShopService) {}
 
@@ -31,7 +31,7 @@ export class ShopController {
    * POST /shop/items
    * Create a new shop item (admin use)
    */
-  @Post()
+  @Post('items')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new shop item' })
   @ApiResponse({
@@ -47,7 +47,7 @@ export class ShopController {
    * GET /shop/items
    * List all items with optional filters (type, rarity, active) and pagination
    */
-  @Get()
+  @Get('items')
   @ApiOperation({ summary: 'List shop items with optional filters' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -60,7 +60,7 @@ export class ShopController {
   /**
    * GET /shop/items/:id
    */
-  @Get(':id')
+  @Get('items/:id')
   @ApiOperation({ summary: 'Get a shop item by ID' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -79,7 +79,7 @@ export class ShopController {
   /**
    * PATCH /shop/items/:id
    */
-  @Patch(':id')
+  @Patch('items/:id')
   @ApiOperation({ summary: 'Update a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -98,7 +98,7 @@ export class ShopController {
    * DELETE /shop/items/:id
    * Soft-deletes by setting active = false
    */
-  @Delete(':id')
+  @Delete('items/:id')
   @ApiOperation({ summary: 'Deactivate (soft-delete) a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -109,8 +109,6 @@ export class ShopController {
   remove(@Param('id', ParseIntPipe) id: number): Promise<ShopItem> {
     return this.shopService.remove(id);
   }
-}
-
 
   /**
    * POST /shop/gift

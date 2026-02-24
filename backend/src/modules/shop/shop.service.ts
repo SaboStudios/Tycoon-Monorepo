@@ -115,7 +115,6 @@ export class ShopService {
     item.active = false;
     return this.shopItemRepository.save(item);
   }
-}
 
   /**
    * Purchase an item and send it as a gift in a single atomic transaction
