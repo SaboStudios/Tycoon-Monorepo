@@ -34,6 +34,7 @@ import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetGamesDto } from './dto/get-games.dto';
 import { RollDiceDto } from './dto/roll-dice.dto';
+import { JoinGameDto } from './dto/join-game.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('games')
@@ -157,6 +158,23 @@ export class GamesController {
   @ApiNotFoundResponse({ description: 'Game not found' })
   async findById(@Param('id', ParseIntPipe) id: number) {
     return this.gamesService.findById(id);
+  }
+
+  @Post(':id/join')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Join a game' })
+  @ApiCreatedResponse({ description: 'Player joined successfully' })
+  @ApiBadRequestResponse({ description: 'Game full or already started' })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  async joinGame(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: JoinGameDto,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.gamesService.joinGame(id, req.user.id, dto);
   }
 
   @Patch(':id/settings')

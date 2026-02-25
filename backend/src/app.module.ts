@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -28,6 +29,8 @@ import { SkinsModule } from './modules/skins/skins.module';
 import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { PerksModule } from './modules/perks/perks.module';
+import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 
 @Module({
   imports: [
@@ -38,6 +41,9 @@ import { CouponsModule } from './modules/coupons/coupons.module';
       envFilePath: '.env',
       validationSchema,
     }),
+
+    // Scheduler
+    ScheduleModule.forRoot(),
 
     // Rate Limiting
     ThrottlerModule.forRoot([
@@ -68,7 +74,6 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     CommonModule,
     UsersModule,
     AuthModule,
-    AuthModule,
 
     PropertiesModule,
     ChanceModule,
@@ -81,6 +86,8 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     BoardStylesModule,
     GiftsModule,
     CouponsModule,
+    PerksModule,
+    PerksBoostsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -100,4 +107,4 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
