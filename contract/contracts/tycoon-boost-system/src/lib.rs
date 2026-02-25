@@ -62,7 +62,7 @@ impl TycoonBoostSystem {
 }
 
 impl TycoonBoostSystem {
-    fn apply_stacking_rules(env: &Env, boosts: Vec<Boost>) -> u32 {
+    fn apply_stacking_rules(_env: &Env, boosts: Vec<Boost>) -> u32 {
         if boosts.is_empty() {
             return 10000; // Base 100% (in basis points)
         }

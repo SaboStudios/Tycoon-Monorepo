@@ -6,7 +6,8 @@ use soroban_sdk::{testutils::Address as _, Env};
 #[test]
 fn test_additive_stacking() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -34,7 +35,8 @@ fn test_additive_stacking() {
 #[test]
 fn test_multiplicative_stacking() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -62,7 +64,8 @@ fn test_multiplicative_stacking() {
 #[test]
 fn test_override_highest_priority() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -90,7 +93,8 @@ fn test_override_highest_priority() {
 #[test]
 fn test_mixed_stacking() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -119,7 +123,8 @@ fn test_mixed_stacking() {
 #[test]
 fn test_override_ignores_others() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -167,7 +172,8 @@ fn test_no_boosts() {
 #[test]
 fn test_clear_boosts() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -188,7 +194,8 @@ fn test_clear_boosts() {
 #[test]
 fn test_deterministic_outcome() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
@@ -215,7 +222,8 @@ fn test_deterministic_outcome() {
 #[test]
 fn test_get_boosts() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
