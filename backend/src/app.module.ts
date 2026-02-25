@@ -31,6 +31,7 @@ import { GiftsModule } from './modules/gifts/gifts.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { PerksModule } from './modules/perks/perks.module';
 import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
+import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
     CouponsModule,
     PerksModule,
     PerksBoostsModule,
+    AdminAnalyticsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
