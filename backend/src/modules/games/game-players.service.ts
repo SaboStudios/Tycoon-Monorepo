@@ -433,21 +433,30 @@ export class GamePlayersService {
     currentPlayer.turn_start = null;
 
     let nextPlayer = currentPlayer;
-    for (let offset = 1; offset <= players.length; offset++) {
+    let foundNext = false;
+    for (let offset = 1; offset < players.length; offset++) {
       const index = (currentIndex + offset) % players.length;
       const candidate = players[index];
       if (!candidate.in_jail) {
         nextPlayer = candidate;
+        foundNext = true;
         break;
       }
     }
 
-    nextPlayer.turn_start = now;
-    nextPlayer.turn_count += 1;
-    nextPlayer.consecutive_timeouts = 0;
-    nextPlayer.rolled = 0;
+    if (foundNext || !currentPlayer.in_jail) {
+      nextPlayer.turn_start = now;
+      nextPlayer.turn_count += 1;
+      nextPlayer.consecutive_timeouts = 0;
+      nextPlayer.rolled = 0;
+    }
 
-    await this.gamePlayerRepository.save([currentPlayer, nextPlayer]);
+    if (currentPlayer.user_id !== nextPlayer.user_id) {
+      await this.gamePlayerRepository.save([currentPlayer, nextPlayer]);
+    } else {
+      await this.gamePlayerRepository.save(nextPlayer);
+    }
+
     game.next_player_id = nextPlayer.user_id;
     await this.gameRepository.save(game);
   }
