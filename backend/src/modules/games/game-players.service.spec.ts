@@ -25,6 +25,14 @@ describe('GamePlayersService', () => {
     paginate: jest.fn(),
   };
 
+  const mockBoostService = {
+    calculateModifiedValue: jest.fn().mockResolvedValue(0),
+  };
+
+  const mockEventsService = {
+    emit: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,6 +48,14 @@ describe('GamePlayersService', () => {
         {
           provide: PaginationService,
           useValue: mockPaginationService,
+        },
+        {
+          provide: 'BoostService',
+          useValue: mockBoostService,
+        },
+        {
+          provide: 'PerksBoostsEvents',
+          useValue: mockEventsService,
         },
       ],
     }).compile();
