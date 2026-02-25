@@ -110,10 +110,12 @@ export class PerksService {
 
   async update(id: number, updatePerkDto: UpdatePerkDto): Promise<Perk> {
     const perk = await this.findOne(id);
-    const toUpdate =
-      updatePerkDto.price !== undefined
-        ? { ...updatePerkDto, price: String(updatePerkDto.price) }
-        : updatePerkDto;
+    const { price, ...rest } = updatePerkDto;
+    const toUpdate: Partial<Perk> = {
+      ...rest,
+      ...(price !== undefined ? { price: String(price) } : {}),
+    };
+
     this.perkRepository.merge(perk, toUpdate);
     return this.perkRepository.save(perk);
   }
@@ -141,7 +143,10 @@ export class PerksService {
     return this.perkRepository.save(perk);
   }
 
-  async createBoost(perkId: number, createBoostDto: CreateBoostDto): Promise<Boost> {
+  async createBoost(
+    perkId: number,
+    createBoostDto: CreateBoostDto,
+  ): Promise<Boost> {
     await this.findOne(perkId, false);
     const boost = this.boostRepository.create({
       ...createBoostDto,
@@ -157,10 +162,14 @@ export class PerksService {
     updateBoostDto: UpdateBoostDto,
   ): Promise<Boost> {
     const boost = await this.findBoostByIdAndPerkId(boostId, perkId);
-    const toUpdate =
-      updateBoostDto.effect_value !== undefined
-        ? { ...updateBoostDto, effect_value: String(updateBoostDto.effect_value) }
-        : updateBoostDto;
+    const { effect_value, ...rest } = updateBoostDto;
+    const toUpdate: Partial<Boost> = {
+      ...rest,
+      ...(effect_value !== undefined
+        ? { effect_value: String(effect_value) }
+        : {}),
+    };
+
     this.boostRepository.merge(boost, toUpdate);
     return this.boostRepository.save(boost);
   }
