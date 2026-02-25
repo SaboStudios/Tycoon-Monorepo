@@ -4,6 +4,8 @@ import { Repository, LessThan, DataSource } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ActiveBoost } from '../entities/active-boost.entity';
 import { PerksBoostsEvents, PerkBoostEvent } from './perks-boosts-events.service';
+import { PerkAnalyticsService } from './perk-analytics.service';
+import { PerkEventType } from '../entities/perk-analytics-event.entity';
 
 @Injectable()
 export class BoostLifecycleService implements OnModuleInit {
@@ -13,6 +15,7 @@ export class BoostLifecycleService implements OnModuleInit {
         @InjectRepository(ActiveBoost)
         private readonly activeBoostRepository: Repository<ActiveBoost>,
         private readonly events: PerksBoostsEvents,
+        private readonly analyticsService: PerkAnalyticsService,
         private readonly dataSource: DataSource,
     ) { }
 
@@ -69,6 +72,15 @@ export class BoostLifecycleService implements OnModuleInit {
                             perkName: boost.perk?.name
                         },
                     });
+
+                    // Log for analytics
+                    await this.analyticsService.logEvent({
+                        perkId: boost.perk_id,
+                        userId: boost.user_id,
+                        gameId: boost.game_id,
+                        eventType: PerkEventType.EXPIRATION,
+                        metadata: { boostId: boost.id }
+                    });
                 }
             });
             this.logger.log(`Successfully deactivated ${expiredBoosts.length} boosts.`);
@@ -99,6 +111,15 @@ export class BoostLifecycleService implements OnModuleInit {
                     perkId: boost.perk_id,
                     perkName: boost.perk?.name
                 },
+            });
+
+            // Log for analytics
+            await this.analyticsService.logEvent({
+                perkId: boost.perk_id,
+                userId: boost.user_id,
+                gameId: boost.game_id,
+                eventType: PerkEventType.EXPIRATION,
+                metadata: { boostId: boost.id }
             });
         }
     }

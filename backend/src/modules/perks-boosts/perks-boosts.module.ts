@@ -14,14 +14,18 @@ import { PerkBoostListener } from './services/perk-boost-listener.service';
 import { BoostLifecycleService } from './services/boost-lifecycle.service';
 import { PerkBoostGateway } from './gateways/perk-boost.gateway';
 import { PerksController } from './perks-boosts.controller';
+import { PerksAnalyticsController } from './perks-analytics.controller';
 import { NotificationsModule } from '../fetch-notification/notifications.module';
+import { PerkAnalyticsEvent } from './entities/perk-analytics-event.entity';
+import { PerkAnalyticsService } from './services/perk-analytics.service';
+import { Game } from '../games/entities/game.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Perk, ActiveBoost, BoostUsage, PlayerPerk]),
+        TypeOrmModule.forFeature([Perk, ActiveBoost, BoostUsage, PlayerPerk, PerkAnalyticsEvent, Game]),
         NotificationsModule,
     ],
-    controllers: [PerksController],
+    controllers: [PerksController, PerksAnalyticsController],
     providers: [
         PerkService,
         BoostService,
@@ -32,6 +36,7 @@ import { NotificationsModule } from '../fetch-notification/notifications.module'
         PerkBoostListener,
         BoostLifecycleService,
         PerkBoostGateway,
+        PerkAnalyticsService,
     ],
     exports: [
         PerkService,
@@ -41,6 +46,7 @@ import { NotificationsModule } from '../fetch-notification/notifications.module'
         PerksBoostsEvents,
         FeatureToggleService,
         BoostLifecycleService,
+        PerkAnalyticsService,
     ],
 })
 export class PerksBoostsModule { }
