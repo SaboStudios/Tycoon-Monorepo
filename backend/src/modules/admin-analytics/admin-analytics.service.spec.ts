@@ -79,7 +79,10 @@ describe('AdminAnalyticsService', () => {
       expect(result).toBe(50);
       expect(userRepo.count).toHaveBeenCalledWith({
         where: {
-          updated_at: expect.any(Date),
+          updated_at: expect.objectContaining({
+            _type: 'moreThan',
+            _value: expect.any(Date),
+          }),
         },
       });
     });
