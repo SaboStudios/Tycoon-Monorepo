@@ -28,6 +28,7 @@ import { SkinsModule } from './modules/skins/skins.module';
 import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 
 @Module({
   imports: [
@@ -68,7 +69,6 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     CommonModule,
     UsersModule,
     AuthModule,
-    AuthModule,
 
     PropertiesModule,
     ChanceModule,
@@ -81,6 +81,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     BoardStylesModule,
     GiftsModule,
     CouponsModule,
+    PerksBoostsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -100,4 +101,4 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
