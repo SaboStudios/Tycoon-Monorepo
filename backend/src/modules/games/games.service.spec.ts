@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Game, GameMode, GameStatus } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
+import { GamePlayer } from './entities/game-player.entity';
 import { DataSource } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { CreateGameDto } from './dto/create-game.dto';
@@ -28,6 +29,12 @@ describe('GamesService', () => {
   };
 
   const mockGameSettingsRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+  };
+
+  const mockGamePlayerRepository = {
+    findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
   };
@@ -67,6 +74,10 @@ describe('GamesService', () => {
         {
           provide: getRepositoryToken(GameSettings),
           useValue: mockGameSettingsRepository,
+        },
+        {
+          provide: getRepositoryToken(GamePlayer),
+          useValue: mockGamePlayerRepository,
         },
         {
           provide: DataSource,
