@@ -4,6 +4,8 @@ import { Repository, DataSource } from 'typeorm';
 import { PlayerPerk } from '../entities/player-perk.entity';
 import { Perk } from '../entities/perk.entity';
 import { PerkType } from '../enums/perk-boost.enums';
+import { PerkAnalyticsService } from './perk-analytics.service';
+import { PerkEventType } from '../entities/perk-analytics-event.entity';
 
 @Injectable()
 export class InventoryService {
@@ -12,6 +14,7 @@ export class InventoryService {
         private readonly playerPerkRepository: Repository<PlayerPerk>,
         @InjectRepository(Perk)
         private readonly perkRepository: Repository<Perk>,
+        private readonly analyticsService: PerkAnalyticsService,
         private readonly dataSource: DataSource,
     ) { }
 
@@ -47,6 +50,15 @@ export class InventoryService {
                     });
                     await manager.save(playerPerk);
                 }
+
+                // Log for analytics as a purchase/grant
+                await this.analyticsService.logEvent({
+                    perkId: item.perkId,
+                    userId: userId,
+                    eventType: PerkEventType.PURCHASE,
+                    revenue: perk.isPaid ? (Number(perk.price) * item.quantity) : 0,
+                    metadata: { quantity: item.quantity }
+                });
             }
         });
     }

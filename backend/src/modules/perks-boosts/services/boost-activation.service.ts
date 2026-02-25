@@ -6,6 +6,8 @@ import { ActiveBoost } from '../entities/active-boost.entity';
 import { PerkType } from '../enums/perk-boost.enums';
 import { InventoryService } from './inventory.service';
 import { PerksBoostsEvents, PerkBoostEvent } from './perks-boosts-events.service';
+import { PerkAnalyticsService } from './perk-analytics.service';
+import { PerkEventType } from '../entities/perk-analytics-event.entity';
 
 @Injectable()
 export class BoostActivationService {
@@ -16,6 +18,7 @@ export class BoostActivationService {
         private readonly activeBoostRepository: Repository<ActiveBoost>,
         private readonly inventoryService: InventoryService,
         private readonly events: PerksBoostsEvents,
+        private readonly analyticsService: PerkAnalyticsService,
         private readonly dataSource: DataSource,
     ) { }
 
@@ -64,6 +67,15 @@ export class BoostActivationService {
             playerId,
             gameId,
             metadata: { boostId: result.id, perkId: result.perk_id },
+        });
+
+        // 5. Log for analytics
+        await this.analyticsService.logEvent({
+            perkId: result.perk_id,
+            userId: playerId,
+            gameId: gameId,
+            eventType: PerkEventType.ACTIVATION,
+            metadata: { boostId: result.id }
         });
 
         return result;
