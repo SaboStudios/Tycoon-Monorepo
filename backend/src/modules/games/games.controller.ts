@@ -180,7 +180,9 @@ export class GamesController {
   @Patch(':id/settings')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update game settings (creator only, PENDING only)' })
+  @ApiOperation({
+    summary: 'Update game settings (creator only, PENDING only)',
+  })
   @ApiOkResponse({
     description: 'Game settings updated successfully',
     schema: {

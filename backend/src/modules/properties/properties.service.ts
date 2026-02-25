@@ -7,7 +7,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './entities/property.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
-import { UpdatePropertyDto } from './dto/update-property.dto';
 import { GetPropertiesDto } from './dto/get-properties.dto';
 import { UpdateRentStructureDto } from './dto/update-rent-structure.dto';
 import { RentStructureResponseDto } from './dto/rent-structure-response.dto';

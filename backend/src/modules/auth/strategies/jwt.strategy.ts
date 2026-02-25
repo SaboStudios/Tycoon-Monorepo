@@ -1,16 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../../users/users.service';
+import { Role } from '../enums/role.enum';
 import type { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    configService: ConfigService,
-    private readonly usersService: UsersService,
-  ) {
+  constructor(configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -18,16 +15,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload) {
-    const user = await this.usersService.findOne(payload.sub);
-    if (!user) {
-      throw new UnauthorizedException();
-    }
+  validate(payload: JwtPayload) {
+    // Backward compatibility: default missing fields
+    const role = payload.role || Role.USER;
+    const is_admin = payload.is_admin ?? false;
+
     return {
       sub: payload.sub,
-      id: user.id,
-      email: user.email,
-      role: user.role,
+      id: payload.sub,
+      email: payload.email,
+      role: role,
+      is_admin: is_admin,
     };
   }
 }

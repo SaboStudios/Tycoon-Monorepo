@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -14,6 +15,7 @@ import { redisConfig } from './config/redis.config';
 import { CommonModule, HttpExceptionFilter } from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
@@ -21,6 +23,14 @@ import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 import { GamesModule } from './modules/games/games.module';
+import { WaitlistModule } from './modules/waitlist/waitlist.module';
+import { ShopModule } from './modules/shop/shop.module';
+import { SkinsModule } from './modules/skins/skins.module';
+import { BoardStylesModule } from './modules/board-styles/board-styles.module';
+import { GiftsModule } from './modules/gifts/gifts.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
+import { PerksModule } from './modules/perks/perks.module';
+import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 
 @Module({
   imports: [
@@ -31,6 +41,9 @@ import { GamesModule } from './modules/games/games.module';
       envFilePath: '.env',
       validationSchema,
     }),
+
+    // Scheduler
+    ScheduleModule.forRoot(),
 
     // Rate Limiting
     ThrottlerModule.forRoot([
@@ -61,12 +74,20 @@ import { GamesModule } from './modules/games/games.module';
     CommonModule,
     UsersModule,
     AuthModule,
-    AuthModule,
 
     PropertiesModule,
     ChanceModule,
     CommunityChestModule,
     GamesModule,
+    AdminLogsModule,
+    WaitlistModule,
+    ShopModule,
+    SkinsModule,
+    BoardStylesModule,
+    GiftsModule,
+    CouponsModule,
+    PerksModule,
+    PerksBoostsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -86,4 +107,4 @@ import { GamesModule } from './modules/games/games.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -140,15 +140,12 @@ export class GamePlayersService {
       throw new NotFoundException(`Game ${gameId} not found`);
     }
     if (game.status !== GameStatus.PENDING) {
-      throw new BadRequestException(
-        'Cannot join game after it has started',
-      );
+      throw new BadRequestException('Cannot join game after it has started');
     }
 
     await this.assertUserNotInGame(gameId, userId);
 
-    const startingCash =
-      game.settings?.startingCash ?? 1500;
+    const startingCash = game.settings?.startingCash ?? 1500;
     const player = this.gamePlayerRepository.create({
       game_id: gameId,
       user_id: userId,
@@ -315,7 +312,6 @@ export class GamePlayersService {
     const player = await this.findByGameAndPlayer(gameId, playerId);
     const BOARD_SIZE = 40;
     const START_BONUS = 200;
-    const JAIL_POSITION = 10;
     const MAX_JAIL_ROLLS = 3;
 
     if (player.rolled === 1) {

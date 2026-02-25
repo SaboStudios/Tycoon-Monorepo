@@ -86,7 +86,7 @@ describe('NotificationsService', () => {
         { ...mockNotification, _id: '2' },
       ];
       (MockModel as any).find.mockReturnValue(buildQueryMock(notifications));
-      (MockModel as any).countDocuments.mockResolvedValue(2);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(2));
 
       const result = await service.findAllForUser(MOCK_USER_ID, query);
 
@@ -101,7 +101,7 @@ describe('NotificationsService', () => {
 
     it('should calculate totalPages correctly', async () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
-      (MockModel as any).countDocuments.mockResolvedValue(45);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(45));
 
       const result = await service.findAllForUser(MOCK_USER_ID, {
         page: 1,
@@ -113,7 +113,7 @@ describe('NotificationsService', () => {
 
     it('should set hasNextPage=true when not on the last page', async () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
-      (MockModel as any).countDocuments.mockResolvedValue(50);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(50));
 
       const result = await service.findAllForUser(MOCK_USER_ID, {
         page: 1,
@@ -126,7 +126,7 @@ describe('NotificationsService', () => {
 
     it('should set hasPreviousPage=true when on page > 1', async () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
-      (MockModel as any).countDocuments.mockResolvedValue(50);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(50));
 
       const result = await service.findAllForUser(MOCK_USER_ID, {
         page: 2,
@@ -138,7 +138,7 @@ describe('NotificationsService', () => {
 
     it('should set hasNextPage=false on the last page', async () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
-      (MockModel as any).countDocuments.mockResolvedValue(20);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(20));
 
       const result = await service.findAllForUser(MOCK_USER_ID, {
         page: 1,
@@ -151,7 +151,7 @@ describe('NotificationsService', () => {
     it('should call find with the correct skip value for page 3', async () => {
       const findMock = buildQueryMock([]);
       (MockModel as any).find.mockReturnValue(findMock);
-      (MockModel as any).countDocuments.mockResolvedValue(100);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(100));
 
       await service.findAllForUser(MOCK_USER_ID, { page: 3, limit: 10 });
 
@@ -161,7 +161,7 @@ describe('NotificationsService', () => {
 
     it('should return empty data when user has no notifications', async () => {
       (MockModel as any).find.mockReturnValue(buildQueryMock([]));
-      (MockModel as any).countDocuments.mockResolvedValue(0);
+      (MockModel as any).countDocuments.mockReturnValue(buildQueryMock(0));
 
       const result = await service.findAllForUser(MOCK_USER_ID, query);
 
@@ -239,7 +239,9 @@ describe('NotificationsService', () => {
   // ---------------------------------------------------------------------------
   describe('markAllAsRead', () => {
     it('should mark all unread notifications as read and return modifiedCount', async () => {
-      (MockModel as any).updateMany.mockResolvedValue({ modifiedCount: 5 });
+      (MockModel as any).updateMany.mockReturnValue(
+        buildQueryMock({ modifiedCount: 5 }),
+      );
 
       const result = await service.markAllAsRead(MOCK_USER_ID);
 
@@ -251,7 +253,9 @@ describe('NotificationsService', () => {
     });
 
     it('should return modifiedCount of 0 when nothing was unread', async () => {
-      (MockModel as any).updateMany.mockResolvedValue({ modifiedCount: 0 });
+      (MockModel as any).updateMany.mockReturnValue(
+        buildQueryMock({ modifiedCount: 0 }),
+      );
 
       const result = await service.markAllAsRead(MOCK_USER_ID);
 

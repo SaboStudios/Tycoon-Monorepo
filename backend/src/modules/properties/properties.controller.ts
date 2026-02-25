@@ -4,12 +4,10 @@ import {
   Post,
   Body,
   Patch,
-  Delete,
   Param,
   HttpCode,
   HttpStatus,
   Query,
-  BadRequestException,
   ParseIntPipe,
 } from '@nestjs/common';
 import {
@@ -21,7 +19,6 @@ import {
 } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
-import { UpdatePropertyDto } from './dto/update-property.dto';
 import { ToggleMortgageDto } from './dto/toggle-mortgage.dto';
 import { GetPropertiesDto } from './dto/get-properties.dto';
 import { UpdateRentStructureDto } from './dto/update-rent-structure.dto';

@@ -2,15 +2,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext } from '@nestjs/common';
 import { NotificationsController } from './notifications.controller';
-import { NotificationsService } from './notifications.service';
+import {
+  NotificationsService,
+  PaginatedNotificationsResult,
+} from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import { NotificationType } from './entities/notification.entity';
+import { Request } from 'express';
 
 const MOCK_USER_ID = '507f1f77bcf86cd799439011';
 
-const mockRequest = (userId = MOCK_USER_ID) =>
-  ({ user: { id: userId } }) as any;
+/**
+ * Creates a mock request object with the specified user ID.
+ */
+const mockRequest = (userId = MOCK_USER_ID): Request =>
+  ({
+    user: { id: userId },
+  }) as unknown as Request;
 
 const mockNotification = {
   _id: '665abc123def456789000001',
@@ -23,11 +32,12 @@ const mockNotification = {
 
 describe('NotificationsController', () => {
   let controller: NotificationsController;
-  let service: jest.Mocked<NotificationsService>;
 
-  const mockNotificationsService: jest.Mocked<Partial<NotificationsService>> = {
+  const mockNotificationsService = {
     findAllForUser: jest.fn(),
     countUnreadForUser: jest.fn(),
+    markAsRead: jest.fn(),
+    markAllAsRead: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -48,7 +58,6 @@ describe('NotificationsController', () => {
       .compile();
 
     controller = module.get<NotificationsController>(NotificationsController);
-    service = module.get(NotificationsService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -57,13 +66,10 @@ describe('NotificationsController', () => {
     expect(controller).toBeDefined();
   });
 
-  // ---------------------------------------------------------------------------
-  // GET /api/notifications
-  // ---------------------------------------------------------------------------
   describe('getNotifications', () => {
     const query: GetNotificationsQueryDto = { page: 1, limit: 20 };
 
-    const paginatedResult = {
+    const paginatedResult: PaginatedNotificationsResult = {
       data: [mockNotification],
       total: 1,
       page: 1,
@@ -74,36 +80,50 @@ describe('NotificationsController', () => {
     };
 
     it('should return paginated notifications', async () => {
-      service.findAllForUser.mockResolvedValue(paginatedResult as any);
+      mockNotificationsService.findAllForUser.mockResolvedValue(
+        paginatedResult,
+      );
 
       const result = await controller.getNotifications(mockRequest(), query);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith(MOCK_USER_ID, query);
+      expect(mockNotificationsService.findAllForUser).toHaveBeenCalledWith(
+        MOCK_USER_ID,
+        query,
+      );
       expect(result).toEqual(paginatedResult);
     });
 
     it('should pass the correct userId from req.user.id', async () => {
-      service.findAllForUser.mockResolvedValue(paginatedResult as any);
+      mockNotificationsService.findAllForUser.mockResolvedValue(
+        paginatedResult,
+      );
 
       await controller.getNotifications(mockRequest('custom-user-id'), query);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith(
+      expect(mockNotificationsService.findAllForUser).toHaveBeenCalledWith(
         'custom-user-id',
         query,
       );
     });
 
     it('should fall back to req.user.sub when id is not present', async () => {
-      service.findAllForUser.mockResolvedValue(paginatedResult as any);
-      const subRequest = { user: { sub: 'sub-user-id' } } as any;
+      mockNotificationsService.findAllForUser.mockResolvedValue(
+        paginatedResult,
+      );
+      const subRequest = {
+        user: { sub: 'sub-user-id' },
+      } as unknown as Request;
 
       await controller.getNotifications(subRequest, query);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith('sub-user-id', query);
+      expect(mockNotificationsService.findAllForUser).toHaveBeenCalledWith(
+        'sub-user-id',
+        query,
+      );
     });
 
     it('should return empty data array when user has no notifications', async () => {
-      const emptyResult = {
+      const emptyResult: PaginatedNotificationsResult = {
         data: [],
         total: 0,
         page: 1,
@@ -112,7 +132,7 @@ describe('NotificationsController', () => {
         hasNextPage: false,
         hasPreviousPage: false,
       };
-      service.findAllForUser.mockResolvedValue(emptyResult as any);
+      mockNotificationsService.findAllForUser.mockResolvedValue(emptyResult);
 
       const result = await controller.getNotifications(mockRequest(), query);
 
@@ -121,7 +141,7 @@ describe('NotificationsController', () => {
     });
 
     it('should propagate service errors', async () => {
-      service.findAllForUser.mockRejectedValue(
+      mockNotificationsService.findAllForUser.mockRejectedValue(
         new Error('DB connection failed'),
       );
 
@@ -132,36 +152,39 @@ describe('NotificationsController', () => {
 
     it('should pass custom pagination params to service', async () => {
       const customQuery: GetNotificationsQueryDto = { page: 3, limit: 10 };
-      service.findAllForUser.mockResolvedValue({
+      mockNotificationsService.findAllForUser.mockResolvedValue({
         ...paginatedResult,
         page: 3,
         limit: 10,
-      } as any);
+      });
 
       await controller.getNotifications(mockRequest(), customQuery);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith(
+      expect(mockNotificationsService.findAllForUser).toHaveBeenCalledWith(
         MOCK_USER_ID,
         customQuery,
       );
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // GET /api/notifications/count
-  // ---------------------------------------------------------------------------
   describe('getUnreadCount', () => {
     it('should return the unread count', async () => {
-      service.countUnreadForUser.mockResolvedValue({ count: 5 });
+      mockNotificationsService.countUnreadForUser.mockResolvedValue({
+        count: 5,
+      });
 
       const result = await controller.getUnreadCount(mockRequest());
 
-      expect(service.countUnreadForUser).toHaveBeenCalledWith(MOCK_USER_ID);
+      expect(mockNotificationsService.countUnreadForUser).toHaveBeenCalledWith(
+        MOCK_USER_ID,
+      );
       expect(result).toEqual({ count: 5 });
     });
 
     it('should return count of 0 when there are no unread notifications', async () => {
-      service.countUnreadForUser.mockResolvedValue({ count: 0 });
+      mockNotificationsService.countUnreadForUser.mockResolvedValue({
+        count: 0,
+      });
 
       const result = await controller.getUnreadCount(mockRequest());
 
@@ -169,16 +192,24 @@ describe('NotificationsController', () => {
     });
 
     it('should fall back to req.user.sub when id is not present', async () => {
-      service.countUnreadForUser.mockResolvedValue({ count: 3 });
-      const subRequest = { user: { sub: 'sub-user-id' } } as any;
+      mockNotificationsService.countUnreadForUser.mockResolvedValue({
+        count: 3,
+      });
+      const subRequest = {
+        user: { sub: 'sub-user-id' },
+      } as unknown as Request;
 
       await controller.getUnreadCount(subRequest);
 
-      expect(service.countUnreadForUser).toHaveBeenCalledWith('sub-user-id');
+      expect(mockNotificationsService.countUnreadForUser).toHaveBeenCalledWith(
+        'sub-user-id',
+      );
     });
 
     it('should propagate service errors', async () => {
-      service.countUnreadForUser.mockRejectedValue(new Error('Redis timeout'));
+      mockNotificationsService.countUnreadForUser.mockRejectedValue(
+        new Error('Redis timeout'),
+      );
 
       await expect(controller.getUnreadCount(mockRequest())).rejects.toThrow(
         'Redis timeout',

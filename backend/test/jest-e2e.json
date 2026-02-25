@@ -4,10 +4,13 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": ["ts-jest", {
-      "tsconfig": {
-        "ignoreDeprecations": "5.0"
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "ignoreDeprecations": "5.0"
+        }
       }
-    }]
+    ]
   }
 }

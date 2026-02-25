@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
 import { Role } from '../../auth/enums/role.enum';
+import { UserPreference } from './user-preference.entity';
 
 @Entity({ name: 'users' })
 @Index(['address', 'chain'])
@@ -29,6 +31,9 @@ export class User {
 
   @Column({ type: 'varchar', length: 20, default: Role.USER })
   role: Role;
+
+  @Column({ type: 'boolean', default: false })
+  is_admin: boolean;
 
   @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
   username: string;
@@ -72,9 +77,17 @@ export class User {
   })
   total_withdrawn: string;
 
+  @Column({ type: 'boolean', default: false })
+  is_suspended: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
+
+  @OneToOne(() => UserPreference, (preference) => preference.user, {
+    cascade: true,
+  })
+  preference: UserPreference;
 }

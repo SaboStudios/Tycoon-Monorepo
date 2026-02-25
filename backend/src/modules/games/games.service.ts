@@ -296,7 +296,9 @@ export class GamesService {
       }
     }
 
-    const updates: Partial<Game> = {};
+    const updates: Partial<
+      Omit<Game, 'creator' | 'winner' | 'nextPlayer' | 'settings' | 'players'>
+    > = {};
     if (dto.status !== undefined) updates.status = dto.status;
     if (dto.nextPlayerId !== undefined)
       updates.next_player_id = dto.nextPlayerId;
@@ -344,10 +346,9 @@ export class GamesService {
       );
     }
 
-    const updates: Partial<GameSettings> = {};
+    const updates: Partial<Omit<GameSettings, 'game' | 'boardStyle'>> = {};
     if (dto.auction !== undefined) updates.auction = dto.auction;
-    if (dto.rentInPrison !== undefined)
-      updates.rentInPrison = dto.rentInPrison;
+    if (dto.rentInPrison !== undefined) updates.rentInPrison = dto.rentInPrison;
     if (dto.mortgage !== undefined) updates.mortgage = dto.mortgage;
     if (dto.evenBuild !== undefined) updates.evenBuild = dto.evenBuild;
     if (dto.randomizePlayOrder !== undefined)
