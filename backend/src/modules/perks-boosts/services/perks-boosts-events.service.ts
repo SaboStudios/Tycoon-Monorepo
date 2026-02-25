@@ -5,6 +5,9 @@ export enum PerkBoostEvent {
     PLAYER_LANDED = 'player.landed',
     DICE_ROLLED = 'dice.rolled',
     PROPERTY_PURCHASE = 'property.purchase',
+    BOOST_ACTIVATED = 'boost.activated',
+    BOOST_EXPIRED = 'boost.expired',
+    GAME_PHASE_CHANGED = 'game.phase.changed',
 }
 
 export interface IPerkBoostEventData {

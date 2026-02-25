@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -39,6 +40,9 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
       envFilePath: '.env',
       validationSchema,
     }),
+
+    // Scheduler
+    ScheduleModule.forRoot(),
 
     // Rate Limiting
     ThrottlerModule.forRoot([

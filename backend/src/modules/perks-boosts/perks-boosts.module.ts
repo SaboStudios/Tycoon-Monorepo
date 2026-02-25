@@ -11,6 +11,8 @@ import { InventoryService } from './services/inventory.service';
 import { PerksBoostsEvents } from './services/perks-boosts-events.service';
 import { FeatureToggleService } from './services/feature-toggle.service';
 import { PerkBoostListener } from './services/perk-boost-listener.service';
+import { BoostLifecycleService } from './services/boost-lifecycle.service';
+import { PerkBoostGateway } from './gateways/perk-boost.gateway';
 import { PerksController } from './perks-boosts.controller';
 
 @Module({
@@ -26,6 +28,8 @@ import { PerksController } from './perks-boosts.controller';
         PerksBoostsEvents,
         FeatureToggleService,
         PerkBoostListener,
+        BoostLifecycleService,
+        PerkBoostGateway,
     ],
     exports: [
         PerkService,
@@ -34,6 +38,7 @@ import { PerksController } from './perks-boosts.controller';
         InventoryService,
         PerksBoostsEvents,
         FeatureToggleService,
+        BoostLifecycleService,
     ],
 })
 export class PerksBoostsModule { }
