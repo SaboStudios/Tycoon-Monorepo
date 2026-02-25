@@ -1,7 +1,10 @@
 // src/modules/notifications/notifications.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Notification, NotificationSchema } from './entities/notification.entity';
+import {
+  Notification,
+  NotificationSchema,
+} from './entities/notification.entity';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 

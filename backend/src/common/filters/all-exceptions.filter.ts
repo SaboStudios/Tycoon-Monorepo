@@ -68,9 +68,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }
       }
     } else {
-      const exceptionStr = typeof exception === 'object' && exception !== null
-        ? JSON.stringify(exception)
-        : String(exception);
+      const exceptionStr =
+        typeof exception === 'object' && exception !== null
+          ? JSON.stringify(exception)
+          : String(exception);
 
       this.logger.error(
         'Unknown exception occurred',

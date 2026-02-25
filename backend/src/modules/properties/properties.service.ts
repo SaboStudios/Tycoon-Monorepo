@@ -7,7 +7,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './entities/property.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
-import { UpdatePropertyDto } from './dto/update-property.dto';
 import { GetPropertiesDto } from './dto/get-properties.dto';
 import { UpdateRentStructureDto } from './dto/update-rent-structure.dto';
 import { RentStructureResponseDto } from './dto/rent-structure-response.dto';
@@ -17,7 +16,7 @@ export class PropertiesService {
   constructor(
     @InjectRepository(Property)
     private propertiesRepository: Repository<Property>,
-  ) { }
+  ) {}
 
   async create(createPropertyDto: CreatePropertyDto): Promise<Property> {
     // Check for duplicate ID
@@ -147,7 +146,9 @@ export class PropertiesService {
   /**
    * Get property with rent structure details
    */
-  async getPropertyRentStructure(propertyId: number): Promise<RentStructureResponseDto> {
+  async getPropertyRentStructure(
+    propertyId: number,
+  ): Promise<RentStructureResponseDto> {
     const property = await this.propertiesRepository.findOne({
       where: { id: propertyId },
     });
@@ -188,7 +189,7 @@ export class PropertiesService {
       if (rents[i] < rents[i - 1]) {
         console.warn(
           `[Property ${property.id}] Rent progression warning: ` +
-          `Tier ${i} (${rents[i]}) is less than tier ${i - 1} (${rents[i - 1]})`,
+            `Tier ${i} (${rents[i]}) is less than tier ${i - 1} (${rents[i - 1]})`,
         );
       }
     }

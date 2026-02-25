@@ -1,7 +1,15 @@
-import { Body, Controller, Get, Param, Post, ParseIntPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { GamePlayersService } from './game-players.service';
 import { LockBalanceDto } from './dto/lock-balance.dto';
 import { UnlockBalanceDto } from './dto/unlock-balance.dto';
+import { RollDiceDto } from './dto/roll-dice.dto';
 
 @Controller('game-players')
 export class GamePlayersController {

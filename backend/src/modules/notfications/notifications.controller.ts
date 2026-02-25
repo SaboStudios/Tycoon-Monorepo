@@ -1,4 +1,3 @@
-// src/modules/notifications/notifications.controller.ts
 import {
   Controller,
   Get,
@@ -7,6 +6,10 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Post,
+  Param,
+  Patch,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,8 +20,12 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 
+import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { NotificationsService, PaginatedNotificationsResult } from './notifications.service';
+import {
+  NotificationsService,
+  PaginatedNotificationsResult,
+} from './notifications.service';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import { NotificationCountDto } from './dto/notification-count.dto';
 
@@ -27,8 +34,8 @@ import { NotificationCountDto } from './dto/notification-count.dto';
  * Handles both `id` (custom) and `sub` (standard JWT claim) formats.
  */
 function extractUserId(req: Request): string {
-  const user = req.user as Record<string, unknown>;
-  const id = (user?.id ?? user?.sub) as string | undefined;
+  const user = req.user as JwtPayload | undefined;
+  const id = user?.id?.toString() ?? user?.sub?.toString();
   if (!id) throw new Error('User ID not found in JWT payload');
   return id;
 }
@@ -95,5 +102,48 @@ export class NotificationsController {
   ): Promise<PaginatedNotificationsResult> {
     const userId = extractUserId(req);
     return this.notificationsService.findAllForUser(userId, query);
+  }
+
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark a notification as read',
+    description:
+      'Marks a specific notification as read. User can only update their own notifications.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+  async markAsRead(@Req() req: Request, @Param('id') id: string) {
+    const userId = extractUserId(req);
+
+    const updated = await this.notificationsService.markAsRead(id, userId);
+
+    if (!updated) {
+      throw new NotFoundException(
+        'Notification not found or not owned by user',
+      );
+    }
+
+    return updated;
+  }
+
+  @Post('read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark all notifications as read',
+    description:
+      'Marks all unread notifications for the authenticated user as read.',
+  })
+  @ApiOkResponse({
+    schema: {
+      properties: {
+        modifiedCount: { type: 'number', example: 5 },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+  async markAllAsRead(@Req() req: Request) {
+    const userId = extractUserId(req);
+
+    return this.notificationsService.markAllAsRead(userId);
   }
 }

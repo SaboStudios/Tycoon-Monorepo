@@ -5,7 +5,14 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
+  OneToOne,
+  OneToMany,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { GameSettings } from './game-settings.entity';
+import { GamePlayer } from './game-player.entity';
 
 /**
  * Enum for game mode
@@ -40,6 +47,10 @@ export interface GamePlacements {
 @Entity({ name: 'games' })
 @Index('idx_games_status', ['status'])
 @Index('idx_games_creator_id', ['creator_id'])
+@Index('idx_games_mode', ['mode'])
+@Index('idx_games_is_ai', ['is_ai'])
+@Index('idx_games_is_minipay', ['is_minipay'])
+@Index('idx_games_chain', ['chain'])
 export class Game {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id: number;
@@ -117,4 +128,26 @@ export class Game {
     nullable: true,
   })
   placements: GamePlacements | null;
+
+  // Relations
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'creator_id' })
+  creator: User;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'winner_id' })
+  winner: User | null;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'next_player_id' })
+  nextPlayer: User | null;
+
+  @OneToOne(() => GameSettings, (settings) => settings.game, {
+    cascade: true,
+    eager: true,
+  })
+  settings: GameSettings;
+
+  @OneToMany(() => GamePlayer, (player) => player.game)
+  players: GamePlayer[];
 }

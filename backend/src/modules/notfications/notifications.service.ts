@@ -68,15 +68,15 @@ export class NotificationsService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .lean()
+        .lean<Notification[]>()
         .exec(),
-      this.notificationModel.countDocuments({ recipientId: userId }),
+      this.notificationModel.countDocuments({ recipientId: userId }).exec(),
     ]);
 
     const totalPages = Math.ceil(total / limit);
 
     return {
-      data: data as unknown as Notification[],
+      data,
       total,
       page,
       limit,
@@ -113,18 +113,17 @@ export class NotificationsService {
         { isRead: true },
         { new: true },
       )
-      .lean()
-      .exec() as unknown as Notification | null;
+      .lean<Notification>()
+      .exec();
   }
 
   /**
    * Marks all notifications for a user as read.
    */
   async markAllAsRead(userId: string): Promise<{ modifiedCount: number }> {
-    const result = await this.notificationModel.updateMany(
-      { recipientId: userId, isRead: false },
-      { isRead: true },
-    );
+    const result = await this.notificationModel
+      .updateMany({ recipientId: userId, isRead: false }, { isRead: true })
+      .exec();
     return { modifiedCount: result.modifiedCount };
   }
 }
