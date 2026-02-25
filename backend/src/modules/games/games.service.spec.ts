@@ -33,6 +33,7 @@ describe('GamesService', () => {
     save: jest.fn(),
   };
 
+  // Mock GamePlayerRepository to resolve dependency injection
   const mockGamePlayerRepository = {
     findOne: jest.fn(),
     create: jest.fn(),
