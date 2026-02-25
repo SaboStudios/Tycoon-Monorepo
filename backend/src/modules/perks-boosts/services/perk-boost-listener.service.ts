@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PerksBoostsEvents, PerkBoostEvent } from './perks-boosts-events.service';
 import { BoostActivationService } from './boost-activation.service';
+import { NotificationsService } from '../../fetch-notification/notifications.service';
+import { NotificationType } from '../../fetch-notification/entities/notification.entity';
 
 @Injectable()
 export class PerkBoostListener implements OnModuleInit {
@@ -8,6 +10,7 @@ export class PerkBoostListener implements OnModuleInit {
     constructor(
         private readonly events: PerksBoostsEvents,
         private readonly boostActivationService: BoostActivationService,
+        private readonly notificationsService: NotificationsService,
     ) { }
 
     onModuleInit() {
@@ -33,6 +36,12 @@ export class PerkBoostListener implements OnModuleInit {
                 break;
             case PerkBoostEvent.BOOST_EXPIRED:
                 this.logger.log(`Boost expired for player ${data.playerId}: ${data.metadata?.boostId}`);
+                await this.notificationsService.create({
+                    userId: data.playerId.toString(),
+                    type: NotificationType.BOOST_EXPIRED,
+                    title: 'Boost Expired',
+                    content: `Your boost ${data.metadata?.perkName || ''} has expired.`,
+                });
                 break;
             case PerkBoostEvent.GAME_PHASE_CHANGED:
                 this.logger.log(`Game phase changed to ${data.metadata?.phase}. Checking for phase-specific boosts...`);

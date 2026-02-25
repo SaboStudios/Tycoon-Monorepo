@@ -24,6 +24,9 @@ export enum NotificationType {
   FRIEND_REQUEST = 'FRIEND_REQUEST',
   FRIEND_ACCEPTED = 'FRIEND_ACCEPTED',
   USER_FOLLOWED = 'USER_FOLLOWED',
+
+  // Perks & Boosts
+  BOOST_EXPIRED = 'BOOST_EXPIRED',
 }
 
 @Schema({ timestamps: true, collection: 'notifications' })

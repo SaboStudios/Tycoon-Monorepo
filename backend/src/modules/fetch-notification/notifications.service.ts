@@ -2,7 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification } from './entities/notification.entity';
+import { Notification, NotificationType } from './entities/notification.entity';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import {
   PaginatedNotificationsResponseDto,
@@ -15,7 +15,20 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationsRepository: Repository<Notification>,
-  ) {}
+  ) { }
+
+  /**
+   * Create a new notification.
+   */
+  async create(data: {
+    userId: string;
+    type: NotificationType;
+    title: string;
+    content: string;
+  }): Promise<Notification> {
+    const notification = this.notificationsRepository.create(data);
+    return this.notificationsRepository.save(notification);
+  }
 
   /**
    * Fetch a paginated list of notifications for a specific user.
