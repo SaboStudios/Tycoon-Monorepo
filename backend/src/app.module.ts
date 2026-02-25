@@ -29,6 +29,7 @@ import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { PerksModule } from './modules/perks/perks.module';
+import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 
 @Module({
   imports: [
@@ -69,7 +70,6 @@ import { PerksModule } from './modules/perks/perks.module';
     CommonModule,
     UsersModule,
     AuthModule,
-    AuthModule,
 
     PropertiesModule,
     ChanceModule,
@@ -83,6 +83,7 @@ import { PerksModule } from './modules/perks/perks.module';
     GiftsModule,
     CouponsModule,
     PerksModule,
+    PerksBoostsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -102,4 +103,4 @@ import { PerksModule } from './modules/perks/perks.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
