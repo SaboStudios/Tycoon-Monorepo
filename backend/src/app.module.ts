@@ -29,6 +29,7 @@ import { SkinsModule } from './modules/skins/skins.module';
 import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { PerksModule } from './modules/perks/perks.module';
 import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 
 @Module({
@@ -85,6 +86,7 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
     BoardStylesModule,
     GiftsModule,
     CouponsModule,
+    PerksModule,
     PerksBoostsModule,
   ],
   controllers: [AppController, HealthController],
