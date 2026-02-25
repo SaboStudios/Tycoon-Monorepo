@@ -5,6 +5,7 @@ import { Perk } from '../entities/perk.entity';
 import { ActiveBoost } from '../entities/active-boost.entity';
 import { PerkType } from '../enums/perk-boost.enums';
 import { InventoryService } from './inventory.service';
+import { PerksBoostsEvents, PerkBoostEvent } from './perks-boosts-events.service';
 
 @Injectable()
 export class BoostActivationService {
@@ -14,11 +15,12 @@ export class BoostActivationService {
         @InjectRepository(ActiveBoost)
         private readonly activeBoostRepository: Repository<ActiveBoost>,
         private readonly inventoryService: InventoryService,
+        private readonly events: PerksBoostsEvents,
         private readonly dataSource: DataSource,
     ) { }
 
     async activatePerk(playerId: number, gameId: number, perkId: number): Promise<ActiveBoost> {
-        return await this.dataSource.transaction(async (manager) => {
+        const result = await this.dataSource.transaction(async (manager) => {
             // 1. Validate ownership and get perk info
             const playerPerk = await this.inventoryService.validateOwnership(playerId, perkId);
             const perk = playerPerk.perk;
@@ -56,6 +58,15 @@ export class BoostActivationService {
 
             return manager.save(activeBoost);
         });
+
+        // 4. Emit activation event
+        this.events.emit(PerkBoostEvent.BOOST_ACTIVATED, {
+            playerId,
+            gameId,
+            metadata: { boostId: result.id, perkId: result.perk_id },
+        });
+
+        return result;
     }
 
     async deactivateBoost(boostId: number): Promise<void> {
