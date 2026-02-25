@@ -159,7 +159,7 @@ fn test_override_ignores_others() {
 #[test]
 fn test_no_boosts() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, TycoonBoostSystem);
+    let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
     let player = Address::generate(&env);
