@@ -14,10 +14,12 @@ import { PerkBoostListener } from './services/perk-boost-listener.service';
 import { BoostLifecycleService } from './services/boost-lifecycle.service';
 import { PerkBoostGateway } from './gateways/perk-boost.gateway';
 import { PerksController } from './perks-boosts.controller';
+import { NotificationsModule } from '../fetch-notification/notifications.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Perk, ActiveBoost, BoostUsage, PlayerPerk]),
+        NotificationsModule,
     ],
     controllers: [PerksController],
     providers: [
