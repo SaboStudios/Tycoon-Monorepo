@@ -1,11 +1,17 @@
 import {
   BadRequestException,
+  Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -22,6 +28,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { WaitlistService } from './waitlist.service';
+import { UpdateWaitlistDto } from './dto/update-waitlist.dto';
 import { WaitlistPaginationDto } from './dto/waitlist-pagination.dto';
 import { ExportWaitlistDto } from './dto/export-waitlist.dto';
 import { BulkImportResponseDto } from './dto/bulk-import-waitlist.dto';
@@ -33,13 +40,17 @@ import {
   RateLimit,
 } from '../../common/guards/redis-rate-limit.guard';
 import { PaginatedResponse } from '../../common';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
 
 @ApiTags('admin-waitlist')
 @ApiBearerAuth()
 @Controller('admin/waitlist')
 @UseGuards(JwtAuthGuard, AdminGuard, RedisRateLimitGuard)
 export class WaitlistAdminController {
-  constructor(private readonly waitlistService: WaitlistService) {}
+  constructor(
+    private readonly waitlistService: WaitlistService,
+    private readonly adminLogsService: AdminLogsService,
+  ) {}
 
   @Get()
   @RateLimit(50, 60)
@@ -158,5 +169,99 @@ export class WaitlistAdminController {
       throw new BadRequestException('CSV file is required.');
     }
     return this.waitlistService.bulkImport(file.buffer);
+  }
+
+  @Patch(':id')
+  @RateLimit(30, 60)
+  @ApiOperation({
+    summary: 'Update a waitlist entry',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Waitlist entry updated successfully.',
+    type: Waitlist,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid data or entry not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Duplicate wallet or email address.',
+  })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateWaitlistDto,
+    @Req() req: express.Request & { user: { id: number } },
+  ): Promise<Waitlist> {
+    const updated = await this.waitlistService.update(id, updateDto);
+
+    await this.adminLogsService.createLog(
+      req.user.id,
+      'waitlist:update',
+      id,
+      { changes: updateDto },
+      req,
+    );
+
+    return updated;
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RateLimit(30, 60)
+  @ApiOperation({
+    summary: 'Soft delete a waitlist entry',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Waitlist entry soft deleted successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Entry not found.',
+  })
+  async softDelete(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: express.Request & { user: { id: number } },
+  ): Promise<void> {
+    await this.waitlistService.softDelete(id);
+
+    await this.adminLogsService.createLog(
+      req.user.id,
+      'waitlist:soft_delete',
+      id,
+      null,
+      req,
+    );
+  }
+
+  @Delete(':id/permanent')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RateLimit(10, 60)
+  @ApiOperation({
+    summary: 'Permanently delete a waitlist entry',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Waitlist entry permanently deleted.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Entry not found.',
+  })
+  async hardDelete(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: express.Request & { user: { id: number } },
+  ): Promise<void> {
+    await this.waitlistService.hardDelete(id);
+
+    await this.adminLogsService.createLog(
+      req.user.id,
+      'waitlist:hard_delete',
+      id,
+      null,
+      req,
+    );
   }
 }
