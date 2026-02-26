@@ -5,6 +5,8 @@ import { GamePlayersService } from './game-players.service';
 import { Game } from './entities/game.entity';
 import { GamePlayer } from './entities/game-player.entity';
 import { PaginationService } from '../../common/services/pagination.service';
+import { BoostService } from '../perks-boosts/services/boost.service';
+import { PerksBoostsEvents } from '../perks-boosts/services/perks-boosts-events.service';
 
 describe('GamePlayersService', () => {
   let service: GamePlayersService;
@@ -50,11 +52,11 @@ describe('GamePlayersService', () => {
           useValue: mockPaginationService,
         },
         {
-          provide: 'BoostService',
+          provide: BoostService,
           useValue: mockBoostService,
         },
         {
-          provide: 'PerksBoostsEvents',
+          provide: PerksBoostsEvents,
           useValue: mockEventsService,
         },
       ],
