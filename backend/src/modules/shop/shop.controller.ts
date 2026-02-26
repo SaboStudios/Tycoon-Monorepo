@@ -23,6 +23,7 @@ import {
 import type { Request } from 'express';
 import { ShopService, PaginatedShopItems } from './shop.service';
 import { PurchaseService } from './purchase.service';
+import { InventoryService } from './inventory.service';
 import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { FilterShopItemsDto } from './dto/filter-shop-items.dto';
@@ -30,6 +31,7 @@ import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 import { ShopItem } from './entities/shop-item.entity';
 import { Purchase } from './entities/purchase.entity';
+import { UserInventory } from './entities/user-inventory.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -39,6 +41,7 @@ export class ShopController {
   constructor(
     private readonly shopService: ShopService,
     private readonly purchaseService: PurchaseService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   /**
@@ -224,5 +227,39 @@ export class ShopController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<Purchase> {
     return this.purchaseService.getPurchaseById(id, user.id);
+  }
+
+  /**
+   * GET /shop/inventory
+   * Get user's inventory
+   */
+  @Get('inventory')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user inventory' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User inventory items.',
+    type: [UserInventory],
+  })
+  getUserInventory(@CurrentUser() user: { id: number }): Promise<UserInventory[]> {
+    return this.inventoryService.getUserInventory(user.id);
+  }
+
+  /**
+   * GET /shop/inventory/active
+   * Get user's active (non-expired) inventory
+   */
+  @Get('inventory/active')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get active inventory items' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Active inventory items.',
+    type: [UserInventory],
+  })
+  getActiveInventory(@CurrentUser() user: { id: number }): Promise<UserInventory[]> {
+    return this.inventoryService.getActiveInventory(user.id);
   }
 }

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
+import { UserSuspension } from './entities/user-suspension.entity';
 import {
   repositoryMockFactory,
   MockType,
@@ -37,6 +38,10 @@ describe('UsersService', () => {
         UsersService,
         {
           provide: getRepositoryToken(User),
+          useFactory: repositoryMockFactory,
+        },
+        {
+          provide: getRepositoryToken(UserSuspension),
           useFactory: repositoryMockFactory,
         },
         {
