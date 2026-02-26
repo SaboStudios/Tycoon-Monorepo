@@ -218,7 +218,7 @@ export class GiftsService {
         
         // Add item to user's inventory
         await this.inventoryService.addItem(
-          userId,
+          receiverId,
           gift.shop_item_id,
           gift.quantity,
         );

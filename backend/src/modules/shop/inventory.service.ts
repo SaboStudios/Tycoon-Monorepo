@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { UserInventory } from '../entities/user-inventory.entity';
+import { UserInventory } from './entities/user-inventory.entity';
 
 @Injectable()
 export class InventoryService {
