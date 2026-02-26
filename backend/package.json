@@ -23,6 +23,7 @@
     "migration:revert": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:revert"
   },
   "dependencies": {
+    "7": "^0.0.1",
     "@keyv/redis": "^5.1.6",
     "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.1",

@@ -5,6 +5,7 @@ import { PurchaseService } from './purchase.service';
 import { Purchase } from './entities/purchase.entity';
 import { ShopItem } from './entities/shop-item.entity';
 import { CouponsService } from '../coupons/coupons.service';
+import { InventoryService } from './inventory.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ShopItemType } from './enums/shop-item-type.enum';
 import { CouponType } from '../coupons/enums/coupon-type.enum';
@@ -69,6 +70,10 @@ describe('PurchaseService', () => {
     logCouponUsage: jest.fn(),
   };
 
+  const mockInventoryService = {
+    addItem: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -84,6 +89,10 @@ describe('PurchaseService', () => {
         {
           provide: CouponsService,
           useValue: mockCouponsService,
+        },
+        {
+          provide: InventoryService,
+          useValue: mockInventoryService,
         },
         {
           provide: DataSource,

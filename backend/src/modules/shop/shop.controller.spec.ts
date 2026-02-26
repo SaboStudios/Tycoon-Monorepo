@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ShopController } from './shop.controller';
 import { ShopService } from './shop.service';
 import { PurchaseService } from './purchase.service';
+import { InventoryService } from './inventory.service';
 import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 
 describe('ShopController', () => {
@@ -27,6 +28,11 @@ describe('ShopController', () => {
     validatePurchaseEligibility: jest.fn(),
   };
 
+  const mockInventoryService = {
+    getUserInventory: jest.fn(),
+    getActiveInventory: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ShopController],
@@ -38,6 +44,10 @@ describe('ShopController', () => {
         {
           provide: PurchaseService,
           useValue: mockPurchaseService,
+        },
+        {
+          provide: InventoryService,
+          useValue: mockInventoryService,
         },
       ],
     }).compile();

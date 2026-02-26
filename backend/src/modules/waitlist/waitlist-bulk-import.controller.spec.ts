@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WaitlistAdminController } from './waitlist-admin.controller';
 import { WaitlistService } from './waitlist.service';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
 import { BadRequestException } from '@nestjs/common';
 import { RedisRateLimitGuard } from '../../common/guards/redis-rate-limit.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -15,6 +16,10 @@ describe('WaitlistAdminController – bulkImport', () => {
     bulkImport: jest.fn(),
   };
 
+  const mockAdminLogsService = {
+    createLog: jest.fn(),
+  };
+
   // Stub guards so NestJS does not try to resolve their dependencies
   const mockGuard = { canActivate: jest.fn().mockReturnValue(true) };
 
@@ -25,6 +30,10 @@ describe('WaitlistAdminController – bulkImport', () => {
         {
           provide: WaitlistService,
           useValue: mockWaitlistService,
+        },
+        {
+          provide: AdminLogsService,
+          useValue: mockAdminLogsService,
         },
       ],
     })
