@@ -12,6 +12,8 @@ import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
+import { JoinGameDto } from './dto/join-game.dto';
+import { GamePlayer } from './entities/game-player.entity';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
 
@@ -35,6 +37,8 @@ export class GamesService {
     private readonly gameRepository: Repository<Game>,
     @InjectRepository(GameSettings)
     private readonly gameSettingsRepository: Repository<GameSettings>,
+    @InjectRepository(GamePlayer)
+    private readonly gamePlayerRepository: Repository<GamePlayer>,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
     private readonly paginationService: PaginationService,
@@ -357,5 +361,74 @@ export class GamesService {
 
     await this.gameSettingsRepository.update(settings.id, updates);
     return this.findById(gameId);
+  }
+
+  async joinGame(
+    gameId: number,
+    userId: number,
+    dto: JoinGameDto,
+  ): Promise<GamePlayer> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const game = await queryRunner.manager.findOne(Game, {
+        where: { id: gameId },
+        relations: ['settings'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!game) {
+        throw new NotFoundException(`Game with ID ${gameId} not found`);
+      }
+
+      if (game.status !== GameStatus.PENDING) {
+        throw new BadRequestException(
+          'Cannot join game that is not in PENDING status',
+        );
+      }
+
+      const playerCount = await queryRunner.manager.count(GamePlayer, {
+        where: { game_id: gameId },
+      });
+
+      if (playerCount >= game.number_of_players) {
+        throw new BadRequestException('Game is full');
+      }
+
+      const existing = await queryRunner.manager.findOne(GamePlayer, {
+        where: { game_id: gameId, user_id: userId },
+      });
+
+      if (existing) {
+        throw new BadRequestException('User already joined this game');
+      }
+
+      const startingCash = game.settings?.startingCash ?? 1500;
+      let turnOrder: number | null = null;
+
+      if (game.settings?.randomizePlayOrder) {
+        turnOrder = playerCount + 1;
+      }
+
+      const player = queryRunner.manager.create(GamePlayer, {
+        game_id: gameId,
+        user_id: userId,
+        balance: startingCash,
+        address: dto.address ?? null,
+        turn_order: turnOrder,
+      });
+
+      const savedPlayer = await queryRunner.manager.save(player);
+      await queryRunner.commitTransaction();
+
+      return savedPlayer;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import * as express from 'express';
 import * as fastcsv from 'fast-csv';
@@ -11,14 +12,23 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull } from 'typeorm';
 import { Waitlist } from './entities/waitlist.entity';
 import { CreateWaitlistDto } from './dto/create-waitlist.dto';
+import { UpdateWaitlistDto } from './dto/update-waitlist.dto';
 import { WaitlistResponseDto } from './dto/waitlist-response.dto';
 import { WaitlistPaginationDto } from './dto/waitlist-pagination.dto';
 import { ExportWaitlistDto } from './dto/export-waitlist.dto';
 import { WaitlistExportFormat } from './enums/waitlist-export-format.enum';
+import {
+  BulkImportErrorDto,
+  BulkImportResponseDto,
+  CsvWaitlistRowDto,
+} from './dto/bulk-import-waitlist.dto';
+import { parseCsv } from './utils/csv-parser.util';
 import { PaginationService, PaginatedResponse, SortOrder } from '../../common';
 
 @Injectable()
 export class WaitlistService {
+  private readonly logger = new Logger(WaitlistService.name);
+
   constructor(
     @InjectRepository(Waitlist)
     private readonly waitlistRepository: Repository<Waitlist>,
@@ -282,6 +292,229 @@ export class WaitlistService {
       withWallet,
       withEmail,
     };
+  }
+
+  /**
+   * Bulk-import waitlist entries from an uploaded CSV file buffer.
+   *
+   * Processing strategy (handles large files efficiently):
+   *   1. Parse CSV into rows
+   *   2. Pre-fetch existing wallet/email values in bulk (single query)
+   *   3. Walk rows, skipping duplicates and collecting validation errors
+   *   4. Batch-insert valid entries in chunks of BATCH_SIZE
+   *   5. Return a comprehensive result / error report
+   */
+  async bulkImport(fileBuffer: Buffer): Promise<BulkImportResponseDto> {
+    const BATCH_SIZE = 100;
+    const rows = parseCsv(fileBuffer);
+    const totalRows = rows.length;
+    const errors: BulkImportErrorDto[] = [];
+
+    // --- Pre-fetch existing identifiers for deduplication ----------------
+    const existingWallets = new Set<string>();
+    const existingEmails = new Set<string>();
+
+    const allEntries = await this.waitlistRepository.find({
+      select: ['wallet_address', 'email_address'],
+    });
+
+    for (const entry of allEntries) {
+      if (entry.wallet_address) existingWallets.add(entry.wallet_address);
+      if (entry.email_address) existingEmails.add(entry.email_address);
+    }
+
+    // Track identifiers seen within this import to avoid intra-file dupes
+    const seenWallets = new Set<string>();
+    const seenEmails = new Set<string>();
+
+    // --- Validate and deduplicate rows -----------------------------------
+    const validRows: CsvWaitlistRowDto[] = [];
+    let duplicateCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 1; // 1-based for user-facing error report
+
+      // Validate at least one field is present
+      if (!row.wallet_address && !row.email_address && !row.telegram_username) {
+        errors.push({
+          row: rowNum,
+          error:
+            'Row must contain at least one of: wallet_address, email_address, telegram_username.',
+        });
+        continue;
+      }
+
+      // Validate email format (basic)
+      if (
+        row.email_address &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email_address)
+      ) {
+        errors.push({
+          row: rowNum,
+          error: `Invalid email format: ${row.email_address}`,
+        });
+        continue;
+      }
+
+      // Validate telegram username format
+      if (row.telegram_username) {
+        const tg = row.telegram_username.replace(/^@/, '');
+        if (!/^[a-zA-Z0-9_]{1,100}$/.test(tg)) {
+          errors.push({
+            row: rowNum,
+            error: `Invalid telegram username: ${row.telegram_username}`,
+          });
+          continue;
+        }
+        row.telegram_username = tg;
+      }
+
+      // Check duplicates against DB
+      let isDuplicate = false;
+      if (row.wallet_address && existingWallets.has(row.wallet_address)) {
+        isDuplicate = true;
+      }
+      if (row.email_address && existingEmails.has(row.email_address)) {
+        isDuplicate = true;
+      }
+
+      // Check duplicates within the CSV itself
+      if (row.wallet_address && seenWallets.has(row.wallet_address)) {
+        isDuplicate = true;
+      }
+      if (row.email_address && seenEmails.has(row.email_address)) {
+        isDuplicate = true;
+      }
+
+      if (isDuplicate) {
+        duplicateCount++;
+        continue;
+      }
+
+      // Track for intra-file dedup
+      if (row.wallet_address) seenWallets.add(row.wallet_address);
+      if (row.email_address) seenEmails.add(row.email_address);
+
+      validRows.push(row);
+    }
+
+    // --- Batch insert ----------------------------------------------------
+    let importedCount = 0;
+
+    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+      const batch = validRows.slice(i, i + BATCH_SIZE);
+      try {
+        const entities = batch.map((row) =>
+          this.waitlistRepository.create({
+            wallet_address: row.wallet_address ?? undefined,
+            email_address: row.email_address ?? undefined,
+            telegram_username: row.telegram_username ?? undefined,
+          }),
+        );
+        await this.waitlistRepository.save(entities);
+        importedCount += batch.length;
+      } catch {
+        // If a batch fails, fall back to row-by-row insert for that batch
+        for (let j = 0; j < batch.length; j++) {
+          const row = batch[j];
+          const rowNum = i + j + 1;
+          try {
+            const entity = this.waitlistRepository.create({
+              wallet_address: row.wallet_address ?? undefined,
+              email_address: row.email_address ?? undefined,
+              telegram_username: row.telegram_username ?? undefined,
+            });
+            await this.waitlistRepository.save(entity);
+            importedCount++;
+          } catch (innerError: unknown) {
+            const dbError = innerError as { code?: string };
+            if (dbError.code === '23505') {
+              duplicateCount++;
+            } else {
+              errors.push({
+                row: rowNum,
+                error: 'Failed to save entry. Please check the data.',
+              });
+            }
+          }
+        }
+      }
+    }
+
+    this.logger.log(
+      `Bulk import completed: ${importedCount} imported, ${duplicateCount} duplicates, ${errors.length} errors out of ${totalRows} rows.`,
+    );
+
+    return {
+      message: 'Bulk import completed.',
+      data: {
+        totalRows,
+        importedCount,
+        duplicateCount,
+        errorCount: errors.length,
+        errors,
+      },
+    };
+  }
+
+  /**
+   * Update a waitlist entry by ID (admin only).
+   * Validates uniqueness of updated fields.
+   */
+  async update(id: number, dto: UpdateWaitlistDto): Promise<Waitlist> {
+    const entry = await this.waitlistRepository.findOne({ where: { id } });
+    if (!entry) {
+      throw new BadRequestException('Waitlist entry not found.');
+    }
+
+    const { wallet_address, email_address, telegram_username } = dto;
+
+    // Check uniqueness for updated fields
+    if (wallet_address && wallet_address !== entry.wallet_address) {
+      const existing = await this.waitlistRepository.findOne({
+        where: { wallet_address },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'This wallet address is already on the waitlist.',
+        );
+      }
+    }
+
+    if (email_address && email_address !== entry.email_address) {
+      const existing = await this.waitlistRepository.findOne({
+        where: { email_address },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'This email address is already on the waitlist.',
+        );
+      }
+    }
+
+    Object.assign(entry, dto);
+    return await this.waitlistRepository.save(entry);
+  }
+
+  /**
+   * Soft delete a waitlist entry by ID (admin only).
+   */
+  async softDelete(id: number): Promise<void> {
+    const result = await this.waitlistRepository.softDelete(id);
+    if (!result.affected) {
+      throw new BadRequestException('Waitlist entry not found.');
+    }
+  }
+
+  /**
+   * Hard delete a waitlist entry by ID (admin only).
+   */
+  async hardDelete(id: number): Promise<void> {
+    const result = await this.waitlistRepository.delete(id);
+    if (!result.affected) {
+      throw new BadRequestException('Waitlist entry not found.');
+    }
   }
 
   // ---------------------------------------------------------------------------

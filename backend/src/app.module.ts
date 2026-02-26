@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -12,6 +13,8 @@ import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
 import { CommonModule, HttpExceptionFilter } from './common';
+import { SuspensionCheckMiddleware } from './common/middleware/suspension-check.middleware';
+import { User } from './modules/users/entities/user.entity';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
@@ -27,6 +30,11 @@ import { ShopModule } from './modules/shop/shop.module';
 import { SkinsModule } from './modules/skins/skins.module';
 import { BoardStylesModule } from './modules/board-styles/board-styles.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
+import { PerksModule } from './modules/perks/perks.module';
+import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
+import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.module';
+import { MonetizationModule } from './modules/monetization/monetization.module';
 
 @Module({
   imports: [
@@ -37,6 +45,9 @@ import { GiftsModule } from './modules/gifts/gifts.module';
       envFilePath: '.env',
       validationSchema,
     }),
+
+    // Scheduler
+    ScheduleModule.forRoot(),
 
     // Rate Limiting
     ThrottlerModule.forRoot([
@@ -62,11 +73,13 @@ import { GiftsModule } from './modules/gifts/gifts.module';
       },
     }),
 
+    // TypeORM for middleware
+    TypeOrmModule.forFeature([User]),
+
     // Feature Modules
     RedisModule,
     CommonModule,
     UsersModule,
-    AuthModule,
     AuthModule,
 
     PropertiesModule,
@@ -79,10 +92,16 @@ import { GiftsModule } from './modules/gifts/gifts.module';
     SkinsModule,
     BoardStylesModule,
     GiftsModule,
+    CouponsModule,
+    PerksModule,
+    PerksBoostsModule,
+    AdminAnalyticsModule,
+    MonetizationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
     AppService,
+    SuspensionCheckMiddleware,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -98,4 +117,8 @@ import { GiftsModule } from './modules/gifts/gifts.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(SuspensionCheckMiddleware).forRoutes('*');
+  }
+}
