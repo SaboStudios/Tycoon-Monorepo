@@ -34,6 +34,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { PerksModule } from './modules/perks/perks.module';
 import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.module';
+import { MonetizationModule } from './modules/monetization/monetization.module';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.
     PerksModule,
     PerksBoostsModule,
     AdminAnalyticsModule,
+    MonetizationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
