@@ -3,9 +3,11 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, LessThan } from 'typeorm';
+import { Repository, DataSource, LessThan, MoreThanOrEqual } from 'typeorm';
+import type { Request } from 'express';
 import { Gift } from './entities/gift.entity';
 import { CreateGiftDto } from './dto/create-gift.dto';
 import { FilterGiftsDto } from './dto/filter-gifts.dto';
@@ -27,6 +29,10 @@ export interface PaginatedGifts {
 
 @Injectable()
 export class GiftsService {
+  private readonly logger = new Logger(GiftsService.name);
+  private readonly MAX_DAILY_GIFTS = 50; // Anti-spam limit
+  private readonly MAX_GIFTS_PER_RECEIVER = 10; // Per day per receiver
+
   constructor(
     @InjectRepository(Gift)
     private readonly giftRepository: Repository<Gift>,
@@ -39,7 +45,7 @@ export class GiftsService {
   /**
    * Create a new gift
    */
-  async create(senderId: number, createGiftDto: CreateGiftDto): Promise<Gift> {
+  async create(senderId: number, createGiftDto: CreateGiftDto, req?: Request): Promise<Gift> {
     const { receiver_id, shop_item_id, quantity = 1, message, expiration_hours = 168 } = createGiftDto;
 
     // Validate sender and receiver exist
@@ -48,7 +54,54 @@ export class GiftsService {
 
     // Validate sender is not gifting to themselves
     if (senderId === receiver_id) {
+      this.logger.warn(`User ${senderId} attempted to gift themselves`, {
+        senderId,
+        ip: req?.ip,
+      });
       throw new BadRequestException('Cannot send a gift to yourself');
+    }
+
+    // Anti-spam: Check daily gift limit
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const dailyGiftCount = await this.giftRepository.count({
+      where: {
+        sender_id: senderId,
+        created_at: MoreThanOrEqual(today),
+      },
+    });
+
+    if (dailyGiftCount >= this.MAX_DAILY_GIFTS) {
+      this.logger.warn(`User ${senderId} exceeded daily gift limit`, {
+        senderId,
+        count: dailyGiftCount,
+        ip: req?.ip,
+      });
+      throw new BadRequestException(
+        `Daily gift limit reached (${this.MAX_DAILY_GIFTS} gifts per day)`,
+      );
+    }
+
+    // Anti-spam: Check gifts to same receiver today
+    const giftsToReceiver = await this.giftRepository.count({
+      where: {
+        sender_id: senderId,
+        receiver_id,
+        created_at: MoreThanOrEqual(today),
+      },
+    });
+
+    if (giftsToReceiver >= this.MAX_GIFTS_PER_RECEIVER) {
+      this.logger.warn(`User ${senderId} exceeded per-receiver gift limit`, {
+        senderId,
+        receiverId: receiver_id,
+        count: giftsToReceiver,
+        ip: req?.ip,
+      });
+      throw new BadRequestException(
+        `You can only send ${this.MAX_GIFTS_PER_RECEIVER} gifts per day to the same user`,
+      );
     }
 
     // Validate shop item exists and is active
@@ -71,7 +124,20 @@ export class GiftsService {
       status: GiftStatus.PENDING,
     });
 
-    return await this.giftRepository.save(gift);
+    const savedGift = await this.giftRepository.save(gift);
+
+    // Audit log
+    this.logger.log(`Gift created: ${savedGift.id}`, {
+      giftId: savedGift.id,
+      senderId,
+      receiverId: receiver_id,
+      shopItemId: shop_item_id,
+      quantity,
+      ip: req?.ip,
+      userAgent: req?.headers['user-agent'],
+    });
+
+    return savedGift;
   }
 
   /**
@@ -176,6 +242,7 @@ export class GiftsService {
     giftId: number,
     receiverId: number,
     action: GiftResponse,
+    req?: Request,
   ): Promise<Gift> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -193,11 +260,23 @@ export class GiftsService {
 
       // Verify user is the receiver
       if (gift.receiver_id !== receiverId) {
+        this.logger.warn(`Unauthorized gift access attempt`, {
+          giftId,
+          attemptedBy: receiverId,
+          actualReceiver: gift.receiver_id,
+          ip: req?.ip,
+        });
         throw new ForbiddenException('You are not the recipient of this gift');
       }
 
-      // Verify gift is pending
+      // Verify gift is pending (replay attack protection)
       if (gift.status !== GiftStatus.PENDING) {
+        this.logger.warn(`Attempt to reuse gift`, {
+          giftId,
+          userId: receiverId,
+          currentStatus: gift.status,
+          ip: req?.ip,
+        });
         throw new BadRequestException(
           `Gift has already been ${gift.status}`,
         );
@@ -208,6 +287,12 @@ export class GiftsService {
         gift.status = GiftStatus.EXPIRED;
         await queryRunner.manager.save(gift);
         await queryRunner.commitTransaction();
+        
+        this.logger.warn(`Expired gift access attempt`, {
+          giftId,
+          userId: receiverId,
+          expiredAt: gift.expiration,
+        });
         throw new BadRequestException('This gift has expired');
       }
 
@@ -222,9 +307,23 @@ export class GiftsService {
           gift.shop_item_id,
           gift.quantity,
         );
+
+        this.logger.log(`Gift accepted: ${giftId}`, {
+          giftId,
+          receiverId,
+          shopItemId: gift.shop_item_id,
+          quantity: gift.quantity,
+          ip: req?.ip,
+        });
       } else {
         gift.status = GiftStatus.REJECTED;
         gift.rejected_at = new Date();
+
+        this.logger.log(`Gift rejected: ${giftId}`, {
+          giftId,
+          receiverId,
+          ip: req?.ip,
+        });
       }
 
       const updatedGift = await queryRunner.manager.save(gift);
@@ -242,7 +341,7 @@ export class GiftsService {
   /**
    * Cancel a pending gift (sender only)
    */
-  async cancelGift(giftId: number, senderId: number): Promise<Gift> {
+  async cancelGift(giftId: number, senderId: number, req?: Request): Promise<Gift> {
     const gift = await this.giftRepository.findOne({
       where: { id: giftId },
       relations: ['shop_item'],
@@ -254,6 +353,12 @@ export class GiftsService {
 
     // Verify user is the sender
     if (gift.sender_id !== senderId) {
+      this.logger.warn(`Unauthorized gift cancellation attempt`, {
+        giftId,
+        attemptedBy: senderId,
+        actualSender: gift.sender_id,
+        ip: req?.ip,
+      });
       throw new ForbiddenException('You are not the sender of this gift');
     }
 
@@ -265,7 +370,15 @@ export class GiftsService {
     }
 
     gift.status = GiftStatus.CANCELLED;
-    return await this.giftRepository.save(gift);
+    const cancelled = await this.giftRepository.save(gift);
+
+    this.logger.log(`Gift cancelled: ${giftId}`, {
+      giftId,
+      senderId,
+      ip: req?.ip,
+    });
+
+    return cancelled;
   }
 
   /**
