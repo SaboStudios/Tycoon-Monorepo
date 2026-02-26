@@ -4,6 +4,7 @@ import { GiftsService } from './gifts.service';
 import { CreateGiftDto } from './dto/create-gift.dto';
 import { GiftStatus } from './enums/gift-status.enum';
 import { GiftResponse } from './dto/respond-gift.dto';
+import { RedisRateLimitGuard } from '../../common/guards/redis-rate-limit.guard';
 
 describe('GiftsController', () => {
   let controller: GiftsController;
@@ -27,7 +28,10 @@ describe('GiftsController', () => {
           useValue: mockGiftsService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(RedisRateLimitGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<GiftsController>(GiftsController);
     service = module.get<GiftsService>(GiftsService);

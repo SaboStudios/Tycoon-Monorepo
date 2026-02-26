@@ -5,6 +5,9 @@ import { GiftsService } from './gifts.service';
 import { Gift } from './entities/gift.entity';
 import { BadRequestException } from '@nestjs/common';
 import { GiftStatus } from './enums/gift-status.enum';
+import { ShopService } from '../shop/shop.service';
+import { InventoryService } from '../shop/inventory.service';
+import { UsersService } from '../users/users.service';
 
 describe('GiftsService - Security Features', () => {
   let service: GiftsService;
@@ -38,15 +41,15 @@ describe('GiftsService - Security Features', () => {
           useValue: mockRepository,
         },
         {
-          provide: 'ShopService',
+          provide: ShopService,
           useValue: mockShopService,
         },
         {
-          provide: 'InventoryService',
+          provide: InventoryService,
           useValue: mockInventoryService,
         },
         {
-          provide: 'UsersService',
+          provide: UsersService,
           useValue: mockUsersService,
         },
         {
