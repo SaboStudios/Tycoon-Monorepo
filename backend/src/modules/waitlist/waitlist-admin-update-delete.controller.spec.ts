@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { WaitlistAdminController } from './waitlist-admin.controller';
 import { WaitlistService } from './waitlist.service';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { RedisService } from '../redis/redis.service';
 import { UpdateWaitlistDto } from './dto/update-waitlist.dto';
 import { Waitlist } from './entities/waitlist.entity';
 
@@ -20,12 +22,18 @@ describe('WaitlistAdminController - Update/Delete', () => {
     createLog: jest.fn(),
   };
 
+  const mockRedisService = {
+    incrementRateLimit: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WaitlistAdminController],
       providers: [
         { provide: WaitlistService, useValue: mockWaitlistService },
         { provide: AdminLogsService, useValue: mockAdminLogsService },
+        { provide: RedisService, useValue: mockRedisService },
+        Reflector,
       ],
     }).compile();
 
