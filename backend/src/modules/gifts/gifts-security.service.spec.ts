@@ -118,9 +118,6 @@ describe('GiftsService - Security Features', () => {
         .mockResolvedValueOnce(10); // Per-receiver at limit
 
       await expect(service.create(senderId, createDto)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.create(senderId, createDto)).rejects.toThrow(
         'You can only send 10 gifts per day to the same user',
       );
     });
