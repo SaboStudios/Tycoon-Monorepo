@@ -35,12 +35,12 @@ describe('PaymentWebhook', () => {
   it('rejects invalid signatures', async () => {
     const payload = JSON.stringify({ type: 'payment.success', data: {} });
 
-    await expect(
+    expect(() =>
       service.handlePaymentWebhook(payload, 'invalid', {
         type: 'payment.success',
         data: {},
       }),
-    ).rejects.toThrow(UnauthorizedException);
+    ).toThrow(UnauthorizedException);
   });
 
   it('processes payment.success and grants perk', async () => {

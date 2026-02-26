@@ -1,6 +1,7 @@
 import { Body, Controller, Headers, Post, Req, BadRequestException } from '@nestjs/common';
 import { Request } from 'express';
-import { PaymentWebhook, PaymentWebhookEvent } from './webhooks/paymentWebhook';
+import { PaymentWebhook } from './webhooks/paymentWebhook';
+import type { PaymentWebhookEvent } from './webhooks/paymentWebhook';
 import { CouponService } from './coupons/couponService';
 import { EventRewards, MonetizationEvent } from './rewards/eventRewards';
 
