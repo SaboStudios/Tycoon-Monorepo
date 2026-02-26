@@ -11,6 +11,7 @@ import { CreateGiftDto } from './dto/create-gift.dto';
 import { FilterGiftsDto } from './dto/filter-gifts.dto';
 import { GiftStatus } from './enums/gift-status.enum';
 import { ShopService } from '../shop/shop.service';
+import { InventoryService } from '../shop/inventory.service';
 import { UsersService } from '../users/users.service';
 import { GiftResponse } from './dto/respond-gift.dto';
 
@@ -30,6 +31,7 @@ export class GiftsService {
     @InjectRepository(Gift)
     private readonly giftRepository: Repository<Gift>,
     private readonly shopService: ShopService,
+    private readonly inventoryService: InventoryService,
     private readonly usersService: UsersService,
     private readonly dataSource: DataSource,
   ) {}
@@ -213,7 +215,13 @@ export class GiftsService {
       if (action === GiftResponse.ACCEPT) {
         gift.status = GiftStatus.ACCEPTED;
         gift.accepted_at = new Date();
-        // TODO: Add item to user's inventory when inventory system is implemented
+        
+        // Add item to user's inventory
+        await this.inventoryService.addItem(
+          userId,
+          gift.shop_item_id,
+          gift.quantity,
+        );
       } else {
         gift.status = GiftStatus.REJECTED;
         gift.rejected_at = new Date();

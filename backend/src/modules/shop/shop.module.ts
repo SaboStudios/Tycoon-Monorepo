@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ShopItem } from './entities/shop-item.entity';
 import { Purchase } from './entities/purchase.entity';
+import { UserInventory } from './entities/user-inventory.entity';
 import { ShopService } from './shop.service';
 import { PurchaseService } from './purchase.service';
+import { InventoryService } from './inventory.service';
 import { ShopController } from './shop.controller';
 import { CouponsModule } from '../coupons/coupons.module';
 import { UsersModule } from '../users/users.module';
@@ -11,13 +13,13 @@ import { GiftsModule } from '../gifts/gifts.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ShopItem, Purchase]),
+    TypeOrmModule.forFeature([ShopItem, Purchase, UserInventory]),
     CouponsModule,
     UsersModule,
     GiftsModule,
   ],
   controllers: [ShopController],
-  providers: [ShopService, PurchaseService],
-  exports: [ShopService, PurchaseService],
+  providers: [ShopService, PurchaseService, InventoryService],
+  exports: [ShopService, PurchaseService, InventoryService],
 })
 export class ShopModule {}
