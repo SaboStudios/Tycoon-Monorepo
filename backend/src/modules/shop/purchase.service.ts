@@ -9,6 +9,7 @@ import { Purchase } from './entities/purchase.entity';
 import { ShopItem } from './entities/shop-item.entity';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { CouponsService } from '../coupons/coupons.service';
+import { InventoryService } from './inventory.service';
 
 export interface PurchaseCalculation {
   original_price: number;
@@ -26,6 +27,7 @@ export class PurchaseService {
     @InjectRepository(ShopItem)
     private readonly shopItemRepository: Repository<ShopItem>,
     private readonly couponsService: CouponsService,
+    private readonly inventoryService: InventoryService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -106,6 +108,9 @@ export class PurchaseService {
           },
         );
       }
+
+      // Add items to user inventory
+      await this.inventoryService.addItem(userId, shopItem.id, quantity);
 
       await queryRunner.commitTransaction();
 
