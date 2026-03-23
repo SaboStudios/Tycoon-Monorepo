@@ -120,15 +120,19 @@ jobs:
         with:
           node-version: "18"
           cache: "npm"
+          cache-dependency-path: backend/src/User Management (Admin)/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: backend/src/User Management (Admin)
 
       - name: Run unit tests
         run: npm test
+        working-directory: backend/src/User Management (Admin)
 
       - name: Run E2E tests
         run: npm run test:e2e
+        working-directory: backend/src/User Management (Admin)
         env:
           DB_HOST: localhost
           DB_PORT: 5432
@@ -139,6 +143,7 @@ jobs:
 
       - name: Generate coverage report
         run: npm run test:cov
+        working-directory: backend/src/User Management (Admin)
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

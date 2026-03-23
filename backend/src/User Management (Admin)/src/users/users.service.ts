@@ -24,7 +24,9 @@ export class UsersService {
 
   async findAll(queryDto: QueryUsersDto) {
     const { page, limit, search, role, status } = queryDto;
-    const skip = (page - 1) * limit;
+    const currentPage = page ?? 1;
+    const currentLimit = limit ?? 10;
+    const skip = (currentPage - 1) * currentLimit;
 
     const queryBuilder = this.usersRepository.createQueryBuilder("user");
 
@@ -45,7 +47,7 @@ export class UsersService {
 
     const [users, total] = await queryBuilder
       .skip(skip)
-      .take(limit)
+      .take(currentLimit)
       .orderBy("user.createdAt", "DESC")
       .getManyAndCount();
 
@@ -53,9 +55,9 @@ export class UsersService {
       data: users.map((user) => this.sanitizeUser(user)),
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: currentPage,
+        limit: currentLimit,
+        totalPages: Math.ceil(total / currentLimit),
       },
     };
   }
