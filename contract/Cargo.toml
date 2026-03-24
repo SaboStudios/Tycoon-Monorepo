@@ -4,6 +4,11 @@ members = [
   "contracts/*",
 ]
 
+# Exclude archived/experimental contracts from the workspace
+exclude = [
+  "archive/*",
+]
+
 [workspace.dependencies]
 soroban-sdk = "23"
 
