@@ -1,4 +1,20 @@
 import GameBoard from "@/components/game/GameBoard";
+import { generatePageMetadata } from "@/lib/metadata";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = generatePageMetadata({
+  title: "Play Game",
+  description:
+    "Play Tycoon online. Build your empire, trade properties, and become the ultimate tycoon.",
+  canonicalPath: "/game-play",
+  keywords: [
+    "play tycoon",
+    "board game",
+    "property trading",
+    "strategy game",
+    "multiplayer game",
+  ],
+});
 
 export default function GamePlayPage() {
   return (
