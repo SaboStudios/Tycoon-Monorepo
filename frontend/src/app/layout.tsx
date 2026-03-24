@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { generateBaseMetadata } from "@/lib/metadata";
 import "./globals.css";
 import Navbar from "@/components/shared/Navbar";
@@ -30,8 +31,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        {children}
-        <NavbarMobile />
+        <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+          {children}
+          <NavbarMobile />
+        </ErrorBoundary>
+        <ToastProvider />
+        <ScrollToTopBtn />
       </body>
     </html>
   );
