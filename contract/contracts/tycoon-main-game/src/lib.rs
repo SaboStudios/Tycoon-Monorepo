@@ -87,15 +87,8 @@ impl TycoonMainGame {
             panic!("Player is not in this game");
         }
 
-        // Refund stake if applicable — transfer from contract to player
-        if game.stake_per_player > 0 {
-            let usdc_token = storage::get_usdc_token(&env);
-            let token_client = token::Client::new(&env, &usdc_token);
-            let contract_address = env.current_contract_address();
-            token_client.transfer(&contract_address, &player, &(game.stake_per_player as i128));
-        }
-
-        // Update game state
+        // Refund stake if applicable
+        // CEI: EFFECTS — update all game state before the external token transfer
         game.total_staked = game.total_staked.saturating_sub(game.stake_per_player);
         game.joined_players = new_players;
 
@@ -107,7 +100,16 @@ impl TycoonMainGame {
             game.ended_at = env.ledger().timestamp();
         }
 
+        // Persist state before any external call
         storage::set_game(&env, &game);
+
+        // CEI: INTERACTIONS — external token transfer after state is committed
+        if game.stake_per_player > 0 {
+            let usdc_token = storage::get_usdc_token(&env);
+            let token_client = token::Client::new(&env, &usdc_token);
+            let contract_address = env.current_contract_address();
+            token_client.transfer(&contract_address, &player, &(game.stake_per_player as i128));
+        }
 
         // Emit PlayerLeftPending
         events::emit_player_left_pending(
