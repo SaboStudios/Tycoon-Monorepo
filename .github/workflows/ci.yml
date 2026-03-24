@@ -88,6 +88,10 @@ jobs:
         run: npm test -- run
         working-directory: frontend
 
+      - name: Run API unit tests
+        run: npm test -- run test/api
+        working-directory: frontend
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
