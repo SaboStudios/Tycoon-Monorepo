@@ -1,0 +1,32 @@
+{
+  "note": "This baseline is updated automatically by CI on every merge to main. Do not edit manually.",
+  "lastUpdated": "2025-01-01T00:00:00.000Z",
+  "commit": "initial",
+  "branch": "main",
+  "results": [
+    {
+      "name": "First Load JS (shared)",
+      "sizeBytes": 0,
+      "limit": "120 kB",
+      "limitBytes": 122880
+    },
+    {
+      "name": "Main page JS",
+      "sizeBytes": 0,
+      "limit": "50 kB",
+      "limitBytes": 51200
+    },
+    {
+      "name": "Total First Load JS",
+      "sizeBytes": 0,
+      "limit": "350 kB",
+      "limitBytes": 358400
+    },
+    {
+      "name": "Total build output (JS)",
+      "sizeBytes": 0,
+      "limit": "1500 kB",
+      "limitBytes": 1536000
+    }
+  ]
+}

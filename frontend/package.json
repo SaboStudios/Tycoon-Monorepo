@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "bundle:check": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
