@@ -14,8 +14,8 @@ pub enum BoostType {
 pub struct Boost {
     pub id: u128,
     pub boost_type: BoostType,
-    pub value: u32,      // Basis points (100 = 1%)
-    pub priority: u32,   // Higher priority wins for Override type
+    pub value: u32,    // Basis points (100 = 1%)
+    pub priority: u32, // Higher priority wins for Override type
 }
 
 #[contracttype]
@@ -32,9 +32,13 @@ impl TycoonBoostSystem {
     /// Add a boost to a player
     pub fn add_boost(env: Env, player: Address, boost: Boost) {
         player.require_auth();
-        
+
         let key = DataKey::PlayerBoosts(player.clone());
-        let mut boosts: Vec<Boost> = env.storage().persistent().get(&key).unwrap_or(Vec::new(&env));
+        let mut boosts: Vec<Boost> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env));
         boosts.push_back(boost);
         env.storage().persistent().set(&key, &boosts);
     }
@@ -42,8 +46,12 @@ impl TycoonBoostSystem {
     /// Calculate final boost value with stacking rules
     pub fn calculate_total_boost(env: Env, player: Address) -> u32 {
         let key = DataKey::PlayerBoosts(player);
-        let boosts: Vec<Boost> = env.storage().persistent().get(&key).unwrap_or(Vec::new(&env));
-        
+        let boosts: Vec<Boost> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env));
+
         Self::apply_stacking_rules(&env, boosts)
     }
 
@@ -57,7 +65,10 @@ impl TycoonBoostSystem {
     /// Get all boosts for a player
     pub fn get_boosts(env: Env, player: Address) -> Vec<Boost> {
         let key = DataKey::PlayerBoosts(player);
-        env.storage().persistent().get(&key).unwrap_or(Vec::new(&env))
+        env.storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env))
     }
 }
 
@@ -73,11 +84,12 @@ impl TycoonBoostSystem {
 
         for i in 0..boosts.len() {
             let boost = boosts.get(i).unwrap();
-            
+
             match boost.boost_type {
                 BoostType::Multiplicative => {
                     // Multiply: (current * boost_value) / 10000
-                    multiplicative_total = (multiplicative_total as u64 * boost.value as u64 / 10000) as u32;
+                    multiplicative_total =
+                        (multiplicative_total as u64 * boost.value as u64 / 10000) as u32;
                 }
                 BoostType::Additive => {
                     additive_total += boost.value;
