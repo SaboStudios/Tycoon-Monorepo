@@ -1,5 +1,5 @@
-import { type Metadata } from 'next';
-import { siteConfig, isStaging, getCanonicalUrl } from './config';
+import { type Metadata } from "next";
+import { siteConfig, isStaging, getCanonicalUrl } from "./config";
 
 /**
  * Generate base metadata for the application
@@ -10,17 +10,20 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
   const canonicalUrl = getCanonicalUrl();
 
   const baseMetadata: Metadata = {
+    // Metadata base for resolving social images
+    metadataBase: new URL(siteConfig.url),
+
     // Basic metadata
     title: {
       default: siteConfig.name,
       template: `%s | ${siteConfig.name}`,
     },
     description: siteConfig.description,
-    
+
     // Application metadata
     applicationName: siteConfig.name,
-    generator: 'Next.js',
-    
+    generator: "Next.js",
+
     // Author and creator
     authors: [
       {
@@ -28,42 +31,47 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
         url: siteConfig.url,
       },
     ],
-    
+
     // Keywords
-    keywords: siteConfig.keywords.join(', '),
-    
+    keywords: siteConfig.keywords.join(", "),
+
     // Creator
     creator: siteConfig.creator,
-    
+
     // Publisher
     publisher: siteConfig.creator,
-    
+
     // Format detection
     formatDetection: {
       email: false,
       address: false,
       telephone: false,
     },
-    
-    // Theme color
-    themeColor: siteConfig.themeColor,
-    
+
     // Manifest
-    manifest: '/manifest.json',
-    
+    manifest: "/manifest.json",
+
     // Icons
     icons: {
       icon: [
-        { url: '/metadata/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-        { url: '/metadata/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+        {
+          url: "/metadata/favicon-16x16.png",
+          sizes: "16x16",
+          type: "image/png",
+        },
+        {
+          url: "/metadata/favicon-32x32.png",
+          sizes: "32x32",
+          type: "image/png",
+        },
       ],
-      apple: '/metadata/apple-touch-icon.png',
+      apple: "/metadata/apple-touch-icon.png",
     },
-    
+
     // Open Graph metadata
     openGraph: {
-      type: 'website',
-      locale: 'en_US',
+      type: "website",
+      locale: "en_US",
       url: canonicalUrl,
       siteName: siteConfig.name,
       title: {
@@ -80,7 +88,7 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
         },
       ],
     },
-    
+
     // Twitter card metadata
     twitter: {
       card: siteConfig.twitter.cardType,
@@ -93,7 +101,7 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
       description: siteConfig.description,
       images: [siteConfig.ogImage],
     },
-    
+
     // Robots - conditionally set noindex for staging
     robots: {
       index: !isStagingEnv,
@@ -101,18 +109,18 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
       googleBot: {
         index: !isStagingEnv,
         follow: !isStagingEnv,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
       },
     },
-    
+
     // Verification (add your verification codes here)
     // verification: {
     //   google: 'your-google-verification-code',
     //   yandex: 'your-yandex-verification-code',
     // },
-    
+
     ...overrides,
   };
 
@@ -132,14 +140,15 @@ export function generatePageMetadata(options: {
   keywords?: string[];
   overrides?: Partial<Metadata>;
 }): Metadata {
-  const { title, description, canonicalPath, ogImage, keywords, overrides } = options;
+  const { title, description, canonicalPath, ogImage, keywords, overrides } =
+    options;
   const isStagingEnv = isStaging();
   const canonicalUrl = getCanonicalUrl(canonicalPath);
 
   return {
     title,
     description,
-    keywords: keywords?.join(', '),
+    keywords: keywords?.join(", "),
     openGraph: {
       title,
       description,

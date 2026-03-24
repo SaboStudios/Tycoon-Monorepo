@@ -1,23 +1,24 @@
 /**
  * Metadata Configuration
- * 
+ *
  * Centralized configuration for SEO metadata across the application.
  * Supports environment-based staging noindex via NEXT_PUBLIC_APP_ENV.
  */
 
 export const siteConfig = {
-  name: 'Tycoon Monorepo',
-  description: 'Experience the ultimate tycoon gaming platform with immersive gameplay, AI-powered opponents, and real-time multiplayer action.',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  ogImage: '/metadata/og-image.png',
-  keywords: ['tycoon', 'gaming', 'multiplayer', 'strategy', 'board game', 'AI'],
-  creator: 'Tycoon Team',
+  name: "Tycoon Monorepo",
+  description:
+    "Experience the ultimate tycoon gaming platform with immersive gameplay, AI-powered opponents, and real-time multiplayer action.",
+  url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  ogImage: "/metadata/og-image.png",
+  keywords: ["tycoon", "gaming", "multiplayer", "strategy", "board game", "AI"],
+  creator: "Tycoon Team",
   twitter: {
-    handle: '@tycoongame',
-    site: '@tycoongame',
-    cardType: 'summary_large_image',
+    handle: "@tycoongame",
+    site: "@tycoongame",
+    cardType: "summary_large_image" as const,
   },
-  themeColor: '#000000',
+  themeColor: "#000000",
 };
 
 export type PageMetadataConfig = {
@@ -35,7 +36,9 @@ export type PageMetadataConfig = {
  */
 export const isStaging = (): boolean => {
   const appEnv = process.env.NEXT_PUBLIC_APP_ENV;
-  return appEnv === 'staging' || appEnv === 'preview' || appEnv === 'development';
+  return (
+    appEnv === "staging" || appEnv === "preview" || appEnv === "development"
+  );
 };
 
 /**
@@ -44,9 +47,9 @@ export const isStaging = (): boolean => {
 export const getCanonicalUrl = (path?: string): string => {
   const baseUrl = siteConfig.url;
   if (!path) return baseUrl;
-  
+
   // Ensure path starts with /
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${baseUrl}${normalizedPath}`;
 };
 

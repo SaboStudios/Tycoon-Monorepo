@@ -1,67 +1,57 @@
-import { NextResponse } from 'next/server';
+import type { MetadataRoute } from 'next';
 import { siteConfig, isStaging } from '@/lib/metadata';
 
 /**
- * GET handler for robots.txt
- * 
+ * Robots configuration
+ *
  * Dynamically generates robots.txt based on environment:
  * - Production: Allows all search engines
  * - Staging/Development: Blocks all search engines
  */
-export async function GET() {
+export default function robots(): MetadataRoute.Robots {
   const baseUrl = siteConfig.url;
   const staging = isStaging();
 
-  const robotsContent = staging
-    ? `# Staging/Development Environment
-# Do not index this site
+  if (staging) {
+    // Block all crawlers in staging
+    return {
+      rules: {
+        userAgent: '*',
+        disallow: '/',
+      },
+      sitemap: `${baseUrl}/sitemap.xml`,
+    };
+  }
 
-User-agent: *
-Disallow: /
-
-# Block all crawlers in staging
-Sitemap: ${baseUrl}/sitemap.xml
-`
-    : `# Production Environment
-# Allow all search engines to index
-
-User-agent: *
-Allow: /
-
-# Crawl-delay for polite crawling
-Crawl-delay: 1
-
-# Google specific settings
-User-agent: Googlebot
-Allow: /
-max-snippet: -1
-max-image-preview: large
-max-video-preview: -1
-
-# Bing specific settings
-User-agent: Bingbot
-Allow: /
-
-# Twitter
-User-agent: Twitterbot
-Allow: /
-
-# Facebook
-User-agent: facebookexternalhit
-Allow: /
-
-# LinkedIn
-User-agent: LinkedInBot
-Allow: /
-
-# Sitemap location
-Sitemap: ${baseUrl}/sitemap.xml
-`;
-
-  return new NextResponse(robotsContent, {
-    headers: {
-      'Content-Type': 'text/plain',
-      'Cache-Control': 'public, max-age=3600',
-    },
-  });
+  // Allow all crawlers in production
+  return {
+    rules: [
+      {
+        userAgent: '*',
+        allow: '/',
+        crawlDelay: 1,
+      },
+      {
+        userAgent: 'Googlebot',
+        allow: '/',
+      },
+      {
+        userAgent: 'Bingbot',
+        allow: '/',
+      },
+      {
+        userAgent: 'Twitterbot',
+        allow: '/',
+      },
+      {
+        userAgent: 'facebookexternalhit',
+        allow: '/',
+      },
+      {
+        userAgent: 'LinkedInBot',
+        allow: '/',
+      },
+    ],
+    sitemap: `${baseUrl}/sitemap.xml`,
+  };
 }
