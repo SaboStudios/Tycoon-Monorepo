@@ -54,7 +54,8 @@ router.get(
 // GET /shop/transactions/:userId - Get user transactions
 router.get("/transactions/:userId", async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const rawUserId = req.params.userId;
+    const userId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
     const transactions = shopService.getUserTransactions(userId);
 
     res.status(200).json({

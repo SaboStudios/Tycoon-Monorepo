@@ -82,9 +82,18 @@ describe("Users Admin (e2e)", () => {
   });
 
   afterAll(async () => {
-    await auditLogRepository.delete({});
-    await userRepository.delete({});
-    await app.close();
+    // TypeORM rejects delete({}); use clear(). Guard when beforeAll never completed.
+    try {
+      if (auditLogRepository && userRepository) {
+        await auditLogRepository.clear();
+        await userRepository.clear();
+      }
+    } catch {
+      // ignore cleanup failures
+    }
+    if (app) {
+      await app.close();
+    }
   });
 
   describe("/admin/users (GET)", () => {
@@ -224,7 +233,7 @@ describe("Users Admin (e2e)", () => {
     });
 
     it("should create audit log for status change", async () => {
-      await auditLogRepository.delete({});
+      await auditLogRepository.delete({ targetUserId: testUser.id });
 
       await request(app.getHttpServer())
         .patch(`/admin/users/${testUser.id}/status`)
@@ -251,7 +260,7 @@ describe("Users Admin (e2e)", () => {
     });
 
     it("should create audit log for password reset", async () => {
-      await auditLogRepository.delete({});
+      await auditLogRepository.delete({ targetUserId: testUser.id });
 
       await request(app.getHttpServer())
         .post(`/admin/users/${testUser.id}/reset-password`)

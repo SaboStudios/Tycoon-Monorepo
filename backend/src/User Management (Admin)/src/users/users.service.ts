@@ -24,7 +24,9 @@ export class UsersService {
 
   async findAll(queryDto: QueryUsersDto) {
     const { page, limit, search, role, status } = queryDto;
-    const skip = (page - 1) * limit;
+    const currentPage = page ?? 1;
+    const currentLimit = limit ?? 10;
+    const skip = (currentPage - 1) * currentLimit;
 
     const queryBuilder = this.usersRepository.createQueryBuilder("user");
 
@@ -45,7 +47,7 @@ export class UsersService {
 
     const [users, total] = await queryBuilder
       .skip(skip)
-      .take(limit)
+      .take(currentLimit)
       .orderBy("user.createdAt", "DESC")
       .getManyAndCount();
 
@@ -53,9 +55,9 @@ export class UsersService {
       data: users.map((user) => this.sanitizeUser(user)),
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: currentPage,
+        limit: currentLimit,
+        totalPages: Math.ceil(total / currentLimit),
       },
     };
   }
@@ -145,15 +147,25 @@ export class UsersService {
     return { message: "Password reset successfully" };
   }
 
-  async getAuditLogs(userId: string, page: number = 1, limit: number = 10) {
-    const skip = (page - 1) * limit;
+  async getAuditLogs(
+    userId: string,
+    page: number | string = 1,
+    limit: number | string = 10,
+  ) {
+    // Query params arrive as strings; TypeORM requires numeric skip/take.
+    const currentPage = Math.max(1, parseInt(String(page ?? 1), 10) || 1);
+    const currentLimit = Math.max(
+      1,
+      Math.min(100, parseInt(String(limit ?? 10), 10) || 10),
+    );
+    const skip = (currentPage - 1) * currentLimit;
 
     const [logs, total] = await this.auditLogRepository.findAndCount({
       where: { targetUserId: userId },
       relations: ["performedBy"],
       order: { createdAt: "DESC" },
       skip,
-      take: limit,
+      take: currentLimit,
     });
 
     return {
@@ -171,9 +183,9 @@ export class UsersService {
       })),
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: currentPage,
+        limit: currentLimit,
+        totalPages: Math.ceil(total / currentLimit),
       },
     };
   }

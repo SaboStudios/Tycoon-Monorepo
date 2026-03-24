@@ -8,6 +8,8 @@ import {
   Query,
   UseGuards,
   Request,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { QueryUsersDto } from "./dto/query-users.dto";
@@ -69,8 +71,8 @@ export class UsersController {
   @Get(":id/audit-logs")
   getAuditLogs(
     @Param("id") id: string,
-    @Query("page") page?: number,
-    @Query("limit") limit?: number,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("limit", new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
     return this.usersService.getAuditLogs(id, page, limit);
   }
