@@ -1,8 +1,8 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { AnalyticsController } from "./analytics.controller";
-import { AnalyticsService } from "./analytics.service";
+import { Test, TestingModule } from '@nestjs/testing';
+import { AnalyticsController } from './analytics.controller';
+import { AnalyticsService } from './analytics.service';
 
-describe("AnalyticsController", () => {
+describe('AnalyticsController', () => {
   let controller: AnalyticsController;
   let service: AnalyticsService;
 
@@ -29,18 +29,18 @@ describe("AnalyticsController", () => {
     jest.clearAllMocks();
   });
 
-  it("should be defined", () => {
+  it('should be defined', () => {
     expect(controller).toBeDefined();
   });
 
-  describe("getShopAnalytics", () => {
-    it("should return shop analytics data", async () => {
+  describe('getShopAnalytics', () => {
+    it('should return shop analytics data', async () => {
       const mockData = {
         totalRevenue: 5000,
         popularItems: [
           {
-            itemId: "1",
-            itemName: "Sword",
+            itemId: '1',
+            itemName: 'Sword',
             purchaseCount: 100,
             totalRevenue: 2000,
           },

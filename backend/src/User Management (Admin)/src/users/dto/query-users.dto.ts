@@ -1,6 +1,6 @@
-import { IsOptional, IsEnum, IsInt, Min, IsString } from "class-validator";
-import { Type } from "class-transformer";
-import { UserRole, UserStatus } from "../entities/user.entity";
+import { IsOptional, IsEnum, IsInt, Min, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { UserRole, UserStatus } from '../entities/user.entity';
 
 export class QueryUsersDto {
   @IsOptional()

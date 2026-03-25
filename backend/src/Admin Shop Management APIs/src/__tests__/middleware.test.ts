@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { authenticateToken, requireAdmin } from "../middleware/auth";
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { authenticateToken, requireAdmin } from '../middleware/auth';
 
-describe("Middleware", () => {
+describe('Middleware', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
   let nextFunction: NextFunction;
@@ -18,11 +18,11 @@ describe("Middleware", () => {
     nextFunction = jest.fn();
   });
 
-  describe("authenticateToken", () => {
-    it("should authenticate valid token", () => {
+  describe('authenticateToken', () => {
+    it('should authenticate valid token', () => {
       const token = jwt.sign(
-        { id: "1", username: "admin", role: "admin" },
-        process.env.JWT_SECRET || "secret",
+        { id: '1', username: 'admin', role: 'admin' },
+        process.env.JWT_SECRET || 'secret',
       );
 
       mockRequest.headers = {
@@ -39,7 +39,7 @@ describe("Middleware", () => {
       expect((mockRequest as any).user).toBeDefined();
     });
 
-    it("should reject missing token", () => {
+    it('should reject missing token', () => {
       authenticateToken(
         mockRequest as Request,
         mockResponse as Response,
@@ -50,9 +50,9 @@ describe("Middleware", () => {
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    it("should reject invalid token", () => {
+    it('should reject invalid token', () => {
       mockRequest.headers = {
-        authorization: "Bearer invalid-token",
+        authorization: 'Bearer invalid-token',
       };
 
       authenticateToken(
@@ -66,12 +66,12 @@ describe("Middleware", () => {
     });
   });
 
-  describe("requireAdmin", () => {
-    it("should allow admin users", () => {
+  describe('requireAdmin', () => {
+    it('should allow admin users', () => {
       (mockRequest as any).user = {
-        id: "1",
-        username: "admin",
-        role: "admin",
+        id: '1',
+        username: 'admin',
+        role: 'admin',
       };
 
       requireAdmin(
@@ -83,11 +83,11 @@ describe("Middleware", () => {
       expect(nextFunction).toHaveBeenCalled();
     });
 
-    it("should reject non-admin users", () => {
+    it('should reject non-admin users', () => {
       (mockRequest as any).user = {
-        id: "2",
-        username: "user",
-        role: "user",
+        id: '2',
+        username: 'user',
+        role: 'user',
       };
 
       requireAdmin(
@@ -100,7 +100,7 @@ describe("Middleware", () => {
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    it("should reject missing user", () => {
+    it('should reject missing user', () => {
       requireAdmin(
         mockRequest as Request,
         mockResponse as Response,

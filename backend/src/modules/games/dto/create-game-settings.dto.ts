@@ -1,9 +1,4 @@
-import {
-  IsBoolean,
-  IsNumber,
-  IsPositive,
-  Min,
-} from 'class-validator';
+import { IsBoolean, IsNumber, IsPositive, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -259,16 +254,23 @@ export class CreateGameSettingsDto {
    */
   constructor(partial?: Partial<CreateGameSettingsDto>) {
     if (partial) {
-      this.allow_spectators = partial.allow_spectators ?? DEFAULT_GAME_SETTINGS.allowSpectators;
-      this.enable_powerups = partial.enable_powerups ?? DEFAULT_GAME_SETTINGS.enablePowerups;
+      this.allow_spectators =
+        partial.allow_spectators ?? DEFAULT_GAME_SETTINGS.allowSpectators;
+      this.enable_powerups =
+        partial.enable_powerups ?? DEFAULT_GAME_SETTINGS.enablePowerups;
       this.ranked = partial.ranked ?? DEFAULT_GAME_SETTINGS.ranked;
       this.auction = partial.auction ?? DEFAULT_GAME_SETTINGS.auction;
-      this.rent_in_prison = partial.rent_in_prison ?? DEFAULT_GAME_SETTINGS.rentInPrison;
+      this.rent_in_prison =
+        partial.rent_in_prison ?? DEFAULT_GAME_SETTINGS.rentInPrison;
       this.mortgage = partial.mortgage ?? DEFAULT_GAME_SETTINGS.mortgage;
       this.even_build = partial.even_build ?? DEFAULT_GAME_SETTINGS.evenBuild;
-      this.randomize_play_order = partial.randomize_play_order ?? DEFAULT_GAME_SETTINGS.randomizePlayOrder;
-      this.starting_cash = partial.starting_cash ?? DEFAULT_GAME_SETTINGS.startingCash;
-      this.max_players = partial.max_players ?? DEFAULT_GAME_SETTINGS.maxPlayers;
+      this.randomize_play_order =
+        partial.randomize_play_order ??
+        DEFAULT_GAME_SETTINGS.randomizePlayOrder;
+      this.starting_cash =
+        partial.starting_cash ?? DEFAULT_GAME_SETTINGS.startingCash;
+      this.max_players =
+        partial.max_players ?? DEFAULT_GAME_SETTINGS.maxPlayers;
     } else {
       // Apply all defaults when no partial provided
       this.allow_spectators = DEFAULT_GAME_SETTINGS.allowSpectators;

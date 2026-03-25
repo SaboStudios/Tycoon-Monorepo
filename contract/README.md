@@ -1,22 +1,108 @@
-# Soroban Project
+# Tycoon Smart Contracts
 
-## Project Structure
+Soroban smart contracts for the Tycoon gaming platform on Stellar blockchain.
 
-This repository uses the recommended structure for a Soroban project:
+## 🎮 Production Contracts
+
+The following production contracts are part of the main workspace:
+
+| Contract                 | Description                                   | Path                              |
+| ------------------------ | --------------------------------------------- | --------------------------------- |
+| **tycoon-main-game**     | Main game logic — players, games, and lobbies | `contracts/tycoon-main-game/`     |
+| **tycoon-game**          | Core game mechanics and state management      | `contracts/tycoon-game/`          |
+| **tycoon-token**         | ERC-20 style token for in-game currency       | `contracts/tycoon-token/`         |
+| **tycoon-reward-system** | Reward distribution and achievements          | `contracts/tycoon-reward-system/` |
+| **tycoon-collectibles**  | NFT collectibles and items                    | `contracts/tycoon-collectibles/`  |
+| **tycoon-boost-system**  | Power-ups and boost mechanics                 | `contracts/tycoon-boost-system/`  |
+| **tycoon-lib**           | Shared library with common utilities          | `contracts/tycoon-lib/`           |
+
+## 📁 Project Structure
 
 ```text
-.
-├── contracts
-│   └── hello_world
-│       ├── src
-│       │   ├── lib.rs
-│       │   └── test.rs
-│       └── Cargo.toml
-├── Cargo.toml
-└── README.md
+contract/
+├── Cargo.toml              # Workspace configuration
+├── README.md               # This file
+├── archive/                # Archived/experimental contracts (excluded from workspace)
+│   ├── README.md
+│   └── hello-world/        # Sample contract (reference only)
+└── contracts/              # Production contracts
+    ├── tycoon-main-game/
+    ├── tycoon-game/
+    ├── tycoon-token/
+    ├── tycoon-reward-system/
+    ├── tycoon-collectibles/
+    ├── tycoon-boost-system/
+    └── tycoon-lib/
 ```
 
-- New Soroban contracts can be put in `contracts`, each in their own directory. There is already a `hello_world` contract in there to get you started.
-- If you initialized this project with any other example contracts via `--with-example`, those contracts will be in the `contracts` directory as well.
-- Contracts should have their own `Cargo.toml` files that rely on the top-level `Cargo.toml` workspace for their dependencies.
-- Frontend libraries can be added to the top-level directory as well. If you initialized this project with a frontend template via `--frontend-template` you will have those files already included.
+## 🚀 Quick Start
+
+### Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install) (stable)
+- [Stellar CLI](https://developers.stellar.org/docs/build/smart-contracts/getting-started/install)
+- wasm32-unknown-unknown target
+
+### Build All Contracts
+
+```bash
+cd contract
+
+# Build for WASM (production)
+cargo build --target wasm32-unknown-unknown --release
+
+# Build for testing (native)
+cargo build
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+cargo test --all
+
+# Run tests for a specific contract
+cargo test --package tycoon-main-game
+```
+
+### Build Specific Contract
+
+```bash
+# Build a specific contract
+cargo build --package tycoon-main-game --target wasm32-unknown-unknown --release
+
+# Output will be in:
+# target/wasm32-unknown-unknown/release/tycoon_main_game.wasm
+```
+
+## 🧪 Testing
+
+Each contract includes unit tests. Run them with:
+
+```bash
+cargo test --all
+```
+
+For test output with logs:
+
+```bash
+cargo test --all -- --nocapture
+```
+
+## 📦 Deployment
+
+See the [Tycoon Deployment Guide](../../docs/CONTRACT_DEPLOYMENT.md) for deployment instructions.
+
+## 🗄️ Archived Contracts
+
+The `archive/` directory contains experimental or sample contracts that are **not** part of the production workspace. These are kept for reference and educational purposes only.
+
+- **hello-world**: Basic Soroban contract example (archived)
+
+## 🔗 Dependencies
+
+All contracts use Soroban SDK v23 as specified in the workspace `Cargo.toml`.
+
+## 📝 License
+
+MIT
