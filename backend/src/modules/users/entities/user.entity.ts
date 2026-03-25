@@ -13,6 +13,8 @@ import { UserPreference } from './user-preference.entity';
 @Entity({ name: 'users' })
 @Index(['address', 'chain'])
 @Index(['email'])
+@Index(['firstName'])
+@Index(['lastName'])
 export class User {
   @PrimaryGeneratedColumn()
   id: number;

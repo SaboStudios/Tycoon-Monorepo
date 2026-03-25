@@ -7,11 +7,7 @@ import { ShopModule } from '../shop/shop.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Gift]),
-    ShopModule,
-    UsersModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Gift]), ShopModule, UsersModule],
   controllers: [GiftsController],
   providers: [GiftsService],
   exports: [GiftsService],

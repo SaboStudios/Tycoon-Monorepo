@@ -36,9 +36,7 @@ describe('WaitlistService - Update/Delete', () => {
     }).compile();
 
     service = module.get<WaitlistService>(WaitlistService);
-    repository = module.get<Repository<Waitlist>>(
-      getRepositoryToken(Waitlist),
-    );
+    repository = module.get<Repository<Waitlist>>(getRepositoryToken(Waitlist));
   });
 
   afterEach(() => {
@@ -125,9 +123,7 @@ describe('WaitlistService - Update/Delete', () => {
     it('should throw BadRequestException if entry not found', async () => {
       mockRepository.softDelete.mockResolvedValue({ affected: 0 });
 
-      await expect(service.softDelete(1)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.softDelete(1)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -143,9 +139,7 @@ describe('WaitlistService - Update/Delete', () => {
     it('should throw BadRequestException if entry not found', async () => {
       mockRepository.delete.mockResolvedValue({ affected: 0 });
 
-      await expect(service.hardDelete(1)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.hardDelete(1)).rejects.toThrow(BadRequestException);
     });
   });
 });

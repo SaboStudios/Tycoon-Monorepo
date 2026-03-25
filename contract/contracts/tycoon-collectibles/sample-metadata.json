@@ -1,0 +1,30 @@
+{
+  "name": "Tycoon Cash Boost T3",
+  "description": "A powerful collectible that provides a cash boost in Tycoon game. This T3 variant offers maximum cash rewards.",
+  "image": "https://api.tycoon.com/metadata/images/2000000001.png",
+  "animation_url": "https://api.tycoon.com/metadata/animations/2000000001.mp4",
+  "external_url": "https://tycoon.com/collectibles/2000000001",
+  "attributes": [
+    {
+      "trait_type": "Perk",
+      "value": "CashTiered"
+    },
+    {
+      "trait_type": "Strength",
+      "value": 3,
+      "display_type": "number"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Epic"
+    },
+    {
+      "trait_type": "Category",
+      "value": "Economic"
+    },
+    {
+      "trait_type": "Usage",
+      "value": "Consumable"
+    }
+  ]
+}

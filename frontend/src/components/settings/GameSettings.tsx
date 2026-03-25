@@ -4,9 +4,7 @@ import * as React from "react"
 import { ArrowLeft, Users, Lock, Unlock, Gavel, Coins, Clock, Rocket, Shield, Wallet } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
-import { gameSettingsSchema } from "@/lib/validation/schemas"
-import { mapServerErrors, type FieldErrors } from "@/lib/validation/serverErrorMap"
-import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
+import { LocaleSwitcher } from "./LocaleSwitcher"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -194,6 +192,10 @@ export function GameSettings() {
                                         onCheckedChange={setIsPrivate}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-6">
+                                <LocaleSwitcher />
                             </div>
                         </CardContent>
                     </Card>

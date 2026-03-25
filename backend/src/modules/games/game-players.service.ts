@@ -17,7 +17,10 @@ import { PaginationService } from '../../common/services/pagination.service';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { GameStatus } from './entities/game.entity';
 import { BoostService } from '../perks-boosts/services/boost.service';
-import { PerksBoostsEvents, PerkBoostEvent } from '../perks-boosts/services/perks-boosts-events.service';
+import {
+  PerksBoostsEvents,
+  PerkBoostEvent,
+} from '../perks-boosts/services/perks-boosts-events.service';
 import { BoostType } from '../perks-boosts/enums/perk-boost.enums';
 
 @Injectable()
@@ -30,7 +33,7 @@ export class GamePlayersService {
     private readonly paginationService: PaginationService,
     private readonly boostService: BoostService,
     private readonly events: PerksBoostsEvents,
-  ) { }
+  ) {}
 
   /**
    * Get available balance (balance minus trade_locked_balance).
@@ -327,14 +330,24 @@ export class GamePlayersService {
 
     // Hook into Boost Engine: Apply dice modifiers
     baseTotal = await this.boostService.calculateModifiedValue(
-      { playerId: player.user_id, gameId, baseValue: baseTotal, metadata: { dice1, dice2 } },
-      BoostType.DICE_MODIFIER
+      {
+        playerId: player.user_id,
+        gameId,
+        baseValue: baseTotal,
+        metadata: { dice1, dice2 },
+      },
+      BoostType.DICE_MODIFIER,
     );
 
     // Hook into Boost Engine: Apply speed boosts (Free Movement)
     const finalTotal = await this.boostService.calculateModifiedValue(
-      { playerId: player.user_id, gameId, baseValue: baseTotal, metadata: { baseTotal } },
-      BoostType.SPEED_BOOST
+      {
+        playerId: player.user_id,
+        gameId,
+        baseValue: baseTotal,
+        metadata: { baseTotal },
+      },
+      BoostType.SPEED_BOOST,
     );
 
     // Make sure we move at least 1, even if modifiers result in <= 0 somehow, but default to finalTotal rounded
@@ -358,11 +371,11 @@ export class GamePlayersService {
       player.position = newPosition;
       if (newPosition < oldPosition) {
         player.circle += 1;
-        // Hook into Boost Engine: Apply Double Income on GO? 
+        // Hook into Boost Engine: Apply Double Income on GO?
         // We'll calculate Cash Reward later, for now we can wrap START_BONUS
         player.balance += await this.boostService.calculateModifiedValue(
           { playerId: player.user_id, gameId, baseValue: START_BONUS },
-          BoostType.CASH_REWARD
+          BoostType.CASH_REWARD,
         );
       }
     }
@@ -376,7 +389,13 @@ export class GamePlayersService {
     this.events.emit(PerkBoostEvent.DICE_ROLLED, {
       playerId: player.user_id,
       gameId,
-      metadata: { dice1, dice2, finalTotal, previousPosition: oldPosition, newPosition: savedPlayer.position }
+      metadata: {
+        dice1,
+        dice2,
+        finalTotal,
+        previousPosition: oldPosition,
+        newPosition: savedPlayer.position,
+      },
     });
 
     // Check if player landed on a new property, emit PLAYER_LANDED
@@ -384,7 +403,7 @@ export class GamePlayersService {
       this.events.emit(PerkBoostEvent.PLAYER_LANDED, {
         playerId: player.user_id,
         gameId,
-        metadata: { position: savedPlayer.position }
+        metadata: { position: savedPlayer.position },
       });
     }
 
@@ -461,16 +480,21 @@ export class GamePlayersService {
     await this.gameRepository.save(game);
   }
 
-  async payRent(gameId: number, payerId: number, payeeId: number, baseRent: number): Promise<{ payer: GamePlayer, payee: GamePlayer, finalRent: number }> {
+  async payRent(
+    gameId: number,
+    payerId: number,
+    payeeId: number,
+    baseRent: number,
+  ): Promise<{ payer: GamePlayer; payee: GamePlayer; finalRent: number }> {
     const payer = await this.findByGameAndPlayer(gameId, payerId);
     const payee = await this.findByGameAndPlayer(gameId, payeeId);
 
     // Hook into Boost Engine: Rent modifier - Reduce rent for payer, or Increase rent for payee
     // The game design normally dictates rent multipliers apply to the payee's earnings, but we can evaluate it for both.
     // For simplicity, we apply the modifier from the Payee's perspective (Double Income / Rent Multiplier)
-    let finalRent = await this.boostService.calculateModifiedValue(
+    const finalRent = await this.boostService.calculateModifiedValue(
       { playerId: payee.user_id, gameId, baseValue: baseRent },
-      BoostType.RENT_MULTIPLIER
+      BoostType.RENT_MULTIPLIER,
     );
 
     payer.balance -= finalRent;
@@ -481,13 +505,17 @@ export class GamePlayersService {
     return { payer, payee, finalRent };
   }
 
-  async payTax(gameId: number, playerId: number, baseTax: number): Promise<{ player: GamePlayer, finalTax: number }> {
+  async payTax(
+    gameId: number,
+    playerId: number,
+    baseTax: number,
+  ): Promise<{ player: GamePlayer; finalTax: number }> {
     const player = await this.findByGameAndPlayer(gameId, playerId);
 
     // Hook into Boost Engine: Tax Reduction (which could be 100% reduction for Tax Immunity)
     const finalTax = await this.boostService.calculateModifiedValue(
       { playerId: player.user_id, gameId, baseValue: baseTax },
-      BoostType.TAX_REDUCTION
+      BoostType.TAX_REDUCTION,
     );
 
     player.balance -= finalTax;
@@ -496,7 +524,12 @@ export class GamePlayersService {
     return { player, finalTax };
   }
 
-  async buyProperty(gameId: number, playerId: number, propertyCost: number, propertyId: number): Promise<GamePlayer> {
+  async buyProperty(
+    gameId: number,
+    playerId: number,
+    propertyCost: number,
+    propertyId: number,
+  ): Promise<GamePlayer> {
     const player = await this.findByGameAndPlayer(gameId, playerId);
 
     if (player.balance < propertyCost) {
@@ -510,7 +543,7 @@ export class GamePlayersService {
     this.events.emit(PerkBoostEvent.PROPERTY_PURCHASE, {
       playerId: player.user_id,
       gameId,
-      metadata: { propertyId, propertyCost }
+      metadata: { propertyId, propertyCost },
     });
 
     return savedPlayer;
