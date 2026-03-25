@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ShopItem } from './entities/shop-item.entity';
@@ -124,7 +128,13 @@ export class ShopService {
     senderId: number,
     dto: PurchaseAndGiftDto,
   ): Promise<{ purchase: Purchase; gift: Gift }> {
-    const { shop_item_id, receiver_id, quantity = 1, message, payment_method = 'balance' } = dto;
+    const {
+      shop_item_id,
+      receiver_id,
+      quantity = 1,
+      message,
+      payment_method = 'balance',
+    } = dto;
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -140,7 +150,9 @@ export class ShopService {
       // 2. Validate receiver exists
       const receiver = await this.usersService.findOne(receiver_id);
       if (!receiver) {
-        throw new NotFoundException(`Receiver with ID ${receiver_id} not found`);
+        throw new NotFoundException(
+          `Receiver with ID ${receiver_id} not found`,
+        );
       }
 
       // 3. Validate sender is not gifting to themselves
@@ -151,7 +163,9 @@ export class ShopService {
       // 4. Validate shop item exists and is active
       const shopItem = await this.findOne(shop_item_id);
       if (!shopItem.active) {
-        throw new BadRequestException('This item is not available for purchase');
+        throw new BadRequestException(
+          'This item is not available for purchase',
+        );
       }
 
       // 5. Calculate total price

@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, IsInt, IsPositive } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsInt,
+  IsPositive,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -8,7 +14,9 @@ export class ValidateCouponDto {
   @IsNotEmpty()
   code: string;
 
-  @ApiPropertyOptional({ description: 'Shop item ID (for item-specific coupons)' })
+  @ApiPropertyOptional({
+    description: 'Shop item ID (for item-specific coupons)',
+  })
   @Type(() => Number)
   @IsOptional()
   @IsInt()

@@ -1,4 +1,11 @@
-import { Body, Controller, Headers, Post, Req, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  Post,
+  Req,
+  BadRequestException,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { PaymentWebhook } from './webhooks/paymentWebhook';
 import type { PaymentWebhookEvent } from './webhooks/paymentWebhook';
@@ -28,7 +35,11 @@ export class MonetizationController {
       ? req.rawBody.toString('utf8')
       : JSON.stringify(event);
 
-    return this.paymentWebhook.handlePaymentWebhook(payload, stripeSignature, event);
+    return this.paymentWebhook.handlePaymentWebhook(
+      payload,
+      stripeSignature,
+      event,
+    );
   }
 
   @Post('coupons/validate')

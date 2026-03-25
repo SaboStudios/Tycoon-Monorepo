@@ -2,16 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Like } from "typeorm";
-import * as bcrypt from "bcrypt";
-import { User, UserStatus } from "./entities/user.entity";
-import { AuditLog, AuditAction } from "./entities/audit-log.entity";
-import { QueryUsersDto } from "./dto/query-users.dto";
-import { UpdateUserRoleDto } from "./dto/update-user-role.dto";
-import { UpdateUserStatusDto } from "./dto/update-user-status.dto";
-import { ResetPasswordDto } from "./dto/reset-password.dto";
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Like } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+import { User, UserStatus } from './entities/user.entity';
+import { AuditLog, AuditAction } from './entities/audit-log.entity';
+import { QueryUsersDto } from './dto/query-users.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class UsersService {
@@ -28,27 +28,27 @@ export class UsersService {
     const currentLimit = limit ?? 10;
     const skip = (currentPage - 1) * currentLimit;
 
-    const queryBuilder = this.usersRepository.createQueryBuilder("user");
+    const queryBuilder = this.usersRepository.createQueryBuilder('user');
 
     if (search) {
       queryBuilder.where(
-        "(user.email ILIKE :search OR user.firstName ILIKE :search OR user.lastName ILIKE :search)",
+        '(user.email ILIKE :search OR user.firstName ILIKE :search OR user.lastName ILIKE :search)',
         { search: `%${search}%` },
       );
     }
 
     if (role) {
-      queryBuilder.andWhere("user.role = :role", { role });
+      queryBuilder.andWhere('user.role = :role', { role });
     }
 
     if (status) {
-      queryBuilder.andWhere("user.status = :status", { status });
+      queryBuilder.andWhere('user.status = :status', { status });
     }
 
     const [users, total] = await queryBuilder
       .skip(skip)
       .take(currentLimit)
-      .orderBy("user.createdAt", "DESC")
+      .orderBy('user.createdAt', 'DESC')
       .getManyAndCount();
 
     return {
@@ -141,10 +141,10 @@ export class UsersService {
       action: AuditAction.PASSWORD_RESET,
       targetUserId: id,
       performedById: adminId,
-      metadata: { resetBy: "admin" },
+      metadata: { resetBy: 'admin' },
     });
 
-    return { message: "Password reset successfully" };
+    return { message: 'Password reset successfully' };
   }
 
   async getAuditLogs(
@@ -162,8 +162,8 @@ export class UsersService {
 
     const [logs, total] = await this.auditLogRepository.findAndCount({
       where: { targetUserId: userId },
-      relations: ["performedBy"],
-      order: { createdAt: "DESC" },
+      relations: ['performedBy'],
+      order: { createdAt: 'DESC' },
       skip,
       take: currentLimit,
     });

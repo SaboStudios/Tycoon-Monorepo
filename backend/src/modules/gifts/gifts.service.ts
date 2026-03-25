@@ -45,8 +45,18 @@ export class GiftsService {
   /**
    * Create a new gift
    */
-  async create(senderId: number, createGiftDto: CreateGiftDto, req?: Request): Promise<Gift> {
-    const { receiver_id, shop_item_id, quantity = 1, message, expiration_hours = 168 } = createGiftDto;
+  async create(
+    senderId: number,
+    createGiftDto: CreateGiftDto,
+    req?: Request,
+  ): Promise<Gift> {
+    const {
+      receiver_id,
+      shop_item_id,
+      quantity = 1,
+      message,
+      expiration_hours = 168,
+    } = createGiftDto;
 
     // Validate sender and receiver exist
     await this.usersService.findOne(senderId);
@@ -64,7 +74,7 @@ export class GiftsService {
     // Anti-spam: Check daily gift limit
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const dailyGiftCount = await this.giftRepository.count({
       where: {
         sender_id: senderId,
@@ -277,9 +287,7 @@ export class GiftsService {
           currentStatus: gift.status,
           ip: req?.ip,
         });
-        throw new BadRequestException(
-          `Gift has already been ${gift.status}`,
-        );
+        throw new BadRequestException(`Gift has already been ${gift.status}`);
       }
 
       // Check if gift has expired
@@ -287,7 +295,7 @@ export class GiftsService {
         gift.status = GiftStatus.EXPIRED;
         await queryRunner.manager.save(gift);
         await queryRunner.commitTransaction();
-        
+
         this.logger.warn(`Expired gift access attempt`, {
           giftId,
           userId: receiverId,
@@ -300,7 +308,7 @@ export class GiftsService {
       if (action === GiftResponse.ACCEPT) {
         gift.status = GiftStatus.ACCEPTED;
         gift.accepted_at = new Date();
-        
+
         // Add item to user's inventory
         await this.inventoryService.addItem(
           receiverId,
@@ -341,7 +349,11 @@ export class GiftsService {
   /**
    * Cancel a pending gift (sender only)
    */
-  async cancelGift(giftId: number, senderId: number, req?: Request): Promise<Gift> {
+  async cancelGift(
+    giftId: number,
+    senderId: number,
+    req?: Request,
+  ): Promise<Gift> {
     const gift = await this.giftRepository.findOne({
       where: { id: giftId },
       relations: ['shop_item'],

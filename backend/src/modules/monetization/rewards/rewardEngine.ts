@@ -30,7 +30,13 @@ export class RewardEngine {
   ) {}
 
   async buyPerk(input: PurchasePerkInput) {
-    const { userId, perkId, quantity = 1, availableCurrency, clientUnitPrice } = input;
+    const {
+      userId,
+      perkId,
+      quantity = 1,
+      availableCurrency,
+      clientUnitPrice,
+    } = input;
 
     this.guardPurchaseRateLimit(userId);
 
@@ -41,7 +47,10 @@ export class RewardEngine {
     const perk = await this.perksService.findOnePublic(perkId);
     const serverUnitPrice = Number(perk.price);
 
-    if (typeof clientUnitPrice === 'number' && Math.abs(clientUnitPrice - serverUnitPrice) > 0.01) {
+    if (
+      typeof clientUnitPrice === 'number' &&
+      Math.abs(clientUnitPrice - serverUnitPrice) > 0.01
+    ) {
       this.logger.warn(
         `Suspicious client price for user=${userId} perk=${perkId}. client=${clientUnitPrice} server=${serverUnitPrice}`,
       );
@@ -53,7 +62,9 @@ export class RewardEngine {
       throw new BadRequestException('Insufficient currency');
     }
 
-    await this.inventoryService.addPerksToInventory(userId, [{ perkId, quantity }]);
+    await this.inventoryService.addPerksToInventory(userId, [
+      { perkId, quantity },
+    ]);
 
     return {
       purchased: true,
@@ -66,7 +77,9 @@ export class RewardEngine {
     return this.grantPerk(input, false);
   }
 
-  async grantPromotionalPerk(input: Omit<PerkGrantInput, 'source'> & { grantedBy: string }) {
+  async grantPromotionalPerk(
+    input: Omit<PerkGrantInput, 'source'> & { grantedBy: string },
+  ) {
     return this.grantPerk(
       {
         userId: input.userId,
@@ -86,7 +99,9 @@ export class RewardEngine {
     }
 
     await this.perksService.findOnePublic(perkId);
-    await this.inventoryService.addPerksToInventory(userId, [{ perkId, quantity }]);
+    await this.inventoryService.addPerksToInventory(userId, [
+      { perkId, quantity },
+    ]);
 
     this.logger.log(
       `Granted perk=${perkId} qty=${quantity} to user=${userId} source=${source} promotional=${promotional}`,
@@ -106,11 +121,15 @@ export class RewardEngine {
     const now = Date.now();
     const oneMinuteAgo = now - 60_000;
 
-    const timestamps = (this.purchaseWindows.get(userId) || []).filter((ts) => ts >= oneMinuteAgo);
+    const timestamps = (this.purchaseWindows.get(userId) || []).filter(
+      (ts) => ts >= oneMinuteAgo,
+    );
 
     if (timestamps.length >= this.maxPurchasesPerMinute) {
       this.logger.warn(`Rate limit triggered for user=${userId}`);
-      throw new BadRequestException('Too many purchase attempts. Please retry shortly.');
+      throw new BadRequestException(
+        'Too many purchase attempts. Please retry shortly.',
+      );
     }
 
     timestamps.push(now);

@@ -46,7 +46,9 @@ export class EventRewards {
 
       case 'admin.promotional.grant':
         if (!payload.perkId || !payload.grantedBy) {
-          throw new BadRequestException('perkId and grantedBy are required for promotional grants');
+          throw new BadRequestException(
+            'perkId and grantedBy are required for promotional grants',
+          );
         }
         return this.rewardEngine.grantPromotionalPerk({
           userId: payload.userId,
