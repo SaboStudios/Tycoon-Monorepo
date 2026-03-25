@@ -2072,3 +2072,147 @@ fn test_perk_enum_values() {
     let _ = client.mint_collectible(&admin, &user, &10, &1); // Shield
     let _ = client.mint_collectible(&admin, &user, &11, &1); // RollExact
 }
+
+#[test]
+fn test_pagination_max_page_size() {
+    let env = Env::default();
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let max_size = client.max_page_size();
+    assert_eq!(max_size, 100);
+}
+
+#[test]
+fn test_pagination_basic() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Mint 5 different tokens
+    for i in 1..=5 {
+        client.mint_collectible(&admin, &user, &i, &1);
+    }
+
+    // Test page 0 with size 2
+    let page = client.tokens_of_owner_page(&user, &0, &2);
+    assert_eq!(page.len(), 2);
+    assert_eq!(page.get(0).unwrap(), 1);
+    assert_eq!(page.get(1).unwrap(), 2);
+
+    // Test page 1 with size 2
+    let page = client.tokens_of_owner_page(&user, &1, &2);
+    assert_eq!(page.len(), 2);
+    assert_eq!(page.get(0).unwrap(), 3);
+    assert_eq!(page.get(1).unwrap(), 4);
+
+    // Test page 2 with size 2 (should have 1 item)
+    let page = client.tokens_of_owner_page(&user, &2, &2);
+    assert_eq!(page.len(), 1);
+    assert_eq!(page.get(0).unwrap(), 5);
+
+    // Test page 3 with size 2 (should be empty)
+    let page = client.tokens_of_owner_page(&user, &3, &2);
+    assert_eq!(page.len(), 0);
+}
+
+#[test]
+fn test_pagination_invalid_page_size() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.mint_collectible(&admin, &user, &1, &1);
+
+    // Test page size 0 (should fail)
+    let result = client.try_tokens_of_owner_page(&user, &0, &0);
+    assert!(result.is_err());
+
+    // Test page size > MAX_PAGE_SIZE (should fail)
+    let result = client.try_tokens_of_owner_page(&user, &0, &101);
+    assert!(result.is_err());
+
+    // Test valid page size (should succeed)
+    let result = client.try_tokens_of_owner_page(&user, &0, &50);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_iterator_pattern() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Mint 7 tokens
+    for i in 1..=7 {
+        client.mint_collectible(&admin, &user, &i, &1);
+    }
+
+    // Test iteration with batch size 3
+    let (batch1, has_more1) = client.iterate_owned_tokens(&user, &0, &3).unwrap();
+    assert_eq!(batch1.len(), 3);
+    assert!(has_more1);
+    assert_eq!(batch1.get(0).unwrap(), 1);
+    assert_eq!(batch1.get(1).unwrap(), 2);
+    assert_eq!(batch1.get(2).unwrap(), 3);
+
+    let (batch2, has_more2) = client.iterate_owned_tokens(&user, &3, &3).unwrap();
+    assert_eq!(batch2.len(), 3);
+    assert!(has_more2);
+    assert_eq!(batch2.get(0).unwrap(), 4);
+    assert_eq!(batch2.get(1).unwrap(), 5);
+    assert_eq!(batch2.get(2).unwrap(), 6);
+
+    let (batch3, has_more3) = client.iterate_owned_tokens(&user, &6, &3).unwrap();
+    assert_eq!(batch3.len(), 1);
+    assert!(!has_more3);
+    assert_eq!(batch3.get(0).unwrap(), 7);
+
+    // Test starting beyond available tokens
+    let (batch4, has_more4) = client.iterate_owned_tokens(&user, &10, &3).unwrap();
+    assert_eq!(batch4.len(), 0);
+    assert!(!has_more4);
+}
+
+#[test]
+fn test_iterator_invalid_batch_size() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.mint_collectible(&admin, &user, &1, &1);
+
+    // Test batch size 0 (should fail)
+    let result = client.try_iterate_owned_tokens(&user, &0, &0);
+    assert!(result.is_err());
+
+    // Test batch size > MAX_PAGE_SIZE (should fail)
+    let result = client.try_iterate_owned_tokens(&user, &0, &101);
+    assert!(result.is_err());
+}

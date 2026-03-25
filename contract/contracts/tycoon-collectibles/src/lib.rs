@@ -550,6 +550,36 @@ impl TycoonCollectibles {
         token_of_owner_by_index(&env, &owner, index)
             .unwrap_or_else(|| panic!("Index out of bounds"))
     }
+
+    /// Get a page of tokens owned by an address
+    /// Returns a Vec of token IDs for the specified page (0-indexed)
+    /// Page size is limited to prevent gas limit issues
+    pub fn tokens_of_owner_page(
+        env: Env,
+        owner: Address,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<u128>, CollectibleError> {
+        crate::enumeration::tokens_of_owner_page(&env, &owner, page, page_size)
+    }
+
+    /// Iterator pattern for gas-safe enumeration
+    /// Returns a batch of tokens starting from start_index, and a boolean indicating if more tokens exist
+    /// Use this for iterating through all tokens without hitting gas limits
+    pub fn iterate_owned_tokens(
+        env: Env,
+        owner: Address,
+        start_index: u32,
+        batch_size: u32,
+    ) -> Result<(Vec<u128>, bool), CollectibleError> {
+        crate::enumeration::iterate_owned_tokens(&env, &owner, start_index, batch_size)
+    }
+
+    /// Get the maximum allowed page size for pagination
+    /// This ensures operations stay within gas limits
+    pub fn max_page_size(env: Env) -> u32 {
+        crate::enumeration::MAX_PAGE_SIZE
+    }
 }
 
 #[cfg(test)]
