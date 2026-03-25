@@ -6,6 +6,7 @@ import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggerService } from './common/logger/logger.service';
+import { configureApiVersioning } from './common/versioning/api-versioning';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -41,9 +42,15 @@ async function bootstrap() {
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
 
-  // Global API prefix
-  const apiPrefix = configService.get<string>('app.apiPrefix') || 'api/v1';
-  app.setGlobalPrefix(apiPrefix);
+  // API versioning + compatibility
+  const { apiPrefix, defaultVersion } = configureApiVersioning(app, {
+    apiPrefix: configService.get<string>('app.apiPrefix') || 'api',
+    defaultVersion: configService.get<string>('app.defaultApiVersion') || '1',
+    enableLegacyUnversionedRoutes:
+      configService.get<boolean>('app.enableLegacyUnversionedRoutes') ?? true,
+    legacyUnversionedSunset:
+      configService.get<string>('app.legacyUnversionedSunset') || undefined,
+  });
 
   const port = configService.get<number>('app.port') || 3000;
   await app.listen(port);
@@ -54,7 +61,7 @@ async function bootstrap() {
     'Bootstrap',
   );
   logger.log(
-    `📚 API Documentation: http://localhost:${port}/${apiPrefix}`,
+    `📚 API Documentation: http://localhost:${port}/${apiPrefix}/v${defaultVersion}`,
     'Bootstrap',
   );
   logger.log(
