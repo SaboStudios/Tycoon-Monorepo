@@ -242,7 +242,9 @@ export class ShopController {
     description: 'User inventory items.',
     type: [UserInventory],
   })
-  getUserInventory(@CurrentUser() user: { id: number }): Promise<UserInventory[]> {
+  getUserInventory(
+    @CurrentUser() user: { id: number },
+  ): Promise<UserInventory[]> {
     return this.inventoryService.getUserInventory(user.id);
   }
 
@@ -259,7 +261,9 @@ export class ShopController {
     description: 'Active inventory items.',
     type: [UserInventory],
   })
-  getActiveInventory(@CurrentUser() user: { id: number }): Promise<UserInventory[]> {
+  getActiveInventory(
+    @CurrentUser() user: { id: number },
+  ): Promise<UserInventory[]> {
     return this.inventoryService.getActiveInventory(user.id);
   }
 }

@@ -5,10 +5,13 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('user_suspensions')
+@Index(['userId'])
+@Index(['isActive'])
 export class UserSuspension {
   @PrimaryGeneratedColumn()
   id: number;

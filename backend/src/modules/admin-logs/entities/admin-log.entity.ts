@@ -15,6 +15,7 @@ export class AdminLog {
   id: number;
 
   @Column({ nullable: true })
+  @Index()
   adminId: number;
 
   @ManyToOne(() => User)

@@ -15,7 +15,9 @@ export class FilterPerksDto {
   @IsEnum(PerkCategory)
   category?: PerkCategory;
 
-  @ApiPropertyOptional({ description: 'Filter by active status (public defaults to true)' })
+  @ApiPropertyOptional({
+    description: 'Filter by active status (public defaults to true)',
+  })
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()

@@ -1,13 +1,13 @@
-import { Router, Request, Response } from "express";
-import { shopService } from "../services/shopService";
-import { validatePurchase, validateThemeQuery } from "../middleware/validation";
-import { PurchaseRequest } from "../types";
+import { Router, Request, Response } from 'express';
+import { shopService } from '../services/shopService';
+import { validatePurchase, validateThemeQuery } from '../middleware/validation';
+import { PurchaseRequest } from '../types';
 
 const router = Router();
 
 // POST /shop/purchase - Purchase themes
 router.post(
-  "/purchase",
+  '/purchase',
   validatePurchase,
   async (req: Request, res: Response) => {
     try {
@@ -24,19 +24,19 @@ router.post(
         unlockedThemes: result.unlockedThemes,
       });
     } catch (error) {
-      console.error("Purchase error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error('Purchase error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
 
 // GET /shop/themes - Get available themes
 router.get(
-  "/themes",
+  '/themes',
   validateThemeQuery,
   async (req: Request, res: Response) => {
     try {
-      const type = req.query.type as "skin" | "board" | undefined;
+      const type = req.query.type as 'skin' | 'board' | undefined;
       const themes = shopService.getThemes(type);
 
       res.status(200).json({
@@ -45,14 +45,14 @@ router.get(
         count: themes.length,
       });
     } catch (error) {
-      console.error("Get themes error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error('Get themes error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
 
 // GET /shop/transactions/:userId - Get user transactions
-router.get("/transactions/:userId", async (req: Request, res: Response) => {
+router.get('/transactions/:userId', async (req: Request, res: Response) => {
   try {
     const rawUserId = req.params.userId;
     const userId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
@@ -64,8 +64,8 @@ router.get("/transactions/:userId", async (req: Request, res: Response) => {
       count: transactions.length,
     });
   } catch (error) {
-    console.error("Get transactions error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error('Get transactions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
