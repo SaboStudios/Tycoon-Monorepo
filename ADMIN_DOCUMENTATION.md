@@ -1,35 +1,41 @@
-# ADMIN DOCUMENTATION
+# Admin Methods Documentation
 
-## Overview
-This document provides comprehensive documentation of all administrative methods and access control patterns used in the SaboStudios Tycoon-Monorepo.
+## Tycoon Token
+### Privileged Methods
+- **mint(amount)**: Allows privileged users to mint new tokens.
+  - **Authorization Pattern**: Only the owner can call this function.
+  - **Error Messages**:  "Unauthorized access" if called by non-owner.
+- **burn(amount)**: Allows privileged users to burn tokens.
+  - **Authorization Pattern**: Only the owner can call this function.
+  - **Error Messages**: "Unauthorized access" if called by non-owner.
 
-## Administrative Methods
+## Tycoon Collectibles
+### Privileged Methods
+- **createCollectible(name, rarity)**: Allows the creation of new collectibles.
+  - **Authorization Pattern**: Only the collectible manager can call this function.
+  - **Error Messages**: "Unauthorized access" if called by non-manager.
+- **transferCollectible(to, collectibleId)**: Transfers a collectible to another user.
+  - **Authorization Pattern**: Any user can transfer their collectibles.
+  - **Error Messages**: "Transfer not allowed" if trying to transfer a collectible not owned.
 
-### 1. User Management
-- **Create User**: Method to add new users to the system with specified roles.
-- **Delete User**: Method to remove users from the system.
-- **Update User Role**: Method to modify the access level of existing users.
+## Tycoon Main Game
+### Privileged Methods
+- **startGame()**: Starts the main game.
+  - **Authorization Pattern**: Only the game manager can start the game.
+  - **Error Messages**: "Game already started" if called when the game is running.
+- **endGame()**: Ends the current game.
+  - **Authorization Pattern**: Only the game manager can end the game.
+  - **Error Messages**: "Game not active" if called when no game is running.
 
-### 2. Role Management
-- **Create Role**: Define new roles with specific permissions.
-- **Delete Role**: Remove roles that are no longer needed.
-- **Assign Role to User**: Method to allocate roles to users.
+## Tycoon Reward System
+### Privileged Methods
+- **distributeRewards(users, amounts)**: Distributes rewards to users.
+  - **Authorization Pattern**: Only the reward manager can call this function.
+  - **Error Messages**: "Unauthorized access" if called by non-manager.
+- **claimReward(user)**: Allows a user to claim their rewards.
+  - **Authorization Pattern**: All users can claim their rewards.
+  - **Error Messages**: "No rewards to claim" if the user has no pending rewards.
 
-### 3. Access Control
-- **Define Permissions**: Set up permissions linked to roles.
-- **Check Access**: Method to verify if a user has the necessary permissions for a given action.
+---
 
-## Access Control Patterns
-
-### Role-Based Access Control (RBAC)
-- Users are assigned roles, and roles are granted specific permissions.
-
-### Attribute-Based Access Control (ABAC)
-- Permissions are granted based on user attributes such as department, location, etc.
-
-### Access Control List (ACL)
-- Lists that define which resources a user can access and what actions they can perform.
-
-## Best Practices
-- Regularly review user roles and permissions to ensure compliance with security policies.
-- Use principle of least privilege when assigning roles to users.
+This documentation provides an overview of the privileged methods in each Tycoon contract including the required authorization patterns and potential error messages that may arise during contract interactions.
