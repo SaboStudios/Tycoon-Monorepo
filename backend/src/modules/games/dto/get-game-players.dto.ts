@@ -17,7 +17,9 @@ export class GetGamePlayersDto extends PaginationDto {
   @IsBoolean()
   inJail?: boolean;
 
-  @ApiPropertyOptional({ description: 'Filter to player with active turn (turn_order = 1)' })
+  @ApiPropertyOptional({
+    description: 'Filter to player with active turn (turn_order = 1)',
+  })
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()

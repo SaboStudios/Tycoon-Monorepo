@@ -9,6 +9,9 @@ import {
   Query,
   UseGuards,
   Req,
+  HttpCode,
+  HttpStatus,
+  Delete,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import {
@@ -16,12 +19,25 @@ import {
   ApiOperation,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiBearerAuth,
+  ApiUnauthorizedResponse,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { CreateGameDto } from './dto/create-game.dto';
+import { UpdateGameDto } from './dto/update-game.dto';
+import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
+import { GetGamesDto } from './dto/get-games.dto';
+import { RollDiceDto } from './dto/roll-dice.dto';
+import { PayRentDto } from './dto/pay-rent.dto';
+import { PayTaxDto } from './dto/pay-tax.dto';
+import { BuyPropertyDto } from './dto/buy-property.dto';
+import { JoinGameDto } from './dto/join-game.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('games')
@@ -33,10 +49,213 @@ export class GamesController {
   ) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new game' })
-  @ApiCreatedResponse({ description: 'Game and settings created' })
-  async create(@Body() dto: CreateGameDto) {
-    return this.gamesService.create(dto);
+  @ApiCreatedResponse({
+    description: 'Game created successfully',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        mode: 'PUBLIC',
+        numberOfPlayers: 4,
+        status: 'PENDING',
+        is_ai: false,
+        is_minipay: false,
+        chain: null,
+        contract_game_id: null,
+        creator_id: 1,
+        created_at: '2024-01-01T00:00:00.000Z',
+        settings: {
+          auction: true,
+          rentInPrison: false,
+          mortgage: true,
+          evenBuild: true,
+          randomizePlayOrder: true,
+          startingCash: 1500,
+        },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  @ApiBadRequestResponse({ description: 'Invalid input data' })
+  async create(
+    @Body() dto: CreateGameDto,
+    @Req() req: Request & { user: { id: number; role?: string } },
+  ) {
+    const creatorId = req.user.id;
+    return this.gamesService.create(dto, creatorId);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get games with filters and pagination' })
+  @ApiOkResponse({
+    description: 'Paginated list of games with metadata',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 1,
+            code: 'ABC123',
+            mode: 'PUBLIC',
+            status: 'PENDING',
+            is_ai: false,
+            is_minipay: false,
+            chain: 'base',
+          },
+        ],
+        meta: {
+          page: 1,
+          limit: 10,
+          totalItems: 1,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+    },
+  })
+  async findAll(@Query() dto: GetGamesDto) {
+    return this.gamesService.findAll(dto);
+  }
+
+  @Get('code/:code')
+  @ApiOperation({ summary: 'Get a game by its unique code' })
+  @ApiOkResponse({
+    description: 'Game found with relations',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        mode: 'PUBLIC',
+        status: 'PENDING',
+        creator: { id: 1, email: 'user@example.com', username: 'player1' },
+        winner: null,
+        nextPlayer: null,
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  async findByCode(@Param('code') code: string) {
+    return this.gamesService.findByCode(code);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a game by ID' })
+  @ApiOkResponse({
+    description: 'Game found with relations',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        mode: 'PUBLIC',
+        status: 'PENDING',
+        creator: { id: 1, email: 'user@example.com', username: 'player1' },
+        winner: null,
+        nextPlayer: null,
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  async findById(@Param('id', ParseIntPipe) id: number) {
+    return this.gamesService.findById(id);
+  }
+
+  @Post(':id/join')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Join a game' })
+  @ApiCreatedResponse({ description: 'Player joined successfully' })
+  @ApiBadRequestResponse({ description: 'Game full or already started' })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  async joinGame(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: JoinGameDto,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.gamesService.joinGame(id, req.user.id, dto);
+  }
+
+  @Patch(':id/settings')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update game settings (creator only, PENDING only)',
+  })
+  @ApiOkResponse({
+    description: 'Game settings updated successfully',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        status: 'PENDING',
+        settings: {
+          auction: true,
+          rentInPrison: false,
+          mortgage: true,
+          evenBuild: true,
+          randomizePlayOrder: true,
+          startingCash: 1500,
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Cannot update settings after game has started',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only the game creator can update settings',
+  })
+  @ApiNotFoundResponse({ description: 'Game or settings not found' })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  async updateSettings(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateGameSettingsDto,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.gamesService.updateSettings(id, dto, req.user.id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Partially update a game' })
+  @ApiOkResponse({
+    description: 'Game updated successfully',
+    schema: {
+      example: {
+        id: 1,
+        code: 'ABC123',
+        status: 'RUNNING',
+        next_player_id: 2,
+        winner_id: null,
+        started_at: '2024-01-15T10:30:00.000Z',
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input or illegal status transition',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only game creator or admin can update this game',
+  })
+  @ApiNotFoundResponse({ description: 'Game not found' })
+  @ApiUnauthorizedResponse({ description: 'User not authenticated' })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateGameDto,
+    @Req() req: Request & { user: { id: number; role?: string } },
+  ) {
+    return this.gamesService.update(
+      id,
+      dto,
+      req.user.id,
+      req.user.role ?? 'user',
+    );
   }
 
   @Get(':gameId/players')
@@ -65,5 +284,69 @@ export class GamesController {
       isAdmin,
     );
     return player;
+  }
+
+  @Post(':gameId/players/:playerId/roll-dice')
+  async rollDice(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: RollDiceDto,
+  ) {
+    return this.gamePlayersService.rollDice(
+      gameId,
+      playerId,
+      dto.dice1,
+      dto.dice2,
+    );
+  }
+
+  @Delete(':gameId/players/me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async leaveGame(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    await this.gamePlayersService.leaveGameForUser(gameId, req.user.id);
+  }
+
+  @Post(':gameId/players/:playerId/pay-rent')
+  @ApiOperation({ summary: 'Pay rent with boost modifiers applied' })
+  async payRent(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: PayRentDto,
+  ) {
+    return this.gamePlayersService.payRent(
+      gameId,
+      playerId,
+      dto.payeeId,
+      dto.baseRent,
+    );
+  }
+
+  @Post(':gameId/players/:playerId/pay-tax')
+  @ApiOperation({ summary: 'Pay tax with boost modifiers applied' })
+  async payTax(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: PayTaxDto,
+  ) {
+    return this.gamePlayersService.payTax(gameId, playerId, dto.baseTax);
+  }
+
+  @Post(':gameId/players/:playerId/buy-property')
+  @ApiOperation({ summary: 'Buy property and emit event for boost hooks' })
+  async buyProperty(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: BuyPropertyDto,
+  ) {
+    return this.gamePlayersService.buyProperty(
+      gameId,
+      playerId,
+      dto.propertyCost,
+      dto.propertyId,
+    );
   }
 }

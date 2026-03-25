@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master, contract]
+    branches: [main, master, contract, user]
   pull_request:
-    branches: [main, master, contract]
+    branches: [main, master, contract, user]
 
 jobs:
   frontend:
@@ -92,3 +92,60 @@ jobs:
       - name: Run tests
         run: cargo test --all
         working-directory: contract
+
+  admin-user-management:
+    name: Admin User Management
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: backend/src/User Management (Admin)
+
+      - name: Run unit tests
+        run: npm test
+        working-directory: backend/src/User Management (Admin)
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        working-directory: backend/src/User Management (Admin)
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: test_db
+          JWT_SECRET: test-secret-key
+
+      - name: Generate coverage report
+        run: npm run test:cov
+        working-directory: backend/src/User Management (Admin)
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella

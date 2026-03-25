@@ -8,7 +8,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggerService } from './common/logger/logger.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // Use Winston logger
   const winstonLogger = app.get(WINSTON_MODULE_NEST_PROVIDER);
@@ -49,9 +49,18 @@ async function bootstrap() {
   await app.listen(port);
 
   const logger = app.get(LoggerService);
-  logger.log(`🚀 Application is running on: http://localhost:${port}`, 'Bootstrap');
-  logger.log(`📚 API Documentation: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
-  logger.log(`Environment: ${configService.get<string>('app.environment') || 'development'}`, 'Bootstrap');
+  logger.log(
+    `🚀 Application is running on: http://localhost:${port}`,
+    'Bootstrap',
+  );
+  logger.log(
+    `📚 API Documentation: http://localhost:${port}/${apiPrefix}`,
+    'Bootstrap',
+  );
+  logger.log(
+    `Environment: ${configService.get<string>('app.environment') || 'development'}`,
+    'Bootstrap',
+  );
   logger.log(`Log Level: ${process.env.LOG_LEVEL || 'default'}`, 'Bootstrap');
 }
 void bootstrap();
