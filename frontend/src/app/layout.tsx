@@ -4,6 +4,8 @@ import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { generateBaseMetadata } from "@/lib/metadata";
 import "./globals.css";
 import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
@@ -18,10 +20,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Tycoon - Online Board Game",
-  description: "A modern online board game inspired by Tycoon.",
-};
+export const metadata: Metadata = generateBaseMetadata();
 
 export default function RootLayout({
   children,
@@ -33,11 +32,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <I18nProvider>
-          <ToastProvider />
+        <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
           {children}
           <NavbarMobile />
-        </I18nProvider>
+        </ErrorBoundary>
+        <ToastProvider />
+        <ScrollToTopBtn />
       </body>
     </html>
   );

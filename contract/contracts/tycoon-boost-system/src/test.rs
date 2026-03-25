@@ -13,19 +13,25 @@ fn test_additive_stacking() {
     let player = Address::generate(&env);
 
     // Add two additive boosts: +10% and +5%
-    client.add_boost(&player, &Boost {
-        id: 1,
-        boost_type: BoostType::Additive,
-        value: 1000, // +10%
-        priority: 0,
-    });
-    
-    client.add_boost(&player, &Boost {
-        id: 2,
-        boost_type: BoostType::Additive,
-        value: 500, // +5%
-        priority: 0,
-    });
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Additive,
+            value: 1000, // +10%
+            priority: 0,
+        },
+    );
+
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 2,
+            boost_type: BoostType::Additive,
+            value: 500, // +5%
+            priority: 0,
+        },
+    );
 
     // Expected: 10000 * (1 + 0.15) = 11500
     let total = client.calculate_total_boost(&player);
@@ -42,19 +48,25 @@ fn test_multiplicative_stacking() {
     let player = Address::generate(&env);
 
     // Add two multiplicative boosts: 1.5x and 1.2x
-    client.add_boost(&player, &Boost {
-        id: 1,
-        boost_type: BoostType::Multiplicative,
-        value: 15000, // 1.5x
-        priority: 0,
-    });
-    
-    client.add_boost(&player, &Boost {
-        id: 2,
-        boost_type: BoostType::Multiplicative,
-        value: 12000, // 1.2x
-        priority: 0,
-    });
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Multiplicative,
+            value: 15000, // 1.5x
+            priority: 0,
+        },
+    );
+
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 2,
+            boost_type: BoostType::Multiplicative,
+            value: 12000, // 1.2x
+            priority: 0,
+        },
+    );
 
     // Expected: 10000 * 1.5 * 1.2 = 18000
     let total = client.calculate_total_boost(&player);
@@ -71,19 +83,25 @@ fn test_override_highest_priority() {
     let player = Address::generate(&env);
 
     // Add override boosts with different priorities
-    client.add_boost(&player, &Boost {
-        id: 1,
-        boost_type: BoostType::Override,
-        value: 20000, // 2x
-        priority: 5,
-    });
-    
-    client.add_boost(&player, &Boost {
-        id: 2,
-        boost_type: BoostType::Override,
-        value: 30000, // 3x
-        priority: 10, // Higher priority
-    });
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Override,
+            value: 20000, // 2x
+            priority: 5,
+        },
+    );
+
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 2,
+            boost_type: BoostType::Override,
+            value: 30000, // 3x
+            priority: 10, // Higher priority
+        },
+    );
 
     // Expected: 30000 (highest priority override)
     let total = client.calculate_total_boost(&player);
@@ -100,20 +118,26 @@ fn test_mixed_stacking() {
     let player = Address::generate(&env);
 
     // Multiplicative: 1.5x
-    client.add_boost(&player, &Boost {
-        id: 1,
-        boost_type: BoostType::Multiplicative,
-        value: 15000,
-        priority: 0,
-    });
-    
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Multiplicative,
+            value: 15000,
+            priority: 0,
+        },
+    );
+
     // Additive: +10%
-    client.add_boost(&player, &Boost {
-        id: 2,
-        boost_type: BoostType::Additive,
-        value: 1000,
-        priority: 0,
-    });
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 2,
+            boost_type: BoostType::Additive,
+            value: 1000,
+            priority: 0,
+        },
+    );
 
     // Expected: 10000 * 1.5 * 1.1 = 16500
     let total = client.calculate_total_boost(&player);
@@ -130,26 +154,35 @@ fn test_override_ignores_others() {
     let player = Address::generate(&env);
 
     // Add various boosts
-    client.add_boost(&player, &Boost {
-        id: 1,
-        boost_type: BoostType::Multiplicative,
-        value: 20000, // 2x
-        priority: 0,
-    });
-    
-    client.add_boost(&player, &Boost {
-        id: 2,
-        boost_type: BoostType::Additive,
-        value: 5000, // +50%
-        priority: 0,
-    });
-    
-    client.add_boost(&player, &Boost {
-        id: 3,
-        boost_type: BoostType::Override,
-        value: 25000, // 2.5x
-        priority: 100,
-    });
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Multiplicative,
+            value: 20000, // 2x
+            priority: 0,
+        },
+    );
+
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 2,
+            boost_type: BoostType::Additive,
+            value: 5000, // +50%
+            priority: 0,
+        },
+    );
+
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 3,
+            boost_type: BoostType::Override,
+            value: 25000, // 2.5x
+            priority: 100,
+        },
+    );
 
     // Expected: 25000 (override ignores all others)
     let total = client.calculate_total_boost(&player);
@@ -178,12 +211,15 @@ fn test_clear_boosts() {
 
     let player = Address::generate(&env);
 
-    client.add_boost(&player, &Boost {
-        id: 1,
-        boost_type: BoostType::Additive,
-        value: 1000,
-        priority: 0,
-    });
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Additive,
+            value: 1000,
+            priority: 0,
+        },
+    );
 
     assert_eq!(client.calculate_total_boost(&player), 11000);
 
@@ -202,17 +238,20 @@ fn test_deterministic_outcome() {
 
     // Add same boosts multiple times
     for _ in 0..3 {
-        client.add_boost(&player, &Boost {
-            id: 1,
-            boost_type: BoostType::Multiplicative,
-            value: 12000,
-            priority: 0,
-        });
+        client.add_boost(
+            &player,
+            &Boost {
+                id: 1,
+                boost_type: BoostType::Multiplicative,
+                value: 12000,
+                priority: 0,
+            },
+        );
     }
 
     let result1 = client.calculate_total_boost(&player);
     let result2 = client.calculate_total_boost(&player);
-    
+
     // Should be deterministic
     assert_eq!(result1, result2);
     // 10000 * 1.2 * 1.2 * 1.2 = 17280
