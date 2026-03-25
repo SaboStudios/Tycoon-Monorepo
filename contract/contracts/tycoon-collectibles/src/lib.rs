@@ -551,6 +551,7 @@ impl TycoonCollectibles {
             .unwrap_or_else(|| panic!("Index out of bounds"))
     }
 
+<<<<<<< Updated upstream
     /// Get a page of tokens owned by an address
     /// Returns a Vec of token IDs for the specified page (0-indexed)
     /// Page size is limited to prevent gas limit issues
@@ -579,6 +580,122 @@ impl TycoonCollectibles {
     /// This ensures operations stay within gas limits
     pub fn max_page_size(env: Env) -> u32 {
         crate::enumeration::MAX_PAGE_SIZE
+    }
+
+    // ========================
+    // Metadata Functions
+    // ========================
+
+    /// Set base URI for token metadata (admin only)
+    /// This establishes the base URI policy for all tokens
+    pub fn set_base_uri(
+        env: Env,
+        base_uri: soroban_sdk::String,
+        uri_type: u32,
+        frozen: bool,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        // Validate URI type
+        let uri_type_enum = match uri_type {
+            0 => crate::types::URIType::HTTPS,
+            1 => crate::types::URIType::IPFS,
+            _ => return Err(CollectibleError::InvalidURIType),
+        };
+
+        // Check if already frozen
+        if is_metadata_frozen(&env) {
+            return Err(CollectibleError::MetadataFrozen);
+        }
+
+        let config = crate::types::BaseURIConfig {
+            base_uri,
+            frozen,
+            uri_type: uri_type_enum,
+        };
+
+        set_base_uri_config(&env, &config);
+        Ok(())
+    }
+
+    /// Get the base URI configuration
+    pub fn base_uri_config(env: Env) -> Option<crate::types::BaseURIConfig> {
+        get_base_uri_config(&env)
+    }
+
+    /// Set metadata for a specific token (admin only)
+    /// Creates marketplace-compliant JSON metadata
+    pub fn set_token_metadata(
+        env: Env,
+        token_id: u128,
+        name: soroban_sdk::String,
+        description: soroban_sdk::String,
+        image: soroban_sdk::String,
+        animation_url: Option<soroban_sdk::String>,
+        external_url: Option<soroban_sdk::String>,
+        attributes: Vec<crate::types::MetadataAttribute>,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        // Check if metadata is frozen
+        if is_metadata_frozen(&env) {
+            return Err(CollectibleError::MetadataFrozen);
+        }
+
+        // Validate token exists
+        if get_perk(&env, token_id) == crate::types::Perk::None && !has_metadata(&env, token_id) {
+            // For new tokens, ensure they have a perk set
+            return Err(CollectibleError::TokenNotFound);
+        }
+
+        let metadata = crate::types::CollectibleMetadata {
+            name,
+            description,
+            image,
+            animation_url,
+            external_url,
+            attributes,
+        };
+
+        set_metadata(&env, token_id, &metadata);
+        Ok(())
+    }
+
+    /// Get metadata for a specific token
+    pub fn token_metadata(env: Env, token_id: u128) -> Option<crate::types::CollectibleMetadata> {
+        get_metadata(&env, token_id)
+    }
+
+    /// Get the token URI for marketplace integration
+    /// Returns the full URI for the token's metadata JSON
+    /// Follows ERC-721 tokenURI standard
+    pub fn token_uri(env: Env, token_id: u128) -> soroban_sdk::String {
+        // Check if token exists
+        if get_perk(&env, token_id) == crate::types::Perk::None && !has_metadata(&env, token_id) {
+            panic!("Token does not exist");
+        }
+
+        match get_base_uri_config(&env) {
+            Some(config) => {
+                // Construct URI: base_uri + token_id
+                let mut uri = config.base_uri;
+                let token_id_str = soroban_sdk::String::from_str(&env, &token_id.to_string());
+                uri.append(&token_id_str);
+                uri
+            }
+            None => {
+                // Fallback: return empty string if no base URI set
+                soroban_sdk::String::from_str(&env, "")
+            }
+        }
+    }
+
+    /// Check if metadata is frozen (immutable)
+    pub fn is_metadata_frozen(env: Env) -> bool {
+        is_metadata_frozen(&env)
+>>>>>>> Stashed changes
     }
 }
 

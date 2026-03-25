@@ -18,4 +18,6 @@ pub enum CollectibleError {
     TokenNotFound = 12,
     InvalidTokenId = 13,
     InvalidPageSize = 14,
+    InvalidURIType = 15,
+    MetadataFrozen = 16,
 }
