@@ -16,6 +16,24 @@ pub use types::*;
 
 use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env};
 
+/// Convert a u128 to a Soroban String without std (no_std compatible)
+fn u128_to_soroban_string(env: &Env, mut n: u128) -> soroban_sdk::String {
+    if n == 0 {
+        return soroban_sdk::String::from_str(env, "0");
+    }
+    // Build digits in reverse
+    let mut buf = [0u8; 39]; // max u128 is 39 digits
+    let mut len = 0usize;
+    while n > 0 {
+        buf[len] = b'0' + (n % 10) as u8;
+        n /= 10;
+        len += 1;
+    }
+    buf[..len].reverse();
+    let s = core::str::from_utf8(&buf[..len]).unwrap_or("0");
+    soroban_sdk::String::from_str(env, s)
+}
+
 #[contract]
 pub struct TycoonCollectibles;
 
@@ -551,7 +569,6 @@ impl TycoonCollectibles {
             .unwrap_or_else(|| panic!("Index out of bounds"))
     }
 
-<<<<<<< Updated upstream
     /// Get a page of tokens owned by an address
     /// Returns a Vec of token IDs for the specified page (0-indexed)
     /// Page size is limited to prevent gas limit issues
@@ -597,14 +614,12 @@ impl TycoonCollectibles {
         let admin = get_admin(&env);
         admin.require_auth();
 
-        // Validate URI type
         let uri_type_enum = match uri_type {
             0 => crate::types::URIType::HTTPS,
             1 => crate::types::URIType::IPFS,
             _ => return Err(CollectibleError::InvalidURIType),
         };
 
-        // Check if already frozen
         if is_metadata_frozen(&env) {
             return Err(CollectibleError::MetadataFrozen);
         }
@@ -639,14 +654,11 @@ impl TycoonCollectibles {
         let admin = get_admin(&env);
         admin.require_auth();
 
-        // Check if metadata is frozen
         if is_metadata_frozen(&env) {
             return Err(CollectibleError::MetadataFrozen);
         }
 
-        // Validate token exists
         if get_perk(&env, token_id) == crate::types::Perk::None && !has_metadata(&env, token_id) {
-            // For new tokens, ensure they have a perk set
             return Err(CollectibleError::TokenNotFound);
         }
 
@@ -672,30 +684,24 @@ impl TycoonCollectibles {
     /// Returns the full URI for the token's metadata JSON
     /// Follows ERC-721 tokenURI standard
     pub fn token_uri(env: Env, token_id: u128) -> soroban_sdk::String {
-        // Check if token exists
         if get_perk(&env, token_id) == crate::types::Perk::None && !has_metadata(&env, token_id) {
             panic!("Token does not exist");
         }
 
         match get_base_uri_config(&env) {
             Some(config) => {
-                // Construct URI: base_uri + token_id
                 let mut uri = config.base_uri;
-                let token_id_str = soroban_sdk::String::from_str(&env, &token_id.to_string());
+                let token_id_str = u128_to_soroban_string(&env, token_id);
                 uri.append(&token_id_str);
                 uri
             }
-            None => {
-                // Fallback: return empty string if no base URI set
-                soroban_sdk::String::from_str(&env, "")
-            }
+            None => soroban_sdk::String::from_str(&env, ""),
         }
     }
 
     /// Check if metadata is frozen (immutable)
     pub fn is_metadata_frozen(env: Env) -> bool {
         is_metadata_frozen(&env)
->>>>>>> Stashed changes
     }
 }
 
