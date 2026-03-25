@@ -48,6 +48,7 @@
     "jsdom": "^27.4.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.17",
+    "@next/bundle-analyzer": "^15.1.2"
   }
 }
