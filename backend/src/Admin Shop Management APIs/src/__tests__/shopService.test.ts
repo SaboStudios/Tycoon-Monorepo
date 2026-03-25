@@ -1,63 +1,63 @@
-import { shopService } from "../services/shopService";
+import { shopService } from '../services/shopService';
 
-describe("ShopService", () => {
+describe('ShopService', () => {
   beforeEach(() => {
     shopService.clearAll();
   });
 
-  describe("createItem", () => {
-    it("should create a new item", () => {
+  describe('createItem', () => {
+    it('should create a new item', () => {
       const item = shopService.createItem({
-        name: "Test Item",
-        description: "Test Description",
+        name: 'Test Item',
+        description: 'Test Description',
         price: 99.99,
         isActive: true,
         images: [],
       });
 
-      expect(item).toHaveProperty("id");
-      expect(item.name).toBe("Test Item");
+      expect(item).toHaveProperty('id');
+      expect(item.name).toBe('Test Item');
       expect(item.price).toBe(99.99);
-      expect(item).toHaveProperty("createdAt");
-      expect(item).toHaveProperty("updatedAt");
+      expect(item).toHaveProperty('createdAt');
+      expect(item).toHaveProperty('updatedAt');
     });
   });
 
-  describe("getItems", () => {
+  describe('getItems', () => {
     beforeEach(() => {
       shopService.createItem({
-        name: "Active Item",
-        description: "Active",
+        name: 'Active Item',
+        description: 'Active',
         price: 50,
         isActive: true,
         images: [],
       });
       shopService.createItem({
-        name: "Inactive Item",
-        description: "Inactive",
+        name: 'Inactive Item',
+        description: 'Inactive',
         price: 30,
         isActive: false,
         images: [],
       });
     });
 
-    it("should get all items", () => {
+    it('should get all items', () => {
       const items = shopService.getItems();
       expect(items).toHaveLength(2);
     });
 
-    it("should get only active items", () => {
+    it('should get only active items', () => {
       const items = shopService.getItems(true);
       expect(items).toHaveLength(1);
       expect(items[0].isActive).toBe(true);
     });
   });
 
-  describe("getItemById", () => {
-    it("should get item by id", () => {
+  describe('getItemById', () => {
+    it('should get item by id', () => {
       const created = shopService.createItem({
-        name: "Test",
-        description: "Test",
+        name: 'Test',
+        description: 'Test',
         price: 50,
         isActive: true,
         images: [],
@@ -68,44 +68,44 @@ describe("ShopService", () => {
       expect(item?.id).toBe(created.id);
     });
 
-    it("should return undefined for non-existent id", () => {
-      const item = shopService.getItemById("999");
+    it('should return undefined for non-existent id', () => {
+      const item = shopService.getItemById('999');
       expect(item).toBeUndefined();
     });
   });
 
-  describe("updateItem", () => {
-    it("should update item", () => {
+  describe('updateItem', () => {
+    it('should update item', () => {
       const created = shopService.createItem({
-        name: "Old Name",
-        description: "Old Description",
+        name: 'Old Name',
+        description: 'Old Description',
         price: 50,
         isActive: true,
         images: [],
       });
 
       const updated = shopService.updateItem(created.id, {
-        name: "New Name",
+        name: 'New Name',
         price: 75,
       });
 
       expect(updated).toBeDefined();
-      expect(updated?.name).toBe("New Name");
+      expect(updated?.name).toBe('New Name');
       expect(updated?.price).toBe(75);
-      expect(updated?.description).toBe("Old Description");
+      expect(updated?.description).toBe('Old Description');
     });
 
-    it("should return null for non-existent item", () => {
-      const updated = shopService.updateItem("999", { name: "New Name" });
+    it('should return null for non-existent item', () => {
+      const updated = shopService.updateItem('999', { name: 'New Name' });
       expect(updated).toBeNull();
     });
   });
 
-  describe("updatePrice", () => {
-    it("should update price", () => {
+  describe('updatePrice', () => {
+    it('should update price', () => {
       const created = shopService.createItem({
-        name: "Test",
-        description: "Test",
+        name: 'Test',
+        description: 'Test',
         price: 50,
         isActive: true,
         images: [],
@@ -116,11 +116,11 @@ describe("ShopService", () => {
     });
   });
 
-  describe("toggleActive", () => {
-    it("should toggle active status", () => {
+  describe('toggleActive', () => {
+    it('should toggle active status', () => {
       const created = shopService.createItem({
-        name: "Test",
-        description: "Test",
+        name: 'Test',
+        description: 'Test',
         price: 50,
         isActive: true,
         images: [],
@@ -131,11 +131,11 @@ describe("ShopService", () => {
     });
   });
 
-  describe("deleteItem", () => {
-    it("should delete item", () => {
+  describe('deleteItem', () => {
+    it('should delete item', () => {
       const created = shopService.createItem({
-        name: "Test",
-        description: "Test",
+        name: 'Test',
+        description: 'Test',
         price: 50,
         isActive: true,
         images: [],
@@ -148,24 +148,24 @@ describe("ShopService", () => {
       expect(item).toBeUndefined();
     });
 
-    it("should return false for non-existent item", () => {
-      const success = shopService.deleteItem("999");
+    it('should return false for non-existent item', () => {
+      const success = shopService.deleteItem('999');
       expect(success).toBe(false);
     });
   });
 
-  describe("bulkUpdate", () => {
-    it("should bulk update multiple items", () => {
+  describe('bulkUpdate', () => {
+    it('should bulk update multiple items', () => {
       const item1 = shopService.createItem({
-        name: "Item 1",
-        description: "Test",
+        name: 'Item 1',
+        description: 'Test',
         price: 50,
         isActive: true,
         images: [],
       });
       const item2 = shopService.createItem({
-        name: "Item 2",
-        description: "Test",
+        name: 'Item 2',
+        description: 'Test',
         price: 60,
         isActive: true,
         images: [],
@@ -182,10 +182,10 @@ describe("ShopService", () => {
       expect(updated[1].isActive).toBe(false);
     });
 
-    it("should skip non-existent items", () => {
+    it('should skip non-existent items', () => {
       const item1 = shopService.createItem({
-        name: "Item 1",
-        description: "Test",
+        name: 'Item 1',
+        description: 'Test',
         price: 50,
         isActive: true,
         images: [],
@@ -193,7 +193,7 @@ describe("ShopService", () => {
 
       const updated = shopService.bulkUpdate([
         { id: item1.id, data: { price: 100 } },
-        { id: "999", data: { price: 200 } },
+        { id: '999', data: { price: 200 } },
       ]);
 
       expect(updated).toHaveLength(1);

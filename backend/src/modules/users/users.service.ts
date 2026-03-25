@@ -316,4 +316,31 @@ export class UsersService {
       order: { suspendedAt: 'DESC' },
     });
   }
+
+  /**
+   * Get leaderboard of users sorted by wins
+   */
+  async getLeaderboard(
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<Partial<User>>> {
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.username',
+        'user.firstName',
+        'user.lastName',
+        'user.game_won',
+        'user.games_played',
+        'user.total_earned',
+      ])
+      .orderBy('user.game_won', 'DESC')
+      .addOrderBy('user.total_earned', 'DESC');
+
+    return await this.paginationService.paginate(
+      queryBuilder,
+      paginationDto,
+      ['username'],
+    );
+  }
 }

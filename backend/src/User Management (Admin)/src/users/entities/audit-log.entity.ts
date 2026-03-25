@@ -5,44 +5,44 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-} from "typeorm";
-import { User } from "./user.entity";
+} from 'typeorm';
+import { User } from './user.entity';
 
 export enum AuditAction {
-  USER_CREATED = "user_created",
-  USER_UPDATED = "user_updated",
-  USER_SUSPENDED = "user_suspended",
-  USER_ACTIVATED = "user_activated",
-  ROLE_CHANGED = "role_changed",
-  PASSWORD_RESET = "password_reset",
+  USER_CREATED = 'user_created',
+  USER_UPDATED = 'user_updated',
+  USER_SUSPENDED = 'user_suspended',
+  USER_ACTIVATED = 'user_activated',
+  ROLE_CHANGED = 'role_changed',
+  PASSWORD_RESET = 'password_reset',
 }
 
-@Entity("audit_logs")
+@Entity('audit_logs')
 export class AuditLog {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({
-    type: "enum",
+    type: 'enum',
     enum: AuditAction,
   })
   action: AuditAction;
 
-  @Column("uuid")
+  @Column('uuid')
   targetUserId: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: "targetUserId" })
+  @JoinColumn({ name: 'targetUserId' })
   targetUser: User;
 
-  @Column("uuid")
+  @Column('uuid')
   performedById: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: "performedById" })
+  @JoinColumn({ name: 'performedById' })
   performedBy: User;
 
-  @Column("jsonb", { nullable: true })
+  @Column('jsonb', { nullable: true })
   metadata: Record<string, any>;
 
   @CreateDateColumn()

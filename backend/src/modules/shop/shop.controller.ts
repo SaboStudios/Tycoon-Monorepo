@@ -70,8 +70,11 @@ export class ShopController {
     status: HttpStatus.OK,
     description: 'Paginated list of shop items.',
   })
-  findAll(@Query() filterDto: FilterShopItemsDto): Promise<PaginatedShopItems> {
-    return this.shopService.findAll(filterDto);
+  findAll(
+    @Query() filterDto: FilterShopItemsDto,
+    @CurrentUser() user?: { id: number },
+  ): Promise<PaginatedShopItems> {
+    return this.shopService.findAll(filterDto, user?.id);
   }
 
   /**
@@ -242,7 +245,9 @@ export class ShopController {
     description: 'User inventory items.',
     type: [UserInventory],
   })
-  getUserInventory(@CurrentUser() user: { id: number }): Promise<UserInventory[]> {
+  getUserInventory(
+    @CurrentUser() user: { id: number },
+  ): Promise<UserInventory[]> {
     return this.inventoryService.getUserInventory(user.id);
   }
 
@@ -259,7 +264,9 @@ export class ShopController {
     description: 'Active inventory items.',
     type: [UserInventory],
   })
-  getActiveInventory(@CurrentUser() user: { id: number }): Promise<UserInventory[]> {
+  getActiveInventory(
+    @CurrentUser() user: { id: number },
+  ): Promise<UserInventory[]> {
     return this.inventoryService.getActiveInventory(user.id);
   }
 }

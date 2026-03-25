@@ -35,6 +35,10 @@ import { PerksModule } from './modules/perks/perks.module';
 import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
 import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.module';
 import { MonetizationModule } from './modules/monetization/monetization.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -97,6 +101,9 @@ import { MonetizationModule } from './modules/monetization/monetization.module';
     PerksBoostsModule,
     AdminAnalyticsModule,
     MonetizationModule,
+    WebhooksModule,
+    JobsModule,
+    EmailModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -120,5 +127,6 @@ import { MonetizationModule } from './modules/monetization/monetization.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(SuspensionCheckMiddleware).forRoutes('*');
+    consumer.apply(RawBodyMiddleware).forRoutes('webhooks/*');
   }
 }

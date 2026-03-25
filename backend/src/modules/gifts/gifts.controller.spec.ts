@@ -146,7 +146,12 @@ describe('GiftsController', () => {
 
       mockGiftsService.respondToGift.mockResolvedValue(mockGift);
 
-      const result = await controller.respondToGift(user, giftId, respondDto, req);
+      const result = await controller.respondToGift(
+        user,
+        giftId,
+        respondDto,
+        req,
+      );
 
       expect(result).toEqual(mockGift);
       expect(service.respondToGift).toHaveBeenCalledWith(

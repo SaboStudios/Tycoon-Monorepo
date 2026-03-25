@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { QueryUsersDto } from "./dto/query-users.dto";
+import { QueryAuditLogsDto } from "./dto/query-audit-logs.dto";
 import { UpdateUserRoleDto } from "./dto/update-user-role.dto";
 import { UpdateUserStatusDto } from "./dto/update-user-status.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
@@ -69,9 +70,8 @@ export class UsersController {
   @Get(":id/audit-logs")
   getAuditLogs(
     @Param("id") id: string,
-    @Query("page") page?: number,
-    @Query("limit") limit?: number,
+    @Query() queryDto: QueryAuditLogsDto,
   ) {
-    return this.usersService.getAuditLogs(id, page, limit);
+    return this.usersService.getAuditLogs(id, queryDto.page, queryDto.limit);
   }
 }

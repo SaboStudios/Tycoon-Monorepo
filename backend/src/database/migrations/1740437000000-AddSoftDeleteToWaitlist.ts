@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddSoftDeleteToWaitlist1740437000000
-  implements MigrationInterface
-{
+export class AddSoftDeleteToWaitlist1740437000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.addColumn(
       'waitlist',
