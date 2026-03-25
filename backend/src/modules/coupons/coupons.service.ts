@@ -11,7 +11,10 @@ import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { FilterCouponsDto } from './dto/filter-coupons.dto';
-import { ValidateCouponDto, CouponValidationResult } from './dto/validate-coupon.dto';
+import {
+  ValidateCouponDto,
+  CouponValidationResult,
+} from './dto/validate-coupon.dto';
 import { CouponType } from './enums/coupon-type.enum';
 
 export interface PaginatedCoupons {
@@ -39,7 +42,9 @@ export class CouponsService {
     });
 
     if (existingCoupon) {
-      throw new ConflictException(`Coupon with code '${createCouponDto.code}' already exists`);
+      throw new ConflictException(
+        `Coupon with code '${createCouponDto.code}' already exists`,
+      );
     }
 
     const couponData = {
@@ -56,7 +61,9 @@ export class CouponsService {
       max_discount_amount: createCouponDto.max_discount_amount
         ? String(createCouponDto.max_discount_amount)
         : undefined,
-      expiration: createCouponDto.expiration ? new Date(createCouponDto.expiration) : undefined,
+      expiration: createCouponDto.expiration
+        ? new Date(createCouponDto.expiration)
+        : undefined,
     };
 
     const coupon = this.couponRepository.create(couponData);
@@ -158,7 +165,9 @@ export class CouponsService {
     await this.couponRepository.remove(coupon);
   }
 
-  async validateCoupon(validateDto: ValidateCouponDto): Promise<CouponValidationResult> {
+  async validateCoupon(
+    validateDto: ValidateCouponDto,
+  ): Promise<CouponValidationResult> {
     const { code, shop_item_id, purchase_amount } = validateDto;
 
     let coupon: Coupon;
@@ -192,7 +201,10 @@ export class CouponsService {
       };
     }
 
-    if (coupon.item_restriction_id && shop_item_id !== coupon.item_restriction_id) {
+    if (
+      coupon.item_restriction_id &&
+      shop_item_id !== coupon.item_restriction_id
+    ) {
       return {
         valid: false,
         message: 'This coupon is not valid for the selected item',
@@ -248,7 +260,11 @@ export class CouponsService {
     await this.couponRepository.increment({ id }, 'current_usage', 1);
   }
 
-  async applyCoupon(code: string, shop_item_id: number, purchase_amount: number): Promise<number> {
+  async applyCoupon(
+    code: string,
+    shop_item_id: number,
+    purchase_amount: number,
+  ): Promise<number> {
     const validation = await this.validateCoupon({
       code,
       shop_item_id,

@@ -15,7 +15,7 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationsRepository: Repository<Notification>,
-  ) { }
+  ) {}
 
   /**
    * Create a new notification.

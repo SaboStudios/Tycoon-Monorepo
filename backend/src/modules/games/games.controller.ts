@@ -317,7 +317,12 @@ export class GamesController {
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: PayRentDto,
   ) {
-    return this.gamePlayersService.payRent(gameId, playerId, dto.payeeId, dto.baseRent);
+    return this.gamePlayersService.payRent(
+      gameId,
+      playerId,
+      dto.payeeId,
+      dto.baseRent,
+    );
   }
 
   @Post(':gameId/players/:playerId/pay-tax')
@@ -337,6 +342,11 @@ export class GamesController {
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: BuyPropertyDto,
   ) {
-    return this.gamePlayersService.buyProperty(gameId, playerId, dto.propertyCost, dto.propertyId);
+    return this.gamePlayersService.buyProperty(
+      gameId,
+      playerId,
+      dto.propertyCost,
+      dto.propertyId,
+    );
   }
 }

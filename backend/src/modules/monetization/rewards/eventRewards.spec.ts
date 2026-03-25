@@ -12,12 +12,20 @@ describe('EventRewards', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     rewardEngine.earnPerk.mockResolvedValue({ granted: true });
-    rewardEngine.grantPromotionalPerk.mockResolvedValue({ granted: true, promotional: true });
+    rewardEngine.grantPromotionalPerk.mockResolvedValue({
+      granted: true,
+      promotional: true,
+    });
     service = new EventRewards(rewardEngine as any);
   });
 
   it('grants rewards on level.up when level threshold is met', async () => {
-    await service.processEvent('level.up', { userId: 1, level: 10, perkId: 7, quantity: 1 });
+    await service.processEvent('level.up', {
+      userId: 1,
+      level: 10,
+      perkId: 7,
+      quantity: 1,
+    });
 
     expect(rewardEngine.earnPerk).toHaveBeenCalledWith({
       userId: 1,
@@ -28,8 +36,15 @@ describe('EventRewards', () => {
   });
 
   it('returns no reward below level threshold', async () => {
-    const result = await service.processEvent('level.up', { userId: 1, level: 9, perkId: 7 });
-    expect(result).toEqual({ granted: false, reason: 'No reward rule matched' });
+    const result = await service.processEvent('level.up', {
+      userId: 1,
+      level: 9,
+      perkId: 7,
+    });
+    expect(result).toEqual({
+      granted: false,
+      reason: 'No reward rule matched',
+    });
   });
 
   it('requires grantedBy for promotional grants', async () => {
