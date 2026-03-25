@@ -1,4 +1,4 @@
-use crate::types::Perk;
+use crate::types::{BaseURIConfig, CollectibleMetadata, Perk};
 use soroban_sdk::{Address, Env, Vec};
 
 const ADMIN_KEY: &str = "ADMIN";
@@ -10,6 +10,8 @@ const STRENGTH_PREFIX: &str = "STRENGTH";
 const OWNED_TOKENS_PREFIX: &str = "OWNED";
 const TOKEN_INDEX_PREFIX: &str = "TIDX";
 const NEXT_TOKEN_ID_KEY: &str = "NEXT_TID";
+const METADATA_PREFIX: &str = "META";
+const BASE_URI_KEY: &str = "BASE_URI";
 
 /// Check if admin is set
 pub fn has_admin(env: &Env) -> bool {
@@ -208,4 +210,48 @@ pub fn get_next_collectible_id(env: &Env) -> u128 {
     };
     set_next_token_id(env, collectible_id + 1);
     collectible_id
+}
+
+// ========================
+// Metadata Storage Functions
+// ========================
+
+/// Set metadata for a collectible token
+pub fn set_metadata(env: &Env, token_id: u128, metadata: &CollectibleMetadata) {
+    let key = (METADATA_PREFIX, token_id);
+    env.storage().persistent().set(&key, metadata);
+}
+
+/// Get metadata for a collectible token
+pub fn get_metadata(env: &Env, token_id: u128) -> Option<CollectibleMetadata> {
+    let key = (METADATA_PREFIX, token_id);
+    env.storage().persistent().get(&key)
+}
+
+/// Check if metadata exists for a token
+pub fn has_metadata(env: &Env, token_id: u128) -> bool {
+    let key = (METADATA_PREFIX, token_id);
+    env.storage().persistent().has(&key)
+}
+
+/// Set base URI configuration (admin only)
+pub fn set_base_uri_config(env: &Env, config: &BaseURIConfig) {
+    env.storage().instance().set(&BASE_URI_KEY, config);
+}
+
+/// Get base URI configuration
+pub fn get_base_uri_config(env: &Env) -> Option<BaseURIConfig> {
+    env.storage().instance().get(&BASE_URI_KEY)
+}
+
+/// Check if base URI is configured
+pub fn has_base_uri_config(env: &Env) -> bool {
+    env.storage().instance().has(&BASE_URI_KEY)
+}
+
+/// Check if metadata is frozen
+pub fn is_metadata_frozen(env: &Env) -> bool {
+    get_base_uri_config(env)
+        .map(|config| config.frozen)
+        .unwrap_or(false)
 }

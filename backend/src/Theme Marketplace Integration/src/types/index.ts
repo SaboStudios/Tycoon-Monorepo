@@ -1,7 +1,7 @@
 export interface Theme {
   id: string;
   name: string;
-  type: "skin" | "board";
+  type: 'skin' | 'board';
   price: number;
   description: string;
   imageUrl?: string;
@@ -17,7 +17,7 @@ export interface User {
 
 export interface Coupon {
   code: string;
-  discountType: "percentage" | "fixed";
+  discountType: 'percentage' | 'fixed';
   discountValue: number;
   expiresAt: Date;
   usageLimit: number;
@@ -34,7 +34,7 @@ export interface Transaction {
   finalAmount: number;
   couponCode?: string;
   timestamp: Date;
-  status: "completed" | "failed" | "pending";
+  status: 'completed' | 'failed' | 'pending';
 }
 
 export interface PurchaseRequest {
