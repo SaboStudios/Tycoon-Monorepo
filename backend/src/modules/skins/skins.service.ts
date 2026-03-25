@@ -6,17 +6,21 @@ import { CreateSkinDto } from './dto/create-skin.dto';
 import { UpdateSkinDto } from './dto/update-skin.dto';
 import { SkinCategory } from './enums/skin-category.enum';
 import { SkinRarity } from './enums/skin-rarity.enum';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class SkinsService {
   constructor(
     @InjectRepository(Skin)
     private readonly skinRepository: Repository<Skin>,
+    private readonly redisService: RedisService,
   ) {}
 
   async create(createSkinDto: CreateSkinDto): Promise<Skin> {
     const skin = this.skinRepository.create(createSkinDto);
-    return await this.skinRepository.save(skin);
+    const saved = await this.skinRepository.save(skin);
+    await this.invalidateCache();
+    return saved;
   }
 
   async findAll(query?: {
@@ -57,12 +61,15 @@ export class SkinsService {
   async update(id: number, updateSkinDto: UpdateSkinDto): Promise<Skin> {
     const skin = await this.findOne(id);
     const updatedSkin = this.skinRepository.merge(skin, updateSkinDto);
-    return await this.skinRepository.save(updatedSkin);
+    const saved = await this.skinRepository.save(updatedSkin);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   async remove(id: number): Promise<void> {
     const skin = await this.findOne(id);
     await this.skinRepository.remove(skin);
+    await this.invalidateCache(id);
   }
 
   async unlockSkin(userId: string, skinId: number): Promise<boolean> {
@@ -76,5 +83,12 @@ export class SkinsService {
     // For now, we simulate success.
 
     return true;
+  }
+
+  private async invalidateCache(id?: number): Promise<void> {
+    await this.redisService.delByPattern('tycoon:skins:skins:*');
+    if (id) {
+      await this.redisService.delByPattern(`tycoon:skins:skins:${id}:*`);
+    }
   }
 }
