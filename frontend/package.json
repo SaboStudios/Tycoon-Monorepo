@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "analyze": "ANALYZE=true next build",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -33,6 +35,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",
+    "@next/bundle-analyzer": "^15.1.2",
+    "@playwright/test": "^1.49.1",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.2",
