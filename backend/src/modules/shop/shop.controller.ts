@@ -70,8 +70,11 @@ export class ShopController {
     status: HttpStatus.OK,
     description: 'Paginated list of shop items.',
   })
-  findAll(@Query() filterDto: FilterShopItemsDto): Promise<PaginatedShopItems> {
-    return this.shopService.findAll(filterDto);
+  findAll(
+    @Query() filterDto: FilterShopItemsDto,
+    @CurrentUser() user?: { id: number },
+  ): Promise<PaginatedShopItems> {
+    return this.shopService.findAll(filterDto, user?.id);
   }
 
   /**
