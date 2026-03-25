@@ -1,8 +1,8 @@
-import { Module } from "@nestjs/common";
+import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
-import { IdempotencyModule } from "./idempotency/idempotency.module";
+import { HealthModule } from "./health/health.module";
 import { User } from "./users/entities/user.entity";
 import { AuditLog } from "./users/entities/audit-log.entity";
 import { IdempotencyRecord } from "./idempotency/idempotency-record.entity";
@@ -21,7 +21,11 @@ import { IdempotencyRecord } from "./idempotency/idempotency-record.entity";
     }),
     UsersModule,
     AuthModule,
-    IdempotencyModule,
+    HealthModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CorrelationIdMiddleware).forRoutes("*");
+  }
+}

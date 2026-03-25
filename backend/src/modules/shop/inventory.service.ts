@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { UserInventory } from './entities/user-inventory.entity';
@@ -50,12 +54,19 @@ export class InventoryService {
     return await this.inventoryRepository
       .createQueryBuilder('inventory')
       .where('inventory.user_id = :userId', { userId })
-      .andWhere('(inventory.expires_at IS NULL OR inventory.expires_at > :now)', { now })
+      .andWhere(
+        '(inventory.expires_at IS NULL OR inventory.expires_at > :now)',
+        { now },
+      )
       .orderBy('inventory.created_at', 'DESC')
       .getMany();
   }
 
-  async useItem(userId: number, shopItemId: number, quantity: number = 1): Promise<void> {
+  async useItem(
+    userId: number,
+    shopItemId: number,
+    quantity: number = 1,
+  ): Promise<void> {
     const item = await this.inventoryRepository.findOne({
       where: { user_id: userId, shop_item_id: shopItemId },
     });

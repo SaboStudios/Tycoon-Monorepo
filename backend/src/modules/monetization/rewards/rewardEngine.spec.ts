@@ -32,7 +32,9 @@ describe('RewardEngine', () => {
       totalCost: 20,
       remainingCurrency: 10,
     });
-    expect(inventoryService.addPerksToInventory).toHaveBeenCalledWith(42, [{ perkId: 1, quantity: 2 }]);
+    expect(inventoryService.addPerksToInventory).toHaveBeenCalledWith(42, [
+      { perkId: 1, quantity: 2 },
+    ]);
   });
 
   it('rejects client-side price mismatch', async () => {

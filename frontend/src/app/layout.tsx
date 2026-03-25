@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { ToastProvider } from "@/components/providers/toast-provider";
+import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { generateBaseMetadata } from "@/lib/metadata";

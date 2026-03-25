@@ -10,10 +10,7 @@ import {
   repositoryMockFactory,
   MockType,
 } from '../../../test/mocks/database.mock';
-import {
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('ShopService', () => {
   let service: ShopService;
@@ -163,13 +160,16 @@ describe('ShopService', () => {
       shopItemRepositoryMock.findOne!.mockResolvedValue(mockShopItem);
 
       // Mock query runner operations
-      mockQueryRunner.manager.create.mockImplementation((entity: unknown, data: unknown) => {
-        if (entity === Purchase) return { ...mockPurchase, ...data };
-        return { ...mockGift, ...data };
-      });
+      mockQueryRunner.manager.create.mockImplementation(
+        (entity: unknown, data: unknown) => {
+          if (entity === Purchase) return { ...mockPurchase, ...data };
+          return { ...mockGift, ...data };
+        },
+      );
 
       mockQueryRunner.manager.save.mockImplementation((entity: unknown) => {
-        if ((entity as { user_id?: number }).user_id) return Promise.resolve(mockPurchase);
+        if ((entity as { user_id?: number }).user_id)
+          return Promise.resolve(mockPurchase);
         return Promise.resolve(mockGift);
       });
 
@@ -228,9 +228,11 @@ describe('ShopService', () => {
 
       shopItemRepositoryMock.findOne!.mockResolvedValue(mockShopItem);
 
-      mockQueryRunner.manager.create.mockImplementation((entity: unknown, data: unknown) => {
-        return { ...data };
-      });
+      mockQueryRunner.manager.create.mockImplementation(
+        (entity: unknown, data: unknown) => {
+          return { ...data };
+        },
+      );
 
       mockQueryRunner.manager.save.mockImplementation((entity: unknown) => {
         return Promise.resolve(entity);

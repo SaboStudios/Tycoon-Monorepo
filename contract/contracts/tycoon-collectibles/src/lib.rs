@@ -218,6 +218,7 @@ impl TycoonCollectibles {
     ) -> Result<(), CollectibleError> {
         buyer.require_auth();
 
+        // CEI: CHECKS — read and validate all state first
         let shop_config = get_shop_config(&env).ok_or(CollectibleError::ShopNotInitialized)?;
         let price_config =
             get_collectible_price(&env, token_id).ok_or(CollectibleError::ZeroPrice)?;
@@ -237,12 +238,17 @@ impl TycoonCollectibles {
             return Err(CollectibleError::InsufficientStock);
         }
 
+        // CEI: EFFECTS — update all state before any external call
+        // Decrement stock and mint to buyer before payment transfer so a
+        // re-entrant call through the token contract sees stock already consumed.
+        set_shop_stock(&env, token_id, current_stock - 1);
+        _safe_mint(&env, &buyer, token_id, 1)?;
+
+        // CEI: INTERACTIONS — external payment call last
         let contract_address = env.current_contract_address();
         let token_client = token::Client::new(&env, &payment_token);
         token_client.transfer(&buyer, &contract_address, &price);
 
-        _safe_mint(&env, &buyer, token_id, 1)?;
-        set_shop_stock(&env, token_id, current_stock - 1);
         emit_collectible_bought_event(&env, token_id, &buyer, price, use_usdc);
 
         Ok(())
