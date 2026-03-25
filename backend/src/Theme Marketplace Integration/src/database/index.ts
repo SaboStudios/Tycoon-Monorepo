@@ -1,4 +1,4 @@
-import { Theme, User, Coupon, Transaction } from "../types";
+import { Theme, User, Coupon, Transaction } from '../types';
 
 class Database {
   private themes: Map<string, Theme> = new Map();
@@ -88,65 +88,65 @@ class Database {
     this.clear();
     // Add sample themes
     this.addTheme({
-      id: "skin-1",
-      name: "Dragon Warrior",
-      type: "skin",
+      id: 'skin-1',
+      name: 'Dragon Warrior',
+      type: 'skin',
       price: 500,
-      description: "Epic dragon-themed skin",
+      description: 'Epic dragon-themed skin',
       available: true,
     });
 
     this.addTheme({
-      id: "skin-2",
-      name: "Cyber Ninja",
-      type: "skin",
+      id: 'skin-2',
+      name: 'Cyber Ninja',
+      type: 'skin',
       price: 750,
-      description: "Futuristic cyber ninja skin",
+      description: 'Futuristic cyber ninja skin',
       available: true,
     });
 
     this.addTheme({
-      id: "board-1",
-      name: "Galaxy Board",
-      type: "board",
+      id: 'board-1',
+      name: 'Galaxy Board',
+      type: 'board',
       price: 300,
-      description: "Space-themed board style",
+      description: 'Space-themed board style',
       available: true,
     });
 
     this.addTheme({
-      id: "board-2",
-      name: "Neon Lights",
-      type: "board",
+      id: 'board-2',
+      name: 'Neon Lights',
+      type: 'board',
       price: 400,
-      description: "Vibrant neon board style",
+      description: 'Vibrant neon board style',
       available: true,
     });
 
     // Add sample user
     this.addUser({
-      id: "user-1",
-      username: "testuser",
+      id: 'user-1',
+      username: 'testuser',
       ownedThemes: [],
       balance: 10000,
     });
 
     // Add sample coupons
     this.addCoupon({
-      code: "WELCOME20",
-      discountType: "percentage",
+      code: 'WELCOME20',
+      discountType: 'percentage',
       discountValue: 20,
-      expiresAt: new Date("2026-12-31"),
+      expiresAt: new Date('2026-12-31'),
       usageLimit: 100,
       usedCount: 0,
       active: true,
     });
 
     this.addCoupon({
-      code: "SAVE100",
-      discountType: "fixed",
+      code: 'SAVE100',
+      discountType: 'fixed',
       discountValue: 100,
-      expiresAt: new Date("2026-12-31"),
+      expiresAt: new Date('2026-12-31'),
       usageLimit: 50,
       usedCount: 0,
       active: true,

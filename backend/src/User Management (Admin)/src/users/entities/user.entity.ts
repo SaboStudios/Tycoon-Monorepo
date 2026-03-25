@@ -4,22 +4,22 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-} from "typeorm";
+} from 'typeorm';
 
 export enum UserRole {
-  USER = "user",
-  ADMIN = "admin",
-  MODERATOR = "moderator",
+  USER = 'user',
+  ADMIN = 'admin',
+  MODERATOR = 'moderator',
 }
 
 export enum UserStatus {
-  ACTIVE = "active",
-  SUSPENDED = "suspended",
+  ACTIVE = 'active',
+  SUSPENDED = 'suspended',
 }
 
-@Entity("users")
+@Entity('users')
 export class User {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ unique: true })
@@ -35,14 +35,14 @@ export class User {
   lastName: string;
 
   @Column({
-    type: "enum",
+    type: 'enum',
     enum: UserRole,
     default: UserRole.USER,
   })
   role: UserRole;
 
   @Column({
-    type: "enum",
+    type: 'enum',
     enum: UserStatus,
     default: UserStatus.ACTIVE,
   })

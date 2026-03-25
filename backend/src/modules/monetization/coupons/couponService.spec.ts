@@ -14,7 +14,10 @@ describe('CouponService', () => {
   });
 
   it('returns invalid response for invalid coupons', async () => {
-    couponsService.validateCoupon.mockResolvedValue({ valid: false, message: 'Invalid coupon code' });
+    couponsService.validateCoupon.mockResolvedValue({
+      valid: false,
+      message: 'Invalid coupon code',
+    });
 
     const result = await service.validateAndApplyCoupon({
       code: 'BADCODE',
@@ -33,7 +36,10 @@ describe('CouponService', () => {
   });
 
   it('applies discount for valid coupons', async () => {
-    couponsService.validateCoupon.mockResolvedValue({ valid: true, message: 'Coupon is valid' });
+    couponsService.validateCoupon.mockResolvedValue({
+      valid: true,
+      message: 'Coupon is valid',
+    });
     couponsService.applyCoupon.mockResolvedValue(25);
 
     const result = await service.validateAndApplyCoupon({

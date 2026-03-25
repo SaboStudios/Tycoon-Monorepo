@@ -1,7 +1,7 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { JwtStrategy } from "./jwt.strategy";
+import { Test, TestingModule } from '@nestjs/testing';
+import { JwtStrategy } from './jwt.strategy';
 
-describe("JwtStrategy", () => {
+describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
 
   beforeEach(async () => {
@@ -12,23 +12,23 @@ describe("JwtStrategy", () => {
     strategy = module.get<JwtStrategy>(JwtStrategy);
   });
 
-  it("should be defined", () => {
+  it('should be defined', () => {
     expect(strategy).toBeDefined();
   });
 
-  it("should validate and return user payload", async () => {
+  it('should validate and return user payload', async () => {
     const payload = {
-      sub: "user-id",
-      email: "test@example.com",
-      role: "admin",
+      sub: 'user-id',
+      email: 'test@example.com',
+      role: 'admin',
     };
 
     const result = await strategy.validate(payload);
 
     expect(result).toEqual({
-      userId: "user-id",
-      email: "test@example.com",
-      role: "admin",
+      userId: 'user-id',
+      email: 'test@example.com',
+      role: 'admin',
     });
   });
 });

@@ -297,10 +297,7 @@ describe('PurchaseService', () => {
         { id: 2, user_id: 1, shop_item: mockShopItem },
       ];
 
-      mockPurchaseRepository.findAndCount.mockResolvedValue([
-        mockPurchases,
-        2,
-      ]);
+      mockPurchaseRepository.findAndCount.mockResolvedValue([mockPurchases, 2]);
 
       const result = await service.getUserPurchases(1, 1, 20);
 
