@@ -1,6 +1,6 @@
 {
   "name": "Tycoon Cash Boost T3",
-  "description": "A powerful collectible that provides a massive cash boost in Tycoon game. This Tier 3 variant offers the maximum cash reward multiplier, perfect for players looking to accelerate their progress and dominate the property market.",
+  "description": "A powerful collectible that provides a cash boost in Tycoon game. This T3 variant offers maximum cash rewards.",
   "image": "https://api.tycoon.com/metadata/images/2000000001.png",
   "animation_url": "https://api.tycoon.com/metadata/animations/2000000001.mp4",
   "external_url": "https://tycoon.com/collectibles/2000000001",
@@ -11,21 +11,20 @@
     },
     {
       "trait_type": "Strength",
-      "value": "3",
+      "value": 3,
       "display_type": "number"
-    },
-    {
-      "trait_type": "Category",
-      "value": "Economic"
     },
     {
       "trait_type": "Rarity",
       "value": "Epic"
     },
     {
+      "trait_type": "Category",
+      "value": "Economic"
+    },
+    {
       "trait_type": "Usage",
-      "value": "Permanent"
+      "value": "Consumable"
     }
   ]
-}</content>
-<parameter name="filePath">c:\Users\TECHIE\Documents\GitHub\Tycoon-Monorepo\contract\contracts\tycoon-collectibles\sample-metadata.json
+}
