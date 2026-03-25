@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:generate": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:generate src/database/migrations/migration",
     "migration:run": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:run",
-    "migration:revert": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:revert"
+    "migration:revert": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:revert",
+    "codegen": "ts-node -r tsconfig-paths/register scripts/generate-openapi.ts"
   },
   "dependencies": {
     "7": "^0.0.1",
