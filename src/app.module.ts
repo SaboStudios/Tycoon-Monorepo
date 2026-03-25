@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
+import { HealthModule } from "./health/health.module";
 import { User } from "./users/entities/user.entity";
 import { AuditLog } from "./users/entities/audit-log.entity";
 
@@ -19,6 +20,7 @@ import { AuditLog } from "./users/entities/audit-log.entity";
     }),
     UsersModule,
     AuthModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
