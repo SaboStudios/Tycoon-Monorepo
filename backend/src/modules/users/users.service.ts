@@ -3,23 +3,31 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
+import { UserSuspension } from './entities/user-suspension.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
+import { SuspendUserDto } from './dto/suspend-user.dto';
+import { UnsuspendUserDto } from './dto/unsuspend-user.dto';
 import {
   PaginationService,
   PaginationDto,
   PaginatedResponse,
 } from '../../common';
 import { RedisService } from '../redis/redis.service';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { Request } from 'express';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UserSuspension)
+    private readonly suspensionRepository: Repository<UserSuspension>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
+    private readonly adminLogsService: AdminLogsService,
   ) {}
 
   /**
@@ -93,14 +101,64 @@ export class UsersService {
       total_staked: user.total_staked,
       total_earned: user.total_earned,
       total_withdrawn: user.total_withdrawn,
+      is_admin: user.is_admin,
     };
   }
 
   /**
    * Update a user
    */
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+    adminId?: number,
+    req?: Request,
+  ): Promise<User> {
     const user = await this.findOne(id);
+
+    // Track changes for audit log if performed by an admin
+    if (adminId) {
+      if (
+        updateUserDto.role !== undefined &&
+        updateUserDto.role !== user.role
+      ) {
+        await this.adminLogsService.createLog(
+          adminId,
+          'USER_ROLE_CHANGE',
+          id,
+          { from: user.role, to: updateUserDto.role },
+          req,
+        );
+      }
+      if (
+        updateUserDto.is_admin !== undefined &&
+        updateUserDto.is_admin !== user.is_admin
+      ) {
+        await this.adminLogsService.createLog(
+          adminId,
+          'USER_ADMIN_STATUS_CHANGE',
+          id,
+          { from: user.is_admin, to: updateUserDto.is_admin },
+          req,
+        );
+      }
+      if (
+        updateUserDto.is_suspended !== undefined &&
+        updateUserDto.is_suspended !== user.is_suspended
+      ) {
+        await this.adminLogsService.createLog(
+          adminId,
+          updateUserDto.is_suspended ? 'USER_SUSPENDED' : 'USER_UNSUSPENDED',
+          id,
+          undefined,
+          req,
+        );
+      }
+
+      // Generic modification log if nothing specific was logged but something changed
+      // (Simplified: we already logged the most important ones as per requirement)
+    }
+
     Object.assign(user, updateUserDto);
     const updatedUser = await this.userRepository.save(user);
 
@@ -114,9 +172,19 @@ export class UsersService {
   /**
    * Delete a user
    */
-  async remove(id: number): Promise<void> {
+  async remove(id: number, adminId?: number, req?: Request): Promise<void> {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
+
+    if (adminId) {
+      await this.adminLogsService.createLog(
+        adminId,
+        'USER_DELETED',
+        id,
+        { email: user.email },
+        req,
+      );
+    }
 
     // Invalidate cache for this user and users list
     await this.invalidateUserCache(id);
@@ -165,5 +233,114 @@ export class UsersService {
     // Invalidate cache for this user and users list
     await this.invalidateUserCache(userId);
     await this.invalidateUsersCache();
+  }
+
+  /**
+   * Suspend a user
+   */
+  async suspendUser(
+    dto: SuspendUserDto,
+    adminId: number,
+    req?: Request,
+  ): Promise<void> {
+    const user = await this.findOne(dto.userId);
+
+    if (user.is_suspended) {
+      throw new NotFoundException('User is already suspended');
+    }
+
+    user.is_suspended = true;
+    await this.userRepository.save(user);
+
+    const suspension = this.suspensionRepository.create({
+      userId: dto.userId,
+      suspendedBy: adminId,
+      reason: dto.reason,
+      isActive: true,
+    });
+    await this.suspensionRepository.save(suspension);
+
+    await this.adminLogsService.createLog(
+      adminId,
+      'USER_SUSPENDED',
+      dto.userId,
+      { reason: dto.reason },
+      req,
+    );
+
+    await this.invalidateUserCache(dto.userId);
+    await this.invalidateUsersCache();
+  }
+
+  /**
+   * Unsuspend a user
+   */
+  async unsuspendUser(
+    dto: UnsuspendUserDto,
+    adminId: number,
+    req?: Request,
+  ): Promise<void> {
+    const user = await this.findOne(dto.userId);
+
+    if (!user.is_suspended) {
+      throw new NotFoundException('User is not suspended');
+    }
+
+    user.is_suspended = false;
+    await this.userRepository.save(user);
+
+    await this.suspensionRepository.update(
+      { userId: dto.userId, isActive: true },
+      { isActive: false, unsuspendedAt: new Date() },
+    );
+
+    await this.adminLogsService.createLog(
+      adminId,
+      'USER_UNSUSPENDED',
+      dto.userId,
+      undefined,
+      req,
+    );
+
+    await this.invalidateUserCache(dto.userId);
+    await this.invalidateUsersCache();
+  }
+
+  /**
+   * Get suspension history for a user
+   */
+  async getSuspensionHistory(userId: number): Promise<UserSuspension[]> {
+    return await this.suspensionRepository.find({
+      where: { userId },
+      relations: ['admin'],
+      order: { suspendedAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get leaderboard of users sorted by wins
+   */
+  async getLeaderboard(
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<Partial<User>>> {
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.username',
+        'user.firstName',
+        'user.lastName',
+        'user.game_won',
+        'user.games_played',
+        'user.total_earned',
+      ])
+      .orderBy('user.game_won', 'DESC')
+      .addOrderBy('user.total_earned', 'DESC');
+
+    return await this.paginationService.paginate(
+      queryBuilder,
+      paginationDto,
+      ['username'],
+    );
   }
 }

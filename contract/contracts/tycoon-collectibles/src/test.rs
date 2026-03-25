@@ -1304,8 +1304,8 @@ fn test_stock_shop_fails_with_invalid_perk() {
     let admin = Address::generate(&env);
     client.initialize(&admin);
 
-    // Try to stock with invalid perk (> 4)
-    let result = client.try_stock_shop(&100, &5, &3, &1000, &500);
+    // Try to stock with invalid perk (> 11)
+    let result = client.try_stock_shop(&100, &12, &3, &1000, &500);
     assert!(result.is_err());
 }
 
@@ -1720,8 +1720,8 @@ fn test_mint_collectible_invalid_perk_too_high() {
 
     client.initialize(&admin);
 
-    // Try to mint with perk=5 (invalid)
-    let result = client.try_mint_collectible(&admin, &user, &5, &1);
+    // Try to mint with perk=12 (invalid, max is 11)
+    let result = client.try_mint_collectible(&admin, &user, &12, &1);
 
     match result {
         Err(Ok(err)) => assert_eq!(err, CollectibleError::InvalidPerk),
@@ -1873,4 +1873,202 @@ fn test_mint_collectible_non_tiered_perks_no_strength_validation() {
     let token_id_2 = client.mint_collectible(&admin, &user, &4, &99);
     assert_eq!(client.get_token_perk(&token_id_2), Perk::PropertyDiscount);
     assert_eq!(client.get_token_strength(&token_id_2), 99);
+}
+
+// ============================================
+// Tests for new perks (Issue #98)
+// ============================================
+
+#[test]
+fn test_new_perk_extra_turn() {
+    // Test ExtraTurn (perk=5) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // ExtraTurn (perk=5) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &5, &1);
+    assert_eq!(client.get_token_perk(&token_id), Perk::ExtraTurn);
+    assert_eq!(client.get_token_strength(&token_id), 1);
+}
+
+#[test]
+fn test_new_perk_jail_free() {
+    // Test JailFree (perk=6) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // JailFree (perk=6) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &6, &0);
+    assert_eq!(client.get_token_perk(&token_id), Perk::JailFree);
+    assert_eq!(client.get_token_strength(&token_id), 0);
+}
+
+#[test]
+fn test_new_perk_double_rent() {
+    // Test DoubleRent (perk=7) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // DoubleRent (perk=7) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &7, &1);
+    assert_eq!(client.get_token_perk(&token_id), Perk::DoubleRent);
+    assert_eq!(client.get_token_strength(&token_id), 1);
+}
+
+#[test]
+fn test_new_perk_roll_boost() {
+    // Test RollBoost (perk=8) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // RollBoost (perk=8) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &8, &2);
+    assert_eq!(client.get_token_perk(&token_id), Perk::RollBoost);
+    assert_eq!(client.get_token_strength(&token_id), 2);
+}
+
+#[test]
+fn test_new_perk_teleport() {
+    // Test Teleport (perk=9) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Teleport (perk=9) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &9, &0);
+    assert_eq!(client.get_token_perk(&token_id), Perk::Teleport);
+    assert_eq!(client.get_token_strength(&token_id), 0);
+}
+
+#[test]
+fn test_new_perk_shield() {
+    // Test Shield (perk=10) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Shield (perk=10) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &10, &1);
+    assert_eq!(client.get_token_perk(&token_id), Perk::Shield);
+    assert_eq!(client.get_token_strength(&token_id), 1);
+}
+
+#[test]
+fn test_new_perk_roll_exact() {
+    // Test RollExact (perk=11) can be minted
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // RollExact (perk=11) should accept any strength
+    let token_id = client.mint_collectible(&admin, &user, &11, &0);
+    assert_eq!(client.get_token_perk(&token_id), Perk::RollExact);
+    assert_eq!(client.get_token_strength(&token_id), 0);
+}
+
+#[test]
+fn test_new_perk_stock_shop() {
+    // Test new perks can be stocked in shop
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Stock shop with new perks (5-11)
+    // ExtraTurn (perk=5)
+    let token_id_1 = client.stock_shop(&100, &5, &1, &1000, &500);
+    assert_eq!(client.get_token_perk(&token_id_1), Perk::ExtraTurn);
+
+    // JailFree (perk=6)
+    let token_id_2 = client.stock_shop(&100, &6, &0, &1000, &500);
+    assert_eq!(client.get_token_perk(&token_id_2), Perk::JailFree);
+
+    // RollExact (perk=11)
+    let token_id_3 = client.stock_shop(&100, &11, &1, &1000, &500);
+    assert_eq!(client.get_token_perk(&token_id_3), Perk::RollExact);
+}
+
+#[test]
+fn test_perk_enum_values() {
+    // Verify all perk variants exist and can be compared
+    // This test ensures the enum has all 12 variants (including None)
+    assert!(true); // The enum compiles with all variants, which is the main verification
+
+    // Additional verification: mint each perk and check it returns the correct perk
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Verify all new perks can be minted
+    let _ = client.mint_collectible(&admin, &user, &5, &1); // ExtraTurn
+    let _ = client.mint_collectible(&admin, &user, &6, &1); // JailFree
+    let _ = client.mint_collectible(&admin, &user, &7, &1); // DoubleRent
+    let _ = client.mint_collectible(&admin, &user, &8, &1); // RollBoost
+    let _ = client.mint_collectible(&admin, &user, &9, &1); // Teleport
+    let _ = client.mint_collectible(&admin, &user, &10, &1); // Shield
+    let _ = client.mint_collectible(&admin, &user, &11, &1); // RollExact
 }

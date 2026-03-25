@@ -65,18 +65,27 @@ impl TycoonCollectibles {
             return Err(CollectibleError::InvalidAmount);
         }
 
-        // Validate perk (0-4 are valid enum values)
-        if perk > 4 {
+        // Validate perk (0-11 are valid enum values, 0 = None is not a valid perk)
+        if perk > 11 {
             return Err(CollectibleError::InvalidPerk);
         }
 
-        // Validate strength for tiered perks
+        // Validate perk and convert to enum
         let perk_enum: Perk = match perk {
             0 => Perk::None,
+            // Original perks (backward compatible)
             1 => Perk::CashTiered,
             2 => Perk::TaxRefund,
             3 => Perk::RentBoost,
             4 => Perk::PropertyDiscount,
+            // New perks
+            5 => Perk::ExtraTurn,
+            6 => Perk::JailFree,
+            7 => Perk::DoubleRent,
+            8 => Perk::RollBoost,
+            9 => Perk::Teleport,
+            10 => Perk::Shield,
+            11 => Perk::RollExact,
             _ => return Err(CollectibleError::InvalidPerk),
         };
 
@@ -293,12 +302,71 @@ impl TycoonCollectibles {
             return Err(CollectibleError::InvalidPerk);
         }
 
+        // Handle existing tiered cash perks
         if matches!(perk, Perk::CashTiered | Perk::TaxRefund) {
             if !(1..=5).contains(&strength) {
                 return Err(CollectibleError::InvalidStrength);
             }
             let cash_value = CASH_TIERS[(strength - 1) as usize];
             emit_cash_perk_activated_event(&env, &caller, token_id, cash_value.into());
+        }
+
+        // Stub implementations for new perks (validation only, no logic yet)
+        // RentBoost: Boost rent income - emit event for future implementation
+        if matches!(perk, Perk::RentBoost) {
+            // TODO: Implement rent boost logic
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // ExtraTurn: Get an extra turn - emit event for future implementation
+        if matches!(perk, Perk::ExtraTurn) {
+            // TODO: Implement extra turn logic
+            // Emit event for tracking
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // JailFree: Free from jail - emit event for future implementation
+        if matches!(perk, Perk::JailFree) {
+            // TODO: Implement jail free logic
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // DoubleRent: Double rent income - emit event for future implementation
+        if matches!(perk, Perk::DoubleRent) {
+            // TODO: Implement double rent logic
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // RollBoost: Boost your dice roll - emit event for future implementation
+        if matches!(perk, Perk::RollBoost) {
+            // TODO: Implement roll boost logic
+            // Strength could indicate the boost amount
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // Teleport: Teleport to any property - emit event for future implementation
+        if matches!(perk, Perk::Teleport) {
+            // TODO: Implement teleport logic
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // Shield: Protect against one attack - emit event for future implementation
+        if matches!(perk, Perk::Shield) {
+            // TODO: Implement shield logic
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // PropertyDiscount: Discount on property purchases - emit event for future implementation
+        if matches!(perk, Perk::PropertyDiscount) {
+            // TODO: Implement property discount logic
+            // Strength could indicate discount percentage
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
+        }
+
+        // RollExact: Roll exact number needed - emit event for future implementation
+        if matches!(perk, Perk::RollExact) {
+            // TODO: Implement roll exact logic
+            emit_perk_activated_event(&env, &caller, token_id, perk.clone(), strength);
         }
 
         _safe_burn(&env, &caller, token_id, 1)?;
@@ -427,17 +495,26 @@ impl TycoonCollectibles {
             return Err(CollectibleError::Unauthorized);
         }
 
-        // Validate perk - cannot be None (0) or invalid value
-        if perk == 0 || perk > 4 {
+        // Validate perk - cannot be None (0) or invalid value (max 11)
+        if perk == 0 || perk > 11 {
             return Err(CollectibleError::InvalidPerk);
         }
 
-        // Convert perk to enum
+        // Convert perk to enum (maintaining backward compatibility with original perks 1-4)
         let perk_enum: Perk = match perk {
+            // Original perks (backward compatible)
             1 => Perk::CashTiered,
             2 => Perk::TaxRefund,
             3 => Perk::RentBoost,
             4 => Perk::PropertyDiscount,
+            // New perks
+            5 => Perk::ExtraTurn,
+            6 => Perk::JailFree,
+            7 => Perk::DoubleRent,
+            8 => Perk::RollBoost,
+            9 => Perk::Teleport,
+            10 => Perk::Shield,
+            11 => Perk::RollExact,
             _ => return Err(CollectibleError::InvalidPerk),
         };
 
@@ -474,7 +551,6 @@ impl TycoonCollectibles {
             .unwrap_or_else(|| panic!("Index out of bounds"))
     }
 }
-
 
 #[cfg(test)]
 mod test;
