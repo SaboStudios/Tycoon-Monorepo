@@ -1,4 +1,4 @@
-import { ShopItem } from "../types";
+import { ShopItem } from '../types';
 
 // In-memory storage (replace with database in production)
 let shopItems: ShopItem[] = [];
@@ -6,7 +6,7 @@ let itemIdCounter = 1;
 
 export const shopService = {
   createItem: (
-    data: Omit<ShopItem, "id" | "createdAt" | "updatedAt">,
+    data: Omit<ShopItem, 'id' | 'createdAt' | 'updatedAt'>,
   ): ShopItem => {
     const newItem: ShopItem = {
       ...data,
@@ -28,7 +28,7 @@ export const shopService = {
 
   updateItem: (
     id: string,
-    data: Partial<Omit<ShopItem, "id" | "createdAt">>,
+    data: Partial<Omit<ShopItem, 'id' | 'createdAt'>>,
   ): ShopItem | null => {
     const index = shopItems.findIndex((item) => item.id === id);
     if (index === -1) return null;
@@ -59,7 +59,7 @@ export const shopService = {
   bulkUpdate: (
     updates: Array<{
       id: string;
-      data: Partial<Omit<ShopItem, "id" | "createdAt">>;
+      data: Partial<Omit<ShopItem, 'id' | 'createdAt'>>;
     }>,
   ): ShopItem[] => {
     const updatedItems: ShopItem[] = [];

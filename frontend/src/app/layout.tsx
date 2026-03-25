@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { ToastProvider } from "@/components/providers/toast-provider";
+import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { generateBaseMetadata } from "@/lib/metadata";
+import { AuthProvider } from "@/components/providers/auth-provider";
 import "./globals.css";
 import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
@@ -31,12 +33,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-          {children}
-          <NavbarMobile />
-        </ErrorBoundary>
-        <ToastProvider />
-        <ScrollToTopBtn />
+        <AuthProvider>
+          <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+            <Navbar />
+            {children}
+            <NavbarMobile />
+          </ErrorBoundary>
+          <ToastProvider />
+          <ScrollToTopBtn />
+        </AuthProvider>
       </body>
     </html>
   );

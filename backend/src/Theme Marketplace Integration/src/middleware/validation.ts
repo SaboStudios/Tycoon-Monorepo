@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from "express";
-import Joi from "joi";
+import { Request, Response, NextFunction } from 'express';
+import Joi from 'joi';
 
 export const validatePurchase = (
   req: Request,
@@ -26,7 +26,7 @@ export const validateThemeQuery = (
   next: NextFunction,
 ) => {
   const schema = Joi.object({
-    type: Joi.string().valid("skin", "board").optional(),
+    type: Joi.string().valid('skin', 'board').optional(),
   });
 
   const { error } = schema.validate(req.query);

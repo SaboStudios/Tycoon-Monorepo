@@ -17,4 +17,4 @@ import { PerksBoostsModule } from '../perks-boosts/perks-boosts.module';
   providers: [GamePlayersService, GamesService],
   exports: [GamePlayersService],
 })
-export class GamesModule { }
+export class GamesModule {}

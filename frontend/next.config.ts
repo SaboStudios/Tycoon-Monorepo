@@ -2,8 +2,11 @@ import type { NextConfig } from "next";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
+  // Emit detailed build output consumed by scripts/check-bundle-size.mjs
+  experimental: {
+    webpackBuildWorker: true,
+  },
 };
 
 const analyzer = withBundleAnalyzer({

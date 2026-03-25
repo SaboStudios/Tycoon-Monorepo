@@ -1,4 +1,11 @@
-import { Controller, Get, Param, Query, UseInterceptors, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  UseInterceptors,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { PerksService } from './perks.service';
 import { FilterPerksDto } from './dto/filter-perks.dto';
@@ -13,7 +20,11 @@ export class PerksController {
 
   @Get()
   @ApiOperation({ summary: 'List all active perks' })
-  @ApiResponse({ status: 200, description: 'List of active perks.', type: [Perk] })
+  @ApiResponse({
+    status: 200,
+    description: 'List of active perks.',
+    type: [Perk],
+  })
   findAll(@Query() filterDto?: FilterPerksDto): Promise<Perk[]> {
     return this.perksService.findAllPublic(filterDto);
   }
