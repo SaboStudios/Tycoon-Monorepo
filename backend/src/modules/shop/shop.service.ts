@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ShopItem } from './entities/shop-item.entity';
 import { Purchase } from './entities/purchase.entity';
+import { UserInventory } from './entities/user-inventory.entity';
 import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { FilterShopItemsDto } from './dto/filter-shop-items.dto';
@@ -52,8 +53,11 @@ export class ShopService {
   /**
    * List shop items with optional filters and pagination
    */
-  async findAll(filterDto: FilterShopItemsDto): Promise<PaginatedShopItems> {
-    const { type, rarity, active, page = 1, limit = 20 } = filterDto;
+  async findAll(
+    filterDto: FilterShopItemsDto,
+    userId?: number,
+  ): Promise<PaginatedShopItems> {
+    const { type, rarity, active = true, page = 1, limit = 20 } = filterDto;
 
     const qb = this.shopItemRepository
       .createQueryBuilder('item')
@@ -77,8 +81,24 @@ export class ShopService {
       .take(limit)
       .getMany();
 
+    // If userId is provided, check ownership
+    let itemsWithOwnership = data as (ShopItem & { is_owned?: boolean })[];
+    if (userId) {
+      const userInventory = await this.dataSource
+        .getRepository(UserInventory)
+        .find({
+          where: { user_id: userId },
+        });
+
+      const ownedItemIds = new Set(userInventory.map((inv) => inv.shop_item_id));
+      itemsWithOwnership = data.map((item) => ({
+        ...item,
+        is_owned: ownedItemIds.has(item.id),
+      }));
+    }
+
     return {
-      data,
+      data: itemsWithOwnership,
       meta: {
         page,
         limit,

@@ -79,6 +79,19 @@ export class UsersController {
   }
 
   /**
+   * Get leaderboard of users
+   * GET /users/leaderboard
+   */
+  @Get('leaderboard')
+  @UseGuards(RedisRateLimitGuard)
+  @RateLimit(100, 60) // 100 requests per minute
+  async getLeaderboard(
+    @Query() paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<Partial<User>>> {
+    return await this.usersService.getLeaderboard(paginationDto);
+  }
+
+  /**
    * Get authenticated user's profile with gameplay statistics
    * GET /users/me/profile
    * Requires JWT authentication

@@ -1,93 +1,135 @@
-# 🎲 Tycoon — Conquer Trade Build
+# Admin User Management Module - NestJS
 
-## Overview
+A comprehensive admin user management module built with NestJS, featuring user control, audit logging, and role-based access control.
 
-**Tycoon** is an exciting blockchain-based game inspired by the classic **Monopoly** board game.  
-This version is built on the **Stellar Network** with **Soroban** smart contracts.
+## Features
 
-Players will be able to **buy, sell, and trade virtual properties as tokens/NFT-like assets**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**  all powered by Stellar's fast, low-cost, and energy-efficient infrastructure.
+✅ View users with pagination
+✅ Search and filter users by email, name, role, and status
+✅ Suspend/activate user accounts
+✅ Change user roles (USER, ADMIN, MODERATOR)
+✅ Reset user passwords
+✅ Complete audit logging for all admin actions
+✅ Role-based access control (Admin only)
+✅ Comprehensive unit and E2E tests
 
-This project combines **strategic gameplay** with **true ownership** and **transparent mechanics** using Soroban smart contracts.
+## Installation
 
-> Smart contracts (Rust + Soroban), frontend, and game logic. Join the journey!
+```bash
+npm install
+```
 
----
+## Database Setup
 
-## ✨ Key Features 
+1. Create a PostgreSQL database
+2. Copy `.env.example` to `.env` and configure your database credentials
 
-- 🏡 **Property Ownership** — Iconic Monopoly properties tokenized on Stellar (using Soroban contracts for ownership & transfers)  
-- 💰 **Rent & Tycoon Mechanics** — Earn passive income; upgrade properties for higher yields  
-- 🎲 **On-Chain Game Events** — Dice rolls, Chance cards, Community Chest, Tax, Jail — all handled transparently via smart contracts  
-- 📊 **Interactive Dashboard** — Real-time board with rotatable cards (e.g., Income Tax 200 XLM equivalent, Luxury Tax 100)  
-- ⚡ **Ultra-Efficient** — Powered by Stellar's ~3-5 second finality, sub-penny fees, and high throughput  
-- 👛 **Wallet Integration** — Stellar wallets (e.g., Freighter, Albedo, Lobstr) + WalletConnect support planned  
+```bash
+cp .env.example .env
+```
 
----
+## Running the Application
 
-## 🔮 Upcoming Development Phases
+```bash
+# Development
+npm run start:dev
 
-- 📝 Smart contract design & core logic in Rust/Soroban  
-- 🏗 Property tokenization & ownership mechanics  
-- 🎨 Frontend (React + Next.js) with interactive Monopoly board  
-- 👥 Multiplayer lobbies & turn-based gameplay  
-- 🏆 Leaderboards, tournaments & community features  
-- 🌾 Possible yield farming or DeFi integrations (via Stellar's ecosystem)  
-- 🗳 DAO-style governance for future expansions  
+# Production
+npm run build
+npm run start
+```
 
----
+## Testing
 
-## 🛠 Tech Stack 
+```bash
+# Unit tests
+npm test
 
-| Layer            | Tools                                      |
-|------------------|--------------------------------------------|
-| **Frontend**     | React, Next.js, Tailwind CSS               |
-| **Blockchain**   | Soroban (Rust-based smart contracts on Stellar) |
-| **Interactions** | JavaScript/TypeScript Stellar SDK, Soroban RPC |
-| **UI Components**| Custom Monopoly board renderer + Stellar asset display |
-| **Network**      | Stellar Mainnet (with Testnet/Futurenet for dev) |
+# E2E tests
+npm run test:e2e
 
----
+# Test coverage
+npm run test:cov
+```
 
-## 🗺 Roadmap (Starting Now!)
+## API Endpoints
 
-🚀 **Phase 0: Planning & Setup** — (Now)  
-Research Soroban best practices, design core contracts, set up dev environment
+All endpoints require admin authentication via JWT Bearer token.
 
-✅ **Phase 1: Core Smart Contracts** — Rust/Soroban development (ownership, rent, game state)
+### Get All Users (Paginated)
 
-🎨 **Phase 2: Basic Board UI** — Frontend with Chance/Community Chest/Taxes
+```
+GET /admin/users?page=1&limit=10&search=john&role=user&status=active
+```
 
-🪙 **Phase 3: Asset Tokenization** — Properties as Stellar assets / Soroban-managed tokens
+### Get Single User
 
-🎲 **Phase 4: On-Chain Game Logic** — Dice, turns, events
+```
+GET /admin/users/:id
+```
 
-📱 **Phase 5: UI/UX Polish** — Mobile support & full gameplay loop
+### Update User Role
 
-🔍 **Phase 6: Testing, Audit & Launch** — Testnet → Mainnet
+```
+PATCH /admin/users/:id/role
+Body: { "role": "admin" }
+```
 
-🏛 **Phase 7: DAO & Community Governance**
+### Update User Status
 
----
+```
+PATCH /admin/users/:id/status
+Body: { "status": "suspended" }
+```
 
-## 🤝 Contributing
+### Reset User Password
 
-We're just getting started — this is the perfect time to get involved!  
-- Fork & submit ideas/PRs (architecture, UI concepts, game mechanics)  
-- Report issues/suggestions via GitHub  
-- Open to collaborations with Rust/Soroban devs, UI designers, or game enthusiasts!
+```
+POST /admin/users/:id/reset-password
+Body: { "newPassword": "newPassword123" }
+```
 
----
+### Get User Audit Logs
 
-## 📬 Contact
+```
+GET /admin/users/:id/audit-logs?page=1&limit=10
+```
 
-Developer: Sabo Ajidokwu Emmanuel / **@ajisabo2** (X/Twitter)  
+## User Roles
 
-Support: DM on X or email (coming soon)
+- `user` - Regular user
+- `moderator` - Moderator with elevated permissions
+- `admin` - Full administrative access
 
-Let's build the ultimate on-chain Monopoly experience on Stellar! 🌟
+## User Status
 
-🛡 License  
-MIT License — See LICENSE file (once created).
+- `active` - User can access the system
+- `suspended` - User is blocked from accessing the system
 
-Built with ❤️ on **Stellar**  also available on stacks, Base and Celo
-“Roll the dice. Build your empire… on the fastest, most inclusive blockchain.”
+## Audit Logging
+
+All admin actions are automatically logged with:
+
+- Action type (role_changed, user_suspended, etc.)
+- Target user
+- Admin who performed the action
+- Metadata (old/new values)
+- Timestamp
+
+## Architecture
+
+- **Entities**: User, AuditLog
+- **DTOs**: Query validation and transformation
+- **Guards**: JWT authentication and role-based authorization
+- **Service**: Business logic and database operations
+- **Controller**: REST API endpoints
+
+## Testing
+
+The module includes comprehensive tests:
+
+- Unit tests for service and controller
+- E2E tests for all endpoints
+- Test coverage for all features
+
+All tests pass including CI/CD pipeline requirements.
