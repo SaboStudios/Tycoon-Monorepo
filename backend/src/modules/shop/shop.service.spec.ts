@@ -11,6 +11,7 @@ import {
   MockType,
 } from '../../../test/mocks/database.mock';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { RedisService } from '../redis/redis.service';
 
 describe('ShopService', () => {
   let service: ShopService;
@@ -42,6 +43,13 @@ describe('ShopService', () => {
     createQueryRunner: jest.fn(() => mockQueryRunner),
   };
 
+  const mockRedisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    delByPattern: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -65,6 +73,10 @@ describe('ShopService', () => {
         {
           provide: DataSource,
           useValue: mockDataSource,
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
         },
       ],
     }).compile();
@@ -161,7 +173,7 @@ describe('ShopService', () => {
 
       // Mock query runner operations
       mockQueryRunner.manager.create.mockImplementation(
-        (entity: unknown, data: unknown) => {
+        (entity: unknown, data: any) => {
           if (entity === Purchase) return { ...mockPurchase, ...data };
           return { ...mockGift, ...data };
         },
@@ -229,7 +241,7 @@ describe('ShopService', () => {
       shopItemRepositoryMock.findOne!.mockResolvedValue(mockShopItem);
 
       mockQueryRunner.manager.create.mockImplementation(
-        (entity: unknown, data: unknown) => {
+        (entity: unknown, data: any) => {
           return { ...data };
         },
       );
