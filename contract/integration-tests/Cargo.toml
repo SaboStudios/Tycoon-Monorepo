@@ -1,0 +1,17 @@
+[package]
+name = "tycoon-integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Cross-contract integration tests for the Tycoon smart contract suite (#411)"
+
+# This crate contains only tests — no library output needed.
+[lib]
+name = "tycoon_integration_tests"
+path = "src/lib.rs"
+
+[dev-dependencies]
+soroban-sdk    = { workspace = true, features = ["testutils"] }
+tycoon-token   = { path = "../contracts/tycoon-token" }
+tycoon-reward-system = { path = "../contracts/tycoon-reward-system" }
+tycoon-game    = { path = "../contracts/tycoon-game" }

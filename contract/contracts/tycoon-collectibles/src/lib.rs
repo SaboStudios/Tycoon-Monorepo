@@ -14,7 +14,7 @@ pub use storage::*;
 pub use transfer::*;
 pub use types::*;
 
-use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env};
+use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Vec};
 
 /// Convert a u128 to a Soroban String without std (no_std compatible)
 fn u128_to_soroban_string(env: &Env, mut n: u128) -> soroban_sdk::String {
@@ -696,10 +696,22 @@ impl TycoonCollectibles {
 
         match get_base_uri_config(&env) {
             Some(config) => {
-                let mut uri = config.base_uri;
+                // Build URI by copying base_uri bytes + token_id bytes into a single buffer
+                let base = config.base_uri;
                 let token_id_str = u128_to_soroban_string(&env, token_id);
-                uri.append(&token_id_str);
-                uri
+                let base_len = base.len() as usize;
+                let id_len = token_id_str.len() as usize;
+                let total_len = base_len + id_len;
+                // Use a fixed-size stack buffer (max URI = 256 bytes is safe)
+                let mut buf = [0u8; 256];
+                if total_len <= 256 {
+                    base.copy_into_slice(&mut buf[..base_len]);
+                    token_id_str.copy_into_slice(&mut buf[base_len..base_len + id_len]);
+                    let s = core::str::from_utf8(&buf[..total_len]).unwrap_or("");
+                    soroban_sdk::String::from_str(&env, s)
+                } else {
+                    base
+                }
             }
             None => soroban_sdk::String::from_str(&env, ""),
         }
