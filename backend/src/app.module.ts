@@ -39,6 +39,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
+import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 
 @Module({
@@ -105,6 +106,7 @@ import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.mod
     WebhooksModule,
     JobsModule,
     EmailModule,
+    AuditTrailModule,
     TourAnalyticsModule,
   ],
   controllers: [AppController, HealthController],
