@@ -16,18 +16,15 @@ import { JoinGameDto } from './dto/join-game.dto';
 import { GamePlayer } from './entities/game-player.entity';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
+import { secureRandomAlphaNumeric } from '../../common/crypto-secure-random';
 
 /**
- * Generate a unique game code
+ * Generate a unique game code (cryptographically secure per character).
  * Format: 6-character alphanumeric string (uppercase letters and numbers)
  */
 function generateGameCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  return secureRandomAlphaNumeric(6, chars);
 }
 
 @Injectable()

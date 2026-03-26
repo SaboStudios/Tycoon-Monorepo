@@ -1,6 +1,7 @@
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
 import { join } from 'path';
+import { randomInt } from 'crypto';
 
 dotenv.config({ path: join(__dirname, '../../../../.env') });
 
@@ -77,10 +78,10 @@ async function seed() {
         const date = new Date();
         date.setMinutes(date.getMinutes() - (i + j));
         
-        const action = actions[Math.floor(Math.random() * actions.length)];
-        const targetId = Math.floor(Math.random() * 1000);
+        const action = actions[randomInt(0, actions.length)];
+        const targetId = randomInt(0, 1000);
         const details = JSON.stringify({ foo: 'bar', index: i + j });
-        const ipAddress = `192.168.1.${Math.floor(Math.random() * 255)}`;
+        const ipAddress = `192.168.1.${randomInt(0, 255)}`;
         const userAgent = 'Mozilla/5.0';
         
         correctValues.push(adminId, action, targetId, details, ipAddress, userAgent, date);

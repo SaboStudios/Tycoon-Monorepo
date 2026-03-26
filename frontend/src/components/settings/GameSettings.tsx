@@ -107,7 +107,7 @@ export function GameSettings() {
                 rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled }
             }
             console.log("Creating lobby with settings:", settings)
-            const mockGameCode = Math.random().toString(36).substring(7).toUpperCase()
+            const mockGameCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()
             toast.success("Deployed Smart Contract! Lobby Created.")
             router.push(`/game-waiting?gameCode=${mockGameCode}`)
         } catch (err: unknown) {

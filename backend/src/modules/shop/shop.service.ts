@@ -17,6 +17,7 @@ import { GiftsService } from '../gifts/gifts.service';
 import { Gift } from '../gifts/entities/gift.entity';
 import { GiftStatus } from '../gifts/enums/gift-status.enum';
 import { RedisService } from '../redis/redis.service';
+import { secureRandomHex } from '../../common/crypto-secure-random';
 
 export interface PaginatedShopItems {
   data: ShopItem[];
@@ -262,8 +263,7 @@ export class ShopService {
    */
   private generateTransactionId(): string {
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    return `TXN-${timestamp}-${random}`.toUpperCase();
+    return `TXN-${timestamp}-${secureRandomHex(8)}`.toUpperCase();
   }
 
   /**
