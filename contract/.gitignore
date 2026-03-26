@@ -2,6 +2,9 @@
 target/
 Cargo.lock
 
+# CI-generated (WASM size table)
+deploy/wasm-size-report.md
+
 # Test artifacts
 test_snapshots/
 
