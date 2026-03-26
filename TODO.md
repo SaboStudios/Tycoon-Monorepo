@@ -1,17 +1,15 @@
-# MSW Mocks Implementation TODO
+# Issue #400 Progress: Idempotent Game Init + Safe Views
 
-## Plan Steps
-- [x] 1. Create branch ✅
-- [x] 2. Install MSW deps in frontend
-- [x] 3. Create mocks/handlers/index.ts, user.ts, shop.ts
-- [ ] 4. Create mocks/browser.ts
-- [ ] 5. Create mocks/fixtures/user.ts, shop.ts
-- [ ] 6. Edit frontend/src/middleware.ts for MSW dev init
-- [ ] 7. Edit frontend/package.json: deps, scripts
-- [ ] 8. Edit frontend/README.md: MSW section
-- [ ] 9. Update vitest.config.ts for MSW tests
-- [ ] 10. cd frontend && pnpm i && pnpm dev:msw test
-- [ ] 11. Commit changes
-- [ ] 12. Create PR #355
+## Approved Plan Steps
+- [ ] 1. Create branch blackboxai/issue-400
+- [x] 2. Create/refactor backend/src/database/seeds/game-seed.ts (idempotent defaults)
+- [x] 3. Add getSafeGameView to backend/src/modules/games/games.service.ts
+ - [x] 4. Create backend/test/game-idempotency.e2e-spec.ts (double seed + view safe)
+ - [x] 5. Update backend/README.md (docs defaults/migration/upgrade)
 
-Current: Step 1 done.
+- [ ] 6. Commit changes
+- [ ] 7. Push branch
+- [ ] 8. Create PR #400
+
+Current: Starting implementation.
+
