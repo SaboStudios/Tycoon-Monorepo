@@ -149,6 +149,10 @@ jobs:
         run: cargo build --target wasm32-unknown-unknown --release
         working-directory: contract
 
+      - name: Check WASM size budget
+        run: bash scripts/check-wasm-sizes.sh
+        working-directory: contract
+
       - name: Run tests
         run: cargo test --all
         working-directory: contract

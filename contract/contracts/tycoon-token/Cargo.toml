@@ -11,7 +11,3 @@ soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-
-[profile.release-with-logs]
-inherits = "release"
-debug-assertions = true
