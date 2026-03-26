@@ -39,6 +39,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
+import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 
 @Module({
   imports: [
@@ -104,6 +105,7 @@ import { EmailModule } from './modules/email/email.module';
     WebhooksModule,
     JobsModule,
     EmailModule,
+    AuditTrailModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

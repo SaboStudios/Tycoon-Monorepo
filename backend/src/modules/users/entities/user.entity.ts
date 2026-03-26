@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
   OneToOne,
+  DeleteDateColumn,
 } from 'typeorm';
 import { Role } from '../../auth/enums/role.enum';
 import { UserPreference } from './user-preference.entity';
@@ -15,6 +16,7 @@ import { UserPreference } from './user-preference.entity';
 @Index(['email'])
 @Index(['firstName'])
 @Index(['lastName'])
+@Index(['deleted_at'])
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
@@ -87,6 +89,9 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at', nullable: true })
+  deleted_at: Date | null;
 
   @OneToOne(() => UserPreference, (preference) => preference.user, {
     cascade: true,
