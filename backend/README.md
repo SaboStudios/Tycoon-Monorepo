@@ -237,6 +237,24 @@ npm run test:e2e
 npm run test:cov
 ```
 
+## 📦 Game Defaults & Idempotency (#400)
+
+**Default Game Settings** (from game.config.ts):
+- auction: true
+- rentInPrison: false
+- mortgage: true
+- evenBuild: true
+- randomizePlayOrder: true
+- startingCash: 1500
+
+**Init Hardened:**
+- Seeds (admin-seed.ts, game-seed.ts) idempotent: safe double-run.
+- View helpers: GamesService.getSafeGameView(id) returns defaults on empty/missing.
+
+**Migration Notes:** No schema changes. Rerun seeds safe.
+
+**Upgrade Policy:** Use /api/v1, monitor Deprecation headers.
+
 ## 📦 Building for Production
 
 ```bash
@@ -244,6 +262,7 @@ npm run build
 ```
 
 The compiled output will be in the `dist/` directory.
+
 
 ## 🔧 Available Scripts
 
