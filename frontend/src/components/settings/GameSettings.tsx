@@ -54,6 +54,7 @@ const STARTING_CASH = [
 export function GameSettings() {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState(false)
+    const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({})
 
     // Form State
     const [playerName, setPlayerName] = React.useState("Tycoon Player")
@@ -67,6 +68,9 @@ export function GameSettings() {
     // Economics
     const [stakePreset, setStakePreset] = React.useState("100")
     const [customStake, setCustomStake] = React.useState("")
+
+    const isDirty = playerName !== "Tycoon Player" || customStake !== ""
+    const { confirmLeave } = useUnsavedChanges(isDirty)
     const [startingCash, setStartingCash] = React.useState("1500")
 
     // Rules
@@ -76,35 +80,48 @@ export function GameSettings() {
     const [auctionsEnabled, setAuctionsEnabled] = React.useState(true)
 
     const handleCreateLobby = async () => {
+        // Client-side validation
+        const validation = gameSettingsSchema.safeParse({
+            playerName,
+            customStake: stakePreset === "custom" ? customStake : undefined,
+        })
+        if (!validation.success) {
+            const errs: FieldErrors = {}
+            for (const issue of validation.error.issues) {
+                errs[String(issue.path[0])] = issue.message
+            }
+            setFieldErrors(errs)
+            return
+        }
+        setFieldErrors({})
         setIsLoading(true)
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 2000))
 
-        const entryFee = isFreeGame ? 0 : (stakePreset === "custom" ? customStake : stakePreset)
-
-        const settings = {
-            host: { name: playerName, piece },
-            lobby: { maxPlayers, isPrivate, entryFee },
-            rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled }
+            const entryFee = isFreeGame ? 0 : (stakePreset === "custom" ? customStake : stakePreset)
+            const settings = {
+                host: { name: playerName, piece },
+                lobby: { maxPlayers, isPrivate, entryFee },
+                rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled }
+            }
+            console.log("Creating lobby with settings:", settings)
+            const mockGameCode = Math.random().toString(36).substring(7).toUpperCase()
+            toast.success("Deployed Smart Contract! Lobby Created.")
+            router.push(`/game-waiting?gameCode=${mockGameCode}`)
+        } catch (err: unknown) {
+            setFieldErrors(mapServerErrors(err))
+        } finally {
+            setIsLoading(false)
         }
-
-        console.log("Creating lobby with settings:", settings)
-        const mockGameCode = Math.random().toString(36).substring(7).toUpperCase()
-
-        toast.success("Deployed Smart Contract! Lobby Created.")
-
-        // Navigate to waiting room (mock route)
-        router.push(`/game-waiting?gameCode=${mockGameCode}`)
-
-        setIsLoading(false)
     }
 
     return (
         <div className="mx-auto max-w-5xl space-y-8 p-6 md:p-8">
             {/* Header */}
             <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+                <Button variant="ghost" size="icon" onClick={() => { if (confirmLeave()) router.back() }} className="rounded-full">
                     <ArrowLeft className="h-5 w-5" />
                     <span className="sr-only">Back</span>
                 </Button>
@@ -134,9 +151,14 @@ export function GameSettings() {
                                     <Input
                                         id="player-name"
                                         value={playerName}
-                                        onChange={(e) => setPlayerName(e.target.value)}
+                                        onChange={(e) => { setPlayerName(e.target.value); setFieldErrors(p => ({ ...p, playerName: "" })) }}
                                         placeholder="Enter your Alias"
+                                        aria-describedby={fieldErrors.playerName ? "player-name-error" : undefined}
+                                        aria-invalid={!!fieldErrors.playerName}
                                     />
+                                    {fieldErrors.playerName && (
+                                        <p id="player-name-error" role="alert" className="text-xs text-red-500">{fieldErrors.playerName}</p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Select Token</Label>
@@ -211,13 +233,19 @@ export function GameSettings() {
                                         </div>
                                         {stakePreset === 'custom' && (
                                             <div className="space-y-2">
-                                                <Label>Custom Amount (XLM)</Label>
+                                                <Label htmlFor="custom-stake">Custom Amount (XLM)</Label>
                                                 <Input
+                                                    id="custom-stake"
                                                     type="number"
                                                     value={customStake}
-                                                    onChange={(e) => setCustomStake(e.target.value)}
+                                                    onChange={(e) => { setCustomStake(e.target.value); setFieldErrors(p => ({ ...p, customStake: "" })) }}
                                                     placeholder="e.g. 250"
+                                                    aria-describedby={fieldErrors.customStake ? "custom-stake-error" : undefined}
+                                                    aria-invalid={!!fieldErrors.customStake}
                                                 />
+                                                {fieldErrors.customStake && (
+                                                    <p id="custom-stake-error" role="alert" className="text-xs text-red-500">{fieldErrors.customStake}</p>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -319,6 +347,7 @@ export function GameSettings() {
                     className="w-full bg-indigo-600 text-lg hover:bg-indigo-700 md:w-auto dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-700 hover:cursor-pointer"
                     onClick={handleCreateLobby}
                     disabled={isLoading}
+                    aria-busy={isLoading}
                 >
                     {isLoading ? (
                         <>Deploying Room...</>

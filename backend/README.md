@@ -51,7 +51,10 @@ Edit `.env` file with your configuration:
 # Application Configuration
 NODE_ENV=development
 PORT=3000
-API_PREFIX=api/v1
+API_PREFIX=api
+API_DEFAULT_VERSION=1
+API_ENABLE_LEGACY_UNVERSIONED=true
+API_LEGACY_UNVERSIONED_SUNSET=
 
 # Database Configuration
 DB_HOST=localhost
@@ -104,6 +107,24 @@ npm run start:dev
 The application will start on `http://localhost:3000`
 
 API endpoints are available at: `http://localhost:3000/api/v1`
+
+## 🔀 API Versioning & Deprecation Strategy
+
+- **Current stable version path**: `/api/v1/*`
+- **Unversioned compatibility path**: `/api/*` is supported temporarily and internally routed to `/api/v1/*`
+- **Deprecation signaling**: compatibility responses include `Deprecation: true`
+- **Optional sunset policy**: set `API_LEGACY_UNVERSIONED_SUNSET` (ISO date) to emit an RFC-compliant `Sunset` header
+
+### Breaking Changes Policy
+
+- Breaking API changes require a **new major API version** (for example: `v2`)
+- `v1` behavior remains stable until announced deprecation window ends
+- Unversioned compatibility (`/api/*`) is considered transitional and should not be used for new clients
+
+### Client Migration Plan
+
+- New and existing clients should call versioned paths (`/api/v1/*`) explicitly
+- Monitor `Deprecation`/`Sunset` headers on `/api/*` responses and migrate before the sunset date
 
 ### Production mode
 
@@ -216,6 +237,24 @@ npm run test:e2e
 npm run test:cov
 ```
 
+## 📦 Game Defaults & Idempotency (#400)
+
+**Default Game Settings** (from game.config.ts):
+- auction: true
+- rentInPrison: false
+- mortgage: true
+- evenBuild: true
+- randomizePlayOrder: true
+- startingCash: 1500
+
+**Init Hardened:**
+- Seeds (admin-seed.ts, game-seed.ts) idempotent: safe double-run.
+- View helpers: GamesService.getSafeGameView(id) returns defaults on empty/missing.
+
+**Migration Notes:** No schema changes. Rerun seeds safe.
+
+**Upgrade Policy:** Use /api/v1, monitor Deprecation headers.
+
 ## 📦 Building for Production
 
 ```bash
@@ -223,6 +262,7 @@ npm run build
 ```
 
 The compiled output will be in the `dist/` directory.
+
 
 ## 🔧 Available Scripts
 
@@ -292,7 +332,10 @@ nest g service modules/products
 | ---------------- | ------------------------------------ | ----------------------- |
 | `NODE_ENV`       | Environment (development/production) | `development`           |
 | `PORT`           | Application port                     | `3000`                  |
-| `API_PREFIX`     | Global API prefix                    | `api/v1`                |
+| `API_PREFIX`     | Base API prefix (version excluded)   | `api`                   |
+| `API_DEFAULT_VERSION` | Default URI API version         | `1`                     |
+| `API_ENABLE_LEGACY_UNVERSIONED` | Enable `/api/*` compatibility route | `true` |
+| `API_LEGACY_UNVERSIONED_SUNSET` | Optional sunset ISO date for unversioned route | - |
 | `DB_HOST`        | Database host                        | `localhost`             |
 | `DB_PORT`        | Database port                        | `5432`                  |
 | `DB_USERNAME`    | Database username                    | `postgres`              |

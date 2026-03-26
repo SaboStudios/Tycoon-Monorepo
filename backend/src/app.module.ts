@@ -40,6 +40,7 @@ import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
+import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
     JobsModule,
     EmailModule,
     AuditTrailModule,
+    TourAnalyticsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
