@@ -10,6 +10,7 @@ import { AuthProvider } from "@/components/providers/auth-provider";
 import "./globals.css";
 import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
+import { MSWProvider } from "@/components/providers/msw-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <AuthProvider>
+<AuthProvider>
+          <MSWProvider />
           <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
             <Navbar />
             {children}
