@@ -5,14 +5,15 @@
 ///
 /// | Test | Cross-contract path |
 /// |------|---------------------|
-/// | `register_player_succeeds`              | game.register_player stores user |
-/// | `registered_player_data_correct`        | user struct fields verified |
-/// | `duplicate_registration_rejected`       | second register panics |
-/// | `username_too_short_rejected`           | < 3 chars panics |
-/// | `username_too_long_rejected`            | > 20 chars panics |
-/// | `backend_controller_removes_player`     | backend → game.remove_player_from_game |
-/// | `owner_removes_player`                  | admin → game.remove_player_from_game |
-/// | `unauthorized_remove_rejected`          | random address panics |
+/// | `register_player_succeeds`                | game.register_player stores user |
+/// | `registered_player_data_correct`          | user struct fields verified |
+/// | `duplicate_registration_rejected`         | second register panics |
+/// | `username_too_short_rejected`             | < 3 chars panics |
+/// | `username_too_long_rejected`              | > 20 chars panics |
+/// | `owner_can_withdraw_after_registration`   | game funds unaffected by registration |
+/// | `backend_controller_removes_player`       | backend → game.remove_player_from_game |
+/// | `owner_removes_player`                    | admin → game.remove_player_from_game |
+/// | `unauthorized_remove_rejected`            | random address panics |
 /// | `multiple_players_register_independently` | three players, isolated data |
 #[cfg(test)]
 mod tests {
@@ -71,6 +72,14 @@ mod tests {
             );
         }));
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn owner_can_withdraw_after_registration() {
+        let f = Fixture::new();
+        f.game
+            .register_player(&String::from_str(&f.env, "dave"), &f.player_a);
+        assert!(f.tyc_balance(&f.game_id) > 0);
     }
 
     #[test]

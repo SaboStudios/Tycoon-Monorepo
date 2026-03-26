@@ -5,14 +5,14 @@
 ///
 /// | Test | Cross-contract path |
 /// |------|---------------------|
-/// | `mint_and_redeem_single_voucher`          | admin → reward.mint_voucher → reward.redeem_voucher_from → TYC transfer |
-/// | `backend_minter_can_mint_voucher`         | backend → reward.mint_voucher |
-/// | `redeem_transfers_exact_tyc_value`        | table-driven across 5 tiers |
-/// | `double_redeem_rejected`                  | second redeem panics |
-/// | `redeem_when_paused_rejected`             | paused contract blocks redemption |
-/// | `redeem_resumes_after_unpause`            | unpause restores flow |
-/// | `reward_contract_balance_decreases`       | balance accounting |
-/// | `multiple_vouchers_independent_redemption`| two players, no cross-contamination |
+/// | `mint_and_redeem_single_voucher`           | admin → reward.mint_voucher → redeem → TYC transfer |
+/// | `backend_minter_can_mint_voucher`          | backend → reward.mint_voucher |
+/// | `redeem_transfers_exact_tyc_value`         | table-driven across 5 tiers |
+/// | `double_redeem_rejected`                   | second redeem panics |
+/// | `redeem_when_paused_rejected`              | paused contract blocks redemption |
+/// | `redeem_resumes_after_unpause`             | unpause restores flow |
+/// | `reward_contract_balance_decreases`        | balance accounting |
+/// | `multiple_vouchers_independent_redemption` | two players, no cross-contamination |
 #[cfg(test)]
 mod tests {
     extern crate std;

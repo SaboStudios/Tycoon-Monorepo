@@ -4,12 +4,12 @@
 ///
 /// | Test | Cross-contract path |
 /// |------|---------------------|
-/// | `full_session_register_reward_withdraw`  | register → mint voucher → redeem → game withdraw |
-/// | `three_players_independent_vouchers`     | three players, shuffled redemption order |
-/// | `reward_fund_depletes_correctly`         | cumulative balance accounting |
-/// | `game_and_reward_share_same_token`       | both contracts use same TYC address |
-/// | `player_balance_zero_before_redeem`      | no pre-transfer on mint |
-/// | `admin_withdraws_from_both_contracts`    | independent contract balances |
+/// | `full_session_register_reward_withdraw` | register → mint voucher → redeem → game withdraw |
+/// | `three_players_independent_vouchers`    | three players, shuffled redemption order |
+/// | `reward_fund_depletes_correctly`        | cumulative balance accounting |
+/// | `game_and_reward_share_same_token`      | both contracts use same TYC address |
+/// | `player_balance_zero_before_redeem`     | no pre-transfer on mint |
+/// | `admin_withdraws_from_both_contracts`   | independent contract balances |
 #[cfg(test)]
 mod tests {
     use crate::fixture::{Fixture, GAME_FUND, REWARD_FUND};

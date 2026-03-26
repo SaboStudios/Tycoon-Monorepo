@@ -5,15 +5,15 @@
 ///
 /// | Test | Cross-contract path |
 /// |------|---------------------|
-/// | `owner_withdraws_tyc`                  | game.withdraw_funds → TYC transfer |
-/// | `owner_withdraws_usdc`                 | game.withdraw_funds → USDC transfer |
-/// | `partial_withdrawal_leaves_remainder`  | balance accounting |
-/// | `sequential_withdrawals_accumulate`    | multiple withdrawals |
+/// | `owner_withdraws_tyc`                     | game.withdraw_funds → TYC transfer |
+/// | `owner_withdraws_usdc`                    | game.withdraw_funds → USDC transfer |
+/// | `partial_withdrawal_leaves_remainder`     | balance accounting |
+/// | `sequential_withdrawals_accumulate`       | multiple withdrawals |
 /// | `withdraw_exact_balance_empties_contract` | full balance withdrawal |
-/// | `withdraw_exceeds_balance_rejected`    | over-withdrawal panics |
-/// | `withdraw_invalid_token_rejected`      | non-allowlisted token panics |
-/// | `collectible_info_round_trip`          | set + get collectible info |
-/// | `cash_tier_round_trip`                 | set + get cash tier values |
+/// | `withdraw_exceeds_balance_rejected`       | over-withdrawal panics |
+/// | `withdraw_invalid_token_rejected`         | non-allowlisted token panics |
+/// | `collectible_info_round_trip`             | set + get collectible info |
+/// | `cash_tier_round_trip`                    | set + get cash tier values |
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -119,7 +119,9 @@ mod tests {
         let f = Fixture::new();
         f.game.set_cash_tier_value(&1, &1_000_000_000_000_000_000_000);
         f.game.set_cash_tier_value(&2, &5_000_000_000_000_000_000_000);
+        f.game.set_cash_tier_value(&3, &10_000_000_000_000_000_000_000);
         assert_eq!(f.game.get_cash_tier_value(&1), 1_000_000_000_000_000_000_000);
         assert_eq!(f.game.get_cash_tier_value(&2), 5_000_000_000_000_000_000_000);
+        assert_eq!(f.game.get_cash_tier_value(&3), 10_000_000_000_000_000_000_000);
     }
 }
