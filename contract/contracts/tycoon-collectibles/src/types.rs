@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address};
+use soroban_sdk::{contracttype, Address, Vec};
 
 /// Standard ERC-721 compatible metadata structure
 /// Follows OpenSea and other marketplace expectations
