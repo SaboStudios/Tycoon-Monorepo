@@ -2216,7 +2216,7 @@ fn test_token_uri_generation() {
     let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
     client.set_base_uri(&base_uri, &0, &false);
 
-    // Test token URI — just verify it starts with the base URI and is non-empty
+    // Test token URI — verify it starts with the base URI and is non-empty
     let uri = client.token_uri(&token_id);
     assert!(uri.len() > base_uri.len(), "URI should include token ID suffix");
 
@@ -2264,7 +2264,7 @@ fn test_metadata_frozen_prevents_metadata_changes() {
     client.initialize(&admin);
 
     // Create a token
-    client.mint_collectible(&admin, &admin, &1, &1);
+    let token_id = client.mint_collectible(&admin, &admin, &1, &1);
 
     // Set frozen base URI
     let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
@@ -2276,7 +2276,7 @@ fn test_metadata_frozen_prevents_metadata_changes() {
     let image = soroban_sdk::String::from_str(&env, "https://test.com/image.png");
     let attributes = Vec::new(&env);
 
-    let result = client.try_set_token_metadata(&1, &name, &description, &image, &None, &None, &attributes);
+    let result = client.try_set_token_metadata(&token_id, &name, &description, &image, &None, &None, &attributes);
     assert!(result.is_err());
 }
 

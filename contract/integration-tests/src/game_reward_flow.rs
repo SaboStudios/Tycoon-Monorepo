@@ -1,45 +1,39 @@
-/// # Cross-contract flow: Game → Reward System (#411)
+/// # Cross-contract flow: Game ↔ Reward System (#411)
 ///
-/// These tests exercise the path where the game contract calls the reward system
-/// to mint registration vouchers for newly registered players.
+/// Exercises player registration in the game contract and the backend
+/// controller / owner remove-player paths.
 ///
-/// ## Paths covered
-///
-/// | Test | Path |
-/// |------|------|
-/// | `register_player_succeeds` | Player registers in game contract |
-/// | `registered_player_data_correct` | User struct fields are correct after registration |
-/// | `duplicate_registration_rejected` | Same address cannot register twice |
-/// | `username_too_short_rejected` | Username < 3 chars rejected |
-/// | `username_too_long_rejected` | Username > 20 chars rejected |
-/// | `owner_can_withdraw_after_registration` | Game funds unaffected by registration |
-/// | `backend_controller_removes_player` | Backend controller can remove player from game |
-/// | `owner_removes_player` | Owner can remove player from game |
-/// | `unauthorized_remove_rejected` | Random address cannot remove player |
-/// | `multiple_players_register_independently` | Three players register; data is isolated |
+/// | Test | Cross-contract path |
+/// |------|---------------------|
+/// | `register_player_succeeds`                | game.register_player stores user |
+/// | `registered_player_data_correct`          | user struct fields verified |
+/// | `duplicate_registration_rejected`         | second register panics |
+/// | `username_too_short_rejected`             | < 3 chars panics |
+/// | `username_too_long_rejected`              | > 20 chars panics |
+/// | `owner_can_withdraw_after_registration`   | game funds unaffected by registration |
+/// | `backend_controller_removes_player`       | backend → game.remove_player_from_game |
+/// | `owner_removes_player`                    | admin → game.remove_player_from_game |
+/// | `unauthorized_remove_rejected`            | random address panics |
+/// | `multiple_players_register_independently` | three players, isolated data |
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use crate::fixture::Fixture;
-    use soroban_sdk::String;
+    use soroban_sdk::{testutils::Address as _, Address, String};
 
-    /// Player registers successfully.
     #[test]
     fn register_player_succeeds() {
         let f = Fixture::new();
-        let username = String::from_str(&f.env, "alice");
-        f.game.register_player(&username, &f.player_a);
-
-        let user = f.game.get_user(&f.player_a);
-        assert!(user.is_some(), "player_a should be registered");
+        f.game
+            .register_player(&String::from_str(&f.env, "alice"), &f.player_a);
+        assert!(f.game.get_user(&f.player_a).is_some());
     }
 
-    /// User struct fields are populated correctly after registration.
     #[test]
     fn registered_player_data_correct() {
         let f = Fixture::new();
         let username = String::from_str(&f.env, "bob123");
         f.game.register_player(&username, &f.player_b);
-
         let user = f.game.get_user(&f.player_b).unwrap();
         assert_eq!(user.username, username);
         assert_eq!(user.address, f.player_b);
@@ -47,99 +41,79 @@ mod tests {
         assert_eq!(user.games_won, 0);
     }
 
-    /// Registering the same address twice panics.
     #[test]
     fn duplicate_registration_rejected() {
-        extern crate std;
         let f = Fixture::new();
-        let username = String::from_str(&f.env, "carol");
-        f.game.register_player(&username, &f.player_a);
-
+        let u = String::from_str(&f.env, "carol");
+        f.game.register_player(&u, &f.player_a);
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            f.game.register_player(&username, &f.player_a);
+            f.game.register_player(&u, &f.player_a);
         }));
-        assert!(res.is_err(), "duplicate registration must be rejected");
+        assert!(res.is_err());
     }
 
-    /// Username shorter than 3 characters is rejected.
     #[test]
     fn username_too_short_rejected() {
-        extern crate std;
         let f = Fixture::new();
-        let short = String::from_str(&f.env, "ab");
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            f.game.register_player(&short, &f.player_a);
+            f.game
+                .register_player(&String::from_str(&f.env, "ab"), &f.player_a);
         }));
-        assert!(res.is_err(), "short username must be rejected");
+        assert!(res.is_err());
     }
 
-    /// Username longer than 20 characters is rejected.
     #[test]
     fn username_too_long_rejected() {
-        extern crate std;
         let f = Fixture::new();
-        let long = String::from_str(&f.env, "thisusernameiswaytoolong");
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            f.game.register_player(&long, &f.player_a);
+            f.game.register_player(
+                &String::from_str(&f.env, "thisusernameiswaytoolong"),
+                &f.player_a,
+            );
         }));
-        assert!(res.is_err(), "long username must be rejected");
+        assert!(res.is_err());
     }
 
-    /// Game contract TYC balance is unaffected by player registration.
     #[test]
     fn owner_can_withdraw_after_registration() {
         let f = Fixture::new();
-        let username = String::from_str(&f.env, "dave");
-        f.game.register_player(&username, &f.player_a);
-
-        // Game contract still has its full fund
-        let balance_before = f.tyc_balance(&f.game_id);
-        assert!(balance_before > 0, "game contract should still hold TYC");
+        f.game
+            .register_player(&String::from_str(&f.env, "dave"), &f.player_a);
+        assert!(f.tyc_balance(&f.game_id) > 0);
     }
 
-    /// Backend controller can remove a player from a game.
     #[test]
     fn backend_controller_removes_player() {
         let f = Fixture::new();
-        let username = String::from_str(&f.env, "eve");
-        f.game.register_player(&username, &f.player_a);
-
-        // Backend removes player — should not panic
+        f.game
+            .register_player(&String::from_str(&f.env, "eve"), &f.player_a);
         f.game
             .remove_player_from_game(&f.backend, &1, &f.player_a, &5);
     }
 
-    /// Owner can remove a player from a game.
     #[test]
     fn owner_removes_player() {
         let f = Fixture::new();
-        let username = String::from_str(&f.env, "frank");
-        f.game.register_player(&username, &f.player_b);
-
+        f.game
+            .register_player(&String::from_str(&f.env, "frank"), &f.player_b);
         f.game
             .remove_player_from_game(&f.admin, &2, &f.player_b, &10);
     }
 
-    /// Unauthorized address cannot remove a player.
     #[test]
     fn unauthorized_remove_rejected() {
-        extern crate std;
-        use soroban_sdk::testutils::Address as _;
         let f = Fixture::new();
-        let attacker = soroban_sdk::Address::generate(&f.env);
-
+        let attacker = Address::generate(&f.env);
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             f.game
                 .remove_player_from_game(&attacker, &1, &f.player_a, &3);
         }));
-        assert!(res.is_err(), "unauthorized remove must be rejected");
+        assert!(res.is_err());
     }
 
-    /// Three players register independently; each has isolated user data.
     #[test]
     fn multiple_players_register_independently() {
         let f = Fixture::new();
-
         f.game
             .register_player(&String::from_str(&f.env, "alice"), &f.player_a);
         f.game
@@ -154,8 +128,6 @@ mod tests {
         assert_eq!(ua.username, String::from_str(&f.env, "alice"));
         assert_eq!(ub.username, String::from_str(&f.env, "bob"));
         assert_eq!(uc.username, String::from_str(&f.env, "carol"));
-
-        // Addresses are distinct
         assert_ne!(ua.address, ub.address);
         assert_ne!(ub.address, uc.address);
     }

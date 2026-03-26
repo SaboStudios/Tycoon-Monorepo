@@ -696,13 +696,11 @@ impl TycoonCollectibles {
 
         match get_base_uri_config(&env) {
             Some(config) => {
-                // Build URI by copying base_uri bytes + token_id bytes into a single buffer
                 let base = config.base_uri;
                 let token_id_str = u128_to_soroban_string(&env, token_id);
                 let base_len = base.len() as usize;
                 let id_len = token_id_str.len() as usize;
                 let total_len = base_len + id_len;
-                // Use a fixed-size stack buffer (max URI = 256 bytes is safe)
                 let mut buf = [0u8; 256];
                 if total_len <= 256 {
                     base.copy_into_slice(&mut buf[..base_len]);

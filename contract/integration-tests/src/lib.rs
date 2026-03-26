@@ -1,4 +1,6 @@
-// Integration test entry point — all tests live in submodules.
+// Cross-contract integration tests for the Tycoon smart contract suite (#411).
+// Each module exercises a distinct cross-contract flow.
+// All tests use an isolated Soroban Env — no shared state between tests.
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
