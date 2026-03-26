@@ -198,6 +198,22 @@ describe("Users Admin (e2e)", () => {
         .send({ role: "invalid_role" })
         .expect(400);
     });
+
+    it("should return 400 when body is empty", () => {
+      return request(app.getHttpServer())
+        .patch(`/admin/users/${testUser.id}/role`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({})
+        .expect(400);
+    });
+
+    it("should return 400 when unknown fields are sent", () => {
+      return request(app.getHttpServer())
+        .patch(`/admin/users/${testUser.id}/role`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ role: UserRole.USER, unknownField: "value" })
+        .expect(400);
+    });
   });
 
   describe("/admin/users/:id/status (PATCH)", () => {
@@ -236,6 +252,22 @@ describe("Users Admin (e2e)", () => {
       });
       expect(logs.length).toBeGreaterThan(0);
     });
+
+    it("should return 400 when body is empty", () => {
+      return request(app.getHttpServer())
+        .patch(`/admin/users/${testUser.id}/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({})
+        .expect(400);
+    });
+
+    it("should return 400 when unknown fields are sent", () => {
+      return request(app.getHttpServer())
+        .patch(`/admin/users/${testUser.id}/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ status: UserStatus.ACTIVE, unknownField: "value" })
+        .expect(400);
+    });
   });
 
   describe("/admin/users/:id/reset-password (POST)", () => {
@@ -269,6 +301,22 @@ describe("Users Admin (e2e)", () => {
         .post(`/admin/users/${testUser.id}/reset-password`)
         .set("Authorization", `Bearer ${adminToken}`)
         .send({ newPassword: "short" })
+        .expect(400);
+    });
+
+    it("should return 400 when body is empty", () => {
+      return request(app.getHttpServer())
+        .post(`/admin/users/${testUser.id}/reset-password`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({})
+        .expect(400);
+    });
+
+    it("should return 400 when unknown fields are sent", () => {
+      return request(app.getHttpServer())
+        .post(`/admin/users/${testUser.id}/reset-password`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ newPassword: "validPassword123", unknownField: "value" })
         .expect(400);
     });
   });

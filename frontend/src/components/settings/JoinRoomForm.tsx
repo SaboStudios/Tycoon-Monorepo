@@ -4,75 +4,79 @@ import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-
-const ROOM_CODE_LENGTH = 6;
-const ROOM_CODE_REGEX = /^[A-Za-z0-9]+$/;
-
-function isValidRoomCode(value: string): boolean {
-  const trimmed = value.trim();
-  return (
-    trimmed.length === ROOM_CODE_LENGTH && ROOM_CODE_REGEX.test(trimmed)
-  );
-}
+import { FormField } from "@/components/ui/form-field";
+import { joinRoomSchema } from "@/lib/validation/schemas";
+import { mapServerErrors, type FieldErrors } from "@/lib/validation/serverErrorMap";
 
 export default function JoinRoomForm(): React.JSX.Element {
   const router = useRouter();
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const normalizedCode = code.trim().toUpperCase();
-  const isValid = isValidRoomCode(code);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setCode(val.toUpperCase().slice(0, ROOM_CODE_LENGTH));
-    setError(null);
+    setCode(e.target.value.toUpperCase().slice(0, 6));
+    setErrors({});
   }, []);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!isValid) {
-        setError(`Room code must be ${ROOM_CODE_LENGTH} characters (letters or numbers).`);
+
+      const result = joinRoomSchema.safeParse({ roomCode: code.trim() });
+      if (!result.success) {
+        const fieldErrors: FieldErrors = {};
+        for (const issue of result.error.issues) {
+          const field = String(issue.path[0] ?? "_form");
+          fieldErrors[field] = issue.message;
+        }
+        setErrors(fieldErrors);
         return;
       }
-      console.log("Join room code:", normalizedCode);
-      // Mock navigation to game waiting room
-      router.push(`/game-waiting?gameCode=${encodeURIComponent(normalizedCode)}`);
+
+      setIsLoading(true);
+      try {
+        // Replace with real API call when available
+        await new Promise<void>((resolve) => setTimeout(resolve, 800));
+        router.push(`/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`);
+      } catch (err: unknown) {
+        setErrors(mapServerErrors(err));
+      } finally {
+        setIsLoading(false);
+      }
     },
-    [isValid, normalizedCode, router]
+    [code, router]
   );
 
+  const isValid = joinRoomSchema.safeParse({ roomCode: code.trim() }).success;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-2">
-        <Label
-          htmlFor="room-code"
-          className="text-[var(--tycoon-accent)] font-orbitron font-bold"
-        >
-          Room Code
-        </Label>
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      <FormField
+        id="room-code"
+        label="Room Code"
+        hint="6-character alphanumeric code (e.g. TYCOON)"
+        error={errors.roomCode ?? errors._form}
+        required
+      >
         <Input
-          id="room-code"
           type="text"
           value={code}
           onChange={handleChange}
           placeholder="e.g. TYCOON"
-          maxLength={ROOM_CODE_LENGTH}
+          maxLength={6}
           autoComplete="off"
           className="bg-[var(--tycoon-bg)] border-[var(--tycoon-border)] text-[var(--tycoon-text)] placeholder:text-[var(--tycoon-text)]/40 focus-visible:ring-[var(--tycoon-accent)] font-orbitron tracking-widest uppercase"
         />
-        {error && (
-          <p className="text-red-400 text-sm">{error}</p>
-        )}
-      </div>
+      </FormField>
+
       <Button
         type="submit"
-        disabled={!isValid}
+        disabled={!isValid || isLoading}
+        aria-busy={isLoading}
         className="w-full bg-[var(--tycoon-accent)] text-[var(--tycoon-bg)] font-orbitron font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Join
+        {isLoading ? "Joining…" : "Join"}
       </Button>
     </form>
   );

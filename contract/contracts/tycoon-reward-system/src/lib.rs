@@ -225,27 +225,32 @@ impl TycoonRewardSystem {
         if paused {
             panic!("Contract is paused");
         }
+
+        // CEI: CHECKS — read all state before any mutation
         let tyc_value: u128 = e
             .storage()
             .persistent()
             .get(&DataKey::VoucherValue(token_id))
             .expect("Invalid token_id");
-        // Burn the voucher (amount=1)
-        Self::_burn(&e, redeemer.clone(), token_id, 1);
-        // Transfer TYC
         let tyc_token: Address = e
             .storage()
             .persistent()
             .get(&DataKey::TycToken)
             .expect("Not initialized");
-        let client = soroban_sdk::token::Client::new(&e, &tyc_token);
-        // Transfer from Contract to Redeemer
-        let contract_address = e.current_contract_address();
-        client.transfer(&contract_address, &redeemer, &(tyc_value as i128));
-        // Delete storage
+
+        // CEI: EFFECTS — all state mutations before any external call
+        // Burn the voucher balance (amount=1)
+        Self::_burn(&e, redeemer.clone(), token_id, 1);
+        // Delete voucher value so a re-entrant call cannot redeem the same token_id
         e.storage()
             .persistent()
             .remove(&DataKey::VoucherValue(token_id));
+
+        // CEI: INTERACTIONS — external call last
+        let client = soroban_sdk::token::Client::new(&e, &tyc_token);
+        let contract_address = e.current_contract_address();
+        client.transfer(&contract_address, &redeemer, &(tyc_value as i128));
+
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Redeem"), redeemer, token_id), tyc_value);
@@ -426,3 +431,6 @@ impl TycoonRewardSystem {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod overflow_rounding_tests;

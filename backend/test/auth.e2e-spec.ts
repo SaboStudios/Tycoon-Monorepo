@@ -12,6 +12,7 @@ import { LocalAuthGuard } from '../src/modules/auth/guards/local-auth.guard';
 import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../src/modules/auth/guards/admin.guard';
 import { RedisRateLimitGuard } from '../src/common/guards/redis-rate-limit.guard';
+import { configureApiVersioning } from '../src/common/versioning/api-versioning';
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication;
@@ -82,7 +83,12 @@ describe('AuthController (e2e)', () => {
     const moduleFixture: TestingModule = await moduleBuilder.compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
+    configureApiVersioning(app, {
+      apiPrefix: 'api',
+      defaultVersion: '1',
+      enableLegacyUnversionedRoutes: true,
+      legacyUnversionedSunset: '2026-12-31T00:00:00.000Z',
+    });
     await app.init();
   });
 
@@ -116,6 +122,16 @@ describe('AuthController (e2e)', () => {
         expect(body.meta).toHaveProperty('limit');
         expect(body.meta).toHaveProperty('totalItems');
         expect(Array.isArray(body.data)).toBe(true);
+      });
+  });
+
+  it('/users (GET) - Legacy unversioned route is supported with deprecation headers', () => {
+    return request(app.getHttpServer() as Parameters<typeof request>[0])
+      .get('/api/users')
+      .expect(200)
+      .expect((res) => {
+        expect(res.headers).toHaveProperty('deprecation', 'true');
+        expect(res.headers).toHaveProperty('sunset');
       });
   });
 
