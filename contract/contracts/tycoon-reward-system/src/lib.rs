@@ -431,3 +431,6 @@ impl TycoonRewardSystem {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod overflow_rounding_tests;
