@@ -22,7 +22,8 @@ export function Spinner({
       role="status"
       aria-label="Loading"
       className={cn(
-        "animate-spin rounded-full border-[#00F0FF]/30 border-t-[#00F0FF]",
+        "rounded-full border-[#00F0FF]/30 border-t-[#00F0FF]",
+        "animate-spin motion-safe:animate-spin motion-reduce:animate-none",
         sizeClasses[size],
         className
       )}

@@ -45,7 +45,7 @@ export function FormField({ id, label, hint, error, required, children, classNam
         : children}
 
       {error && (
-        <p id={errorId} role="alert" className="text-xs text-red-500">
+        <p id={errorId} role="alert" className="text-xs text-red-500 animate-in fade-in-50 duration-200">
           {error}
         </p>
       )}
