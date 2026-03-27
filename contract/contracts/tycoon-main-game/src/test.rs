@@ -110,7 +110,7 @@ fn test_game_settings_stores_and_retrieves() {
         set_game_settings(&env, 1, &settings);
         let retrieved = get_game_settings(&env, 1).expect("Settings not found");
         assert_eq!(retrieved.max_players, 4);
-        assert_eq!(retrieved.auction, false);
+        assert!(!retrieved.auction);
         assert_eq!(retrieved.starting_cash, 1500);
         assert_eq!(retrieved.private_room_code, String::from_str(&env, ""));
     });
@@ -136,7 +136,7 @@ fn test_game_settings_private_room_code_stored() {
             retrieved.private_room_code,
             String::from_str(&env, "SECRET99")
         );
-        assert_eq!(retrieved.auction, true);
+        assert!(retrieved.auction);
         assert_eq!(retrieved.max_players, 2);
         assert_eq!(retrieved.starting_cash, 2000);
     });
@@ -210,7 +210,7 @@ fn test_game_stores_and_retrieves_all_fields() {
         assert_eq!(retrieved.number_of_players, 4);
         assert_eq!(retrieved.joined_players.len(), 1);
         assert_eq!(retrieved.mode, GameMode::Public);
-        assert_eq!(retrieved.ai, false);
+        assert!(!retrieved.ai);
         assert_eq!(retrieved.stake_per_player, 100);
         assert_eq!(retrieved.total_staked, 100);
         assert_eq!(retrieved.created_at, 1_000_000);
@@ -426,7 +426,7 @@ fn test_game_and_settings_stored_independently_for_same_id() {
 
         assert_eq!(retrieved_game.id, 1);
         assert_eq!(retrieved_settings.max_players, 4);
-        assert_eq!(retrieved_settings.auction, true);
+        assert!(retrieved_settings.auction);
     });
 }
 
@@ -549,7 +549,13 @@ fn test_leave_pending_game_removes_player() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(&env, id, creator.clone(), 0, &[player2.clone()]),
+            &make_game_with_stake(
+                &env,
+                id,
+                creator.clone(),
+                0,
+                core::slice::from_ref(&player2),
+            ),
         );
     });
 
@@ -579,7 +585,13 @@ fn test_leave_pending_game_with_stake_refunds_player() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(&env, id, creator.clone(), stake, &[player2.clone()]),
+            &make_game_with_stake(
+                &env,
+                id,
+                creator.clone(),
+                stake,
+                core::slice::from_ref(&player2),
+            ),
         );
     });
 
@@ -607,7 +619,13 @@ fn test_leave_pending_game_decrements_total_staked() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(&env, id, creator.clone(), stake, &[player2.clone()]),
+            &make_game_with_stake(
+                &env,
+                id,
+                creator.clone(),
+                stake,
+                core::slice::from_ref(&player2),
+            ),
         );
     });
 
@@ -633,7 +651,13 @@ fn test_leave_pending_game_zero_stake_no_transfer() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(&env, id, creator.clone(), 0, &[player2.clone()]),
+            &make_game_with_stake(
+                &env,
+                id,
+                creator.clone(),
+                0,
+                core::slice::from_ref(&player2),
+            ),
         );
     });
 
@@ -698,7 +722,7 @@ fn test_leave_pending_game_emits_player_left_event() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(&env, id, creator, 0, &[player2.clone()]),
+            &make_game_with_stake(&env, id, creator, 0, core::slice::from_ref(&player2)),
         );
     });
 
