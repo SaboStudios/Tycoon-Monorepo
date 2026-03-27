@@ -42,6 +42,7 @@ import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledger-reconciliation.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
+    LedgerReconciliationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
