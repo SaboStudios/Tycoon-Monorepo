@@ -15,6 +15,7 @@ pub enum DataKey {
     Registered(Address),   // address -> bool
     RewardSystem,          // reward system contract address
     BackendGameController, // backend game controller address
+    StateVersion,          // u32 version of the state schema
 }
 
 /// Information about a collectible NFT
@@ -38,6 +39,19 @@ pub struct User {
     pub registered_at: u64,
     pub games_played: u32,
     pub games_won: u32,
+}
+
+/// A snapshot of the contract's critical state
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct ContractStateDump {
+    pub owner: Address,
+    pub tyc_token: Address,
+    pub usdc_token: Address,
+    pub reward_system: Address,
+    pub state_version: u32,
+    pub is_initialized: bool,
+    pub backend_controller: Option<Address>,
 }
 
 /// Get the owner address from storage
@@ -165,4 +179,17 @@ pub fn set_backend_game_controller(env: &Env, address: &Address) {
     env.storage()
         .instance()
         .set(&DataKey::BackendGameController, address);
+}
+
+/// Get the current state version
+pub fn get_state_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::StateVersion)
+        .unwrap_or(0)
+}
+
+/// Set the current state version
+pub fn set_state_version(env: &Env, version: u32) {
+    env.storage().instance().set(&DataKey::StateVersion, &version);
 }

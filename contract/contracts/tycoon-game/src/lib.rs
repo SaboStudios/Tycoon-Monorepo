@@ -31,7 +31,25 @@ impl TycoonContract {
         storage::set_usdc_token(&env, &usdc_token);
         storage::set_owner(&env, &initial_owner);
         storage::set_reward_system(&env, &reward_system);
+        storage::set_state_version(&env, 1); // Current initial version is 1
         storage::set_initialized(&env);
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(env: Env) {
+        let owner = get_owner(&env);
+        owner.require_auth();
+
+        let current_version = storage::get_state_version(&env);
+
+        if current_version == 0 {
+            // Future migration from v0 to v1 might go here.
+            // For now we set version in initialize.
+            storage::set_state_version(&env, 1);
+        } else if current_version == 1 {
+            // Placeholder for future migration v1 -> v2
+            // storage::set_state_version(&env, 2);
+        }
     }
 
     pub fn withdraw_funds(env: Env, token: Address, to: Address, amount: u128) {
@@ -193,6 +211,19 @@ impl TycoonContract {
 
         // Emit event
         events::emit_player_removed_from_game(&env, game_id, &player, turn_count);
+    }
+
+    /// Export a snapshot of critical contract state for debugging/support.
+    pub fn export_state(env: Env) -> storage::ContractStateDump {
+        storage::ContractStateDump {
+            owner: get_owner(&env),
+            tyc_token: get_tyc_token(&env),
+            usdc_token: get_usdc_token(&env),
+            reward_system: storage::get_reward_system(&env),
+            state_version: storage::get_state_version(&env),
+            is_initialized: storage::is_initialized(&env),
+            backend_controller: storage::get_backend_game_controller(&env),
+        }
     }
 }
 
