@@ -176,6 +176,16 @@ export class CreatePurchasesTable1740380000000 implements MigrationInterface {
         onDelete: 'SET NULL',
       }),
     );
+
+    await queryRunner.createForeignKey(
+      'purchases',
+      new TableForeignKey({
+        columnNames: ['gift_id'],
+        referencedColumnNames: ['id'],
+        referencedTableName: 'gifts',
+        onDelete: 'SET NULL',
+      }),
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

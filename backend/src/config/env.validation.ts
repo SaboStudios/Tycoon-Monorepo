@@ -18,8 +18,12 @@ export const validationSchema = Joi.object({
   DB_USERNAME: Joi.string().required(),
   DB_PASSWORD: Joi.string().required(),
   DB_DATABASE: Joi.string().required(),
-  DB_SYNCHRONIZE: Joi.boolean().default(false),
-  DB_LOGGING: Joi.boolean().default(false),
+  DB_SYNCHRONIZE: Joi.when('NODE_ENV', {
+    is: Joi.valid('production', 'provision'),
+    then: Joi.valid(false, 'false', '0', 0).default(false),
+    otherwise: Joi.boolean().truthy('true').falsy('false').default(false),
+  }),
+  DB_LOGGING: Joi.boolean().truthy('true').falsy('false').default(false),
 
   // Redis
   REDIS_HOST: Joi.string().required(),

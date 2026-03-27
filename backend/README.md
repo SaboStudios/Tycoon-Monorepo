@@ -62,7 +62,7 @@ DB_PORT=5432
 DB_USERNAME=postgres
 DB_PASSWORD=postgres
 DB_DATABASE=tycoon_db
-DB_SYNCHRONIZE=true
+DB_SYNCHRONIZE=false
 DB_LOGGING=true
 
 # JWT Configuration (for future authentication)
@@ -278,25 +278,52 @@ The compiled output will be in the `dist/` directory.
 | `npm run test`        | Run unit tests                            |
 | `npm run test:e2e`    | Run end-to-end tests                      |
 | `npm run test:cov`    | Run tests with coverage                   |
+| `npm run migration:generate` | Generate a migration from entity drift (dev) |
+| `npm run migration:run` | Apply pending migrations                  |
+| `npm run migration:revert` | Revert the last applied migration (one step) |
+| `npm run migration:show` | List migration status (pending / executed) |
 
-## 🗄️ Database Management
+## 🗄️ Database management
 
-### TypeORM Synchronization
+### Production and provision
 
-In development, `DB_SYNCHRONIZE=true` automatically syncs your entities with the database schema. **Never use this in production!**
+- **Schema changes are applied only via versioned migrations** in `src/database/migrations/`.
+- **`DB_SYNCHRONIZE` is ignored** when `NODE_ENV` is `production` or `provision` (the app will not auto-sync even if the flag is set).
+- **Environment validation** rejects `DB_SYNCHRONIZE=true` together with `NODE_ENV=production` or `provision`, so production cannot accidentally enable sync at startup.
 
-### Migrations (Recommended for Production)
+### Local development
+
+- Optional: set `DB_SYNCHRONIZE=true` in `.env` for fast iteration against a throwaway database. Prefer migrations when sharing schema changes with the team.
+
+### Fresh database + migrations (acceptance)
+
+1. Create an empty PostgreSQL database (e.g. `CREATE DATABASE tycoon_db;`).
+2. Configure `.env` with `DB_*` pointing at that database and **`DB_SYNCHRONIZE=false`**.
+3. Run migrations:
 
 ```bash
-# Generate a migration
-npm run typeorm migration:generate -- -n MigrationName
-
-# Run migrations
-npm run typeorm migration:run
-
-# Revert migration
-npm run typeorm migration:revert
+cd backend
+npm run migration:run
 ```
+
+4. Start the app (`npm run start:dev` or `npm run start:prod`). The schema matches what production uses.
+
+### Migration scripts (documented)
+
+| Command | Purpose |
+| ------- | ------- |
+| `npm run migration:generate -- src/database/migrations/DescriptiveName` | Compare entities to the current DB and emit a new migration file. **Run only in dev** with a DB that reflects the previous state (or empty + prior migrations). |
+| `npm run migration:run` | Execute all pending migrations in order. |
+| `npm run migration:show` | Show which migrations have run vs pending. |
+| `npm run migration:revert` | Undo **one** migration (the last applied). Run repeatedly to step back multiple versions. |
+
+Data source for the CLI: `src/config/database.config.ts` (exports `AppDataSource` + `default`).
+
+### Rollback strategy
+
+- **Single step:** `npm run migration:revert` runs the `down` method of the latest migration only. Repeat to roll back further.
+- **Production:** prefer forward-fix migrations when possible. For incidents, restore from backup or revert in a controlled window after testing `down` in staging.
+- **CI:** the pipeline applies migrations to an ephemeral PostgreSQL instance so bad migrations fail before deploy.
 
 ### pgAdmin Access
 
@@ -341,7 +368,7 @@ nest g service modules/products
 | `DB_USERNAME`    | Database username                    | `postgres`              |
 | `DB_PASSWORD`    | Database password                    | `postgres`              |
 | `DB_DATABASE`    | Database name                        | `tycoon_db`             |
-| `DB_SYNCHRONIZE` | Auto-sync entities (dev only)        | `true`                  |
+| `DB_SYNCHRONIZE` | Auto-sync entities (never in prod/provision) | `false`           |
 | `DB_LOGGING`     | Enable SQL logging                   | `true`                  |
 | `JWT_SECRET`     | JWT secret key                       | -                       |
 | `JWT_EXPIRATION` | JWT expiration time                  | `1d`                    |
