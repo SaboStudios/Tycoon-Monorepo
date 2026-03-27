@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { randomBytes } from "crypto";
+
+/**
+ * Generate a cryptographically secure nonce for CSP
+ */
+function generateNonce(): string {
+  return randomBytes(16).toString("base64");
+}
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
@@ -7,7 +15,7 @@ export function middleware(request: NextRequest) {
 
   // Protected routes
   const protectedRoutes = ["/game-play", "/ai-play", "/game-settings", "/join-room", "/play-ai"];
-  
+
   const isProtected = protectedRoutes.some((route) =>
     pathname.startsWith(route)
   );
@@ -17,7 +25,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  // Generate nonce for CSP
+  const nonce = generateNonce();
+  const response = NextResponse.next();
+
+  // Store nonce in response headers for use in layout
+  response.headers.set("x-nonce", nonce);
+
+  return response;
 }
 
 export const config = {

@@ -41,7 +41,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
-import { PrivacyModule } from './modules/privacy/privacy.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 
 @Module({
   imports: [
@@ -63,6 +63,8 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
         limit: 100,
       },
     ]),
+
+    MetricsModule,
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({

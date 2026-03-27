@@ -10,10 +10,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest",
-"test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
     "dev:msw": "next dev",
-    "bundle:check": "node
+    "bundle:check": "node scripts/check-bundle-size.mjs"
+  },
   "dependencies": {
+    "@near-wallet-selector/core": "^8.10.2",
+    "@near-wallet-selector/modal-ui": "^8.10.2",
+    "@near-wallet-selector/my-near-wallet": "^8.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^25.10.9",
@@ -35,6 +39,11 @@
   "devDependencies": {
     "@next/bundle-analyzer": "^15.1.2",
     "@playwright/test": "^1.49.1",
+    "@storybook/addon-a11y": "^8.0.0",
+    "@storybook/addon-essentials": "^8.0.0",
+    "@storybook/addon-interactions": "^8.0.0",
+    "@storybook/nextjs": "^8.0.0",
+    "@storybook/test": "^8.0.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -49,6 +58,7 @@
     "happy-dom": "^20.8.8",
     "jsdom": "^27.4.0",
     "msw": "^2.12.14",
+    "storybook": "^8.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.17"

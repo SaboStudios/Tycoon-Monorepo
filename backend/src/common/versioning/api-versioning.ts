@@ -1,4 +1,4 @@
-import { INestApplication, VersioningType } from '@nestjs/common';
+import { INestApplication, RequestMethod, VersioningType } from '@nestjs/common';
 
 type ApiVersioningOptions = {
   apiPrefix: string;
@@ -53,7 +53,12 @@ export function configureApiVersioning(
     options.defaultVersion,
   );
 
-  app.setGlobalPrefix(apiPrefix);
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [
+      { path: 'health/(.*)', method: RequestMethod.ALL },
+      { path: 'metrics', method: RequestMethod.GET },
+    ],
+  });
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion,
