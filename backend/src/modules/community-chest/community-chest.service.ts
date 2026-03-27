@@ -11,6 +11,7 @@ import {
   GetCommunityChestListDto,
   CommunityChestSortBy,
 } from './dto/get-community-chest-list.dto';
+import { secureRandomInt } from '../../common/crypto-secure-random';
 
 @Injectable()
 export class CommunityChestService {
@@ -20,13 +21,17 @@ export class CommunityChestService {
   ) {}
 
   async drawCard(): Promise<CommunityChest | null> {
-    const result = await this.communityChestRepository
-      .createQueryBuilder('community_chest')
-      .orderBy('RANDOM()')
-      .limit(1)
-      .getOne();
-
-    return result;
+    const count = await this.communityChestRepository.count();
+    if (count === 0) {
+      return null;
+    }
+    const skip = secureRandomInt(count);
+    const rows = await this.communityChestRepository.find({
+      order: { id: 'ASC' },
+      skip,
+      take: 1,
+    });
+    return rows[0] ?? null;
   }
 
   async create(createDto: CreateCommunityChestDto): Promise<CommunityChest> {

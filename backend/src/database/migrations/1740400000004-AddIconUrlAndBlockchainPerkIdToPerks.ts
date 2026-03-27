@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddIconUrlAndBlockchainPerkIdToPerks1740400000004
-  implements MigrationInterface
-{
+export class AddIconUrlAndBlockchainPerkIdToPerks1740400000004 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "perks"

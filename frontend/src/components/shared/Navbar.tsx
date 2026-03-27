@@ -4,6 +4,8 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { useAuth } from "@/components/providers/auth-provider";
+import { NearWalletConnect } from "@/components/wallet/NearWalletConnect";
 
 const links = [
   { href: "/", label: "Home" },
@@ -14,6 +16,7 @@ const links = [
 
 const Navbar = () => {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   return (
     <header className="hidden md:block w-full border-b border-[var(--tycoon-border)] bg-[#010F10]/95 backdrop-blur-md sticky top-0 z-30">
@@ -55,6 +58,30 @@ const Navbar = () => {
             );
           })}
         </nav>
+
+        <div className="flex items-center gap-4">
+          <NearWalletConnect />
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[var(--tycoon-text)]/70 font-dm-sans">
+                {user.email}
+              </span>
+              <button
+                onClick={logout}
+                className="rounded-full bg-[var(--tycoon-card-bg)] border border-[var(--tycoon-border)] px-4 py-1.5 text-xs font-dm-sans font-medium text-[var(--tycoon-text)] hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-full bg-[var(--tycoon-accent)] px-4 py-1.5 text-xs font-dm-sans font-medium text-[#010F10] hover:opacity-90 transition-opacity"
+            >
+              Login
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

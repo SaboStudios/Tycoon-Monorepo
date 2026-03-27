@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updated": "2026-03-26",
+  "regression_threshold_percent": 3,
+  "contracts": {
+    "tycoon_boost_system.wasm": { "baseline_bytes": 9115 },
+    "tycoon_token.wasm": { "baseline_bytes": 17444 },
+    "tycoon_reward_system.wasm": { "baseline_bytes": 22746 },
+    "tycoon_main_game.wasm": { "baseline_bytes": 23119 },
+    "tycoon_game.wasm": { "baseline_bytes": 24370 },
+    "tycoon_collectibles.wasm": { "baseline_bytes": 28006 }
+  }
+}

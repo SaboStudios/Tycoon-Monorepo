@@ -5,7 +5,11 @@ import { CouponsService } from './coupons.service';
 import { Coupon } from './entities/coupon.entity';
 import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CouponType } from './enums/coupon-type.enum';
-import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 
 describe('CouponsService', () => {
   let service: CouponsService;
@@ -118,7 +122,9 @@ describe('CouponsService', () => {
 
       mockRepository.findOne.mockResolvedValue(mockCoupon);
 
-      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+      await expect(service.create(createDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -169,7 +175,10 @@ describe('CouponsService', () => {
     });
 
     it('should reject an expired coupon', async () => {
-      const expiredCoupon = { ...mockCoupon, expiration: new Date('2020-01-01') };
+      const expiredCoupon = {
+        ...mockCoupon,
+        expiration: new Date('2020-01-01'),
+      };
       mockRepository.findOne.mockResolvedValue(expiredCoupon);
 
       const result = await service.validateCoupon({
@@ -224,7 +233,11 @@ describe('CouponsService', () => {
 
   describe('calculateDiscount', () => {
     it('should calculate percentage discount correctly', () => {
-      const coupon = { ...mockCoupon, type: CouponType.PERCENTAGE, value: '20' } as Coupon;
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '20',
+      } as Coupon;
       const discount = service.calculateDiscount(coupon, 100);
 
       expect(discount).toBe(20);
@@ -243,14 +256,22 @@ describe('CouponsService', () => {
     });
 
     it('should calculate fixed discount correctly', () => {
-      const coupon = { ...mockCoupon, type: CouponType.FIXED, value: '15' } as Coupon;
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.FIXED,
+        value: '15',
+      } as Coupon;
       const discount = service.calculateDiscount(coupon, 100);
 
       expect(discount).toBe(15);
     });
 
     it('should not exceed purchase amount', () => {
-      const coupon = { ...mockCoupon, type: CouponType.FIXED, value: '150' } as Coupon;
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.FIXED,
+        value: '150',
+      } as Coupon;
       const discount = service.calculateDiscount(coupon, 100);
 
       expect(discount).toBe(100);
@@ -263,7 +284,11 @@ describe('CouponsService', () => {
 
       await service.incrementUsage(1);
 
-      expect(mockRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'current_usage', 1);
+      expect(mockRepository.increment).toHaveBeenCalledWith(
+        { id: 1 },
+        'current_usage',
+        1,
+      );
     });
   });
 

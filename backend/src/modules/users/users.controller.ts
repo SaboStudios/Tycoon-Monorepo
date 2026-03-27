@@ -32,6 +32,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserPreferenceDto } from './dto/update-user-preference.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
+import { SuspendUserDto } from './dto/suspend-user.dto';
+import { UnsuspendUserDto } from './dto/unsuspend-user.dto';
 import { GetUserGamesDto } from '../games/dto/get-user-games.dto';
 import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
@@ -74,6 +76,19 @@ export class UsersController {
     @Query() paginationDto: PaginationDto,
   ): Promise<PaginatedResponse<User>> {
     return await this.usersService.findAll(paginationDto);
+  }
+
+  /**
+   * Get leaderboard of users
+   * GET /users/leaderboard
+   */
+  @Get('leaderboard')
+  @UseGuards(RedisRateLimitGuard)
+  @RateLimit(100, 60) // 100 requests per minute
+  async getLeaderboard(
+    @Query() paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<Partial<User>>> {
+    return await this.usersService.getLeaderboard(paginationDto);
   }
 
   /**
@@ -171,5 +186,45 @@ export class UsersController {
     @Request() req: RequestWithUser,
   ): Promise<void> {
     return await this.usersService.remove(id, req.user.id, req);
+  }
+
+  /**
+   * Suspend a user
+   * POST /users/suspend
+   */
+  @Post('suspend')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  async suspendUser(
+    @Body() dto: SuspendUserDto,
+    @Request() req: RequestWithUser,
+  ): Promise<{ message: string }> {
+    await this.usersService.suspendUser(dto, req.user.id, req);
+    return { message: 'User suspended successfully' };
+  }
+
+  /**
+   * Unsuspend a user
+   * POST /users/unsuspend
+   */
+  @Post('unsuspend')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  async unsuspendUser(
+    @Body() dto: UnsuspendUserDto,
+    @Request() req: RequestWithUser,
+  ): Promise<{ message: string }> {
+    await this.usersService.unsuspendUser(dto, req.user.id, req);
+    return { message: 'User unsuspended successfully' };
+  }
+
+  /**
+   * Get suspension history for a user
+   * GET /users/:id/suspensions
+   */
+  @Get(':id/suspensions')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async getSuspensionHistory(@Param('id', ParseIntPipe) id: number) {
+    return await this.usersService.getSuspensionHistory(id);
   }
 }

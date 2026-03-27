@@ -21,32 +21,39 @@ import { PerkAnalyticsService } from './services/perk-analytics.service';
 import { Game } from '../games/entities/game.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Perk, ActiveBoost, BoostUsage, PlayerPerk, PerkAnalyticsEvent, Game]),
-        NotificationsModule,
-    ],
-    controllers: [PerksController, PerksAnalyticsController],
-    providers: [
-        PerkService,
-        BoostService,
-        BoostActivationService,
-        InventoryService,
-        PerksBoostsEvents,
-        FeatureToggleService,
-        PerkBoostListener,
-        BoostLifecycleService,
-        PerkBoostGateway,
-        PerkAnalyticsService,
-    ],
-    exports: [
-        PerkService,
-        BoostService,
-        BoostActivationService,
-        InventoryService,
-        PerksBoostsEvents,
-        FeatureToggleService,
-        BoostLifecycleService,
-        PerkAnalyticsService,
-    ],
+  imports: [
+    TypeOrmModule.forFeature([
+      Perk,
+      ActiveBoost,
+      BoostUsage,
+      PlayerPerk,
+      PerkAnalyticsEvent,
+      Game,
+    ]),
+    NotificationsModule,
+  ],
+  controllers: [PerksController, PerksAnalyticsController],
+  providers: [
+    PerkService,
+    BoostService,
+    BoostActivationService,
+    InventoryService,
+    PerksBoostsEvents,
+    FeatureToggleService,
+    PerkBoostListener,
+    BoostLifecycleService,
+    PerkBoostGateway,
+    PerkAnalyticsService,
+  ],
+  exports: [
+    PerkService,
+    BoostService,
+    BoostActivationService,
+    InventoryService,
+    PerksBoostsEvents,
+    FeatureToggleService,
+    BoostLifecycleService,
+    PerkAnalyticsService,
+  ],
 })
-export class PerksBoostsModule { }
+export class PerksBoostsModule {}
