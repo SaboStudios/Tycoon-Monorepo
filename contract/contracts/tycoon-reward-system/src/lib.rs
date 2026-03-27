@@ -304,6 +304,7 @@ impl TycoonRewardSystem {
         token_client.transfer(&contract_address, &to, &(amount as i128));
 
         // Emit withdrawal event
+        #[allow(deprecated)]
         e.events()
             .publish((Symbol::new(&e, "FundsWithdrawn"), token.clone(), to), amount);
     }
