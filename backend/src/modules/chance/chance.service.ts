@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Chance } from './entities/chance.entity';
 import { CreateChanceDto } from './dto/create-chance.dto';
 import { ChanceType } from './enums/chance-type.enum';
+import { secureRandomInt } from '../../common/crypto-secure-random';
 
 @Injectable()
 export class ChanceService {
@@ -31,8 +32,9 @@ export class ChanceService {
     if (count === 0) {
       throw new BadRequestException('No chance cards available');
     }
-    const randomIndex = Math.floor(Math.random() * count);
+    const randomIndex = secureRandomInt(count);
     const [card] = await this.chanceRepository.find({
+      order: { id: 'ASC' },
       skip: randomIndex,
       take: 1,
     });

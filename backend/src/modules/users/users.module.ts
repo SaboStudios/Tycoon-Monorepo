@@ -4,13 +4,14 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
 import { UserPreference } from './entities/user-preference.entity';
+import { UserSuspension } from './entities/user-suspension.entity';
 import { UserPreferencesService } from './user-preferences.service';
 import { GamesModule } from '../games/games.module';
 import { AdminLogsModule } from '../admin-logs/admin-logs.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserPreference]),
+    TypeOrmModule.forFeature([User, UserPreference, UserSuspension]),
     GamesModule,
     AdminLogsModule,
   ],

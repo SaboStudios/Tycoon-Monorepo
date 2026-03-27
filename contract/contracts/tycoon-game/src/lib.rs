@@ -4,7 +4,9 @@ mod events;
 mod storage;
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
-use storage::{get_backend_game_controller, get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User};
+use storage::{
+    get_backend_game_controller, get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User,
+};
 
 #[contract]
 pub struct TycoonContract;
@@ -161,7 +163,13 @@ impl TycoonContract {
         storage::set_backend_game_controller(&env, &new_controller);
     }
 
-    pub fn remove_player_from_game(env: Env, caller: Address, game_id: u128, player: Address, turn_count: u32) {
+    pub fn remove_player_from_game(
+        env: Env,
+        caller: Address,
+        game_id: u128,
+        player: Address,
+        turn_count: u32,
+    ) {
         // Require authentication from the caller
         caller.require_auth();
 
@@ -171,7 +179,8 @@ impl TycoonContract {
 
         // Check authorization: caller must be owner OR backend controller
         let is_owner = caller == owner;
-        let is_backend_controller = backend_controller.map_or(false, |controller| caller == controller);
+        let is_backend_controller =
+            backend_controller.map_or(false, |controller| caller == controller);
 
         if !is_owner && !is_backend_controller {
             panic!("Unauthorized: caller must be owner or backend game controller");

@@ -7,9 +7,7 @@ import { Perk } from './entities/perk.entity';
 import { Boost } from './entities/boost.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Perk, Boost]),
-  ],
+  imports: [TypeOrmModule.forFeature([Perk, Boost])],
   controllers: [PerksController, PerksAdminController],
   providers: [PerksService],
   exports: [PerksService],

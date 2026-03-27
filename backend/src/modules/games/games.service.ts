@@ -16,18 +16,15 @@ import { JoinGameDto } from './dto/join-game.dto';
 import { GamePlayer } from './entities/game-player.entity';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
+import { secureRandomAlphaNumeric } from '../../common/crypto-secure-random';
 
 /**
- * Generate a unique game code
+ * Generate a unique game code (cryptographically secure per character).
  * Format: 6-character alphanumeric string (uppercase letters and numbers)
  */
 function generateGameCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  return secureRandomAlphaNumeric(6, chars);
 }
 
 @Injectable()
@@ -363,7 +360,7 @@ export class GamesService {
     return this.findById(gameId);
   }
 
-  async joinGame(
+async joinGame(
     gameId: number,
     userId: number,
     dto: JoinGameDto,
@@ -431,4 +428,66 @@ export class GamesService {
       await queryRunner.release();
     }
   }
+
+  /**
+   * Idempotent view helper: Get game view with sane defaults for empty/partial state.
+   * Never panics, returns default structure even if game exists but incomplete.
+   * Use for frontend views.
+   */
+  async getSafeGameView(id?: number): Promise<any> {
+    if (!id) {
+      return this.getDefaultGameView();
+    }
+
+    try {
+      const game = await this.findById(id);
+      return {
+        id: game.id,
+        code: game.code,
+        status: game.status,
+        settings: game.settings || this.getDefaultSettings(),
+        players: game.players || [],
+        creator: game.creator || null,
+        winner: game.winner || null,
+        nextPlayer: game.nextPlayer || null,
+        placements: game.placements || {},
+        // Sane defaults
+        number_of_players: game.number_of_players || 4,
+        is_ai: game.is_ai || false,
+        chain: game.chain || null,
+      };
+    } catch {
+      // Game not found: return default empty game view
+      return this.getDefaultGameView();
+    }
+  }
+
+  private getDefaultGameView() {
+    return {
+      id: 0,
+      code: '',
+      status: GameStatus.PENDING as string,
+      settings: this.getDefaultSettings(),
+      players: [],
+      creator: null,
+      winner: null,
+      nextPlayer: null,
+      placements: {},
+      number_of_players: 4,
+      is_ai: false,
+      chain: null,
+    };
+  }
+
+  private getDefaultSettings() {
+    return {
+      auction: true,
+      rentInPrison: false,
+      mortgage: true,
+      evenBuild: true,
+      randomizePlayOrder: true,
+      startingCash: 1500,
+    };
+  }
 }
+

@@ -10,8 +10,16 @@ import {
   Post,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import type { Request } from 'express';
 import { GiftsService, PaginatedGifts } from './gifts.service';
 import { CreateGiftDto } from './dto/create-gift.dto';
 import { FilterGiftsDto } from './dto/filter-gifts.dto';
@@ -19,16 +27,21 @@ import { RespondGiftDto } from './dto/respond-gift.dto';
 import { Gift } from './entities/gift.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import {
+  RedisRateLimitGuard,
+  RateLimit,
+} from '../../common/guards/redis-rate-limit.guard';
 
 @ApiTags('gifts')
 @Controller('gifts')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RedisRateLimitGuard)
 @ApiBearerAuth()
 export class GiftsController {
   constructor(private readonly giftsService: GiftsService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RateLimit(10, 60) // 10 gifts per minute
   @ApiOperation({ summary: 'Send a gift to another user' })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -38,11 +51,13 @@ export class GiftsController {
   create(
     @CurrentUser() user: { id: number },
     @Body() createGiftDto: CreateGiftDto,
+    @Req() req: Request,
   ): Promise<Gift> {
-    return this.giftsService.create(user.id, createGiftDto);
+    return this.giftsService.create(user.id, createGiftDto, req);
   }
 
   @Get('sent')
+  @RateLimit(30, 60)
   @ApiOperation({ summary: 'Get gifts sent by the current user' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -56,6 +71,7 @@ export class GiftsController {
   }
 
   @Get('received')
+  @RateLimit(30, 60)
   @ApiOperation({ summary: 'Get gifts received by the current user' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -69,6 +85,7 @@ export class GiftsController {
   }
 
   @Get(':id')
+  @RateLimit(60, 60)
   @ApiOperation({ summary: 'Get a gift by ID' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -88,6 +105,7 @@ export class GiftsController {
   }
 
   @Post(':id/respond')
+  @RateLimit(20, 60) // 20 responses per minute
   @ApiOperation({ summary: 'Accept or reject a gift' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -99,11 +117,13 @@ export class GiftsController {
     @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Body() respondDto: RespondGiftDto,
+    @Req() req: Request,
   ): Promise<Gift> {
-    return this.giftsService.respondToGift(id, user.id, respondDto.action);
+    return this.giftsService.respondToGift(id, user.id, respondDto.action, req);
   }
 
   @Delete(':id')
+  @RateLimit(20, 60)
   @ApiOperation({ summary: 'Cancel a pending gift (sender only)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -114,7 +134,8 @@ export class GiftsController {
   cancelGift(
     @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
   ): Promise<Gift> {
-    return this.giftsService.cancelGift(id, user.id);
+    return this.giftsService.cancelGift(id, user.id, req);
   }
 }

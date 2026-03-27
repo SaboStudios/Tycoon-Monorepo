@@ -9,6 +9,7 @@ import { Purchase } from './entities/purchase.entity';
 import { ShopItem } from './entities/shop-item.entity';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { CouponsService } from '../coupons/coupons.service';
+import { InventoryService } from './inventory.service';
 
 export interface PurchaseCalculation {
   original_price: number;
@@ -26,6 +27,7 @@ export class PurchaseService {
     @InjectRepository(ShopItem)
     private readonly shopItemRepository: Repository<ShopItem>,
     private readonly couponsService: CouponsService,
+    private readonly inventoryService: InventoryService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -46,11 +48,15 @@ export class PurchaseService {
     });
 
     if (!shopItem) {
-      throw new NotFoundException(`Shop item with ID ${shop_item_id} not found`);
+      throw new NotFoundException(
+        `Shop item with ID ${shop_item_id} not found`,
+      );
     }
 
     if (!shopItem.active) {
-      throw new BadRequestException('This item is no longer available for purchase');
+      throw new BadRequestException(
+        'This item is no longer available for purchase',
+      );
     }
 
     // Calculate pricing with coupon validation
@@ -87,7 +93,7 @@ export class PurchaseService {
       // If coupon was used, increment its usage and log it
       if (calculation.coupon_id && calculation.coupon_code) {
         await this.couponsService.incrementUsage(calculation.coupon_id);
-        
+
         // Log coupon usage for audit trail
         await this.couponsService.logCouponUsage(
           calculation.coupon_id,
@@ -106,6 +112,9 @@ export class PurchaseService {
           },
         );
       }
+
+      // Add items to user inventory
+      await this.inventoryService.addItem(userId, shopItem.id, quantity);
 
       await queryRunner.commitTransaction();
 
@@ -161,7 +170,10 @@ export class PurchaseService {
 
       // Calculate discount for the total purchase amount
       const coupon = await this.couponsService.findByCode(couponCode);
-      discountAmount = this.couponsService.calculateDiscount(coupon, originalPrice);
+      discountAmount = this.couponsService.calculateDiscount(
+        coupon,
+        originalPrice,
+      );
 
       couponId = validation.coupon?.id;
       validCouponCode = couponCode;

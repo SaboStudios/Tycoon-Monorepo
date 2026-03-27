@@ -34,6 +34,9 @@ import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { GetGamePlayersDto } from './dto/get-game-players.dto';
 import { GetGamesDto } from './dto/get-games.dto';
 import { RollDiceDto } from './dto/roll-dice.dto';
+import { PayRentDto } from './dto/pay-rent.dto';
+import { PayTaxDto } from './dto/pay-tax.dto';
+import { BuyPropertyDto } from './dto/buy-property.dto';
 import { JoinGameDto } from './dto/join-game.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -305,5 +308,45 @@ export class GamesController {
     @Req() req: Request & { user: { id: number } },
   ) {
     await this.gamePlayersService.leaveGameForUser(gameId, req.user.id);
+  }
+
+  @Post(':gameId/players/:playerId/pay-rent')
+  @ApiOperation({ summary: 'Pay rent with boost modifiers applied' })
+  async payRent(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: PayRentDto,
+  ) {
+    return this.gamePlayersService.payRent(
+      gameId,
+      playerId,
+      dto.payeeId,
+      dto.baseRent,
+    );
+  }
+
+  @Post(':gameId/players/:playerId/pay-tax')
+  @ApiOperation({ summary: 'Pay tax with boost modifiers applied' })
+  async payTax(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: PayTaxDto,
+  ) {
+    return this.gamePlayersService.payTax(gameId, playerId, dto.baseTax);
+  }
+
+  @Post(':gameId/players/:playerId/buy-property')
+  @ApiOperation({ summary: 'Buy property and emit event for boost hooks' })
+  async buyProperty(
+    @Param('gameId', ParseIntPipe) gameId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
+    @Body() dto: BuyPropertyDto,
+  ) {
+    return this.gamePlayersService.buyProperty(
+      gameId,
+      playerId,
+      dto.propertyCost,
+      dto.propertyId,
+    );
   }
 }

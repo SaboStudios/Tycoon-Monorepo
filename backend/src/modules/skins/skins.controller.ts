@@ -9,9 +9,12 @@ import {
   Query,
   UseGuards,
   Req,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { SkinsService } from './skins.service';
+import { AdvancedCacheInterceptor } from '../../common/interceptors/advanced-cache.interceptor';
+import { CacheOptions } from '../../common/decorators/cache-options.decorator';
 import { CreateSkinDto } from './dto/create-skin.dto';
 import { UpdateSkinDto } from './dto/update-skin.dto';
 import { SkinCategory } from './enums/skin-category.enum';
@@ -34,6 +37,8 @@ export class SkinsController {
   @ApiOperation({ summary: 'Get all skins' })
   @ApiQuery({ name: 'category', enum: SkinCategory, required: false })
   @ApiQuery({ name: 'rarity', enum: SkinRarity, required: false })
+  @UseInterceptors(AdvancedCacheInterceptor)
+  @CacheOptions({ ttl: 600, keyPrefix: 'skins', useUserPrefix: false })
   findAll(
     @Query('category') category?: SkinCategory,
     @Query('rarity') rarity?: SkinRarity,
@@ -44,12 +49,16 @@ export class SkinsController {
   @Get('category/:category')
   @ApiOperation({ summary: 'Get skins by category' })
   @ApiParam({ name: 'category', enum: SkinCategory })
+  @UseInterceptors(AdvancedCacheInterceptor)
+  @CacheOptions({ ttl: 600, keyPrefix: 'skins', useUserPrefix: false })
   findByCategory(@Param('category') category: SkinCategory) {
     return this.skinsService.findByCategory(category);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a skin by id' })
+  @UseInterceptors(AdvancedCacheInterceptor)
+  @CacheOptions({ ttl: 600, keyPrefix: 'skins', useUserPrefix: false })
   findOne(@Param('id') id: string) {
     return this.skinsService.findOne(+id);
   }
