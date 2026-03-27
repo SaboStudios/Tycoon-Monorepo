@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WaitlistAdminController } from './waitlist-admin.controller';
 import { WaitlistService } from './waitlist.service';
+import { AdminLogsService } from '../admin-logs/admin-logs.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { RedisRateLimitGuard } from '../../common/guards/redis-rate-limit.guard';
@@ -16,6 +17,10 @@ describe('WaitlistAdminController', () => {
     exportWaitlist: jest.fn(),
   };
 
+  const mockAdminLogsService = {
+    createLog: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WaitlistAdminController],
@@ -23,6 +28,10 @@ describe('WaitlistAdminController', () => {
         {
           provide: WaitlistService,
           useValue: mockWaitlistService,
+        },
+        {
+          provide: AdminLogsService,
+          useValue: mockAdminLogsService,
         },
       ],
     })

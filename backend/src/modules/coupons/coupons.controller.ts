@@ -23,7 +23,10 @@ import { CouponsService, PaginatedCoupons } from './coupons.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { FilterCouponsDto } from './dto/filter-coupons.dto';
-import { ValidateCouponDto, CouponValidationResult } from './dto/validate-coupon.dto';
+import {
+  ValidateCouponDto,
+  CouponValidationResult,
+} from './dto/validate-coupon.dto';
 import { Coupon } from './entities/coupon.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -84,7 +87,9 @@ export class CouponsController {
     description: 'Coupon validation result.',
     type: CouponValidationResult,
   })
-  validate(@Body() validateDto: ValidateCouponDto): Promise<CouponValidationResult> {
+  validate(
+    @Body() validateDto: ValidateCouponDto,
+  ): Promise<CouponValidationResult> {
     return this.couponsService.validateCoupon(validateDto);
   }
 
@@ -162,6 +167,11 @@ export class CouponsController {
     @Query('page', ParseIntPipe) page: number = 1,
     @Query('limit', ParseIntPipe) limit: number = 20,
   ) {
-    return this.couponsService.getCouponUsageLogs(undefined, user.id, page, limit);
+    return this.couponsService.getCouponUsageLogs(
+      undefined,
+      user.id,
+      page,
+      limit,
+    );
   }
 }

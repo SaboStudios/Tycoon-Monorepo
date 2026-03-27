@@ -3,7 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-} from "typeorm";
+} from 'typeorm';
 
 @Entity()
 export class Transaction {
@@ -19,7 +19,7 @@ export class Transaction {
   @Column()
   itemName: string;
 
-  @Column("decimal", { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2 })
   amount: number;
 
   @CreateDateColumn()

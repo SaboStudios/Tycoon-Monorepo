@@ -12,6 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull } from 'typeorm';
 import { Waitlist } from './entities/waitlist.entity';
 import { CreateWaitlistDto } from './dto/create-waitlist.dto';
+import { UpdateWaitlistDto } from './dto/update-waitlist.dto';
 import { WaitlistResponseDto } from './dto/waitlist-response.dto';
 import { WaitlistPaginationDto } from './dto/waitlist-pagination.dto';
 import { ExportWaitlistDto } from './dto/export-waitlist.dto';
@@ -455,6 +456,65 @@ export class WaitlistService {
         errors,
       },
     };
+  }
+
+  /**
+   * Update a waitlist entry by ID (admin only).
+   * Validates uniqueness of updated fields.
+   */
+  async update(id: number, dto: UpdateWaitlistDto): Promise<Waitlist> {
+    const entry = await this.waitlistRepository.findOne({ where: { id } });
+    if (!entry) {
+      throw new BadRequestException('Waitlist entry not found.');
+    }
+
+    const { wallet_address, email_address, telegram_username } = dto;
+
+    // Check uniqueness for updated fields
+    if (wallet_address && wallet_address !== entry.wallet_address) {
+      const existing = await this.waitlistRepository.findOne({
+        where: { wallet_address },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'This wallet address is already on the waitlist.',
+        );
+      }
+    }
+
+    if (email_address && email_address !== entry.email_address) {
+      const existing = await this.waitlistRepository.findOne({
+        where: { email_address },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'This email address is already on the waitlist.',
+        );
+      }
+    }
+
+    Object.assign(entry, dto);
+    return await this.waitlistRepository.save(entry);
+  }
+
+  /**
+   * Soft delete a waitlist entry by ID (admin only).
+   */
+  async softDelete(id: number): Promise<void> {
+    const result = await this.waitlistRepository.softDelete(id);
+    if (!result.affected) {
+      throw new BadRequestException('Waitlist entry not found.');
+    }
+  }
+
+  /**
+   * Hard delete a waitlist entry by ID (admin only).
+   */
+  async hardDelete(id: number): Promise<void> {
+    const result = await this.waitlistRepository.delete(id);
+    if (!result.affected) {
+      throw new BadRequestException('Waitlist entry not found.');
+    }
   }
 
   // ---------------------------------------------------------------------------
