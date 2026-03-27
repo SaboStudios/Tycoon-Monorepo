@@ -32,6 +32,6 @@ import { AdminLogsModule } from '../admin-logs/admin-logs.module';
   ],
   controllers: [AuthController, AdminAuthController],
   providers: [AuthService, JwtStrategy, LocalStrategy],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

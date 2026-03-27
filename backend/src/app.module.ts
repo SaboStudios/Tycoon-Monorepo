@@ -41,6 +41,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
@@ -105,6 +106,7 @@ import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.mod
     MonetizationModule,
     WebhooksModule,
     JobsModule,
+    PrivacyModule,
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
