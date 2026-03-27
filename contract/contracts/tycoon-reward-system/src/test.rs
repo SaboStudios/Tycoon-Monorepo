@@ -1,7 +1,7 @@
 extern crate std;
 use crate::{DataKey, TycoonRewardSystem, TycoonRewardSystemClient};
 use soroban_sdk::testutils::{Address as TestAddress, Events};
-use soroban_sdk::{token, Address, Env};
+use soroban_sdk::{token, Address, Env, IntoVal};
 
 #[test]
 fn test_simple_event() {
@@ -307,6 +307,43 @@ fn test_withdraw_funds_insufficient_balance_reverts() {
         client.withdraw_funds(&tyc_token_id, &recipient, &5000);
     }));
     assert!(res.is_err());
+}
+
+#[test]
+fn test_withdraw_funds_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let recipient = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+
+    let tyc_token_admin = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+    let usdc_token_admin =
+        <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id, &1000);
+
+    client.withdraw_funds(&tyc_token_id, &recipient, &400);
+
+    let events = env.events().all();
+    assert!(!events.is_empty());
+    // Last event topic must be FundsWithdrawn
+    let last = events.last().unwrap();
+    let topics = last.0;
+    assert_eq!(
+        topics.get(0).unwrap(),
+        soroban_sdk::Symbol::new(&env, "FundsWithdrawn").into_val(&env)
+    );
 }
 
 #[test]
