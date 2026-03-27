@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/components/providers/auth-provider";
+import { NearWalletConnect } from "@/components/wallet/NearWalletConnect";
 
 const links = [
   { href: "/", label: "Home" },
@@ -59,6 +60,7 @@ const Navbar = () => {
         </nav>
 
         <div className="flex items-center gap-4">
+          <NearWalletConnect />
           {user ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-[var(--tycoon-text)]/70 font-dm-sans">

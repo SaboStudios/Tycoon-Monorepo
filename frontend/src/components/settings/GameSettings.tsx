@@ -5,6 +5,12 @@ import { ArrowLeft, Users, Lock, Unlock, Gavel, Coins, Clock, Rocket, Shield, Wa
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 import { LocaleSwitcher } from "./LocaleSwitcher"
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
+import { gameSettingsSchema } from "@/lib/validation/schemas"
+import {
+  mapServerErrors,
+  type FieldErrors,
+} from "@/lib/validation/serverErrorMap"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -151,7 +157,7 @@ export function GameSettings() {
                                     <Input
                                         id="player-name"
                                         value={playerName}
-                                        onChange={(e) => { setPlayerName(e.target.value); setFieldErrors(p => ({ ...p, playerName: "" })) }}
+                                        onChange={(e) => { setPlayerName(e.target.value); setFieldErrors((p: FieldErrors) => ({ ...p, playerName: "" })) }}
                                         placeholder="Enter your Alias"
                                         aria-describedby={fieldErrors.playerName ? "player-name-error" : undefined}
                                         aria-invalid={!!fieldErrors.playerName}
@@ -238,7 +244,7 @@ export function GameSettings() {
                                                     id="custom-stake"
                                                     type="number"
                                                     value={customStake}
-                                                    onChange={(e) => { setCustomStake(e.target.value); setFieldErrors(p => ({ ...p, customStake: "" })) }}
+                                                    onChange={(e) => { setCustomStake(e.target.value); setFieldErrors((p: FieldErrors) => ({ ...p, customStake: "" })) }}
                                                     placeholder="e.g. 250"
                                                     aria-describedby={fieldErrors.customStake ? "custom-stake-error" : undefined}
                                                     aria-invalid={!!fieldErrors.customStake}

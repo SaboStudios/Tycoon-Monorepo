@@ -7,6 +7,7 @@ import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { generateBaseMetadata } from "@/lib/metadata";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { NearWalletProvider } from "@/components/providers/near-wallet-provider";
 import "./globals.css";
 import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
@@ -35,14 +36,16 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
 <AuthProvider>
-          <MSWProvider />
-          <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-            <Navbar />
-            {children}
-            <NavbarMobile />
-          </ErrorBoundary>
-          <ToastProvider />
-          <ScrollToTopBtn />
+          <NearWalletProvider>
+            <MSWProvider />
+            <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+              <Navbar />
+              {children}
+              <NavbarMobile />
+            </ErrorBoundary>
+            <ToastProvider />
+            <ScrollToTopBtn />
+          </NearWalletProvider>
         </AuthProvider>
       </body>
     </html>

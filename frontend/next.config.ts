@@ -3,6 +3,12 @@ import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  transpilePackages: [
+    "@near-wallet-selector/core",
+    "@near-wallet-selector/modal-ui",
+    "@near-wallet-selector/my-near-wallet",
+    "@near-wallet-selector/wallet-utils",
+  ],
   // Emit detailed build output consumed by scripts/check-bundle-size.mjs
   experimental: {
     webpackBuildWorker: true,

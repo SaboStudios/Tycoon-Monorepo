@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { NearWalletConnect } from "@/components/wallet/NearWalletConnect";
 
 const links = [
   { href: "/", label: "Home" },
@@ -81,6 +82,9 @@ const NavbarMobile = () => {
               );
             })}
           </ul>
+          <div className="mt-3 border-t border-[var(--tycoon-border)] pt-3">
+            <NearWalletConnect variant="panel" />
+          </div>
         </div>
       )}
     </nav>

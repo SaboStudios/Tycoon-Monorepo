@@ -12,10 +12,12 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "dev:msw": "next dev",
-    "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build"
+    "bundle:check": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
+    "@near-wallet-selector/core": "^8.10.2",
+    "@near-wallet-selector/modal-ui": "^8.10.2",
+    "@near-wallet-selector/my-near-wallet": "^8.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^25.10.9",
