@@ -17,6 +17,7 @@ async function bootstrap() {
   app.useLogger(winstonLogger);
 
   const configService = app.get(ConfigService);
+  const port = configService.get<number>('app.port') || 3000;
 
   // Enable Helmet
   app.use(helmet());
@@ -54,7 +55,9 @@ async function bootstrap() {
   });
 
   // Swagger/OpenAPI setup (dev/staging only)
-  const swaggerEnabled = configService.get('app.environment') !== 'production' || process.env.ENABLE_SWAGGER === 'true';
+  const swaggerEnabled =
+    configService.get<string>('app.nodeEnv') !== 'production' ||
+    process.env.ENABLE_SWAGGER === 'true';
   if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Tycoon API')
@@ -75,8 +78,6 @@ async function bootstrap() {
       'Bootstrap',
     );
   }
-
-  const port = configService.get<number>('app.port') || 3000;
 
   const logger = app.get(LoggerService);
 

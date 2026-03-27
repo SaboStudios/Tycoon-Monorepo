@@ -108,6 +108,15 @@ The application will start on `http://localhost:3000`
 
 API endpoints are available at: `http://localhost:3000/api/v1`
 
+## Observability (Prometheus)
+
+- **Scrape URL**: `GET /metrics` (root path — not under `/api`; health and metrics are excluded from the global prefix).
+- **Series** (low cardinality only; **no user ids**):
+  - `tycoon_http_requests_total` — labels `method`, `route_group` (`admin` \| `public` \| `internal`), `status_class` (`2xx`–`5xx`).
+  - `tycoon_http_request_duration_seconds` — histogram (tuned buckets for API latency); observed for `admin` and `public` only (internal paths such as `/metrics` and `/health/*` are counted on the request counter but omitted from duration to reduce scrape noise).
+- **Route groups**: any path containing an `/admin/` segment is `admin`; otherwise `public`; `/metrics` and `/health` are `internal`.
+- **Grafana**: import `grafana/dashboards/tycoon-http-overview.json` and select your Prometheus datasource (template variable `datasource`). The dashboard highlights **traffic split admin vs public** (request rate and pie panel).
+
 ## 🔀 API Versioning & Deprecation Strategy
 
 - **Current stable version path**: `/api/v1/*`
