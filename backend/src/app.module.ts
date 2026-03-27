@@ -108,6 +108,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
     MonetizationModule,
     WebhooksModule,
     JobsModule,
+    PrivacyModule,
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,

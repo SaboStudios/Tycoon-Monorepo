@@ -11,6 +11,8 @@ export const validationSchema = Joi.object({
   API_ENABLE_LEGACY_UNVERSIONED: Joi.boolean().default(true),
   API_LEGACY_UNVERSIONED_SUNSET: Joi.string().isoDate().optional(),
   CORS_ORIGIN: Joi.string().required(),
+  DATA_EXPORT_DIR: Joi.string().optional(),
+  DATA_EXPORT_TTL_HOURS: Joi.number().optional(),
 
   // Database
   DB_HOST: Joi.string().required(),

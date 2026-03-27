@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 
 @Injectable()
 export class SoftDeleteService {
@@ -7,7 +7,7 @@ export class SoftDeleteService {
      * Apply soft delete filter to query builder
      * Excludes deleted records by default
      */
-    applyActiveFilter<T>(
+    applyActiveFilter<T extends ObjectLiteral>(
         query: SelectQueryBuilder<T>,
         alias: string,
     ): SelectQueryBuilder<T> {
@@ -18,7 +18,7 @@ export class SoftDeleteService {
      * Apply soft delete filter to query builder
      * Includes only deleted records
      */
-    applyDeletedFilter<T>(
+    applyDeletedFilter<T extends ObjectLiteral>(
         query: SelectQueryBuilder<T>,
         alias: string,
     ): SelectQueryBuilder<T> {
@@ -52,7 +52,7 @@ export class SoftDeleteService {
     /**
      * Permanently delete an entity (hard delete)
      */
-    async hardDelete<T>(
+    async hardDelete<T extends ObjectLiteral>(
         repository: Repository<T>,
         id: number,
     ): Promise<void> {

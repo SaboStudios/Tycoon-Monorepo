@@ -54,6 +54,8 @@ async function bootstrap() {
       configService.get<string>('app.legacyUnversionedSunset') || undefined,
   });
 
+  const port = configService.get<number>('app.port') || 3000;
+
   // Swagger/OpenAPI setup (dev/staging only)
   const swaggerEnabled =
     configService.get<string>('app.nodeEnv') !== 'production' ||
