@@ -17,6 +17,7 @@ import {
   PaginationDto,
   PaginatedResponse,
 } from '../../common';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class PerksService {
@@ -26,6 +27,7 @@ export class PerksService {
     @InjectRepository(Boost)
     private readonly boostRepository: Repository<Boost>,
     private readonly paginationService: PaginationService,
+    private readonly redisService: RedisService,
   ) {}
 
   async create(createPerkDto: CreatePerkDto): Promise<Perk> {
@@ -33,7 +35,9 @@ export class PerksService {
       ...createPerkDto,
       price: String(createPerkDto.price),
     });
-    return this.perkRepository.save(perk);
+    const saved = await this.perkRepository.save(perk);
+    await this.invalidateCache();
+    return saved;
   }
 
   async findAllAdmin(
@@ -117,12 +121,15 @@ export class PerksService {
     };
 
     this.perkRepository.merge(perk, toUpdate);
-    return this.perkRepository.save(perk);
+    const saved = await this.perkRepository.save(perk);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   async remove(id: number): Promise<void> {
     const perk = await this.findOne(id);
     await this.perkRepository.remove(perk);
+    await this.invalidateCache(id);
   }
 
   async activate(id: number): Promise<Perk> {
@@ -131,7 +138,9 @@ export class PerksService {
       throw new ConflictException(`Perk with ID ${id} is already active`);
     }
     perk.is_active = true;
-    return this.perkRepository.save(perk);
+    const saved = await this.perkRepository.save(perk);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   async deactivate(id: number): Promise<Perk> {
@@ -140,7 +149,9 @@ export class PerksService {
       throw new ConflictException(`Perk with ID ${id} is already inactive`);
     }
     perk.is_active = false;
-    return this.perkRepository.save(perk);
+    const saved = await this.perkRepository.save(perk);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   async createBoost(
@@ -153,7 +164,9 @@ export class PerksService {
       perk_id: perkId,
       effect_value: String(createBoostDto.effect_value),
     });
-    return this.boostRepository.save(boost);
+    const saved = await this.boostRepository.save(boost);
+    await this.invalidateCache(perkId);
+    return saved;
   }
 
   async updateBoost(
@@ -171,12 +184,15 @@ export class PerksService {
     };
 
     this.boostRepository.merge(boost, toUpdate);
-    return this.boostRepository.save(boost);
+    const saved = await this.boostRepository.save(boost);
+    await this.invalidateCache(perkId);
+    return saved;
   }
 
   async removeBoost(perkId: number, boostId: number): Promise<void> {
     const boost = await this.findBoostByIdAndPerkId(boostId, perkId);
     await this.boostRepository.remove(boost);
+    await this.invalidateCache(perkId);
   }
 
   private async findBoostByIdAndPerkId(
@@ -192,5 +208,12 @@ export class PerksService {
       );
     }
     return boost;
+  }
+
+  private async invalidateCache(id?: number): Promise<void> {
+    await this.redisService.delByPattern('tycoon:perks:perks:*');
+    if (id) {
+      await this.redisService.delByPattern(`tycoon:perks:perks:${id}:*`);
+    }
   }
 }

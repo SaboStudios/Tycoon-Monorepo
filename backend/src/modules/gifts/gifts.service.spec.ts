@@ -5,6 +5,7 @@ import { GiftsService } from './gifts.service';
 import { Gift } from './entities/gift.entity';
 import { GiftStatus } from './enums/gift-status.enum';
 import { ShopService } from '../shop/shop.service';
+import { InventoryService } from '../shop/inventory.service';
 import { UsersService } from '../users/users.service';
 import {
   repositoryMockFactory,
@@ -28,6 +29,10 @@ describe('GiftsService', () => {
 
   const mockUsersService = {
     findOne: jest.fn(),
+  };
+
+  const mockInventoryService = {
+    addItem: jest.fn(),
   };
 
   const mockQueryRunner = {
@@ -57,6 +62,10 @@ describe('GiftsService', () => {
         {
           provide: UsersService,
           useValue: mockUsersService,
+        },
+        {
+          provide: InventoryService,
+          useValue: mockInventoryService,
         },
         {
           provide: DataSource,
@@ -109,8 +118,12 @@ describe('GiftsService', () => {
 
       expect(result).toEqual(mockGift);
       expect(mockUsersService.findOne).toHaveBeenCalledWith(senderId);
-      expect(mockUsersService.findOne).toHaveBeenCalledWith(createGiftDto.receiver_id);
-      expect(mockShopService.findOne).toHaveBeenCalledWith(createGiftDto.shop_item_id);
+      expect(mockUsersService.findOne).toHaveBeenCalledWith(
+        createGiftDto.receiver_id,
+      );
+      expect(mockShopService.findOne).toHaveBeenCalledWith(
+        createGiftDto.shop_item_id,
+      );
       expect(repositoryMock.save).toHaveBeenCalled();
     });
 
@@ -210,6 +223,8 @@ describe('GiftsService', () => {
         id: giftId,
         sender_id: 1,
         receiver_id: receiverId,
+        shop_item_id: 1,
+        quantity: 2,
         status: GiftStatus.PENDING,
         expiration: new Date(Date.now() + 86400000),
       };
@@ -219,6 +234,7 @@ describe('GiftsService', () => {
         ...mockGift,
         status: GiftStatus.ACCEPTED,
       });
+      mockInventoryService.addItem.mockResolvedValue({});
 
       const result = await service.respondToGift(
         giftId,
@@ -227,6 +243,11 @@ describe('GiftsService', () => {
       );
 
       expect(result.status).toBe(GiftStatus.ACCEPTED);
+      expect(mockInventoryService.addItem).toHaveBeenCalledWith(
+        receiverId,
+        mockGift.shop_item_id,
+        mockGift.quantity,
+      );
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
     });
 

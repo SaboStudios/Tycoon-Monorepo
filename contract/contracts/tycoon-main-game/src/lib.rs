@@ -1,157 +1,205 @@
 #![no_std]
 
 mod events;
-#[allow(dead_code)]
 mod storage;
 
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, Vec};
-use storage::{Game, GameSettings, GameStatus};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol};
+use storage::PauseConfig;
 
 #[contract]
 pub struct TycoonMainGame;
 
 #[contractimpl]
 impl TycoonMainGame {
-    /// Initialize the contract, storing the admin owner, reward system address,
-    /// and USDC token address used for stake refunds.
+    // ============================================================
+    // Initialization
+    // ============================================================
+
+    /// Initialize the contract with admin and optional multisig configuration
     ///
-    /// Must be called exactly once. `owner` must sign the transaction.
-    ///
-    /// # Panics
-    /// - `"Contract already initialized"` if called more than once.
-    pub fn initialize(env: Env, owner: Address, reward_system: Address, usdc_token: Address) {
+    /// # Arguments
+    /// * `admin` - Primary admin address
+    /// * `multisig_signers` - Optional list of multisig signers
+    /// * `multisig_threshold` - Required signatures for multisig (0 = single admin)
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        multisig_signers: Option<Address>,
+        multisig_threshold: u32,
+    ) {
         if storage::is_initialized(&env) {
             panic!("Contract already initialized");
         }
 
-        owner.require_auth();
+        admin.require_auth();
 
-        storage::set_owner(&env, &owner);
-        storage::set_reward_system(&env, &reward_system);
-        storage::set_usdc_token(&env, &usdc_token);
+        storage::set_admin(&env, &admin);
+
+        // Configure pause mechanism
+        let signers = multisig_signers
+            .map(|s| soroban_sdk::Vec::from_array(&env, [s]))
+            .unwrap_or(soroban_sdk::Vec::new(&env));
+        let config = PauseConfig {
+            admin: Some(admin.clone()),
+            signers,
+            required_signatures: multisig_threshold,
+        };
+        storage::set_pause_config(&env, &config);
+
         storage::set_initialized(&env);
+
+        // Emit initialization event
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("Init"),), (admin, multisig_threshold));
     }
 
+    // ============================================================
+    // Pause/Unpause (Guarded)
+    // ============================================================
+
+    /// Emergency pause contract (admin/multisig only)
+    ///
+    /// # Arguments
+    /// * `caller` - Address requesting pause (must be admin or multisig signer)
+    /// * `reason` - Reason code for transparency (e.g., "SEC" for security)
+    /// * `duration_ledgers` - Optional duration in ledgers (0 = indefinite)
+    ///
+    /// # Events
+    /// Emits `Paused` event with details
+    ///
+    /// # Panics
+    /// * If caller is not authorized
+    /// * If already paused
+    pub fn pause(env: Env, caller: Address, reason: Symbol, duration_ledgers: u32) {
+        caller.require_auth();
+
+        let config = storage::get_pause_config(&env).expect("Contract not initialized");
+
+        // Verify authorization
+        if !storage::is_authorized_to_pause(&env, &caller, &config) {
+            panic!("Unauthorized: only admin or multisig can pause");
+        }
+
+        // Check if already paused
+        if storage::is_paused(&env) {
+            panic!("Contract is already paused");
+        }
+
+        // Cannot pause indefinitely without a path - require expiry for long pauses
+        if duration_ledgers == 0 {
+            // For indefinite pause, require a minimum expiry (e.g., 1000 ledgers ~ 1.5 hours)
+            storage::pause_with_expiry(&env, &caller, &reason, 1000);
+        } else {
+            storage::pause_with_expiry(&env, &caller, &reason, duration_ledgers);
+        }
+
+        // Emit pause event
+        events::emit_paused(
+            &env,
+            &events::PauseEventData {
+                paused_by: caller,
+                paused_at: env.ledger().timestamp(),
+                expiry: env.ledger().sequence() + duration_ledgers.max(1000),
+                reason,
+            },
+        );
+    }
+
+    /// Emergency unpause contract (admin/multisig only)
+    ///
+    /// # Arguments
+    /// * `caller` - Address requesting unpause (must be admin or multisig signer)
+    ///
+    /// # Events
+    /// Emits `Unpaused` event with duration paused
+    ///
+    /// # Panics
+    /// * If caller is not authorized
+    /// * If not currently paused
+    pub fn unpause(env: Env, caller: Address) {
+        caller.require_auth();
+
+        let config = storage::get_pause_config(&env).expect("Contract not initialized");
+
+        // Verify authorization
+        if !storage::is_authorized_to_pause(&env, &caller, &config) {
+            panic!("Unauthorized: only admin or multisig can unpause");
+        }
+
+        // Check if paused
+        if !storage::is_paused(&env) {
+            panic!("Contract is not paused");
+        }
+
+        let paused_at: u64 = storage::get_paused_at(&env).unwrap_or(0);
+        let paused_by: Address =
+            storage::get_paused_by(&env).unwrap_or_else(|| Address::from_str(&env, ""));
+
+        // Clear pause state
+        storage::unpause(&env);
+
+        // Emit unpause event
+        events::emit_unpaused(
+            &env,
+            &events::UnpauseEventData {
+                unpaused_by: caller,
+                unpaused_at: env.ledger().timestamp(),
+                paused_duration: env.ledger().timestamp().saturating_sub(paused_at),
+                original_paused_by: paused_by,
+            },
+        );
+    }
+
+    /// Get current pause status
+    pub fn get_pause_status(env: Env) -> storage::PauseStatus {
+        storage::get_pause_status(&env)
+    }
+
+    // ============================================================
+    // View Functions
+    // ============================================================
+
+    /// Returns the admin address
+    pub fn get_admin(env: Env) -> Address {
+        storage::get_admin(&env)
+    }
+
+    /// Returns the pause configuration
+    pub fn get_pause_config(env: Env) -> PauseConfig {
+        storage::get_pause_config(&env).expect("Contract not initialized")
+    }
+
+    /// Returns true if contract is currently paused
+    pub fn is_paused(env: Env) -> bool {
+        storage::is_paused(&env)
+    }
+}
+
+// ============================================================
+// Stub functions for game functionality (to be implemented)
+// ============================================================
+
+#[contractimpl]
+impl TycoonMainGame {
     /// Stub: Register a player for the main game.
     ///
-    /// Full implementation will require auth, validate username,
-    /// prevent duplicates, and call the reward system for a registration voucher.
-    pub fn register_player(_env: Env) {
+    /// This function is guarded by pause check.
+    pub fn register_player(env: Env, player: Address) {
+        player.require_auth();
+        storage::require_not_paused(&env, symbol_short!("register"));
         // TODO: implement full registration logic
     }
 
-    /// Allow a player to leave a pending (not yet started) game.
+    /// Stub: Create a new game
     ///
-    /// Validates:
-    /// - Game exists.
-    /// - Game status is `Pending`.
-    /// - Caller (`player`) is in `joined_players`.
-    ///
-    /// On success:
-    /// - Refunds `stake_per_player` in USDC to the leaving player (if stake > 0).
-    /// - Removes the player from `joined_players`.
-    /// - Decrements `total_staked` by `stake_per_player`.
-    /// - If no players remain, sets game status to `Ended` with current timestamp.
-    /// - Emits `PlayerLeftPending` event always.
-    /// - Emits `PendingGameEnded` event if the lobby is now empty.
-    ///
-    /// # Panics
-    /// - `"Game not found"` — game ID does not exist.
-    /// - `"Game is not pending"` — game has already started or ended.
-    /// - `"Player is not in this game"` — caller has not joined.
-    pub fn leave_pending_game(env: Env, game_id: u64, player: Address) {
-        player.require_auth();
-
-        let mut game = storage::get_game(&env, game_id).unwrap_or_else(|| panic!("Game not found"));
-
-        if !matches!(game.status, GameStatus::Pending) {
-            panic!("Game is not pending");
-        }
-
-        // Find and remove the player from joined_players
-        let mut new_players: Vec<Address> = Vec::new(&env);
-        let mut found = false;
-
-        for p in game.joined_players.iter() {
-            if p == player {
-                found = true;
-            } else {
-                new_players.push_back(p);
-            }
-        }
-
-        if !found {
-            panic!("Player is not in this game");
-        }
-
-        // Refund stake if applicable — transfer from contract to player
-        if game.stake_per_player > 0 {
-            let usdc_token = storage::get_usdc_token(&env);
-            let token_client = token::Client::new(&env, &usdc_token);
-            let contract_address = env.current_contract_address();
-            token_client.transfer(&contract_address, &player, &(game.stake_per_player as i128));
-        }
-
-        // Update game state
-        game.total_staked = game.total_staked.saturating_sub(game.stake_per_player);
-        game.joined_players = new_players;
-
-        let remaining = game.joined_players.len() as u32;
-
-        // If no players remain, end the game automatically
-        if remaining == 0 {
-            game.status = GameStatus::Ended;
-            game.ended_at = env.ledger().timestamp();
-        }
-
-        storage::set_game(&env, &game);
-
-        // Emit PlayerLeftPending
-        events::emit_player_left_pending(
-            &env,
-            &events::PlayerLeftPendingData {
-                game_id,
-                player: player.clone(),
-                stake_refunded: game.stake_per_player,
-                remaining_players: remaining,
-            },
-        );
-
-        // Emit PendingGameEnded if lobby is now empty
-        if remaining == 0 {
-            events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // View functions
-    // -----------------------------------------------------------------------
-
-    /// Returns the owner address stored during initialization.
-    pub fn get_owner(env: Env) -> Address {
-        storage::get_owner(&env)
-    }
-
-    /// Returns the reward system contract address stored during initialization.
-    pub fn get_reward_system(env: Env) -> Address {
-        storage::get_reward_system(&env)
-    }
-
-    /// Returns true if the given address has been registered as a player.
-    pub fn is_registered(env: Env, address: Address) -> bool {
-        storage::is_registered(&env, &address)
-    }
-
-    /// Retrieves a game by ID. Returns `None` if not found.
-    pub fn get_game(env: Env, game_id: u64) -> Option<Game> {
-        storage::get_game(&env, game_id)
-    }
-
-    /// Retrieves settings for a game by ID. Returns `None` if not found.
-    pub fn get_game_settings(env: Env, game_id: u64) -> Option<GameSettings> {
-        storage::get_game_settings(&env, game_id)
+    /// This function is guarded by pause check.
+    pub fn create_game(env: Env, creator: Address) {
+        creator.require_auth();
+        storage::require_not_paused(&env, symbol_short!("create"));
+        // TODO: implement game creation
     }
 }

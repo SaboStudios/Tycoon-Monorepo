@@ -80,7 +80,7 @@ export function PlayWithAISettings() {
         }
 
         console.log("Starting game with settings:", settings)
-        const mockGameCode = Math.random().toString(36).substring(7).toUpperCase()
+        const mockGameCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()
 
         toast.success("Initializing On-Chain Session... Minting Game Assets.")
 

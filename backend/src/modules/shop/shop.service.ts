@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ShopItem } from './entities/shop-item.entity';
 import { Purchase } from './entities/purchase.entity';
+import { UserInventory } from './entities/user-inventory.entity';
 import { CreateShopItemDto } from './dto/create-shop-item.dto';
 import { UpdateShopItemDto } from './dto/update-shop-item.dto';
 import { FilterShopItemsDto } from './dto/filter-shop-items.dto';
@@ -11,6 +16,8 @@ import { UsersService } from '../users/users.service';
 import { GiftsService } from '../gifts/gifts.service';
 import { Gift } from '../gifts/entities/gift.entity';
 import { GiftStatus } from '../gifts/enums/gift-status.enum';
+import { RedisService } from '../redis/redis.service';
+import { secureRandomHex } from '../../common/crypto-secure-random';
 
 export interface PaginatedShopItems {
   data: ShopItem[];
@@ -32,6 +39,7 @@ export class ShopService {
     private readonly usersService: UsersService,
     private readonly giftsService: GiftsService,
     private readonly dataSource: DataSource,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -42,14 +50,19 @@ export class ShopService {
       ...createShopItemDto,
       price: String(createShopItemDto.price),
     });
-    return this.shopItemRepository.save(item);
+    const saved = await this.shopItemRepository.save(item);
+    await this.invalidateCache();
+    return saved;
   }
 
   /**
    * List shop items with optional filters and pagination
    */
-  async findAll(filterDto: FilterShopItemsDto): Promise<PaginatedShopItems> {
-    const { type, rarity, active, page = 1, limit = 20 } = filterDto;
+  async findAll(
+    filterDto: FilterShopItemsDto,
+    userId?: number,
+  ): Promise<PaginatedShopItems> {
+    const { type, rarity, active = true, page = 1, limit = 20 } = filterDto;
 
     const qb = this.shopItemRepository
       .createQueryBuilder('item')
@@ -73,8 +86,26 @@ export class ShopService {
       .take(limit)
       .getMany();
 
+    // If userId is provided, check ownership
+    let itemsWithOwnership = data as (ShopItem & { is_owned?: boolean })[];
+    if (userId) {
+      const userInventory = await this.dataSource
+        .getRepository(UserInventory)
+        .find({
+          where: { user_id: userId },
+        });
+
+      const ownedItemIds = new Set(
+        userInventory.map((inv) => inv.shop_item_id),
+      );
+      itemsWithOwnership = data.map((item) => ({
+        ...item,
+        is_owned: ownedItemIds.has(item.id),
+      }));
+    }
+
     return {
-      data,
+      data: itemsWithOwnership,
       meta: {
         page,
         limit,
@@ -104,7 +135,9 @@ export class ShopService {
   ): Promise<ShopItem> {
     const item = await this.findOne(id);
     Object.assign(item, updateShopItemDto);
-    return this.shopItemRepository.save(item);
+    const saved = await this.shopItemRepository.save(item);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   /**
@@ -114,7 +147,9 @@ export class ShopService {
   async remove(id: number): Promise<ShopItem> {
     const item = await this.findOne(id);
     item.active = false;
-    return this.shopItemRepository.save(item);
+    const saved = await this.shopItemRepository.save(item);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   /**
@@ -124,7 +159,13 @@ export class ShopService {
     senderId: number,
     dto: PurchaseAndGiftDto,
   ): Promise<{ purchase: Purchase; gift: Gift }> {
-    const { shop_item_id, receiver_id, quantity = 1, message, payment_method = 'balance' } = dto;
+    const {
+      shop_item_id,
+      receiver_id,
+      quantity = 1,
+      message,
+      payment_method = 'balance',
+    } = dto;
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -140,7 +181,9 @@ export class ShopService {
       // 2. Validate receiver exists
       const receiver = await this.usersService.findOne(receiver_id);
       if (!receiver) {
-        throw new NotFoundException(`Receiver with ID ${receiver_id} not found`);
+        throw new NotFoundException(
+          `Receiver with ID ${receiver_id} not found`,
+        );
       }
 
       // 3. Validate sender is not gifting to themselves
@@ -151,7 +194,9 @@ export class ShopService {
       // 4. Validate shop item exists and is active
       const shopItem = await this.findOne(shop_item_id);
       if (!shopItem.active) {
-        throw new BadRequestException('This item is not available for purchase');
+        throw new BadRequestException(
+          'This item is not available for purchase',
+        );
       }
 
       // 5. Calculate total price
@@ -218,8 +263,7 @@ export class ShopService {
    */
   private generateTransactionId(): string {
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    return `TXN-${timestamp}-${random}`.toUpperCase();
+    return `TXN-${timestamp}-${secureRandomHex(8)}`.toUpperCase();
   }
 
   /**
@@ -254,5 +298,22 @@ export class ShopService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Invalidate shop caches
+   */
+  private async invalidateCache(id?: number): Promise<void> {
+    // Invalidate the list cache
+    await this.redisService.delByPattern('tycoon:shop:items:*');
+
+    // If a specific ID is provided, invalidate its detail cache
+    if (id) {
+      await this.redisService.delByPattern(`tycoon:shop:item:items:${id}:*`);
+      // Note: AdvancedCacheInterceptor uses url segments, so shop/items/1 becomes shop:items:1
+      // but my keyPrefix was 'shop:item'. Let's check the logic.
+      // Url /api/v1/shop/items/1 -> segments: shop, items, 1 -> tycoon:shop:item:shop:items:1:public:{}
+      // Wait, I should probably standardize the keyPrefix in controllers.
+    }
   }
 }

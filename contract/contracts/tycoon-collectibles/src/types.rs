@@ -1,11 +1,55 @@
-use soroban_sdk::{contracttype, Address};
+use soroban_sdk::{contracttype, Address, Vec};
 
+/// Standard ERC-721 compatible metadata structure
+/// Follows OpenSea and other marketplace expectations
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CollectibleMetadata {
+    /// Name of the collectible
     pub name: soroban_sdk::String,
+    /// Description of the collectible
     pub description: soroban_sdk::String,
-    pub image_url: soroban_sdk::String,
+    /// URL to the image (can be IPFS or HTTPS)
+    pub image: soroban_sdk::String,
+    /// Optional animation URL for videos/gifs
+    pub animation_url: Option<soroban_sdk::String>,
+    /// Optional external URL
+    pub external_url: Option<soroban_sdk::String>,
+    /// Attributes/traits for the collectible
+    pub attributes: Vec<MetadataAttribute>,
+}
+
+/// Attribute structure for metadata traits
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MetadataAttribute {
+    /// Display type (optional)
+    pub display_type: Option<soroban_sdk::String>,
+    /// Trait type (e.g., "Perk", "Strength")
+    pub trait_type: soroban_sdk::String,
+    /// Value of the trait
+    pub value: soroban_sdk::String,
+}
+
+/// Base URI configuration for token metadata
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BaseURIConfig {
+    /// Base URI for token metadata (e.g., "https://api.tycoon.com/metadata/")
+    pub base_uri: soroban_sdk::String,
+    /// Whether metadata is frozen (immutable once set)
+    pub frozen: bool,
+    /// URI type preference (ipfs or https)
+    pub uri_type: URIType,
+}
+
+/// URI type preference for metadata hosting
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum URIType {
+    HTTPS = 0,
+    IPFS = 1,
 }
 
 /// Configuration for the shop's payment tokens

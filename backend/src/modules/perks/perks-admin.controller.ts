@@ -44,8 +44,15 @@ export class PerksAdminController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new perk' })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'Perk created.', type: Perk })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized.' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Perk created.',
+    type: Perk,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized.',
+  })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Admin required.' })
   create(@Body() createPerkDto: CreatePerkDto): Promise<Perk> {
     return this.perksService.create(createPerkDto);
@@ -63,7 +70,11 @@ export class PerksAdminController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a perk by ID' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Perk found.', type: Perk })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Perk found.',
+    type: Perk,
+  })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Perk not found.' })
   findOne(@Param('id', ParseIntPipe) id: number): Promise<Perk> {
     return this.perksService.findOne(id);
@@ -72,7 +83,11 @@ export class PerksAdminController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update a perk' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Perk updated.', type: Perk })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Perk updated.',
+    type: Perk,
+  })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Perk not found.' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -94,8 +109,15 @@ export class PerksAdminController {
   @Patch(':id/activate')
   @ApiOperation({ summary: 'Activate a perk' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Perk activated.', type: Perk })
-  @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Perk already active.' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Perk activated.',
+    type: Perk,
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Perk already active.',
+  })
   activate(@Param('id', ParseIntPipe) id: number): Promise<Perk> {
     return this.perksService.activate(id);
   }
@@ -103,8 +125,15 @@ export class PerksAdminController {
   @Patch(':id/deactivate')
   @ApiOperation({ summary: 'Deactivate a perk' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Perk deactivated.', type: Perk })
-  @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Perk already inactive.' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Perk deactivated.',
+    type: Perk,
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Perk already inactive.',
+  })
   deactivate(@Param('id', ParseIntPipe) id: number): Promise<Perk> {
     return this.perksService.deactivate(id);
   }
@@ -112,7 +141,11 @@ export class PerksAdminController {
   @Get(':perkId/boosts')
   @ApiOperation({ summary: 'List boosts for a perk' })
   @ApiParam({ name: 'perkId', type: Number })
-  @ApiResponse({ status: HttpStatus.OK, description: 'List of boosts.', type: [Boost] })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of boosts.',
+    type: [Boost],
+  })
   findBoosts(@Param('perkId', ParseIntPipe) perkId: number): Promise<Boost[]> {
     return this.perksService.findAllByPerkId(perkId);
   }
@@ -121,7 +154,11 @@ export class PerksAdminController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a boost for a perk' })
   @ApiParam({ name: 'perkId', type: Number })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'Boost created.', type: Boost })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Boost created.',
+    type: Boost,
+  })
   createBoost(
     @Param('perkId', ParseIntPipe) perkId: number,
     @Body() createBoostDto: CreateBoostDto,
@@ -133,7 +170,11 @@ export class PerksAdminController {
   @ApiOperation({ summary: 'Update a boost' })
   @ApiParam({ name: 'perkId', type: Number })
   @ApiParam({ name: 'boostId', type: Number })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Boost updated.', type: Boost })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Boost updated.',
+    type: Boost,
+  })
   updateBoost(
     @Param('perkId', ParseIntPipe) perkId: number,
     @Param('boostId', ParseIntPipe) boostId: number,

@@ -1,8 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
 
 export class CreatePerksTable1740400000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -51,7 +47,10 @@ export class CreatePerksTable1740400000000 implements MigrationInterface {
 
     await queryRunner.createIndex(
       'perks',
-      new TableIndex({ name: 'IDX_PERKS_IS_ACTIVE', columnNames: ['is_active'] }),
+      new TableIndex({
+        name: 'IDX_PERKS_IS_ACTIVE',
+        columnNames: ['is_active'],
+      }),
     );
   }
 

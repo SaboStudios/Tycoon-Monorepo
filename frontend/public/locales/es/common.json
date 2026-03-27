@@ -1,0 +1,27 @@
+{
+  "shop": {
+    "title": "Mercado",
+    "filter_all": "Todo",
+    "filter_skins": "Máscaras",
+    "filter_boards": "Tableros",
+    "owned": "Adquirido",
+    "purchase": "Comprar",
+    "confirm_purchase": "Confirmar Compra",
+    "cancel": "Cancelar",
+    "out_of_stock": "Agotado",
+    "purchase_confirmation_msg": "¿Estás seguro de que quieres comprar {{name}}?"
+  },
+  "leaderboard": {
+    "title": "Clasificación",
+    "rank": "Rango",
+    "player": "Jugador",
+    "wins": "Victorias",
+    "earned": "Ganado",
+    "share_profile": "Compartir Perfil",
+    "copied": "¡Enlace copiado!"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "language": "Idioma"
+  }
+}

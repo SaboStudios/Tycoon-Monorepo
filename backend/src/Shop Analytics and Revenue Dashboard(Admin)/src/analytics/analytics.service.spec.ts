@@ -1,10 +1,10 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { getRepositoryToken } from "@nestjs/typeorm";
-import { AnalyticsService } from "./analytics.service";
-import { Transaction } from "../entities/transaction.entity";
-import { PlayerActivity } from "../entities/player-activity.entity";
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { AnalyticsService } from './analytics.service';
+import { Transaction } from '../entities/transaction.entity';
+import { PlayerActivity } from '../entities/player-activity.entity';
 
-describe("AnalyticsService", () => {
+describe('AnalyticsService', () => {
   let service: AnalyticsService;
 
   const mockQueryBuilder: any = {
@@ -48,33 +48,33 @@ describe("AnalyticsService", () => {
     service = module.get<AnalyticsService>(AnalyticsService);
   });
 
-  it("should be defined", () => {
+  it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe("getShopAnalytics", () => {
-    it("should return complete analytics data", async () => {
+  describe('getShopAnalytics', () => {
+    it('should return complete analytics data', async () => {
       mockQueryBuilder.getRawOne
-        .mockResolvedValueOnce({ total: "1500.50" })
-        .mockResolvedValueOnce({ count: "100" })
-        .mockResolvedValueOnce({ count: "25" })
-        .mockResolvedValueOnce({ count: "0" })
-        .mockResolvedValueOnce({ count: "0" })
-        .mockResolvedValueOnce({ count: "0" });
+        .mockResolvedValueOnce({ total: '1500.50' })
+        .mockResolvedValueOnce({ count: '100' })
+        .mockResolvedValueOnce({ count: '25' })
+        .mockResolvedValueOnce({ count: '0' })
+        .mockResolvedValueOnce({ count: '0' })
+        .mockResolvedValueOnce({ count: '0' });
 
       mockQueryBuilder.getRawMany
         .mockResolvedValueOnce([
           {
-            itemId: "1",
-            itemName: "Sword",
-            purchaseCount: "50",
-            totalRevenue: "1000",
+            itemId: '1',
+            itemName: 'Sword',
+            purchaseCount: '50',
+            totalRevenue: '1000',
           },
           {
-            itemId: "2",
-            itemName: "Shield",
-            purchaseCount: "30",
-            totalRevenue: "500.50",
+            itemId: '2',
+            itemName: 'Shield',
+            purchaseCount: '30',
+            totalRevenue: '500.50',
           },
         ])
         .mockResolvedValueOnce([])
@@ -83,16 +83,16 @@ describe("AnalyticsService", () => {
 
       const result = await service.getShopAnalytics();
 
-      expect(result).toHaveProperty("totalRevenue");
-      expect(result).toHaveProperty("popularItems");
-      expect(result).toHaveProperty("conversionRate");
-      expect(result).toHaveProperty("retentionMetrics");
+      expect(result).toHaveProperty('totalRevenue');
+      expect(result).toHaveProperty('popularItems');
+      expect(result).toHaveProperty('conversionRate');
+      expect(result).toHaveProperty('retentionMetrics');
       expect(result.totalRevenue).toBe(1500.5);
       expect(result.popularItems).toHaveLength(2);
       expect(result.conversionRate).toBe(25);
     });
 
-    it("should handle empty data gracefully", async () => {
+    it('should handle empty data gracefully', async () => {
       mockQueryBuilder.getRawOne.mockResolvedValue(null);
       mockQueryBuilder.getRawMany.mockResolvedValue([]);
 

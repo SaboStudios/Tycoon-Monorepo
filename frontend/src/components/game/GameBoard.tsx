@@ -8,6 +8,7 @@ import React from "react";
 import { BoardSquare } from "./BoardSquare";
 import type { SquareType } from "./BoardSquare";
 import CenterArea from "./CenterArea";
+import OnboardingTour from "./OnboardingTour";
 
 const GRID_SIZE = 11;
 const CENTER_START = 4;
@@ -95,13 +96,15 @@ function isCenterCell(row: number, col: number): boolean {
 
 export default function GameBoard(): React.JSX.Element {
   return (
-    <div
-      className="relative w-full aspect-square mx-auto rounded-xl border-2 border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] shadow-2xl overflow-hidden"
-      style={{
-        width: "min(92vw, 900px)",
-        maxWidth: "900px",
-      }}
-    >
+    <>
+      <OnboardingTour />
+      <div
+        className="relative w-full aspect-square mx-auto rounded-xl border-2 border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] shadow-2xl overflow-hidden"
+        style={{
+          width: "min(92vw, 900px)",
+          maxWidth: "900px",
+        }}
+      >
       <div
         className="absolute inset-0 grid gap-0 items-stretch justify-stretch"
         style={{
@@ -152,5 +155,6 @@ export default function GameBoard(): React.JSX.Element {
         })}
       </div>
     </div>
+    </>
   );
 }

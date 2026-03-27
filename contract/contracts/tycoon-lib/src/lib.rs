@@ -1,5 +1,8 @@
 #![no_std]
 
+// Pause module removed - each contract implements pause locally for better isolation
+// See tycoon-main-game/src/storage.rs for pause implementation example
+
 use soroban_sdk::contracttype;
 
 // ============================================================
