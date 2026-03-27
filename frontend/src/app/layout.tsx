@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { ToastProvider } from "@/components/providers/toast-provider";
-import { ScrollToTopBtn } from "@/components/ui/scroll-to-top-btn";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
 import "./globals.css";
-import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
 
 const geistSans = Geist({
@@ -28,12 +28,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        {children}
-        <NavbarMobile />
+        <ThemeProvider>
+          {children}
+          <ToastProvider />
+          <NavbarMobile />
+        </ThemeProvider>
       </body>
     </html>
   );

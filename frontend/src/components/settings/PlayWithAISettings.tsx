@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
+import { ThemeSettingsCard } from "@/components/settings/ThemeSettingsCard"
 
 // Mock Data
 const PIECES = [
@@ -200,6 +201,7 @@ export function PlayWithAISettings() {
 
                 {/* Sidebar / House Rules */}
                 <div className="space-y-6">
+                    <ThemeSettingsCard />
                     <Card className="h-full border-indigo-100 bg-gradient-to-b from-white to-indigo-50/20 dark:border-indigo-900/50 dark:from-neutral-950 dark:to-indigo-950/10">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
