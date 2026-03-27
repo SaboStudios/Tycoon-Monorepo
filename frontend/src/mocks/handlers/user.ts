@@ -1,5 +1,4 @@
 import { http, HttpResponse } from 'msw';
-import type { UserProfileDto } from '../../../types/api'; // assume types later
 import { mockUserProfile, mockLeaderboard } from '../fixtures/user';
 
 export const userHandlers = [
