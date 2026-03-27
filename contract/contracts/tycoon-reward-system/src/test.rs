@@ -95,7 +95,7 @@ fn test_pause_and_unpause_admin_only() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
-    let user = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let _user = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
     let tyc_token_admin = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
     let tyc_token_id = env
         .register_stellar_asset_contract_v2(tyc_token_admin.clone())
