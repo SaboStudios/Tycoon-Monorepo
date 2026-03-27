@@ -51,6 +51,8 @@ import { MetricsModule } from './modules/metrics/metrics.module';
       load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
       envFilePath: '.env',
       validationSchema,
+      // Report ALL missing/invalid vars at once instead of stopping at the first.
+      validationOptions: { abortEarly: false },
     }),
 
     // Scheduler
