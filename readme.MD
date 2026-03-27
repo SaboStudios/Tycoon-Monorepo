@@ -2,6 +2,8 @@
 
 A comprehensive admin user management module built with NestJS, featuring user control, audit logging, and role-based access control.
 
+**Database schema (Tycoon backend):** Production uses TypeORM **versioned migrations** only — never `synchronize` in production. See [backend/README.md](backend/README.md#database-management) for fresh DB setup, scripts, rollback, and CI.
+
 ## Features
 
 ✅ View users with pagination

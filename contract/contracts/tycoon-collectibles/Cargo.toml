@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
+tycoon-lib = { path = "../tycoon-lib" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
