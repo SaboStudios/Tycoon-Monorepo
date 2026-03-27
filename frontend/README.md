@@ -1,5 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Analytics
+
+The frontend includes a small analytics taxonomy layer for staging validation.
+
+- Set `NEXT_PUBLIC_ANALYTICS_PROVIDERS=plausible`, `ga4`, `posthog`, or a comma-separated combination to fan out events to supported providers.
+- Set `NEXT_PUBLIC_ANALYTICS_DEBUG=true` in development to expose `window.__tycoonAnalytics.events` and log sanitized events to the console.
+- Visit `/shop` to emit `view_shop`, then use the "Track Purchase" buttons to emit `purchase_click` without sending PII-bearing fields.
+
 ## Getting Started
 
 First, run the development server:
