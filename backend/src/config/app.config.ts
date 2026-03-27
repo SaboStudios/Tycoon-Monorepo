@@ -5,4 +5,5 @@ export const appConfig = registerAs('app', () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   apiPrefix: process.env.API_PREFIX || 'api/v1',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  trustProxy: process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1',
 }));

@@ -28,21 +28,18 @@ import { BulkImportResponseDto } from './dto/bulk-import-waitlist.dto';
 import { Waitlist } from './entities/waitlist.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
-import {
-  RedisRateLimitGuard,
-  RateLimit,
-} from '../../common/guards/redis-rate-limit.guard';
 import { PaginatedResponse } from '../../common';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('admin-waitlist')
 @ApiBearerAuth()
 @Controller('admin/waitlist')
-@UseGuards(JwtAuthGuard, AdminGuard, RedisRateLimitGuard)
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class WaitlistAdminController {
   constructor(private readonly waitlistService: WaitlistService) {}
 
   @Get()
-  @RateLimit(50, 60)
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve all waitlist entries with pagination and filtering',
   })
@@ -65,7 +62,7 @@ export class WaitlistAdminController {
   }
 
   @Get('export')
-  @RateLimit(10, 60)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: 'Export waitlist entries as CSV or Excel',
   })
@@ -91,7 +88,7 @@ export class WaitlistAdminController {
    */
   @Post('bulk-import')
   @HttpCode(HttpStatus.OK)
-  @RateLimit(10, 60)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max

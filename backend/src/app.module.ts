@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
@@ -12,7 +12,7 @@ import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import { CommonModule, HttpExceptionFilter } from './common';
+import { CommonModule, HttpExceptionFilter, AppThrottlerGuard } from './common';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
@@ -94,7 +94,7 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,

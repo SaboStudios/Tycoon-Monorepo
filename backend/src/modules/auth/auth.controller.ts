@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
@@ -27,6 +28,7 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -45,6 +47,7 @@ export class AuthController {
     return this.authService.refreshTokens(refreshTokenDto.refreshToken);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('wallet-login')
   @HttpCode(HttpStatus.OK)
   async walletLogin(@Body() body: WalletLoginDto) {
@@ -58,6 +61,7 @@ export class AuthController {
     return this.authService.logout(req.user.sub);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() createUserDto: CreateUserDto) {
