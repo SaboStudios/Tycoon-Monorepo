@@ -1,0 +1,146 @@
+# Tycoon Soroban workspace — single entrypoint for fmt, clippy, test, and WASM release builds.
+# Run from this directory: `cd contract && make <target>`
+#
+# CI parity:
+#   • .github/workflows/ci.yml — job "Contracts" (build, wasm size check, test)
+#   • .github/workflows/contract-build.yml — adds integration tests + artifact upload
+#
+# Artifact layout (deploy / Actions):
+#   • Release WASM: target/wasm32-unknown-unknown/release/*.wasm
+#   • Size report:  deploy/wasm-size-report.md (after `make wasm-check`)
+#   • Hash list:    deploy/wasm-hashes.txt (after `make wasm-hashes`, also generated in CI)
+
+SHELL := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
+
+CARGO ?= cargo
+WASM_TARGET := wasm32-unknown-unknown
+RELEASE_WASM_DIR := target/$(WASM_TARGET)/release
+DEPLOY_DIR := deploy
+SCRIPTS_DIR := scripts
+
+# Contract packages that produce WASM (integration-tests is test-only; no wasm-% target)
+CONTRACT_PKGS := tycoon-main-game tycoon-game tycoon-token tycoon-reward-system tycoon-collectibles tycoon-boost-system tycoon-lib
+# All packages that support fmt / clippy / test via -p
+ALL_PKGS := $(CONTRACT_PKGS) tycoon-integration-tests
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help:
+	@echo "Tycoon contracts — Makefile targets"
+	@echo ""
+	@echo "  Quickstart (new devs):"
+	@echo "    make dev              fmt + clippy + test + release WASM (local verification)"
+	@echo ""
+	@echo "  CI — matches GitHub Actions commands exactly:"
+	@echo "    make ci                 = ci.yml Contracts job: build-wasm, wasm-check, test"
+	@echo "    make ci-full            = ci + integration tests (contract-build.yml tests)"
+	@echo ""
+	@echo "  Workspace:"
+	@echo "    make fmt | clippy | test | build-wasm | wasm-check | clean"
+	@echo "    make test-integration   cargo test --package tycoon-integration-tests -- --nocapture"
+	@echo "    make wasm-hashes        SHA-256 list → $(DEPLOY_DIR)/wasm-hashes.txt (needs build-wasm)"
+	@echo ""
+	@echo "  Per crate (PACKAGE=name with hyphens, e.g. tycoon-game):"
+	@echo "    make fmt-PKG  clippy-PKG  test-PKG  wasm-PKG"
+	@echo ""
+	@echo "  Optional:"
+	@echo "    make audit              cargo-audit (install: cargo install cargo-audit)"
+	@echo ""
+	@echo "  Paths: release WASM → $(RELEASE_WASM_DIR)/*.wasm"
+
+# --- Quickstart (README) ------------------------------------------------------
+
+.PHONY: dev
+dev: fmt clippy test build-wasm
+	@echo "make dev: OK (fmt, clippy, test, release WASM)"
+
+# --- CI (.github/workflows/ci.yml — Contracts job) ----------------------------
+
+# Mirrors: cargo build --target wasm32-unknown-unknown --release
+.PHONY: build-wasm
+build-wasm:
+	$(CARGO) build --target $(WASM_TARGET) --release
+
+# Mirrors: bash scripts/check-wasm-sizes.sh  (requires jq)
+.PHONY: wasm-check
+wasm-check:
+	bash $(SCRIPTS_DIR)/check-wasm-sizes.sh
+
+# Mirrors: cargo test --all
+.PHONY: test
+test:
+	$(CARGO) test --all
+
+.PHONY: ci
+ci: build-wasm wasm-check test
+	@echo "make ci: OK (matches .github/workflows/ci.yml Contracts job)"
+
+# --- contract-build.yml extra test step -------------------------------------
+
+# Mirrors: cargo test --package tycoon-integration-tests -- --nocapture
+.PHONY: test-integration
+test-integration:
+	$(CARGO) test --package tycoon-integration-tests -- --nocapture
+
+.PHONY: ci-full
+ci-full: build-wasm wasm-check test test-integration
+	@echo "make ci-full: OK (ci.yml + integration tests from contract-build.yml)"
+
+# --- Workspace-wide quality (not separate jobs in CI, but standard locally) ---
+
+.PHONY: fmt
+fmt:
+	$(CARGO) fmt --all
+
+.PHONY: clippy
+clippy:
+	$(CARGO) clippy --workspace --all-targets
+
+# --- Per-crate targets (pattern %) --------------------------------------------
+
+.PHONY: fmt-% clippy-% test-% wasm-%
+fmt-%:
+	@if [[ ! " $(ALL_PKGS) " =~ " $* " ]]; then echo "Unknown package: $*"; echo "Expected one of: $(ALL_PKGS)"; exit 1; fi
+	$(CARGO) fmt -p $*
+
+clippy-%:
+	@if [[ ! " $(ALL_PKGS) " =~ " $* " ]]; then echo "Unknown package: $*"; echo "Expected one of: $(ALL_PKGS)"; exit 1; fi
+	$(CARGO) clippy -p $* --all-targets
+
+test-%:
+	@if [[ ! " $(ALL_PKGS) " =~ " $* " ]]; then echo "Unknown package: $*"; echo "Expected one of: $(ALL_PKGS)"; exit 1; fi
+	$(CARGO) test -p $*
+
+wasm-%:
+	@if [[ ! " $(CONTRACT_PKGS) " =~ " $* " ]]; then echo "Unknown package for WASM: $*"; echo "Expected one of: $(CONTRACT_PKGS)"; exit 1; fi
+	$(CARGO) build -p $* --target $(WASM_TARGET) --release
+
+# --- Deploy-oriented artifacts (local parity with pipeline) ------------------
+
+.PHONY: wasm-hashes
+wasm-hashes: build-wasm
+	@mkdir -p $(DEPLOY_DIR)
+	@{ echo "# WASM SHA-256 Hashes (local make wasm-hashes)"; \
+	echo "# Generated: $$(date -u +%Y-%m-%dT%H:%M:%SZ)"; echo ""; \
+	find target -name "*.wasm" -path "*/release/*" | sort | while read -r WASM; do \
+	  NAME=$$(basename "$$WASM"); \
+	  HASH=$$(sha256sum "$$WASM" | awk '{print $$1}'); \
+	  echo "$$HASH  $$NAME"; \
+	done; } > $(DEPLOY_DIR)/wasm-hashes.txt
+	@echo "Wrote $(DEPLOY_DIR)/wasm-hashes.txt"
+	@cat $(DEPLOY_DIR)/wasm-hashes.txt
+
+# --- Optional audit -----------------------------------------------------------
+
+.PHONY: audit
+audit:
+	@command -v cargo-audit >/dev/null 2>&1 || { echo "Install cargo-audit: cargo install cargo-audit"; exit 1; }
+	cargo audit
+
+# --- Clean (phony) ------------------------------------------------------------
+
+.PHONY: clean
+clean:
+	$(CARGO) clean

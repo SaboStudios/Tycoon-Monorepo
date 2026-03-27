@@ -21,14 +21,19 @@ export class CreateBoostDto {
   @Min(0)
   effect_value: number;
 
-  @ApiPropertyOptional({ description: 'Duration in seconds (null = permanent)' })
+  @ApiPropertyOptional({
+    description: 'Duration in seconds (null = permanent)',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   duration_seconds?: number;
 
-  @ApiPropertyOptional({ description: 'Whether boost stacks with others', default: false })
+  @ApiPropertyOptional({
+    description: 'Whether boost stacks with others',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   stackable?: boolean;

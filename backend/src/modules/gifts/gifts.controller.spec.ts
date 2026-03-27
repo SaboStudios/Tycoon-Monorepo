@@ -4,6 +4,7 @@ import { GiftsService } from './gifts.service';
 import { CreateGiftDto } from './dto/create-gift.dto';
 import { GiftStatus } from './enums/gift-status.enum';
 import { GiftResponse } from './dto/respond-gift.dto';
+import { RedisRateLimitGuard } from '../../common/guards/redis-rate-limit.guard';
 
 describe('GiftsController', () => {
   let controller: GiftsController;
@@ -27,7 +28,10 @@ describe('GiftsController', () => {
           useValue: mockGiftsService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(RedisRateLimitGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<GiftsController>(GiftsController);
     service = module.get<GiftsService>(GiftsService);
@@ -50,6 +54,7 @@ describe('GiftsController', () => {
         quantity: 1,
         message: 'Happy birthday!',
       };
+      const req = {} as any;
 
       const mockGift = {
         id: 1,
@@ -60,10 +65,10 @@ describe('GiftsController', () => {
 
       mockGiftsService.create.mockResolvedValue(mockGift);
 
-      const result = await controller.create(user, createGiftDto);
+      const result = await controller.create(user, createGiftDto, req);
 
       expect(result).toEqual(mockGift);
-      expect(service.create).toHaveBeenCalledWith(user.id, createGiftDto);
+      expect(service.create).toHaveBeenCalledWith(user.id, createGiftDto, req);
     });
   });
 
@@ -131,6 +136,7 @@ describe('GiftsController', () => {
       const user = { id: 2 };
       const giftId = 1;
       const respondDto = { action: GiftResponse.ACCEPT };
+      const req = {} as any;
       const mockGift = {
         id: giftId,
         sender_id: 1,
@@ -140,13 +146,19 @@ describe('GiftsController', () => {
 
       mockGiftsService.respondToGift.mockResolvedValue(mockGift);
 
-      const result = await controller.respondToGift(user, giftId, respondDto);
+      const result = await controller.respondToGift(
+        user,
+        giftId,
+        respondDto,
+        req,
+      );
 
       expect(result).toEqual(mockGift);
       expect(service.respondToGift).toHaveBeenCalledWith(
         giftId,
         user.id,
         respondDto.action,
+        req,
       );
     });
   });
@@ -155,6 +167,7 @@ describe('GiftsController', () => {
     it('should cancel a gift', async () => {
       const user = { id: 1 };
       const giftId = 1;
+      const req = {} as any;
       const mockGift = {
         id: giftId,
         sender_id: user.id,
@@ -164,10 +177,10 @@ describe('GiftsController', () => {
 
       mockGiftsService.cancelGift.mockResolvedValue(mockGift);
 
-      const result = await controller.cancelGift(user, giftId);
+      const result = await controller.cancelGift(user, giftId, req);
 
       expect(result).toEqual(mockGift);
-      expect(service.cancelGift).toHaveBeenCalledWith(giftId, user.id);
+      expect(service.cancelGift).toHaveBeenCalledWith(giftId, user.id, req);
     });
   });
 });

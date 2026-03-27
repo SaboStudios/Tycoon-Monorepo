@@ -1,8 +1,8 @@
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
-// -----------------------------------------------------------------------
-// DataKey
-// -----------------------------------------------------------------------
+// ============================================================
+// Pause-related types (re-exported from tycoon-lib concept)
+// ============================================================
 
 /// Storage keys for the tycoon-main-game contract.
 ///
@@ -118,26 +118,25 @@ pub fn set_initialized(env: &Env) {
 // Owner helpers  (instance storage)
 // -----------------------------------------------------------------------
 
-pub fn get_owner(env: &Env) -> Address {
+pub fn get_admin(env: &Env) -> Address {
     env.storage()
         .instance()
-        .get(&DataKey::Owner)
-        .expect("Owner not set")
+        .get(&DataKey::Admin)
+        .expect("Admin not set")
 }
 
-pub fn set_owner(env: &Env, owner: &Address) {
-    env.storage().instance().set(&DataKey::Owner, owner);
+pub fn set_admin(env: &Env, admin: &Address) {
+    env.storage().instance().set(&DataKey::Admin, admin);
 }
 
 // -----------------------------------------------------------------------
 // Reward system helpers  (instance storage)
 // -----------------------------------------------------------------------
 
-pub fn get_reward_system(env: &Env) -> Address {
+pub fn set_pause_config(env: &Env, config: &PauseConfig) {
     env.storage()
-        .instance()
-        .get(&DataKey::RewardSystem)
-        .expect("Reward system not set")
+        .persistent()
+        .set(&DataKey::PauseConfig, config);
 }
 
 pub fn set_reward_system(env: &Env, address: &Address) {
@@ -163,17 +162,34 @@ pub fn set_usdc_token(env: &Env, address: &Address) {
 // Player registration helpers  (persistent storage)
 // -----------------------------------------------------------------------
 
-pub fn is_registered(env: &Env, address: &Address) -> bool {
-    env.storage()
+    let paused_by: Address = env
+        .storage()
         .persistent()
-        .get(&DataKey::Registered(address.clone()))
-        .unwrap_or(false)
+        .get(&DataKey::PausedBy)
+        .unwrap_or_else(|| Address::from_str(env, ""));
+
+    panic!(
+        "Operation {:?} blocked: contract paused by {:?} (reason: {:?})",
+        operation, paused_by, reason
+    );
 }
 
-pub fn set_registered(env: &Env, address: &Address) {
+/// Pause with expiry
+pub fn pause_with_expiry(env: &Env, caller: &Address, reason: &Symbol, duration_ledgers: u32) {
+    let current_ledger = env.ledger().sequence();
+    let expiry = current_ledger + duration_ledgers;
+
+    env.storage().persistent().set(&DataKey::Paused, &true);
+    env.storage().persistent().set(&DataKey::PausedBy, caller);
     env.storage()
         .persistent()
-        .set(&DataKey::Registered(address.clone()), &true);
+        .set(&DataKey::PausedAt, &env.ledger().timestamp());
+    env.storage()
+        .persistent()
+        .set(&DataKey::PauseExpiry, &expiry);
+    env.storage()
+        .persistent()
+        .set(&DataKey::PauseReason, reason);
 }
 
 // -----------------------------------------------------------------------

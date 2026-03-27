@@ -2,6 +2,12 @@
 resolver = "2"
 members = [
   "contracts/*",
+  "integration-tests",
+]
+
+# Exclude archived/experimental contracts from the workspace
+exclude = [
+  "archive/*",
 ]
 
 [workspace.dependencies]

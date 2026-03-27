@@ -8,6 +8,10 @@ import {
   SortOrder,
 } from './dto/get-community-chest-list.dto';
 
+jest.mock('../../common/crypto-secure-random', () => ({
+  secureRandomInt: jest.fn(() => 0),
+}));
+
 const mockCommunityChest = {
   id: 1,
   instruction: 'Advance to Go',
@@ -36,6 +40,8 @@ describe('CommunityChestService', () => {
     getOne: jest.Mock;
     getMany: jest.Mock;
   };
+  let mockCount: jest.Mock;
+  let mockFind: jest.Mock;
 
   beforeEach(async () => {
     mockQueryBuilder = {
@@ -47,6 +53,8 @@ describe('CommunityChestService', () => {
     };
 
     mockCreateQueryBuilder = jest.fn().mockReturnValue(mockQueryBuilder);
+    mockCount = jest.fn().mockResolvedValue(2);
+    mockFind = jest.fn().mockResolvedValue([mockCommunityChest]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -55,6 +63,8 @@ describe('CommunityChestService', () => {
           provide: getRepositoryToken(CommunityChest),
           useValue: {
             createQueryBuilder: mockCreateQueryBuilder,
+            count: mockCount,
+            find: mockFind,
           },
         },
       ],
@@ -71,7 +81,19 @@ describe('CommunityChestService', () => {
     it('should return a random community chest card', async () => {
       const result = await service.drawCard();
       expect(result).toEqual(mockCommunityChest);
-      expect(mockCreateQueryBuilder).toHaveBeenCalledWith('community_chest');
+      expect(mockCount).toHaveBeenCalled();
+      expect(mockFind).toHaveBeenCalledWith({
+        order: { id: 'ASC' },
+        skip: 0,
+        take: 1,
+      });
+    });
+
+    it('should return null when no cards exist', async () => {
+      mockCount.mockResolvedValueOnce(0);
+      const result = await service.drawCard();
+      expect(result).toBeNull();
+      expect(mockFind).not.toHaveBeenCalled();
     });
   });
 
