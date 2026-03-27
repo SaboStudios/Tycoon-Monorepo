@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { generateBaseMetadata } from "@/lib/metadata";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { NearWalletProvider } from "@/components/providers/near-wallet-provider";
+import { PWAProvider } from "@/components/providers/pwa-provider";
 import "./globals.css";
 import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
@@ -35,18 +36,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-<AuthProvider>
-          <NearWalletProvider>
-            <MSWProvider />
-            <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-              <Navbar />
-              {children}
-              <NavbarMobile />
-            </ErrorBoundary>
-            <ToastProvider />
-            <ScrollToTopBtn />
-          </NearWalletProvider>
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <NearWalletProvider>
+              <MSWProvider />
+              <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+                <Navbar />
+                {children}
+                <NavbarMobile />
+              </ErrorBoundary>
+              <ToastProvider />
+              <PWAProvider />
+              <ScrollToTopBtn />
+            </NearWalletProvider>
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );

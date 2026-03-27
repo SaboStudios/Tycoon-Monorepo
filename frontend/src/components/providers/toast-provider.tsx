@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -22,7 +23,7 @@ export function ToastProvider() {
           '--toastify-color-dark': '#0E1415',
           '--toastify-color-light': '#00F0FF',
           '--toastify-text-color-dark': '#00F0FF',
-        } as React.CSSProperties}
+        } as CSSProperties}
         toastStyle={{
           backgroundColor: '#0E1415',
           color: '#00F0FF',

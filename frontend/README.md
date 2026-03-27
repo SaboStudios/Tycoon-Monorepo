@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## PWA Notes
+
+- The app registers `/sw.js` with explicit scope `/` and versioned shell cache `tycoon-shell-v1`.
+- Only app-shell assets are cached persistently: `/_next/static/*`, manifest, app icons, and the offline fallback route.
+- Dynamic game state, route HTML, wallet traffic, and API data are intentionally excluded from persistent caching to avoid stale session conflicts.
+- When a new service worker is waiting, the in-app update banner prompts the user to refresh into the new shell.
+- Install prompt support is wired through `beforeinstallprompt`, which is the Android Chrome path required by Issue #344.
+- Target Lighthouse PWA score: `>= 90` on the production build after manifest, service worker, and installability checks are active.
+- Manual acceptance path: verify install prompt on Android Chrome, confirm update banner on new service worker, and confirm offline navigations fall back to `/offline`.
+
 ## Getting Started
 
 First, run the development server:
