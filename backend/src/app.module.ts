@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
@@ -13,6 +13,8 @@ import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
 import { CommonModule, HttpExceptionFilter, AppThrottlerGuard } from './common';
+import { SuspensionCheckMiddleware } from './common/middleware/suspension-check.middleware';
+import { User } from './modules/users/entities/user.entity';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
@@ -31,6 +33,16 @@ import { GiftsModule } from './modules/gifts/gifts.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { PerksModule } from './modules/perks/perks.module';
 import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
+import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.module';
+import { MonetizationModule } from './modules/monetization/monetization.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { EmailModule } from './modules/email/email.module';
+import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
+import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
@@ -53,6 +65,8 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
       },
     ]),
 
+    MetricsModule,
+
     // TypeORM Module
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -68,6 +82,9 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
         return dbConfig;
       },
     }),
+
+    // TypeORM for middleware
+    TypeOrmModule.forFeature([User]),
 
     // Feature Modules
     RedisModule,
@@ -88,10 +105,19 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
     CouponsModule,
     PerksModule,
     PerksBoostsModule,
+    AdminAnalyticsModule,
+    MonetizationModule,
+    WebhooksModule,
+    JobsModule,
+    PrivacyModule,
+    EmailModule,
+    AuditTrailModule,
+    TourAnalyticsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
     AppService,
+    SuspensionCheckMiddleware,
     {
       provide: APP_GUARD,
       useClass: AppThrottlerGuard,
@@ -107,4 +133,9 @@ import { PerksBoostsModule } from './modules/perks-boosts/perks-boosts.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(SuspensionCheckMiddleware).forRoutes('*');
+    consumer.apply(RawBodyMiddleware).forRoutes('webhooks/*');
+  }
+}

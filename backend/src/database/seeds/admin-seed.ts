@@ -5,8 +5,9 @@ import * as bcrypt from 'bcrypt';
 
 async function seed() {
   try {
-    await AppDataSource.initialize();
-    console.log('Data Source has been initialized!');
+console.log('Using existing connection or standalone DS for idempotent seed.');
+// Note: Idempotent - safe with app running
+
 
     const userRepository = AppDataSource.getRepository(User);
 

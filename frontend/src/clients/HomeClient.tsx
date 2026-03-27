@@ -1,12 +1,14 @@
 // components/HomeClient.tsx
 "use client";
 
-import HeroSection from "@/components/guest/HeroSection";
-import HeroSectionMobile from "@/components/guest/HeroSectionMobile";
-import WhatIsTycoon from "@/components/guest/WhatIsTycoon";
-import HowItWorks from "@/components/guest/HowItWorks";
-import JoinOurCommunity from "@/components/guest/JoinOurCommunity";
+import dynamic from "next/dynamic";
 import Footer from "@/components/shared/Footer";
+
+const HeroSection = dynamic(() => import("@/components/guest/HeroSection"));
+const HeroSectionMobile = dynamic(() => import("@/components/guest/HeroSectionMobile"));
+const WhatIsTycoon = dynamic(() => import("@/components/guest/WhatIsTycoon"));
+const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"));
+const JoinOurCommunity = dynamic(() => import("@/components/guest/JoinOurCommunity"));
 
 export default function HomeClient() {
   return (

@@ -5,6 +5,8 @@ import { GamePlayersService } from './game-players.service';
 import { Game } from './entities/game.entity';
 import { GamePlayer } from './entities/game-player.entity';
 import { PaginationService } from '../../common/services/pagination.service';
+import { BoostService } from '../perks-boosts/services/boost.service';
+import { PerksBoostsEvents } from '../perks-boosts/services/perks-boosts-events.service';
 
 describe('GamePlayersService', () => {
   let service: GamePlayersService;
@@ -25,6 +27,14 @@ describe('GamePlayersService', () => {
     paginate: jest.fn(),
   };
 
+  const mockBoostService = {
+    calculateModifiedValue: jest.fn().mockResolvedValue(0),
+  };
+
+  const mockEventsService = {
+    emit: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,6 +50,14 @@ describe('GamePlayersService', () => {
         {
           provide: PaginationService,
           useValue: mockPaginationService,
+        },
+        {
+          provide: BoostService,
+          useValue: mockBoostService,
+        },
+        {
+          provide: PerksBoostsEvents,
+          useValue: mockEventsService,
         },
       ],
     }).compile();

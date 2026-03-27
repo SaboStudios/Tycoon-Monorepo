@@ -515,7 +515,7 @@ fn test_remove_player_emits_correct_event() {
     // Verify event details
     let events = env.events().all();
     let _event = events.last().unwrap();
-    
+
     assert!(!events.is_empty());
     // Event should contain game_id, player, and turn_count
 }

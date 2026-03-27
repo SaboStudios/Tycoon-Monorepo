@@ -1,0 +1,24 @@
+[
+  {
+    "name": "First Load JS (shared)",
+    "path": ".next/static/chunks/framework-*.js",
+    "limit": "120 kB",
+    "notes": "React + Next.js framework chunk. Rarely changes."
+  },
+  {
+    "name": "Main page JS",
+    "path": ".next/static/chunks/main-*.js",
+    "limit": "50 kB",
+    "notes": "Next.js runtime bootstrap."
+  },
+  {
+    "name": "Total First Load JS",
+    "limit": "350 kB",
+    "notes": "Sum of all JS shipped on first navigation. Covers shared chunks + page chunk."
+  },
+  {
+    "name": "Total build output (JS)",
+    "limit": "1500 kB",
+    "notes": "Aggregate of all JS chunks across all routes (gzip). Tracks overall growth trend."
+  }
+]

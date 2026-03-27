@@ -307,3 +307,6 @@ impl TycoonToken {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod invariant_tests;

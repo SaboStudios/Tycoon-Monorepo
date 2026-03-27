@@ -12,20 +12,19 @@ import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
+import { JoinGameDto } from './dto/join-game.dto';
+import { GamePlayer } from './entities/game-player.entity';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
+import { secureRandomAlphaNumeric } from '../../common/crypto-secure-random';
 
 /**
- * Generate a unique game code
+ * Generate a unique game code (cryptographically secure per character).
  * Format: 6-character alphanumeric string (uppercase letters and numbers)
  */
 function generateGameCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  return secureRandomAlphaNumeric(6, chars);
 }
 
 @Injectable()
@@ -35,6 +34,8 @@ export class GamesService {
     private readonly gameRepository: Repository<Game>,
     @InjectRepository(GameSettings)
     private readonly gameSettingsRepository: Repository<GameSettings>,
+    @InjectRepository(GamePlayer)
+    private readonly gamePlayerRepository: Repository<GamePlayer>,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
     private readonly paginationService: PaginationService,
@@ -358,4 +359,135 @@ export class GamesService {
     await this.gameSettingsRepository.update(settings.id, updates);
     return this.findById(gameId);
   }
+
+async joinGame(
+    gameId: number,
+    userId: number,
+    dto: JoinGameDto,
+  ): Promise<GamePlayer> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const game = await queryRunner.manager.findOne(Game, {
+        where: { id: gameId },
+        relations: ['settings'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!game) {
+        throw new NotFoundException(`Game with ID ${gameId} not found`);
+      }
+
+      if (game.status !== GameStatus.PENDING) {
+        throw new BadRequestException(
+          'Cannot join game that is not in PENDING status',
+        );
+      }
+
+      const playerCount = await queryRunner.manager.count(GamePlayer, {
+        where: { game_id: gameId },
+      });
+
+      if (playerCount >= game.number_of_players) {
+        throw new BadRequestException('Game is full');
+      }
+
+      const existing = await queryRunner.manager.findOne(GamePlayer, {
+        where: { game_id: gameId, user_id: userId },
+      });
+
+      if (existing) {
+        throw new BadRequestException('User already joined this game');
+      }
+
+      const startingCash = game.settings?.startingCash ?? 1500;
+      let turnOrder: number | null = null;
+
+      if (game.settings?.randomizePlayOrder) {
+        turnOrder = playerCount + 1;
+      }
+
+      const player = queryRunner.manager.create(GamePlayer, {
+        game_id: gameId,
+        user_id: userId,
+        balance: startingCash,
+        address: dto.address ?? null,
+        turn_order: turnOrder,
+      });
+
+      const savedPlayer = await queryRunner.manager.save(player);
+      await queryRunner.commitTransaction();
+
+      return savedPlayer;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Idempotent view helper: Get game view with sane defaults for empty/partial state.
+   * Never panics, returns default structure even if game exists but incomplete.
+   * Use for frontend views.
+   */
+  async getSafeGameView(id?: number): Promise<any> {
+    if (!id) {
+      return this.getDefaultGameView();
+    }
+
+    try {
+      const game = await this.findById(id);
+      return {
+        id: game.id,
+        code: game.code,
+        status: game.status,
+        settings: game.settings || this.getDefaultSettings(),
+        players: game.players || [],
+        creator: game.creator || null,
+        winner: game.winner || null,
+        nextPlayer: game.nextPlayer || null,
+        placements: game.placements || {},
+        // Sane defaults
+        number_of_players: game.number_of_players || 4,
+        is_ai: game.is_ai || false,
+        chain: game.chain || null,
+      };
+    } catch {
+      // Game not found: return default empty game view
+      return this.getDefaultGameView();
+    }
+  }
+
+  private getDefaultGameView() {
+    return {
+      id: 0,
+      code: '',
+      status: GameStatus.PENDING as string,
+      settings: this.getDefaultSettings(),
+      players: [],
+      creator: null,
+      winner: null,
+      nextPlayer: null,
+      placements: {},
+      number_of_players: 4,
+      is_ai: false,
+      chain: null,
+    };
+  }
+
+  private getDefaultSettings() {
+    return {
+      auction: true,
+      rentInPrison: false,
+      mortgage: true,
+      evenBuild: true,
+      randomizePlayOrder: true,
+      startingCash: 1500,
+    };
+  }
 }
+
