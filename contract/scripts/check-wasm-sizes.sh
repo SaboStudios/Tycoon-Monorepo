@@ -45,7 +45,11 @@ while IFS= read -r line; do
     FAILED=1
     continue
   fi
-  current="$(stat -c%s "$path")"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    current="$(stat -f%z "$path")"
+  else
+    current="$(stat -c%s "$path")"
+  fi
   delta=$((current - baseline))
   max_allowed=$(( baseline * (100 + THRESHOLD_PCT) / 100 ))
 

@@ -15,6 +15,7 @@ pub use transfer::*;
 pub use types::*;
 
 use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Vec};
+use tycoon_lib::fees::{calculate_fee_split, FeeConfig};
 
 /// Convert a u128 to a Soroban String without std (no_std compatible)
 fn u128_to_soroban_string(env: &Env, mut n: u128) -> soroban_sdk::String {
