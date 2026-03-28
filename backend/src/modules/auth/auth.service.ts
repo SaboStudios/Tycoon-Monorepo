@@ -5,12 +5,14 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
@@ -18,6 +20,8 @@ import { Role } from './enums/role.enum';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -145,33 +149,72 @@ export class AuthService {
     };
   }
 
-  async createRefreshToken(userId: number): Promise<RefreshToken> {
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  async createRefreshToken(
+    userId: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ token: string; entity: RefreshToken }> {
     const refreshExpiresInSeconds =
       this.configService.get<number>('jwt.refreshExpiresIn') || 604800;
     const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
+    // Generate a unique token ID to ensure each token is unique
+    const jti = crypto.randomBytes(16).toString('hex');
+
     const token = this.jwtService.sign(
-      { sub: userId.toString(), type: 'refresh' } as object,
+      { sub: userId.toString(), type: 'refresh', jti } as object,
       { expiresIn: refreshExpiresInSeconds },
     );
 
+    const tokenHash = this.hashToken(token);
+
     const refreshToken = this.refreshTokenRepository.create({
-      token,
+      tokenHash,
       userId,
       expiresAt,
+      ipAddress,
+      userAgent,
+      lastUsedAt: new Date(),
     });
 
-    return await this.refreshTokenRepository.save(refreshToken);
+    const entity = await this.refreshTokenRepository.save(refreshToken);
+
+    return { token, entity };
   }
 
-  async refreshTokens(refreshTokenString: string) {
+  async refreshTokens(
+    refreshTokenString: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const tokenHash = this.hashToken(refreshTokenString);
+
     const refreshToken = await this.refreshTokenRepository.findOne({
-      where: { token: refreshTokenString, isRevoked: false },
+      where: { tokenHash },
       relations: ['user'],
     });
 
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Check if token is revoked - this indicates potential reuse attack
+    if (refreshToken.isRevoked) {
+      this.logger.warn(
+        `Refresh token reuse detected for user ${refreshToken.userId}. Revoking all tokens.`,
+      );
+
+      // Revoke all tokens for this user as a security measure
+      await this.refreshTokenRepository.update(
+        { userId: refreshToken.userId },
+        { isRevoked: true },
+      );
+
+      throw new UnauthorizedException('Token reuse detected');
     }
 
     if (new Date() > refreshToken.expiresAt) {
@@ -191,7 +234,11 @@ export class AuthService {
       is_admin: user.is_admin,
     };
     const accessToken = this.jwtService.sign(payload);
-    const newRefreshToken = await this.createRefreshToken(user.id);
+    const newRefreshToken = await this.createRefreshToken(
+      user.id,
+      ipAddress,
+      userAgent,
+    );
 
     return {
       accessToken,

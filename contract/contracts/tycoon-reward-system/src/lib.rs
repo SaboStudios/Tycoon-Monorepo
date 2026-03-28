@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
 const VOUCHER_ID_START: u128 = 1_000_000_000;
 
@@ -306,7 +306,7 @@ impl TycoonRewardSystem {
         // Emit withdrawal event
         #[allow(deprecated)]
         e.events()
-            .publish((symbol_short!("Withdraw"), token.clone(), to), amount);
+            .publish((Symbol::new(&e, "FundsWithdrawn"), token.clone(), to), amount);
     }
 
     // Internal helper to mint tokens

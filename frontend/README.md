@@ -1,14 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## PWA Notes
+## Analytics
 
-- The app registers `/sw.js` with explicit scope `/` and versioned shell cache `tycoon-shell-v1`.
-- Only app-shell assets are cached persistently: `/_next/static/*`, manifest, app icons, and the offline fallback route.
-- Dynamic game state, route HTML, wallet traffic, and API data are intentionally excluded from persistent caching to avoid stale session conflicts.
-- When a new service worker is waiting, the in-app update banner prompts the user to refresh into the new shell.
-- Install prompt support is wired through `beforeinstallprompt`, which is the Android Chrome path required by Issue #344.
-- Target Lighthouse PWA score: `>= 90` on the production build after manifest, service worker, and installability checks are active.
-- Manual acceptance path: verify install prompt on Android Chrome, confirm update banner on new service worker, and confirm offline navigations fall back to `/offline`.
+The frontend includes a small analytics taxonomy layer for staging validation.
+
+- Set `NEXT_PUBLIC_ANALYTICS_PROVIDERS=plausible`, `ga4`, `posthog`, or a comma-separated combination to fan out events to supported providers.
+- Set `NEXT_PUBLIC_ANALYTICS_DEBUG=true` in development to expose `window.__tycoonAnalytics.events` and log sanitized events to the console.
+- Visit `/shop` to emit `view_shop`, then use the "Track Purchase" buttons to emit `purchase_click` without sending PII-bearing fields.
 
 ## Getting Started
 
