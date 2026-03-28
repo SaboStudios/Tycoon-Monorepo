@@ -308,3 +308,6 @@ mod test;
 
 #[cfg(test)]
 mod cap_stacking_expiry_tests;
+
+#[cfg(test)]
+mod time_boundary_tests;
