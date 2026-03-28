@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
@@ -14,7 +15,7 @@ export class RefreshToken {
   id: string;
 
   @Column()
-  token: string;
+  tokenHash: string;
 
   @Column({ type: 'int' })
   userId: number;
@@ -31,4 +32,13 @@ export class RefreshToken {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn({ nullable: true })
+  lastUsedAt: Date;
+
+  @Column({ nullable: true })
+  ipAddress: string;
+
+  @Column({ nullable: true })
+  userAgent: string;
 }
