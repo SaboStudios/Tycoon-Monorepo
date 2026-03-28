@@ -152,6 +152,15 @@ The `archive/` directory contains experimental or sample contracts that are **no
 
 - **hello-world**: Basic Soroban contract example (archived)
 
+## 🗄️ Storage Economics
+
+See [docs/STORAGE_ECONOMICS.md](docs/STORAGE_ECONOMICS.md) for:
+
+- Per-user and per-item state size estimates for every contract
+- Refund patterns when keys are removed
+- Product implications and recommended item limits
+- Links to Stellar storage fee documentation
+
 ## 🔗 Dependencies
 
 All contracts use Soroban SDK v23 as specified in the workspace `Cargo.toml`.
