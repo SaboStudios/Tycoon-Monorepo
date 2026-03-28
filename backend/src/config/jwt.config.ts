@@ -18,9 +18,8 @@ const parseExpiresIn = (
 };
 
 export const jwtConfig = registerAs('jwt', () => ({
-  // Joi validation guarantees JWT_SECRET is set (min 32 chars in prod).
-  // No hardcoded fallback — if it's missing the app will have already crashed.
-  secret: process.env.JWT_SECRET as string,
-  expiresIn: parseExpiresIn(process.env.JWT_EXPIRES_IN, 900),         // 15 min
-  refreshExpiresIn: parseExpiresIn(process.env.JWT_REFRESH_EXPIRES_IN, 604800), // 7 d
+  secret: process.env.JWT_SECRET || 'your-secret-key-change-this-in-production',
+  expiresIn: parseExpiresIn(process.env.JWT_EXPIRES_IN, 900), // 15 minutes
+  refreshExpiresIn: parseExpiresIn(process.env.JWT_REFRESH_EXPIRES_IN, 604800), // 7 days
+  clockTolerance: parseInt(process.env.JWT_CLOCK_SKEW_SECONDS || '60', 10), // 60 seconds default
 }));
