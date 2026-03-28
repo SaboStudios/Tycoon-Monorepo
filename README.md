@@ -135,3 +135,39 @@ The module includes comprehensive tests:
 - Test coverage for all features
 
 All tests pass including CI/CD pipeline requirements.
+
+## Visual regression testing (Chromatic)
+
+We have added Chromatic-based visual regression testing for the frontend:
+
+- `frontend/.storybook` is configured with `preview.css` to disable animations and transitions.
+- `frontend/src/stories/visual-regression.stories.tsx` includes:
+  - `Marketing Landing (stable state)` story (marketing/landing baseline)
+  - `HUD board squares (stable)` story (HUD components baseline)
+- `frontend/package.json` now includes:
+  - `chromatic` dependency
+  - scripts: `storybook`, `build-storybook`, `chromatic`
+- GitHub Actions workflow: `.github/workflows/visual-tests.yml` (runs on pull requests to `main`)
+
+### Run locally
+
+```bash
+cd frontend
+npm ci
+npm run storybook
+# in another terminal:
+npm run chromatic
+```
+
+### Approve changes in Chromatic
+
+1. Open the Chromatic URL returned by `npm run chromatic`.
+2. Review the visual diff.
+3. Approve snapshots for the baseline.
+
+### Branch protection
+
+Ensure required checks in GitHub branch protection:
+- `chromatic`
+- PR reviews
+
