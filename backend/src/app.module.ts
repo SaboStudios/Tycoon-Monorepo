@@ -42,6 +42,7 @@ import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { ShutdownModule } from './common/shutdown/shutdown.module';
 
 @Module({
   imports: [
@@ -51,6 +52,8 @@ import { MetricsModule } from './modules/metrics/metrics.module';
       load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
       envFilePath: '.env',
       validationSchema,
+      // Report ALL missing/invalid vars at once instead of stopping at the first.
+      validationOptions: { abortEarly: false },
     }),
 
     // Scheduler
@@ -112,6 +115,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
+    ShutdownModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
