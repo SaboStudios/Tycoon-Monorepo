@@ -8,6 +8,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
+import { uploadConfig } from './config/upload.config';
 import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
@@ -49,9 +50,11 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
+      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig],
       envFilePath: '.env',
       validationSchema,
+      // Report ALL missing/invalid vars at once instead of stopping at the first.
+      validationOptions: { abortEarly: false },
     }),
 
     // Scheduler
@@ -113,6 +116,7 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
+    LedgerReconciliationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
