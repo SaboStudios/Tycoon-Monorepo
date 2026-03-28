@@ -85,6 +85,10 @@ export const validationSchema = Joi.object({
   DATA_EXPORT_DIR: Joi.string().default('./storage/data-exports'),
   DATA_EXPORT_TTL_HOURS: Joi.number().default(24),
 
+  // ─── Graceful Shutdown ──────────────────────────────────────────────────────
+  // Must be < Kubernetes terminationGracePeriodSeconds (30 s).
+  SHUTDOWN_TIMEOUT_MS: Joi.number().default(15000),
+
   // ─── Game defaults ──────────────────────────────────────────────────────────
   DEFAULT_AUCTION: Joi.boolean().truthy('true').falsy('false').default(true),
   DEFAULT_RENT_IN_PRISON: Joi.boolean()
