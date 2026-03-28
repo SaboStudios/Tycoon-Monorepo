@@ -1,103 +1,84 @@
-# Admin User Management Module - NestJS
+# Tycoon Monorepo
 
-A comprehensive admin user management module built with NestJS, featuring user control, audit logging, and role-based access control.
+A comprehensive gaming platform built with microservices architecture, featuring blockchain integration and modern web technologies.
 
-**Database schema (Tycoon backend):** Production uses TypeORM **versioned migrations** only — never `synchronize` in production. See [backend/README.md](backend/README.md#database-management) for fresh DB setup, scripts, rollback, and CI.
+## Services
 
-## Features
+| Service | Status | Owner | Description |
+|---------|--------|-------|-------------|
+| [backend/](backend/) | Active | Platform Team | Main API backend (NestJS) - game logic, users, analytics |
+| [frontend/](frontend/) | Active | Frontend Team | Web application (Next.js) - user interface and wallet integration |
+| [contract/](contract/) | Active | Blockchain Team | Smart contracts (Rust) - NEAR blockchain assets and transactions |
+| [src/](src/) | Deprecated | Platform Team | Admin user management sample (NestJS) - legacy implementation |
 
-✅ View users with pagination
-✅ Search and filter users by email, name, role, and status
-✅ Suspend/activate user accounts
-✅ Change user roles (USER, ADMIN, MODERATOR)
-✅ Reset user passwords
-✅ Complete audit logging for all admin actions
-✅ Role-based access control (Admin only)
-✅ Comprehensive unit and E2E tests
-
-## Installation
+## Quick Start
 
 ```bash
-npm install
+# Install all dependencies
+npm run install:all
+
+# Start all services for development
+npm run dev:all
 ```
 
-## Database Setup
+## Architecture
 
-1. Create a PostgreSQL database
-2. Copy `.env.example` to `.env` and configure your database credentials
+See [docs/architecture.md](docs/architecture.md) for detailed service boundaries, diagrams, and development setup.
+
+## Prerequisites
+
+- Node.js 18+
+- Rust 1.70+ (for contracts)
+- PostgreSQL 12+
+- Redis
+- Docker
+
+## Development
+
+### Individual Services
 
 ```bash
-cp .env.example .env
+# Backend API
+cd backend && npm run start:dev  # http://localhost:3001
+
+# Frontend
+cd frontend && npm run dev       # http://localhost:3000
+
+# Admin Sample (deprecated)
+npm run start:dev                # http://localhost:3002
 ```
 
-## Running the Application
+### Testing
 
 ```bash
-# Development
-npm run start:dev
+# Run all tests
+npm run test:all
 
-# Production
-npm run build
-npm run start
+# Run backend tests
+cd backend && npm run test
+
+# Run frontend tests
+cd frontend && npm run test
 ```
 
-## Testing
+## Deployment
 
-```bash
-# Unit tests
-npm test
+Each service is independently deployable:
 
-# E2E tests
-npm run test:e2e
+- **Backend**: Docker container with Kubernetes orchestration
+- **Frontend**: Vercel/Netlify static deployment
+- **Contracts**: NEAR blockchain deployment
 
-# Test coverage
-npm run test:cov
-```
+## Contributing
 
-## API Endpoints
+1. Choose the appropriate service directory for your changes
+2. Follow the service-specific contribution guidelines
+3. Ensure tests pass and builds succeed
+4. Update documentation as needed
 
-All endpoints require admin authentication via JWT Bearer token.
+## License
 
-### Get All Users (Paginated)
-
-```
-GET /admin/users?page=1&limit=10&search=john&role=user&status=active
-```
-
-### Get Single User
-
-```
-GET /admin/users/:id
-```
-
-### Update User Role
-
-```
-PATCH /admin/users/:id/role
-Body: { "role": "admin" }
-```
-
-### Update User Status
-
-```
-PATCH /admin/users/:id/status
-Body: { "status": "suspended" }
-```
-
-### Reset User Password
-
-```
-POST /admin/users/:id/reset-password
-Body: { "newPassword": "newPassword123" }
-```
-
-### Get User Audit Logs
-
-```
-GET /admin/users/:id/audit-logs?page=1&limit=10
-```
-
-## User Roles
+See individual service directories for licensing information.
 
 - `user` - Regular user
 - `moderator` - Moderator with elevated permissions
