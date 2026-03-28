@@ -152,6 +152,15 @@ The `archive/` directory contains experimental or sample contracts that are **no
 
 - **hello-world**: Basic Soroban contract example (archived)
 
+## ⏱️ Time-Based Logic
+
+See [docs/TIME_BASED_LOGIC.md](docs/TIME_BASED_LOGIC.md) for:
+
+- Which time source (ledger sequence vs timestamp) is authoritative for each contract
+- Drift assumptions and when each is acceptable
+- Game design alignment (how backend converts durations to ledger counts)
+- Edge-case boundary conditions and where they are tested
+
 ## 🔗 Dependencies
 
 All contracts use Soroban SDK v23 as specified in the workspace `Cargo.toml`.
