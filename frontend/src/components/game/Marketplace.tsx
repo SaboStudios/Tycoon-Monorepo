@@ -29,11 +29,7 @@ export function Marketplace() {
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchItems();
-  }, [filter]);
-
-  const fetchItems = async () => {
+  const fetchItems = React.useCallback(async () => {
     setLoading(true);
     try {
       const typeParam = filter !== 'all' ? `&type=${filter}` : '';
@@ -47,7 +43,11 @@ export function Marketplace() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  React.useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
   const handlePurchaseClick = (item: ShopItem) => {
     if (item.is_owned) return;
@@ -58,11 +58,27 @@ export function Marketplace() {
   const handleConfirmPurchase = async () => {
     if (!selectedItem) return;
 
+    // Generate a unique idempotency key for this purchase attempt
+    const idempotencyKey = crypto.randomUUID();
+    
+    // Capture previous state for rollback
+    const previousItems = [...items];
+    
+    // Optimistically update the UI
+    setItems(items.map(item => 
+      item.id === selectedItem.id ? { ...item, is_owned: true } : item
+    ));
+    setIsModalOpen(false);
+
     try {
       const response = await fetch('/api/shop/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shop_item_id: selectedItem.id, quantity: 1 }),
+        body: JSON.stringify({ 
+          shop_item_id: selectedItem.id, 
+          quantity: 1,
+          idempotency_key: idempotencyKey 
+        }),
       });
 
       if (!response.ok) {
@@ -71,10 +87,15 @@ export function Marketplace() {
       }
 
       toast.success(`${selectedItem.name} purchased successfully!`);
-      setIsModalOpen(false);
-      fetchItems(); // Refresh items to show "Owned" badge
-    } catch (error: any) {
-      toast.error(error.message);
+      // No need to fetchItems() here if we trust the optimistic update,
+      // but we do it anyway to ensure full reconciliation with any server-side changes
+      fetchItems(); 
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unknown error occurred';
+      // Rollback on failure
+      setItems(previousItems);
+      toast.error(message);
+      // Re-open modal or handle as needed - here we just show the error toast
     }
   };
 
