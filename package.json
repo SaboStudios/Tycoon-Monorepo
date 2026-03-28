@@ -1,8 +1,12 @@
 {
-  "name": "admin-user-management",
+  "name": "tycoon-monorepo",
   "version": "1.0.0",
-  "description": "NestJS Admin User Management Module",
+  "description": "Tycoon Gaming Platform Monorepo",
   "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install --legacy-peer-deps",
+    "dev:all": "concurrently \"npm run start:dev\" \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\"",
+    "test:all": "npm test && cd backend && npm run test && cd ../frontend && npm run test",
+    "build:all": "npm run build && cd backend && npm run build && cd ../frontend && npm run build",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -10,6 +14,9 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
