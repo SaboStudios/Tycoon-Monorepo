@@ -8,6 +8,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
+import { uploadConfig } from './config/upload.config';
 import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
@@ -42,13 +43,14 @@ import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
+      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig],
       envFilePath: '.env',
       validationSchema,
     }),
@@ -112,6 +114,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
+    UploadsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

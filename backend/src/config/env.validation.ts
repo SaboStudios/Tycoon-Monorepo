@@ -14,6 +14,17 @@ export const validationSchema = Joi.object({
   DATA_EXPORT_DIR: Joi.string().optional(),
   DATA_EXPORT_TTL_HOURS: Joi.number().optional(),
 
+  // File uploads
+  UPLOAD_MAX_FILE_SIZE_MB: Joi.number().default(5),
+  UPLOAD_ALLOWED_MIME_TYPES: Joi.string().optional(),
+  UPLOAD_DIR: Joi.string().optional(),
+  AWS_S3_BUCKET: Joi.string().optional(),
+  AWS_REGION: Joi.string().optional(),
+  AWS_S3_ENDPOINT: Joi.string().optional(),
+  SIGNED_URL_TTL_SECONDS: Joi.number().optional(),
+  CLAMAV_HOST: Joi.string().optional(),
+  CLAMAV_PORT: Joi.number().optional(),
+
   // Database
   DB_HOST: Joi.string().required(),
   DB_PORT: Joi.number().default(5432),
