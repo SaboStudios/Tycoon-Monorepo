@@ -146,6 +146,13 @@ cargo test --all -- --nocapture
 
 See the [Tycoon Deployment Guide](../../docs/CONTRACT_DEPLOYMENT.md) for deployment instructions.
 
+## 🧑‍💻 Testnet Dev Onboarding
+
+New to the project? See [docs/TESTNET_DEV_ONBOARDING.md](../../docs/TESTNET_DEV_ONBOARDING.md) for:
+- How to get free XLM on testnet (Friendbot)
+- Personal dev subaccount setup (`./scripts/create-dev-subaccounts.sh <alias>`)
+- Shared contract state policy and reset procedure
+
 ## 🗄️ Archived Contracts
 
 The `archive/` directory contains experimental or sample contracts that are **not** part of the production workspace. These are kept for reference and educational purposes only.
