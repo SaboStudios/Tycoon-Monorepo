@@ -1,0 +1,60 @@
+name: Contract Cargo Hygiene
+
+on:
+  push:
+    branches: [main, master, contract]
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-hygiene.yml'
+  pull_request:
+    branches: [main, master, contract]
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-hygiene.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: cargo fmt --check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contract
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+        working-directory: contract
+
+  clippy:
+    name: cargo clippy -D warnings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contract
+
+      - name: Clippy (deny all warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+        working-directory: contract
