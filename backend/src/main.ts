@@ -22,6 +22,15 @@ async function bootstrap() {
   // Enable Helmet
   app.use(helmet());
 
+  // Trust proxy
+  if (configService.get<boolean>('app.trustProxy')) {
+    const adapter = app.getHttpAdapter();
+    const instance = adapter.getInstance();
+    if (typeof instance.set === 'function') {
+      instance.set('trust proxy', 1);
+    }
+  }
+
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({

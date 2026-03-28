@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { Throttle } from '@nestjs/throttler';
 
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
 import * as express from 'express';
@@ -23,6 +24,7 @@ export class AdminAuthController {
     private readonly adminLogsService: AdminLogsService,
   ) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
