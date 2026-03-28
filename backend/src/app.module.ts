@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
@@ -13,7 +13,7 @@ import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import { CommonModule, HttpExceptionFilter } from './common';
+import { CommonModule, HttpExceptionFilter, AppThrottlerGuard } from './common';
 import { SuspensionCheckMiddleware } from './common/middleware/suspension-check.middleware';
 import { User } from './modules/users/entities/user.entity';
 import { UsersModule } from './modules/users/users.module';
@@ -43,7 +43,7 @@ import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
-import { UploadsModule } from './modules/uploads/uploads.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
@@ -53,6 +53,8 @@ import { UploadsModule } from './modules/uploads/uploads.module';
       load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig],
       envFilePath: '.env',
       validationSchema,
+      // Report ALL missing/invalid vars at once instead of stopping at the first.
+      validationOptions: { abortEarly: false },
     }),
 
     // Scheduler
@@ -114,7 +116,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
-    UploadsModule,
+    LedgerReconciliationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -122,7 +124,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     SuspensionCheckMiddleware,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,
