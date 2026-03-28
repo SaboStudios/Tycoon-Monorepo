@@ -40,7 +40,18 @@ export class PurchaseService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<Purchase> {
-    const { shop_item_id, quantity = 1, coupon_code } = createPurchaseDto;
+    const { shop_item_id, quantity = 1, coupon_code, idempotency_key } = createPurchaseDto;
+
+    // 1. Check for existing purchase with the same idempotency key
+    if (idempotency_key) {
+      const existingPurchase = await this.purchaseRepository.findOne({
+        where: { user_id: userId, idempotency_key },
+        relations: ['shop_item'],
+      });
+      if (existingPurchase) {
+        return existingPurchase;
+      }
+    }
 
     // Validate shop item exists and is active
     const shopItem = await this.shopItemRepository.findOne({
@@ -86,6 +97,7 @@ export class PurchaseService {
         coupon_code: calculation.coupon_code,
         currency: shopItem.currency,
         status: 'completed',
+        idempotency_key,
       });
 
       const savedPurchase = await queryRunner.manager.save(purchase);

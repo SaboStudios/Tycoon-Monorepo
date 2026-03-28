@@ -6,6 +6,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -19,6 +20,10 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
 
 interface RequestWithUser {
   user: JwtPayload;
+  ip?: string;
+  headers?: {
+    'user-agent'?: string;
+  };
 }
 
 @Controller('auth')
@@ -43,8 +48,17 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshTokenDto.refreshToken);
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Req() req: RequestWithUser,
+  ) {
+    const ipAddress = req.ip;
+    const userAgent = req.headers?.['user-agent'];
+    return this.authService.refreshTokens(
+      refreshTokenDto.refreshToken,
+      ipAddress,
+      userAgent,
+    );
   }
 
   @Throttle({ default: { limit: 20, ttl: 60000 } })

@@ -152,14 +152,14 @@ The `archive/` directory contains experimental or sample contracts that are **no
 
 - **hello-world**: Basic Soroban contract example (archived)
 
-## ⏱️ Time-Based Logic
+## 🗄️ Storage Economics
 
-See [docs/TIME_BASED_LOGIC.md](docs/TIME_BASED_LOGIC.md) for:
+See [docs/STORAGE_ECONOMICS.md](docs/STORAGE_ECONOMICS.md) for:
 
-- Which time source (ledger sequence vs timestamp) is authoritative for each contract
-- Drift assumptions and when each is acceptable
-- Game design alignment (how backend converts durations to ledger counts)
-- Edge-case boundary conditions and where they are tested
+- Per-user and per-item state size estimates for every contract
+- Refund patterns when keys are removed
+- Product implications and recommended item limits
+- Links to Stellar storage fee documentation
 
 ## 🔗 Dependencies
 
