@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
-import { upload } from '../middleware/upload';
+import { upload, rejectExecutables } from '../middleware/upload';
 import { shopService } from '../services/shopService';
 
 const router = Router();
@@ -140,6 +140,7 @@ router.post(
   authenticateToken,
   requireAdmin,
   upload.array('images', 5),
+  rejectExecutables,
   (req: Request, res: Response) => {
     try {
       const item = shopService.getItemById(req.params.id as string);
