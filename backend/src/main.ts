@@ -19,8 +19,76 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port') || 3000;
 
-  // Enable Helmet
-  app.use(helmet());
+  // Security headers — tuned for a JSON API with Swagger UI served at /api/docs.
+  //
+  // Reverse-proxy note: if Nginx/Caddy/ALB already sets HSTS, X-Frame-Options,
+  // or X-Content-Type-Options you will see duplicate headers. Either disable
+  // those directives in the proxy config or set HELMET_HSTS=false /
+  // HELMET_NOSNIFF=false env vars and guard the calls below accordingly.
+  // See docs/security/REVERSE_PROXY_HEADERS.md for the recommended split.
+  const isProduction =
+    configService.get<string>('app.nodeEnv') === 'production';
+
+  app.use(
+    helmet({
+      // HSTS: 1 year, include subdomains, allow preload list submission.
+      // Only meaningful when TLS is terminated at this process or a proxy
+      // that forwards the header. Disable at the proxy layer if duplicated.
+      hsts: {
+        maxAge: 31_536_000,
+        includeSubDomains: true,
+        preload: true,
+      },
+
+      // Prevent MIME-type sniffing — always on.
+      noSniff: true,
+
+      // Deny framing entirely (API has no iframe use-case).
+      frameguard: { action: 'deny' },
+
+      // Disable the legacy X-XSS-Protection header; modern browsers use CSP.
+      xssFilter: false,
+
+      // Hide X-Powered-By.
+      hidePoweredBy: true,
+
+      // Referrer policy — safe default for an API.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+
+      // Permissions policy — disable all browser features the API never uses.
+      permittedCrossDomainPolicies: { permittedPolicies: 'none' },
+
+      // Content-Security-Policy:
+      //   • Pure JSON endpoints: restrictive policy blocks any accidental HTML.
+      //   • Swagger UI (served at /api/docs): needs inline scripts/styles and
+      //     CDN resources. The policy below covers both via a single directive
+      //     set that is safe for the Swagger bundle served by @nestjs/swagger.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            // Swagger UI injects inline scripts; unsafe-inline is required.
+            // Tighten to a nonce/hash if you serve custom HTML outside Swagger.
+            "'unsafe-inline'",
+          ],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          fontSrc: ["'self'", 'data:'],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          // Upgrade insecure requests in production only.
+          ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
+        },
+      },
+
+      // Cross-Origin policies — lock down for a pure API.
+      crossOriginEmbedderPolicy: false, // would break Swagger UI CDN assets
+      crossOriginOpenerPolicy: { policy: 'same-origin' },
+      crossOriginResourcePolicy: { policy: 'same-origin' },
+    }),
+  );
 
   // Trust proxy
   if (configService.get<boolean>('app.trustProxy')) {
@@ -62,8 +130,6 @@ async function bootstrap() {
     legacyUnversionedSunset:
       configService.get<string>('app.legacyUnversionedSunset') || undefined,
   });
-
-  const port = configService.get<number>('app.port') || 3000;
 
   // Swagger/OpenAPI setup (dev/staging only)
   const swaggerEnabled =
