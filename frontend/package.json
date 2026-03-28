@@ -61,6 +61,6 @@
     "storybook": "^8.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.0.17"
+    "vitest": "^1.6.0"
   }
 }
