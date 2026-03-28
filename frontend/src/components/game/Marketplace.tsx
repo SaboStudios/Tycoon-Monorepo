@@ -82,20 +82,45 @@ export function Marketplace() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Purchase failed');
+        let errorMessage = 'Purchase failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          
+          // Specific conflict handling
+          if (response.status === 409) {
+            errorMessage = `Conflict: ${errorMessage}`;
+          }
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      toast.success(`${selectedItem.name} purchased successfully!`);
-      // No need to fetchItems() here if we trust the optimistic update,
-      // but we do it anyway to ensure full reconciliation with any server-side changes
+      toast.success(`${selectedItem.name} purchased successfully!`, {
+        position: "top-center",
+        autoClose: 3000,
+        theme: "dark",
+      });
+      
+      // Full reconciliation with server state
       fetchItems(); 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'An unknown error occurred';
-      // Rollback on failure
+      
+      // Rollback on failure: Revert to the previous items state
       setItems(previousItems);
-      toast.error(message);
-      // Re-open modal or handle as needed - here we just show the error toast
+      
+      toast.error(message, {
+        position: "top-center",
+        autoClose: 5000,
+        theme: "dark",
+      });
+      
+      // Re-fetch items just in case the optimistic update left the UI in an inconsistent state
+      // even after manual rollback
+      fetchItems();
     }
   };
 
