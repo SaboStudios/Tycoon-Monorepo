@@ -4,6 +4,7 @@
 # CI parity:
 #   • .github/workflows/ci.yml — job "Contracts" (build, wasm size check, test)
 #   • .github/workflows/contract-build.yml — adds integration tests + artifact upload
+#   • .github/workflows/contract-hygiene.yml — cargo fmt --check + clippy -D warnings
 #
 # Artifact layout (deploy / Actions):
 #   • Release WASM: target/wasm32-unknown-unknown/release/*.wasm
@@ -34,11 +35,12 @@ help:
 	@echo "    make dev              fmt + clippy + test + release WASM (local verification)"
 	@echo ""
 	@echo "  CI — matches GitHub Actions commands exactly:"
-	@echo "    make ci                 = ci.yml Contracts job: build-wasm, wasm-check, test"
+	@echo "    make hygiene            = contract-hygiene.yml: fmt --check + clippy -D warnings"
+	@echo "    make ci                 = hygiene + ci.yml Contracts job: build-wasm, wasm-check, test"
 	@echo "    make ci-full            = ci + integration tests (contract-build.yml tests)"
 	@echo ""
 	@echo "  Workspace:"
-	@echo "    make fmt | clippy | test | build-wasm | wasm-check | clean"
+	@echo "    make fmt | fmt-check | clippy | clippy-deny | test | build-wasm | wasm-check | clean"
 	@echo "    make test-integration   cargo test --package tycoon-integration-tests -- --nocapture"
 	@echo "    make wasm-hashes        SHA-256 list → $(DEPLOY_DIR)/wasm-hashes.txt (needs build-wasm)"
 	@echo ""
@@ -73,9 +75,14 @@ wasm-check:
 test:
 	$(CARGO) test --all
 
+# Hygiene checks that mirror contract-hygiene.yml (fmt-check + clippy-deny)
+.PHONY: hygiene
+hygiene: fmt-check clippy-deny
+	@echo "make hygiene: OK (fmt --check + clippy -D warnings)"
+
 .PHONY: ci
-ci: build-wasm wasm-check test
-	@echo "make ci: OK (matches .github/workflows/ci.yml Contracts job)"
+ci: hygiene build-wasm wasm-check test
+	@echo "make ci: OK (hygiene + build + wasm-check + test)"
 
 # --- contract-build.yml extra test step -------------------------------------
 
@@ -94,9 +101,19 @@ ci-full: build-wasm wasm-check test test-integration
 fmt:
 	$(CARGO) fmt --all
 
+# CI-safe: fails if any file is not cargo fmt-clean
+.PHONY: fmt-check
+fmt-check:
+	$(CARGO) fmt --all -- --check
+
 .PHONY: clippy
 clippy:
 	$(CARGO) clippy --workspace --all-targets
+
+# CI-safe: treats every warning as a hard error
+.PHONY: clippy-deny
+clippy-deny:
+	$(CARGO) clippy --workspace --all-targets -- -D warnings
 
 # --- Per-crate targets (pattern %) --------------------------------------------
 
