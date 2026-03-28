@@ -52,6 +52,8 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
       load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
       envFilePath: '.env',
       validationSchema,
+      // Report ALL missing/invalid vars at once instead of stopping at the first.
+      validationOptions: { abortEarly: false },
     }),
 
     // Scheduler
