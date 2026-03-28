@@ -1836,7 +1836,7 @@ fn test_mint_collectible_event_emission() {
     client.initialize(&admin);
 
     // Mint collectible
-    let token_id = client.mint_collectible(&admin, &user, &4, &2);
+    let _token_id = client.mint_collectible(&admin, &user, &4, &2);
 
     // Get all events
     let events = env.events().all();
@@ -2050,7 +2050,20 @@ fn test_new_perk_stock_shop() {
 fn test_perk_enum_values() {
     // Verify all perk variants exist and can be compared
     // This test ensures the enum has all 12 variants (including None)
-    assert!(true); // The enum compiles with all variants, which is the main verification
+    let all_perks = [
+        Perk::None,
+        Perk::PropertyDiscount,
+        Perk::CashTiered,
+        Perk::TaxRefund,
+        Perk::DoubleRent,
+        Perk::JailFree,
+        Perk::ExtraTurn,
+        Perk::Shield,
+        Perk::Teleport,
+        Perk::RollBoost,
+        Perk::RollExact,
+    ];
+    assert_eq!(all_perks.len(), 11);
 
     // Additional verification: mint each perk and check it returns the correct perk
     let env = Env::default();

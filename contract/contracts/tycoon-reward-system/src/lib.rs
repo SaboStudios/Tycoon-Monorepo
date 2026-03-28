@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
 const VOUCHER_ID_START: u128 = 1_000_000_000;
 
@@ -234,7 +234,7 @@ impl TycoonRewardSystem {
 
         #[allow(deprecated)]
         e.events()
-            .publish((symbol_short!("Withdraw"), token, to), amount);
+            .publish((Symbol::new(&e, "FundsWithdrawn"), token.clone(), to), amount);
     }
 
     pub fn get_balance(e: Env, owner: Address, token_id: u128) -> u64 {

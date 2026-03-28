@@ -2,11 +2,13 @@
 
 mod events;
 mod storage;
+mod treasury;
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
 use storage::{
     get_backend_game_controller, get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User,
 };
+pub use treasury::TreasurySnapshot;
 
 #[contract]
 pub struct TycoonContract;
@@ -120,7 +122,7 @@ impl TycoonContract {
 
         // Validate username length (3-20 chars)
         let len = username.len();
-        if len < 3 || len > 20 {
+        if !(3..=20).contains(&len) {
             panic!("Username must be 3-20 characters");
         }
 
@@ -180,6 +182,7 @@ impl TycoonContract {
         // Check authorization: caller must be owner OR backend controller
         let is_owner = caller == owner;
         let is_backend_controller =
+            backend_controller.is_some_and(|controller| caller == controller);
             backend_controller.map_or(false, |controller| caller == controller);
 
         if !is_owner && !is_backend_controller {
