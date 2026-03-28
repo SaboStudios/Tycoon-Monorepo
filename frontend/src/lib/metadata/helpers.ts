@@ -23,6 +23,13 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
     // Application metadata
     applicationName: siteConfig.name,
     generator: "Next.js",
+    themeColor: siteConfig.themeColor,
+
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: siteConfig.name,
+    },
 
     // Author and creator
     authors: [

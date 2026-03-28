@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { generateBaseMetadata } from "@/lib/metadata";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { NearWalletProvider } from "@/components/providers/near-wallet-provider";
+import { PWAProvider } from "@/components/providers/pwa-provider";
 import "./globals.css";
 import NavbarMobile from "@/components/shared/NavbarMobile";
 import { MSWProvider } from "@/components/providers/msw-provider";
