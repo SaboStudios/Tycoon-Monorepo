@@ -27,6 +27,10 @@ import { AdminLogsModule } from '../admin-logs/admin-logs.module';
         signOptions: {
           expiresIn: configService.get<number>('jwt.expiresIn') || 900,
         },
+        verifyOptions: {
+          clockTolerance:
+            configService.get<number>('jwt.clockTolerance') || 60,
+        },
       }),
     }),
   ],

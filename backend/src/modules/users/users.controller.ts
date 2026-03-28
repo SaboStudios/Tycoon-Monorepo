@@ -39,6 +39,10 @@ import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import {
+  RedisRateLimitGuard,
+  RateLimit,
+} from '../../common/guards/redis-rate-limit.guard';
 
 @Controller('users')
 export class UsersController {
