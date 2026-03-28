@@ -310,6 +310,37 @@ fn test_withdraw_funds_insufficient_balance_reverts() {
 }
 
 #[test]
+fn test_withdraw_funds_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let recipient = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+
+    let tyc_token_admin = <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+    let usdc_token_admin =
+        <soroban_sdk::Address as soroban_sdk::testutils::Address>::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id, &1000);
+
+    client.withdraw_funds(&tyc_token_id, &recipient, &400);
+
+    // Verify event was emitted (mirrors tycoon-game test_withdraw_emits_event pattern)
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+#[test]
 fn test_withdraw_funds_invalid_token_reverts() {
     let env = Env::default();
     env.mock_all_auths();
