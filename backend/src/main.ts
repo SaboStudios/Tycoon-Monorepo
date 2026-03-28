@@ -12,6 +12,10 @@ import { configureApiVersioning } from './common/versioning/api-versioning';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
+  // Enable NestJS lifecycle shutdown hooks (SIGTERM / SIGINT).
+  // This triggers OnApplicationShutdown hooks, including GracefulShutdownService.
+  app.enableShutdownHooks();
+
   // Use Winston logger
   const winstonLogger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   app.useLogger(winstonLogger);
@@ -132,7 +136,7 @@ async function bootstrap() {
   });
 
   // API versioning + compatibility
-  const { apiPrefix, defaultVersion } = configureApiVersioning(app, {
+  const { apiPrefix } = configureApiVersioning(app, {
     apiPrefix: configService.get<string>('app.apiPrefix') || 'api',
     defaultVersion: configService.get<string>('app.defaultApiVersion') || '1',
     enableLegacyUnversionedRoutes:

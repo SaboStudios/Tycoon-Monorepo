@@ -137,4 +137,9 @@ export class RedisService {
       this.logger.error(`Cache reset error: ${error.message}`);
     }
   }
+
+  /** Gracefully close the raw ioredis connection. Called during shutdown. */
+  async quit(): Promise<void> {
+    await this.redis.quit();
+  }
 }
