@@ -40,6 +40,7 @@ help:
 	@echo "  Workspace:"
 	@echo "    make fmt | clippy | test | build-wasm | wasm-check | clean"
 	@echo "    make test-integration   cargo test --package tycoon-integration-tests -- --nocapture"
+	@echo "    make test-snapshot      run only snapshot/error-branch tests (tycoon-token)"
 	@echo "    make wasm-hashes        SHA-256 list → $(DEPLOY_DIR)/wasm-hashes.txt (needs build-wasm)"
 	@echo ""
 	@echo "  Per crate (PACKAGE=name with hyphens, e.g. tycoon-game):"
@@ -49,6 +50,19 @@ help:
 	@echo "    make audit              cargo-audit (install: cargo install cargo-audit)"
 	@echo ""
 	@echo "  Paths: release WASM → $(RELEASE_WASM_DIR)/*.wasm"
+	@echo ""
+	@echo "  Branch coverage checklist (tycoon-token):"
+	@echo "    ✓ initialize / double-initialize"
+	@echo "    ✓ mint: zero, negative, overflow, non-admin"
+	@echo "    ✓ transfer: negative, zero (no-op), insufficient balance"
+	@echo "    ✓ transfer_from: negative, zero (no-op), insufficient allowance/balance"
+	@echo "    ✓ approve: negative, zero (clear), normal"
+	@echo "    ✓ burn: zero, negative, insufficient balance"
+	@echo "    ✓ burn_from: zero allowance, insufficient allowance"
+	@echo "    ✓ set_admin: unauthorized"
+	@echo "    ✓ pre-initialize calls (mint before init)"
+	@echo "    ✓ default-value paths (balance/allowance/total_supply for unknown keys)"
+	@echo "    ✓ inline snapshots: metadata, state after deterministic ops"
 
 # --- Quickstart (README) ------------------------------------------------------
 
@@ -83,6 +97,12 @@ ci: build-wasm wasm-check test
 .PHONY: test-integration
 test-integration:
 	$(CARGO) test --package tycoon-integration-tests -- --nocapture
+
+# Run only the snapshot and error-branch tests for tycoon-token.
+# Useful for quick regression checks after token logic changes.
+.PHONY: test-snapshot
+test-snapshot:
+	$(CARGO) test --package tycoon-token error_branch_tests -- --nocapture
 
 .PHONY: ci-full
 ci-full: build-wasm wasm-check test test-integration
