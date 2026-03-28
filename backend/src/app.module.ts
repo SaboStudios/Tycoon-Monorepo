@@ -113,6 +113,7 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
     EmailModule,
     AuditTrailModule,
     TourAnalyticsModule,
+    LedgerReconciliationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
