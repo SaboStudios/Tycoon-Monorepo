@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
+import { AnalyticsProvider } from "@/components/providers/analytics-provider";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
@@ -10,7 +11,6 @@ import { generateBaseMetadata } from "@/lib/metadata";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { NearWalletProvider } from "@/components/providers/near-wallet-provider";
 import "./globals.css";
-import Navbar from "@/components/shared/Navbar";
 import NavbarMobile from "@/components/shared/NavbarMobile";
 import { MSWProvider } from "@/components/providers/msw-provider";
 
@@ -39,20 +39,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <ThemeProvider>
-          <AuthProvider>
-            <NearWalletProvider>
-              <MSWProvider />
-              <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-                <Navbar />
-                {children}
-                <NavbarMobile />
-              </ErrorBoundary>
-              <ToastProvider />
-              <ScrollToTopBtn />
-            </NearWalletProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <AnalyticsProvider />
+        {children}
+        <NavbarMobile />
+<AuthProvider>
+          <NearWalletProvider>
+            <MSWProvider />
+            <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+              <Navbar />
+              {children}
+              <NavbarMobile />
+            </ErrorBoundary>
+            <ToastProvider />
+            <ScrollToTopBtn />
+          </NearWalletProvider>
+        </AuthProvider>
       </body>
     </html>
   );

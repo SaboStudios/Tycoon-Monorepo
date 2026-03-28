@@ -20,6 +20,11 @@ export const validationSchema = Joi.object({
   DB_USERNAME: Joi.string().required(),
   DB_PASSWORD: Joi.string().required(),
   DB_DATABASE: Joi.string().required(),
+  DB_POOL_SIZE: Joi.number().integer().min(1).max(100).optional(),
+  DB_POOL_IDLE_TIMEOUT_MS: Joi.number().integer().min(0).optional(),
+  DB_STATEMENT_TIMEOUT_MS: Joi.number().integer().min(0).optional(),
+  DB_CONNECT_TIMEOUT_MS: Joi.number().integer().min(0).optional(),
+
   DB_SYNCHRONIZE: Joi.when('NODE_ENV', {
     is: Joi.valid('production', 'provision'),
     then: Joi.valid(false, 'false', '0', 0).default(false),
