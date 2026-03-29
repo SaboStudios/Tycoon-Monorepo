@@ -181,6 +181,99 @@ fn test_withdraw_emits_event() {
     assert!(!events.is_empty());
 }
 
+// ===== TREASURY INVARIANT TESTS =====
+
+fn valid(sum_of_balances: u64, escrow: u64, liabilities: u64, treasury: u64) -> TreasurySnapshot {
+    TreasurySnapshot {
+        sum_of_balances,
+        escrow,
+        liabilities,
+        treasury,
+    }
+}
+
+#[test]
+fn test_treasury_invariant_balanced_zero_state() {
+    assert!(valid(0, 0, 0, 0).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_balanced_typical_state() {
+    assert!(valid(900, 100, 600, 400).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_balanced_escrow_heavy_state() {
+    assert!(valid(0, 1_000, 500, 500).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_unbalanced_returns_false() {
+    assert!(!valid(900, 100, 600, 401).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_unbalanced_zero_treasury() {
+    assert!(!valid(500, 0, 500, 1).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_assert_does_not_panic_when_balanced() {
+    valid(800, 200, 700, 300).assert_invariant();
+}
+
+#[test]
+#[should_panic(expected = "Treasury invariant violated")]
+fn test_treasury_invariant_assert_panics_when_unbalanced() {
+    valid(800, 200, 700, 301).assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_lock_into_escrow_preserves_invariant() {
+    let mut snapshot = valid(1_000, 0, 0, 1_000);
+    let amount = 200_u64;
+
+    snapshot.sum_of_balances -= amount;
+    snapshot.escrow += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_release_escrow_back_to_balances_preserves_invariant() {
+    let mut snapshot = valid(800, 200, 500, 500);
+    let amount = 200_u64;
+
+    snapshot.escrow -= amount;
+    snapshot.sum_of_balances += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_reclassify_liability_to_treasury_preserves_invariant() {
+    let mut snapshot = valid(800, 0, 200, 600);
+    let amount = 200_u64;
+
+    snapshot.liabilities -= amount;
+    snapshot.treasury += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_generated_scenarios_pass() {
+    for sum_of_balances in [0_u64, 125, 400, 1_250, 10_000] {
+        for escrow in [0_u64, 1, 25, 100, 750] {
+            let total_assets = sum_of_balances + escrow;
+            let liabilities = total_assets / 2;
+            let treasury = total_assets - liabilities;
+
+            valid(sum_of_balances, escrow, liabilities, treasury).assert_invariant();
+        }
+    }
+}
+
 // ===== VIEW FUNCTION TESTS =====
 
 #[test]

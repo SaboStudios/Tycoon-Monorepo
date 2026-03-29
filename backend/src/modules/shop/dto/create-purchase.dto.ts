@@ -37,4 +37,13 @@ export class CreatePurchaseDto {
   @IsString()
   @MaxLength(50)
   coupon_code?: string;
+
+  @ApiPropertyOptional({
+    description: 'Idempotency key to prevent duplicate purchases',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  idempotency_key?: string;
 }
