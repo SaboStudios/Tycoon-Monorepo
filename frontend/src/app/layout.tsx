@@ -13,6 +13,7 @@ import { NearWalletProvider } from "@/components/providers/near-wallet-provider"
 import { PWAProvider } from "@/components/providers/pwa-provider";
 import "./globals.css";
 import NavbarMobile from "@/components/shared/NavbarMobile";
+import Navbar from "@/components/shared/Navbar";
 import { MSWProvider } from "@/components/providers/msw-provider";
 
 const geistSans = Geist({
@@ -40,19 +41,20 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <AnalyticsProvider />
-        {children}
-        <NavbarMobile />
-<AuthProvider>
+        <AuthProvider>
           <NearWalletProvider>
-            <MSWProvider />
-            <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-              <Navbar />
-              {children}
-              <NavbarMobile />
-            </ErrorBoundary>
-            <ToastProvider />
-            <ScrollToTopBtn />
+            <ThemeProvider>
+              <MSWProvider />
+              <AnalyticsProvider />
+              <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+                <Navbar />
+                {children}
+                <NavbarMobile />
+              </ErrorBoundary>
+              <ToastProvider />
+              <PWAProvider />
+              <ScrollToTopBtn />
+            </ThemeProvider>
           </NearWalletProvider>
         </AuthProvider>
       </body>

@@ -6,7 +6,7 @@
  */
 
 export const siteConfig = {
-  name: "Tycoon Monorepo",
+  name: "Tycoon",
   description:
     "Experience the ultimate tycoon gaming platform with immersive gameplay, AI-powered opponents, and real-time multiplayer action.",
   url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
@@ -18,7 +18,7 @@ export const siteConfig = {
     site: "@tycoongame",
     cardType: "summary_large_image" as const,
   },
-  themeColor: "#000000",
+  themeColor: "#010F10",
 };
 
 export type PageMetadataConfig = {
