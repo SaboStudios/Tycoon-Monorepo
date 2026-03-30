@@ -310,3 +310,6 @@ mod test;
 
 #[cfg(test)]
 mod invariant_tests;
+
+#[cfg(test)]
+mod error_branch_tests;

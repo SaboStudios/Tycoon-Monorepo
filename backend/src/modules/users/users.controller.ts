@@ -70,8 +70,8 @@ export class UsersController {
    * Cached automatically by CacheInterceptor
    */
   @Get()
-  @UseGuards(JwtAuthGuard, AdminGuard, RedisRateLimitGuard)
-  @RateLimit(50, 60) // 50 requests per minute
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Throttle({ default: { limit: 50, ttl: 60000 } }) // 50 requests per minute
   async findAll(
     @Query() paginationDto: PaginationDto,
   ): Promise<PaginatedResponse<User>> {
@@ -99,8 +99,7 @@ export class UsersController {
    */
   @Get('me/profile')
   @UseGuards(JwtAuthGuard)
-  @UseGuards(RedisRateLimitGuard)
-  @RateLimit(100, 60) // 100 requests per minute
+  @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute
   async getProfile(
     @Request() req: { user: { id: number } },
   ): Promise<UserProfileDto> {
@@ -113,8 +112,7 @@ export class UsersController {
    * Filters: gameId, inJail. Supports pagination.
    */
   @Get(':id/games')
-  @UseGuards(RedisRateLimitGuard)
-  @RateLimit(100, 60)
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getGames(
     @Param('id', ParseIntPipe) id: number,
     @Query() dto: GetUserGamesDto,
@@ -154,8 +152,7 @@ export class UsersController {
    * Cached automatically by CacheInterceptor
    */
   @Get(':id')
-  @UseGuards(RedisRateLimitGuard)
-  @RateLimit(100, 60) // 100 requests per minute
+  @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute
   async findOne(@Param('id', ParseIntPipe) id: number): Promise<User> {
     return await this.usersService.findOne(id);
   }
