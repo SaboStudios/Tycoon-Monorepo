@@ -107,4 +107,13 @@ export const validationSchema = Joi.object({
     .falsy('false')
     .default(true),
   DEFAULT_STARTING_CASH: Joi.number().default(1500),
+
+  // ─── NEAR RPC Facade ────────────────────────────────────────────────────────
+  NEAR_NETWORK: Joi.string()
+    .valid('mainnet', 'testnet', 'localnet')
+    .default('testnet'),
+  NEAR_RPC_ENDPOINTS: Joi.string()
+    .default('https://rpc.testnet.near.org')
+    .description('Comma-separated list of NEAR RPC fallback endpoints'),
+  NEAR_TIMEOUT_MS: Joi.number().default(10000),
 }).options({ allowUnknown: true }); // allow OS/CI vars without failing
