@@ -54,7 +54,7 @@ export default function HeroSectionMobile() {
         aria-hidden
       />
 
-      <main className="relative z-10 flex flex-col items-center gap-6 text-center max-w-md mx-auto">
+      <div className="relative z-10 mx-auto flex max-w-md flex-col items-center gap-6 text-center">
         {/* Welcome */}
         <p className="text-[14px] font-orbitron font-[700] text-[#00F0FF]">
           Welcome back, Player!
@@ -117,7 +117,7 @@ export default function HeroSectionMobile() {
             Challenge AI!
           </button>
         </div>
-      </main>
+      </div>
     </section>
   );
 }

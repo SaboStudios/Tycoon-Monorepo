@@ -13,7 +13,7 @@ export const metadata: Metadata = generatePageMetadata({
 
 export default function OfflinePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#010F10] px-6 py-16 text-[#F0F7F7]">
+    <div className="flex min-h-screen items-center justify-center bg-[#010F10] px-6 py-16 text-[#F0F7F7]">
       <div className="w-full max-w-xl rounded-[2rem] border border-[#00F0FF]/20 bg-[#07181B] p-8 text-center shadow-[0_25px_60px_rgba(0,0,0,0.35)]">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#00F0FF]/10 text-[#00F0FF]">
           <WifiOff className="h-7 w-7" />
@@ -35,6 +35,6 @@ export default function OfflinePage() {
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

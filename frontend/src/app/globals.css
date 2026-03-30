@@ -40,6 +40,15 @@
   --color-ring: var(--tycoon-accent);
 }
 
+/*
+ * Shell content widths (rem; align with Tailwind max-w-7xl / custom game width).
+ * Marketing/default: 80rem. Game surfaces can use max-w-[var(--shell-content-max-game)].
+ */
+:root {
+  --shell-content-max-marketing: 80rem;
+  --shell-content-max-game: 90rem;
+}
+
 [data-theme="dark"] {
   --background: #010f10;
   --foreground: #f0f7f7;

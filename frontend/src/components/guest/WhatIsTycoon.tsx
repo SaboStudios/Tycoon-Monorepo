@@ -23,12 +23,12 @@ const WhatIsTycoon = () => {
                 </svg>
             </div>
 
-            <main className="w-full h-full absolute top-0 left-0 flex flex-col justify-center items-center">
+            <div className="absolute left-0 top-0 flex h-full w-full flex-col items-center justify-center">
                 <div className='lg:w-[80%] md:w-[70%] w-[80%] flex lg:flex-row items-center flex-col gap-4'>
                     <h1 className="flex-1 text-[#F0F7F7] font-orbitron lg:text-[64px] text-[42px] leading-[42px] lg:leading-[64px] font-[700]">What is Tycoon</h1>
                     <p className="flex-1 font-dmSans font-[400] text-[18px] text-[#F0F7F7] -tracking-[2%]">Tycoon is a fun digital board game where you collect tokens, trade with others, and complete challenges to win, all powered by blockchain.</p>
                 </div>
-            </main>
+            </div>
         </section>
     )
 }

@@ -15,6 +15,7 @@ import "./globals.css";
 import NavbarMobile from "@/components/shared/NavbarMobile";
 import Navbar from "@/components/shared/Navbar";
 import { MSWProvider } from "@/components/providers/msw-provider";
+import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
