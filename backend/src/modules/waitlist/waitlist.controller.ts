@@ -13,10 +13,6 @@ import { WaitlistService } from './waitlist.service';
 import { CreateWaitlistDto } from './dto/create-waitlist.dto';
 import { WaitlistResponseDto } from './dto/waitlist-response.dto';
 import { Waitlist } from './entities/waitlist.entity';
-import {
-  RedisRateLimitGuard,
-  RateLimit,
-} from '../../common/guards/redis-rate-limit.guard';
 
 @ApiTags('waitlist')
 @Controller('waitlist')
@@ -38,8 +34,6 @@ export class WaitlistController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @UseGuards(RedisRateLimitGuard)
-  @RateLimit(10, 60)
   @ApiOperation({
     summary: 'Join the waitlist',
     description:
