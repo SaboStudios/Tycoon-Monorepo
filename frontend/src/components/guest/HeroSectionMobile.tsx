@@ -2,6 +2,7 @@
 
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { track } from "@/lib/analytics";
 
 /**
  * Mobile-responsive hero section for Tycoon.
@@ -28,6 +29,18 @@ export default function HeroSectionMobile() {
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
+
+  function handleTrackedNavigation(
+    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
+    destination: string,
+  ) {
+    track(event, {
+      route: "/",
+      destination,
+    });
+
+    router.push(destination);
+  }
 
   return (
     <section className="z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10]">
@@ -69,7 +82,7 @@ export default function HeroSectionMobile() {
         {/* Stacked CTAs - touch-friendly (min 48px) */}
         <div className="w-full flex flex-col gap-3 mt-2">
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[16px] py-4`}
             aria-label="Continue game"
           >
@@ -78,7 +91,7 @@ export default function HeroSectionMobile() {
           </button>
 
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
             className={`w-full ${ctaBase} border-2 border-[#00F0FF] text-[#00F0FF] text-[14px] py-3`}
             aria-label="Multiplayer"
           >
@@ -87,7 +100,7 @@ export default function HeroSectionMobile() {
           </button>
 
           <button
-            onClick={() => router.push("/join-room")}
+            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
             className={`w-full ${ctaBase} border-2 border-[#003B3E] text-[#0FF0FC] text-[14px] py-3`}
             aria-label="Join room"
           >
@@ -96,7 +109,7 @@ export default function HeroSectionMobile() {
           </button>
 
           <button
-            onClick={() => router.push("/play-ai")}
+            onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[14px] py-4 uppercase tracking-wide`}
             aria-label="Challenge AI"
           >
