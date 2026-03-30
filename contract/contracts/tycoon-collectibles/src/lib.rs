@@ -15,6 +15,7 @@ pub use transfer::*;
 pub use types::*;
 
 use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Vec};
+use tycoon_lib::fees::{calculate_fee_split, FeeConfig};
 
 /// Convert a u128 to a Soroban String without std (no_std compatible)
 fn u128_to_soroban_string(env: &Env, mut n: u128) -> soroban_sdk::String {
@@ -45,6 +46,20 @@ impl TycoonCollectibles {
             return Err(CollectibleError::AlreadyInitialized);
         }
         set_admin(&env, &admin);
+        set_state_version(&env, 1);
+        Ok(())
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(env: Env) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        let current_version = get_state_version(&env);
+
+        if current_version == 0 {
+            set_state_version(&env, 1);
+        }
         Ok(())
     }
 
@@ -62,6 +77,29 @@ impl TycoonCollectibles {
             usdc_token,
         };
         set_shop_config(&env, &config);
+        Ok(())
+    }
+
+    /// Set the fee configuration for the shop (admin only)
+    pub fn set_fee_config(
+        env: Env,
+        platform_fee_bps: u32,
+        creator_fee_bps: u32,
+        pool_fee_bps: u32,
+        platform_address: Address,
+        pool_address: Address,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        let config = FeeConfig {
+            platform_fee_bps,
+            creator_fee_bps,
+            pool_fee_bps,
+            platform_address,
+            pool_address,
+        };
+        storage::set_fee_config(&env, &config);
         Ok(())
     }
 
@@ -265,7 +303,40 @@ impl TycoonCollectibles {
         // CEI: INTERACTIONS — external payment call last
         let contract_address = env.current_contract_address();
         let token_client = token::Client::new(&env, &payment_token);
-        token_client.transfer(&buyer, &contract_address, &price);
+
+        // Handle fee distribution
+        if let Some(fee_config) = get_fee_config(&env) {
+            let split = tycoon_lib::fees::calculate_fee_split(price as u128, &fee_config);
+            
+            if split.platform_amount > 0 {
+                token_client.transfer(&buyer, &fee_config.platform_address, &(split.platform_amount as i128));
+            }
+            if split.pool_amount > 0 {
+                token_client.transfer(&buyer, &fee_config.pool_address, &(split.pool_amount as i128));
+            }
+            if split.creator_amount > 0 {
+                // For shop sales, "creator" could be a specific account or just added back to shop balance.
+                // Here we assume creator is a configured address in the future, for now if configured, transfer it.
+                // If we don't have a specific creator address for shop-stocked items, it might go to admin.
+                token_client.transfer(&buyer, &get_admin(&env), &(split.creator_amount as i128));
+            }
+            if split.residue > 0 {
+                token_client.transfer(&buyer, &contract_address, &(split.residue as i128));
+            }
+
+            emit_fee_distributed_event(
+                &env,
+                token_id,
+                &fee_config.platform_address,
+                split.platform_amount,
+                &fee_config.pool_address,
+                split.pool_amount,
+                split.creator_amount,
+            );
+        } else {
+            // No fee config, transfer all to contract
+            token_client.transfer(&buyer, &contract_address, &price);
+        }
 
         emit_collectible_bought_event(&env, token_id, &buyer, price, use_usdc);
 

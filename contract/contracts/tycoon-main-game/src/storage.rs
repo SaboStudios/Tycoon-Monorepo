@@ -24,6 +24,8 @@ pub enum DataKey {
     UsdcToken,
     /// Tracks whether the contract has been initialized.
     IsInitialized,
+    /// The current version of the state schema
+    StateVersion,
     /// Auto-incrementing game ID counter.
     NextGameId,
     /// Marks whether a given address has registered as a player.
@@ -114,6 +116,24 @@ pub fn set_initialized(env: &Env) {
     env.storage().instance().set(&DataKey::IsInitialized, &true);
 }
 
+// ============================================================
+// State Version helpers
+// ============================================================
+
+pub fn get_state_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::StateVersion)
+        .unwrap_or(0)
+}
+
+pub fn set_state_version(env: &Env, version: u32) {
+    env.storage().instance().set(&DataKey::StateVersion, &version);
+}
+
+// ============================================================
+// Admin helpers
+// ============================================================
 // -----------------------------------------------------------------------
 // Owner helpers  (instance storage)
 // -----------------------------------------------------------------------

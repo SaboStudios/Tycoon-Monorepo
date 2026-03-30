@@ -1546,6 +1546,7 @@ name = "tycoon-collectibles"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
+ "tycoon-lib",
 ]
 
 [[package]]
