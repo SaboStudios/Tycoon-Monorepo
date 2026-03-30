@@ -48,6 +48,7 @@ impl TycoonMainGame {
             required_signatures: multisig_threshold,
         };
         storage::set_pause_config(&env, &config);
+        storage::set_state_version(&env, 1);
 
         // Batch all instance writes together — single storage round-trip
         storage::set_owner(&env, &owner);
@@ -58,6 +59,18 @@ impl TycoonMainGame {
     /// Stub: Register a player for the main game.
     pub fn register_player(_env: Env) {
         // TODO: implement full registration logic
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(env: Env) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+
+        let current_version = storage::get_state_version(&env);
+
+        if current_version == 0 {
+            storage::set_state_version(&env, 1);
+        }
     }
 
     // ============================================================

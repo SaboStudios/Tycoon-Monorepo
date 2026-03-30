@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { CardData } from '../../hooks/useCardModal';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 export interface CardModalProps {
     isOpen: boolean;
@@ -37,6 +38,7 @@ const CARD_THEMES = {
 export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card }) => {
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const prefersReducedMotion = useReducedMotion();
 
     // Focus management — move focus into modal when opened
     useEffect(() => {
@@ -103,7 +105,7 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card }) =
         >
             {/* Dimmed overlay — clicking outside closes the modal */}
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+                className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${!prefersReducedMotion ? 'transition-opacity' : ''}`}
                 onClick={onClose}
                 aria-hidden="true"
             />
@@ -114,7 +116,7 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card }) =
                 className={`
                     relative z-10 w-72 sm:w-80 rounded-2xl shadow-2xl border-4
                     ${theme.bg} ${theme.border}
-                    transform transition-all duration-200 scale-100
+                    transform ${!prefersReducedMotion ? 'transition-all duration-200' : ''} scale-100
                     flex flex-col overflow-hidden
                 `}
                 data-testid="card-modal"
@@ -131,11 +133,11 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card }) =
                         ref={closeButtonRef}
                         onClick={onClose}
                         aria-label="Close card"
-                        className="
+                        className={`
                             w-8 h-8 rounded-full bg-white/20 hover:bg-white/40
                             text-white font-bold text-sm flex items-center justify-center
-                            transition-colors focus:outline-none focus:ring-2 focus:ring-white
-                        "
+                            ${!prefersReducedMotion ? 'transition-colors' : ''} focus:outline-none focus:ring-2 focus:ring-white
+                        `}
                     >
                         ✕
                     </button>
@@ -178,7 +180,7 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card }) =
                         className={`
                             ${theme.header} text-white font-bold text-sm uppercase tracking-wider
                             px-8 py-2 rounded-full shadow-md
-                            hover:opacity-90 active:scale-95 transition-all
+                            hover:opacity-90 ${!prefersReducedMotion ? 'active:scale-95 transition-all' : ''} 
                             focus:outline-none focus:ring-4 focus:ring-offset-2
                             ${card.type === 'chance' ? 'focus:ring-amber-300' : 'focus:ring-sky-300'}
                         `}

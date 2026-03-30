@@ -26,6 +26,7 @@ pub enum DataKey {
     BackendMinter,
     // (Owner) -> Total distinct vouchers owned
     OwnedTokenCount(Address),
+    StateVersion,
 }
 
 #[contract]
@@ -43,6 +44,27 @@ impl TycoonRewardSystem {
         e.storage().persistent().set(&DataKey::UsdcToken, &usdc_token);
         e.storage().persistent().set(&DataKey::VoucherCount, &VOUCHER_ID_START);
         e.storage().persistent().set(&DataKey::Paused, &false);
+        e.storage().persistent().set(&DataKey::StateVersion, &1u32);
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(e: Env) {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        admin.require_auth();
+
+        let current_version: u32 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+
+        if current_version == 0 {
+            e.storage().persistent().set(&DataKey::StateVersion, &1u32);
+        }
     }
 
     /// Emergency pause contract (admin only)

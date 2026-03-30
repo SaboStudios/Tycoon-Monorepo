@@ -62,6 +62,10 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
     icons: {
       icon: [
         {
+          url: "/metadata/favicon.ico",
+          sizes: "any",
+        },
+        {
           url: "/metadata/favicon-16x16.png",
           sizes: "16x16",
           type: "image/png",

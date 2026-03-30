@@ -12,6 +12,20 @@ const TOKEN_INDEX_PREFIX: &str = "TIDX";
 const NEXT_TOKEN_ID_KEY: &str = "NEXT_TID";
 const METADATA_PREFIX: &str = "META";
 const BASE_URI_KEY: &str = "BASE_URI";
+const STATE_VERSION_KEY: &str = "STATE_VER";
+
+/// Get the current state version
+pub fn get_state_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&STATE_VERSION_KEY)
+        .unwrap_or(0)
+}
+
+/// Set the current state version
+pub fn set_state_version(env: &Env, version: u32) {
+    env.storage().instance().set(&STATE_VERSION_KEY, &version);
+}
 
 /// Check if admin is set
 pub fn has_admin(env: &Env) -> bool {
@@ -120,8 +134,10 @@ pub fn remove_token_index(env: &Env, owner: &Address, token_id: u128) {
 // ========================
 
 use crate::types::{CollectiblePrice, ShopConfig};
+use tycoon_lib::fees::FeeConfig;
 
 const SHOP_CONFIG_KEY: &str = "SHOP_CFG";
+const FEE_CONFIG_KEY: &str = "FEE_CFG";
 const PRICE_PREFIX: &str = "PRICE";
 const STOCK_PREFIX: &str = "STOCK";
 
@@ -138,6 +154,16 @@ pub fn set_shop_config(env: &Env, config: &ShopConfig) {
 /// Get shop configuration
 pub fn get_shop_config(env: &Env) -> Option<ShopConfig> {
     env.storage().instance().get(&SHOP_CONFIG_KEY)
+}
+
+/// Set fee configuration
+pub fn set_fee_config(env: &Env, config: &FeeConfig) {
+    env.storage().instance().set(&FEE_CONFIG_KEY, config);
+}
+
+/// Get fee configuration
+pub fn get_fee_config(env: &Env) -> Option<FeeConfig> {
+    env.storage().instance().get(&FEE_CONFIG_KEY)
 }
 
 /// Set price for a collectible

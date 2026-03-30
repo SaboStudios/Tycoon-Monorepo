@@ -12,7 +12,10 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "dev:msw": "next dev",
-    "bundle:check": "node scripts/check-bundle-size.mjs"
+    "bundle:check": "node scripts/check-bundle-size.mjs",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "chromatic": "chromatic --exit-zero-on-changes"
   },
   "dependencies": {
     "@near-wallet-selector/core": "^8.10.2",
@@ -53,6 +56,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",
     "babel-plugin-react-compiler": "1.0.0",
+    "chromatic": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.2",
     "happy-dom": "^20.8.8",

@@ -11,7 +11,9 @@ import { generateBaseMetadata } from "@/lib/metadata";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { NearWalletProvider } from "@/components/providers/near-wallet-provider";
 import { PWAProvider } from "@/components/providers/pwa-provider";
-import { SiteShell } from "@/components/layout/site-shell";
+import "./globals.css";
+import NavbarMobile from "@/components/shared/NavbarMobile";
+import Navbar from "@/components/shared/Navbar";
 import { MSWProvider } from "@/components/providers/msw-provider";
 import "./globals.css";
 
@@ -40,20 +42,22 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
-        <AnalyticsProvider />
-        <ThemeProvider>
-          <AuthProvider>
-            <NearWalletProvider>
+        <AuthProvider>
+          <NearWalletProvider>
+            <ThemeProvider>
               <MSWProvider />
-              <PWAProvider />
+              <AnalyticsProvider />
               <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-                <SiteShell>{children}</SiteShell>
+                <Navbar />
+                {children}
+                <NavbarMobile />
               </ErrorBoundary>
               <ToastProvider />
+              <PWAProvider />
               <ScrollToTopBtn />
-            </NearWalletProvider>
-          </AuthProvider>
-        </ThemeProvider>
+            </ThemeProvider>
+          </NearWalletProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -44,6 +44,7 @@ help:
 	@echo "    make test-integration   cargo test --package tycoon-integration-tests -- --nocapture"
 	@echo "    make test-snapshot      run only snapshot/error-branch tests (tycoon-token)"
 	@echo "    make wasm-hashes        SHA-256 list → $(DEPLOY_DIR)/wasm-hashes.txt (needs build-wasm)"
+	@echo "    make export-state       Dump contract state for debugging (needs CONTRACT_ID)"
 	@echo ""
 	@echo "  Per crate (PACKAGE=name with hyphens, e.g. tycoon-game):"
 	@echo "    make fmt-PKG  clippy-PKG  test-PKG  wasm-PKG"
@@ -168,6 +169,11 @@ wasm-hashes: build-wasm
 	done; } > $(DEPLOY_DIR)/wasm-hashes.txt
 	@echo "Wrote $(DEPLOY_DIR)/wasm-hashes.txt"
 	@cat $(DEPLOY_DIR)/wasm-hashes.txt
+
+.PHONY: export-state
+export-state:
+	@if [ -z "$(CONTRACT_ID)" ]; then echo "Error: CONTRACT_ID is not set. Usage: make export-state CONTRACT_ID=CD... [NETWORK=testnet]"; exit 1; fi
+	bash $(SCRIPTS_DIR)/export-state.sh --contract-id $(CONTRACT_ID) --network $(or $(NETWORK),testnet)
 
 # --- Optional audit -----------------------------------------------------------
 

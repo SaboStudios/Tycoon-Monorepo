@@ -13,6 +13,7 @@ import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
+import { nearConfig } from './config/near.config';
 import { CommonModule, HttpExceptionFilter, AppThrottlerGuard } from './common';
 import { SuspensionCheckMiddleware } from './common/middleware/suspension-check.middleware';
 import { User } from './modules/users/entities/user.entity';
@@ -44,13 +45,14 @@ import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
+import { NearModule } from './modules/near/near.module';
 
 @Module({
   imports: [
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig],
+      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig, nearConfig],
       envFilePath: '.env',
       validationSchema,
       // Report ALL missing/invalid vars at once instead of stopping at the first.
@@ -117,6 +119,7 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
     AuditTrailModule,
     TourAnalyticsModule,
     LedgerReconciliationModule,
+    NearModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
