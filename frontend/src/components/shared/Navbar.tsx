@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { Settings } from "lucide-react";
 
 const links = [
   { href: "/", label: "Home" },
@@ -54,6 +55,16 @@ const Navbar = () => {
               </Link>
             );
           })}
+          <Link
+            href="/settings"
+            className={`relative rounded-full px-3 py-1.5 text-xs font-dm-sans font-medium transition-colors duration-200 flex items-center gap-1 ${
+              pathname === "/settings" || pathname.startsWith("/settings/")
+                ? "bg-[var(--tycoon-accent)] text-[#010F10]"
+                : "text-[var(--tycoon-text)]/70 hover:text-[var(--tycoon-accent)]"
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
         </nav>
       </div>
     </header>
