@@ -2,6 +2,7 @@
 
 // Pause module removed - each contract implements pause locally for better isolation
 // See tycoon-main-game/src/storage.rs for pause implementation example
+pub mod fees;
 
 use soroban_sdk::contracttype;
 
@@ -91,7 +92,6 @@ pub enum PlayerSymbol {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::Env;
 
     #[test]
     fn test_game_status_variants_compile_and_are_distinct() {

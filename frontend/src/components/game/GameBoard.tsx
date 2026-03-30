@@ -4,10 +4,16 @@
  */
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { BoardSquare } from "./BoardSquare";
 import type { SquareType } from "./BoardSquare";
 import CenterArea from "./CenterArea";
+import OnboardingTour from "./OnboardingTour";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { Marketplace } from "./Marketplace";
+import { InventoryModal } from "./InventoryModal";
+import { SettingsModal } from "./SettingsModal";
+import { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
 
 const GRID_SIZE = 11;
 const CENTER_START = 4;
@@ -94,63 +100,112 @@ function isCenterCell(row: number, col: number): boolean {
 }
 
 export default function GameBoard(): React.JSX.Element {
+  const [activeOverlay, setActiveOverlay] = useState<'inventory' | 'shop' | 'settings' | 'help' | null>(null);
+
+  const toggleOverlay = (overlay: 'inventory' | 'shop' | 'settings' | 'help') => {
+    setActiveOverlay((prev) => (prev === overlay ? null : overlay));
+  };
+
+  useKeyboardShortcuts({
+    onInventory: () => toggleOverlay('inventory'),
+    onShop: () => toggleOverlay('shop'),
+    onSettings: () => toggleOverlay('settings'),
+    onHelp: () => toggleOverlay('help'),
+  });
+
+  const closeOverlay = () => setActiveOverlay(null);
+
   return (
-    <div
-      className="relative w-full aspect-square mx-auto rounded-xl border-2 border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] shadow-2xl overflow-hidden"
-      style={{
-        width: "min(92vw, 900px)",
-        maxWidth: "900px",
-      }}
-    >
+    <>
+      <OnboardingTour />
+      
+      {/* Game Board Container */}
       <div
-        className="absolute inset-0 grid gap-0 items-stretch justify-stretch"
+        className="relative w-full aspect-square mx-auto rounded-xl border-2 border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] shadow-2xl overflow-hidden"
         style={{
-          gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
+          width: "min(92vw, 900px)",
+          maxWidth: "900px",
         }}
       >
-        {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => {
-          const row = Math.floor(i / GRID_SIZE);
-          const col = i % GRID_SIZE;
+        <div
+          className="absolute inset-0 grid gap-0 items-stretch justify-stretch"
+          style={{
+            gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
+          }}
+        >
+          {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => {
+            const row = Math.floor(i / GRID_SIZE);
+            const col = i % GRID_SIZE;
 
-          if (isCenterArea(row, col)) {
-            const isCenterAnchor = row === CENTER_START && col === CENTER_START;
-            if (!isCenterAnchor) return <div key={i} className="col-span-1 row-span-1" aria-hidden />;
-            return (
-              <div
-                key={i}
-                className="flex items-center justify-center p-1 bg-[var(--tycoon-bg)]"
-                style={{
-                  gridColumn: `${col + 1} / ${col + 1 + (CENTER_END - CENTER_START)}`,
-                  gridRow: `${row + 1} / ${row + 1 + (CENTER_END - CENTER_START)}`,
-                }}
-              >
-                <CenterArea />
-              </div>
-            );
-          }
+            if (isCenterArea(row, col)) {
+              const isCenterAnchor = row === CENTER_START && col === CENTER_START;
+              if (!isCenterAnchor) return <div key={i} className="col-span-1 row-span-1" aria-hidden />;
+              return (
+                <div
+                  key={i}
+                  className="flex items-center justify-center p-1 bg-[var(--tycoon-bg)]"
+                  style={{
+                    gridColumn: `${col + 1} / ${col + 1 + (CENTER_END - CENTER_START)}`,
+                    gridRow: `${row + 1} / ${row + 1 + (CENTER_END - CENTER_START)}`,
+                  }}
+                >
+                  <CenterArea />
+                </div>
+              );
+            }
 
-          const track = getTrackAt(row, col);
-          if (track) {
-            return (
-              <div key={i} className="flex items-center justify-center p-0.5 sm:p-1 min-w-0 min-h-0 overflow-hidden">
-                <BoardSquare
-                  name={track.name}
-                  position={track.position}
-                  type={track.type}
-                  color={track.color}
-                />
-              </div>
-            );
-          }
+            const track = getTrackAt(row, col);
+            if (track) {
+              return (
+                <div key={i} className="flex items-center justify-center p-0.5 sm:p-1 min-w-0 min-h-0 overflow-hidden">
+                  <BoardSquare
+                    name={track.name}
+                    position={track.position}
+                    type={track.type}
+                    color={track.color}
+                  />
+                </div>
+              );
+            }
 
-          if (isCenterCell(row, col)) {
-            return <div key={i} className="bg-[var(--tycoon-card-bg)]/30 border border-[var(--tycoon-border)]/30 rounded" />;
-          }
+            if (isCenterCell(row, col)) {
+              return <div key={i} className="bg-[var(--tycoon-card-bg)]/30 border border-[var(--tycoon-border)]/30 rounded" />;
+            }
 
-          return <div key={i} />;
-        })}
+            return <div key={i} />;
+          })}
+        </div>
+
+        {/* Global Overlays */}
+        {activeOverlay === 'shop' && (
+          <div className="absolute inset-0 z-40 bg-[var(--tycoon-bg)] overflow-y-auto pt-16">
+            <button 
+              onClick={closeOverlay}
+              className="absolute top-4 right-4 z-50 p-2 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
+              aria-label="Close Shop"
+            >
+              <span className="sr-only">Close</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <Marketplace />
+          </div>
+        )}
       </div>
-    </div>
+
+      {/* Modals */}
+      <InventoryModal 
+        isOpen={activeOverlay === 'inventory'} 
+        onClose={closeOverlay} 
+      />
+      <SettingsModal 
+        isOpen={activeOverlay === 'settings'} 
+        onClose={closeOverlay} 
+      />
+      <KeyboardShortcutsHelp 
+        isOpen={activeOverlay === 'help'} 
+        onClose={closeOverlay} 
+      />
+    </>
   );
 }

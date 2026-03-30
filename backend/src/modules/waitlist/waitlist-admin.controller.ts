@@ -35,17 +35,14 @@ import { BulkImportResponseDto } from './dto/bulk-import-waitlist.dto';
 import { Waitlist } from './entities/waitlist.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
-import {
-  RedisRateLimitGuard,
-  RateLimit,
-} from '../../common/guards/redis-rate-limit.guard';
 import { PaginatedResponse } from '../../common';
+import { Throttle } from '@nestjs/throttler';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
 
 @ApiTags('admin-waitlist')
 @ApiBearerAuth()
 @Controller('admin/waitlist')
-@UseGuards(JwtAuthGuard, AdminGuard, RedisRateLimitGuard)
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class WaitlistAdminController {
   constructor(
     private readonly waitlistService: WaitlistService,
@@ -53,7 +50,7 @@ export class WaitlistAdminController {
   ) {}
 
   @Get()
-  @RateLimit(50, 60)
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve all waitlist entries with pagination and filtering',
   })
@@ -76,7 +73,7 @@ export class WaitlistAdminController {
   }
 
   @Get('export')
-  @RateLimit(10, 60)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: 'Export waitlist entries as CSV or Excel',
   })
@@ -102,7 +99,7 @@ export class WaitlistAdminController {
    */
   @Post('bulk-import')
   @HttpCode(HttpStatus.OK)
-  @RateLimit(10, 60)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
@@ -172,7 +169,7 @@ export class WaitlistAdminController {
   }
 
   @Patch(':id')
-  @RateLimit(30, 60)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Update a waitlist entry',
   })
@@ -209,7 +206,7 @@ export class WaitlistAdminController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RateLimit(30, 60)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Soft delete a waitlist entry',
   })
@@ -238,7 +235,7 @@ export class WaitlistAdminController {
 
   @Delete(':id/permanent')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RateLimit(10, 60)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: 'Permanently delete a waitlist entry',
   })

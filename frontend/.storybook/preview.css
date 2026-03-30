@@ -1,0 +1,10 @@
+/* Disable animations/transitions for stable visual regression snapshots */
+* {
+  animation: none !important;
+  transition: none !important;
+}
+
+html,
+body {
+  scroll-behavior: auto !important;
+}

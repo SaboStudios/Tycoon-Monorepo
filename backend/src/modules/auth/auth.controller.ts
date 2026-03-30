@@ -6,7 +6,9 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
@@ -18,6 +20,10 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
 
 interface RequestWithUser {
   user: JwtPayload;
+  ip?: string;
+  headers?: {
+    'user-agent'?: string;
+  };
 }
 
 @Controller('auth')
@@ -27,6 +33,7 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -41,10 +48,20 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshTokenDto.refreshToken);
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Req() req: RequestWithUser,
+  ) {
+    const ipAddress = req.ip;
+    const userAgent = req.headers?.['user-agent'];
+    return this.authService.refreshTokens(
+      refreshTokenDto.refreshToken,
+      ipAddress,
+      userAgent,
+    );
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('wallet-login')
   @HttpCode(HttpStatus.OK)
   async walletLogin(@Body() body: WalletLoginDto) {
@@ -58,6 +75,7 @@ export class AuthController {
     return this.authService.logout(req.user.sub);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() createUserDto: CreateUserDto) {

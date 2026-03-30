@@ -2,11 +2,13 @@
 
 mod events;
 mod storage;
+mod treasury;
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
 use storage::{
     get_backend_game_controller, get_owner, get_tyc_token, get_usdc_token, CollectibleInfo, User,
 };
+pub use treasury::TreasurySnapshot;
 
 #[contract]
 pub struct TycoonContract;
@@ -31,7 +33,25 @@ impl TycoonContract {
         storage::set_usdc_token(&env, &usdc_token);
         storage::set_owner(&env, &initial_owner);
         storage::set_reward_system(&env, &reward_system);
+        storage::set_state_version(&env, 1); // Current initial version is 1
         storage::set_initialized(&env);
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(env: Env) {
+        let owner = get_owner(&env);
+        owner.require_auth();
+
+        let current_version = storage::get_state_version(&env);
+
+        if current_version == 0 {
+            // Future migration from v0 to v1 might go here.
+            // For now we set version in initialize.
+            storage::set_state_version(&env, 1);
+        } else if current_version == 1 {
+            // Placeholder for future migration v1 -> v2
+            // storage::set_state_version(&env, 2);
+        }
     }
 
     pub fn withdraw_funds(env: Env, token: Address, to: Address, amount: u128) {
@@ -120,7 +140,7 @@ impl TycoonContract {
 
         // Validate username length (3-20 chars)
         let len = username.len();
-        if len < 3 || len > 20 {
+        if !(3..=20).contains(&len) {
             panic!("Username must be 3-20 characters");
         }
 
@@ -180,6 +200,7 @@ impl TycoonContract {
         // Check authorization: caller must be owner OR backend controller
         let is_owner = caller == owner;
         let is_backend_controller =
+            backend_controller.is_some_and(|controller| caller == controller);
             backend_controller.map_or(false, |controller| caller == controller);
 
         if !is_owner && !is_backend_controller {
@@ -193,6 +214,19 @@ impl TycoonContract {
 
         // Emit event
         events::emit_player_removed_from_game(&env, game_id, &player, turn_count);
+    }
+
+    /// Export a snapshot of critical contract state for debugging/support.
+    pub fn export_state(env: Env) -> storage::ContractStateDump {
+        storage::ContractStateDump {
+            owner: get_owner(&env),
+            tyc_token: get_tyc_token(&env),
+            usdc_token: get_usdc_token(&env),
+            reward_system: storage::get_reward_system(&env),
+            state_version: storage::get_state_version(&env),
+            is_initialized: storage::is_initialized(&env),
+            backend_controller: storage::get_backend_game_controller(&env),
+        }
     }
 }
 

@@ -2,11 +2,23 @@
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { track } from "@/lib/analytics";
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
+
+  function handleTrackedNavigation(
+    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
+    destination: string,
+  ) {
+    track(event, {
+      route: "/",
+      destination,
+    });
+
+    router.push(destination);
+  }
 
   return (
     <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
@@ -99,8 +111,8 @@ const HeroSection: React.FC = () => {
         <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
           {/* Continue Game */}
           <button
-            onClick={() => router.push("/game-settings")}
-            className={`relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer ${!prefersReducedMotion ? 'transition-transform group-hover:scale-105' : ''}`}
+            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
+            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
             <svg
               width="300"
@@ -125,7 +137,7 @@ const HeroSection: React.FC = () => {
 
           {/* Multiplayer */}
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -152,7 +164,7 @@ const HeroSection: React.FC = () => {
 
           {/* Join Room */}
           <button
-            onClick={() => router.push("/join-room")}
+            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -179,8 +191,8 @@ const HeroSection: React.FC = () => {
 
           {/* Challenge AI */}
           <button
-            onClick={() => router.push("/play-ai")}
-            className={`relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer ${!prefersReducedMotion ? 'transition-transform duration-300 group-hover:scale-105' : ''}`}
+            onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
+            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
               width="260"

@@ -1,9 +1,10 @@
-use super::*;
+﻿use super::*;
 use crate::types::{Perk, CASH_TIERS};
 use soroban_sdk::{
     testutils::{Address as _, Events},
     Address, Env, FromVal, IntoVal,
 };
+extern crate std;
 
 #[test]
 fn test_initialize() {
@@ -1835,7 +1836,7 @@ fn test_mint_collectible_event_emission() {
     client.initialize(&admin);
 
     // Mint collectible
-    let token_id = client.mint_collectible(&admin, &user, &4, &2);
+    let _token_id = client.mint_collectible(&admin, &user, &4, &2);
 
     // Get all events
     let events = env.events().all();
@@ -2049,7 +2050,20 @@ fn test_new_perk_stock_shop() {
 fn test_perk_enum_values() {
     // Verify all perk variants exist and can be compared
     // This test ensures the enum has all 12 variants (including None)
-    assert!(true); // The enum compiles with all variants, which is the main verification
+    let all_perks = [
+        Perk::None,
+        Perk::PropertyDiscount,
+        Perk::CashTiered,
+        Perk::TaxRefund,
+        Perk::DoubleRent,
+        Perk::JailFree,
+        Perk::ExtraTurn,
+        Perk::Shield,
+        Perk::Teleport,
+        Perk::RollBoost,
+        Perk::RollExact,
+    ];
+    assert_eq!(all_perks.len(), 11);
 
     // Additional verification: mint each perk and check it returns the correct perk
     let env = Env::default();
@@ -2071,4 +2085,358 @@ fn test_perk_enum_values() {
     let _ = client.mint_collectible(&admin, &user, &9, &1); // Teleport
     let _ = client.mint_collectible(&admin, &user, &10, &1); // Shield
     let _ = client.mint_collectible(&admin, &user, &11, &1); // RollExact
+}
+
+#[test]
+fn test_base_uri_configuration() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Test setting base URI with HTTPS
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+    client.set_base_uri(&base_uri, &0, &false);
+
+    let config = client.base_uri_config().unwrap();
+    assert_eq!(config.base_uri, base_uri);
+    assert!(!config.frozen);
+
+    // Test setting base URI with IPFS
+    let ipfs_uri = soroban_sdk::String::from_str(&env, "ipfs://Qm");
+    client.set_base_uri(&ipfs_uri, &1, &true);
+
+    let config = client.base_uri_config().unwrap();
+    assert_eq!(config.base_uri, ipfs_uri);
+    assert!(config.frozen);
+    assert!(client.is_metadata_frozen());
+}
+
+#[test]
+fn test_invalid_uri_type() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+
+    // Invalid URI type should fail
+    let result = client.try_set_base_uri(&base_uri, &2, &false);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_metadata_frozen_prevents_changes() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set frozen base URI
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+    client.set_base_uri(&base_uri, &0, &true);
+
+    // Attempting to change base URI should fail
+    let new_uri = soroban_sdk::String::from_str(&env, "https://new-api.tycoon.com/metadata/");
+    let result = client.try_set_base_uri(&new_uri, &0, &false);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_token_metadata_setting() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Create a token first
+    let token_id = client.mint_collectible(&admin, &admin, &1, &1);
+
+    // Set base URI
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+    client.set_base_uri(&base_uri, &0, &false);
+
+    // Set metadata
+    let name = soroban_sdk::String::from_str(&env, "Tycoon Cash Boost");
+    let description = soroban_sdk::String::from_str(&env, "A powerful cash boost collectible");
+    let image = soroban_sdk::String::from_str(&env, "https://images.tycoon.com/cash-boost.png");
+    let animation_url = Some(soroban_sdk::String::from_str(&env, "https://animations.tycoon.com/cash-boost.mp4"));
+    let external_url = Some(soroban_sdk::String::from_str(&env, "https://tycoon.com/collectibles/1"));
+
+    let mut attributes = Vec::new(&env);
+    let attr1 = crate::types::MetadataAttribute {
+        display_type: None,
+        trait_type: soroban_sdk::String::from_str(&env, "Perk"),
+        value: soroban_sdk::String::from_str(&env, "CashTiered"),
+    };
+    let attr2 = crate::types::MetadataAttribute {
+        display_type: None,
+        trait_type: soroban_sdk::String::from_str(&env, "Strength"),
+        value: soroban_sdk::String::from_str(&env, "3"),
+    };
+    attributes.push_back(attr1);
+    attributes.push_back(attr2);
+
+    client.set_token_metadata(&token_id, &name, &description, &image, &animation_url, &external_url, &attributes);
+
+    // Verify metadata
+    let metadata = client.token_metadata(&token_id).unwrap();
+    assert_eq!(metadata.name, name);
+    assert_eq!(metadata.description, description);
+    assert_eq!(metadata.image, image);
+    assert_eq!(metadata.animation_url, animation_url);
+    assert_eq!(metadata.external_url, external_url);
+    assert_eq!(metadata.attributes.len(), 2);
+}
+
+#[test]
+fn test_token_uri_generation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Create a token
+    let token_id = client.mint_collectible(&admin, &admin, &1, &1);
+
+    // Set base URI
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+    client.set_base_uri(&base_uri, &0, &false);
+
+    // Test token URI — verify it starts with the base URI and is non-empty
+    let uri = client.token_uri(&token_id);
+    assert!(uri.len() > base_uri.len(), "URI should include token ID suffix");
+
+    // Test with IPFS
+    let ipfs_uri = soroban_sdk::String::from_str(&env, "ipfs://Qm");
+    client.set_base_uri(&ipfs_uri, &1, &false);
+
+    let uri2 = client.token_uri(&token_id);
+    assert!(uri2.len() > ipfs_uri.len(), "IPFS URI should include token ID suffix");
+}
+
+#[test]
+fn test_token_uri_nonexistent_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set base URI
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+    client.set_base_uri(&base_uri, &0, &false);
+
+    // Should panic for non-existent token
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.token_uri(&999);
+    }));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_metadata_frozen_prevents_metadata_changes() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Create a token
+    let token_id = client.mint_collectible(&admin, &admin, &1, &1);
+
+    // Set frozen base URI
+    let base_uri = soroban_sdk::String::from_str(&env, "https://api.tycoon.com/metadata/");
+    client.set_base_uri(&base_uri, &0, &true);
+
+    // Attempting to set metadata should fail
+    let name = soroban_sdk::String::from_str(&env, "Test");
+    let description = soroban_sdk::String::from_str(&env, "Test");
+    let image = soroban_sdk::String::from_str(&env, "https://test.com/image.png");
+    let attributes = Vec::new(&env);
+
+    let result = client.try_set_token_metadata(&token_id, &name, &description, &image, &None, &None, &attributes);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_pagination_max_page_size() {
+    let env = Env::default();
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let max_size = client.max_page_size();
+    assert_eq!(max_size, 100);
+}
+
+#[test]
+fn test_pagination_basic() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Mint 5 different tokens and collect their IDs
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for i in 1..=5 {
+        let id = client.mint_collectible(&admin, &user, &i, &1);
+        ids.push_back(id);
+    }
+
+    // Test page 0 with size 2
+    let page = client.tokens_of_owner_page(&user, &0, &2);
+    assert_eq!(page.len(), 2);
+    assert_eq!(page.get(0).unwrap(), ids.get(0).unwrap());
+    assert_eq!(page.get(1).unwrap(), ids.get(1).unwrap());
+
+    // Test page 1 with size 2
+    let page = client.tokens_of_owner_page(&user, &1, &2);
+    assert_eq!(page.len(), 2);
+    assert_eq!(page.get(0).unwrap(), ids.get(2).unwrap());
+    assert_eq!(page.get(1).unwrap(), ids.get(3).unwrap());
+
+    // Test page 2 with size 2 (should have 1 item)
+    let page = client.tokens_of_owner_page(&user, &2, &2);
+    assert_eq!(page.len(), 1);
+    assert_eq!(page.get(0).unwrap(), ids.get(4).unwrap());
+
+    // Test page 3 with size 2 (should be empty)
+    let page = client.tokens_of_owner_page(&user, &3, &2);
+    assert_eq!(page.len(), 0);
+}
+
+#[test]
+fn test_pagination_invalid_page_size() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.mint_collectible(&admin, &user, &1, &1);
+
+    // Test page size 0 (should fail)
+    let result = client.try_tokens_of_owner_page(&user, &0, &0);
+    assert!(result.is_err());
+
+    // Test page size > MAX_PAGE_SIZE (should fail)
+    let result = client.try_tokens_of_owner_page(&user, &0, &101);
+    assert!(result.is_err());
+
+    // Test valid page size (should succeed)
+    let result = client.try_tokens_of_owner_page(&user, &0, &50);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_iterator_pattern() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Mint 7 tokens and collect their IDs
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for i in 1..=7 {
+        let id = client.mint_collectible(&admin, &user, &i, &1);
+        ids.push_back(id);
+    }
+
+    // Test iteration with batch size 3
+    let (batch1, has_more1) = client.iterate_owned_tokens(&user, &0, &3);
+    assert_eq!(batch1.len(), 3);
+    assert!(has_more1);
+    assert_eq!(batch1.get(0).unwrap(), ids.get(0).unwrap());
+    assert_eq!(batch1.get(1).unwrap(), ids.get(1).unwrap());
+    assert_eq!(batch1.get(2).unwrap(), ids.get(2).unwrap());
+
+    let (batch2, has_more2) = client.iterate_owned_tokens(&user, &3, &3);
+    assert_eq!(batch2.len(), 3);
+    assert!(has_more2);
+    assert_eq!(batch2.get(0).unwrap(), ids.get(3).unwrap());
+    assert_eq!(batch2.get(1).unwrap(), ids.get(4).unwrap());
+    assert_eq!(batch2.get(2).unwrap(), ids.get(5).unwrap());
+
+    let (batch3, has_more3) = client.iterate_owned_tokens(&user, &6, &3);
+    assert_eq!(batch3.len(), 1);
+    assert!(!has_more3);
+    assert_eq!(batch3.get(0).unwrap(), ids.get(6).unwrap());
+
+    // Test starting beyond available tokens
+    let (batch4, has_more4) = client.iterate_owned_tokens(&user, &10, &3);
+    assert_eq!(batch4.len(), 0);
+    assert!(!has_more4);
+}
+
+#[test]
+fn test_iterator_invalid_batch_size() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.mint_collectible(&admin, &user, &1, &1);
+
+    // Test batch size 0 (should fail)
+    let result = client.try_iterate_owned_tokens(&user, &0, &0);
+    assert!(result.is_err());
+
+    // Test batch size > MAX_PAGE_SIZE (should fail)
+    let result = client.try_iterate_owned_tokens(&user, &0, &101);
+    assert!(result.is_err());
 }
