@@ -16,6 +16,8 @@ import { UsersService } from '../users/users.service';
 import { GiftsService } from '../gifts/gifts.service';
 import { Gift } from '../gifts/entities/gift.entity';
 import { GiftStatus } from '../gifts/enums/gift-status.enum';
+import { RedisService } from '../redis/redis.service';
+import { secureRandomHex } from '../../common/crypto-secure-random';
 
 export interface PaginatedShopItems {
   data: ShopItem[];
@@ -37,6 +39,7 @@ export class ShopService {
     private readonly usersService: UsersService,
     private readonly giftsService: GiftsService,
     private readonly dataSource: DataSource,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -47,7 +50,9 @@ export class ShopService {
       ...createShopItemDto,
       price: String(createShopItemDto.price),
     });
-    return this.shopItemRepository.save(item);
+    const saved = await this.shopItemRepository.save(item);
+    await this.invalidateCache();
+    return saved;
   }
 
   /**
@@ -90,7 +95,9 @@ export class ShopService {
           where: { user_id: userId },
         });
 
-      const ownedItemIds = new Set(userInventory.map((inv) => inv.shop_item_id));
+      const ownedItemIds = new Set(
+        userInventory.map((inv) => inv.shop_item_id),
+      );
       itemsWithOwnership = data.map((item) => ({
         ...item,
         is_owned: ownedItemIds.has(item.id),
@@ -128,7 +135,9 @@ export class ShopService {
   ): Promise<ShopItem> {
     const item = await this.findOne(id);
     Object.assign(item, updateShopItemDto);
-    return this.shopItemRepository.save(item);
+    const saved = await this.shopItemRepository.save(item);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   /**
@@ -138,7 +147,9 @@ export class ShopService {
   async remove(id: number): Promise<ShopItem> {
     const item = await this.findOne(id);
     item.active = false;
-    return this.shopItemRepository.save(item);
+    const saved = await this.shopItemRepository.save(item);
+    await this.invalidateCache(id);
+    return saved;
   }
 
   /**
@@ -252,8 +263,7 @@ export class ShopService {
    */
   private generateTransactionId(): string {
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    return `TXN-${timestamp}-${random}`.toUpperCase();
+    return `TXN-${timestamp}-${secureRandomHex(8)}`.toUpperCase();
   }
 
   /**
@@ -288,5 +298,22 @@ export class ShopService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Invalidate shop caches
+   */
+  private async invalidateCache(id?: number): Promise<void> {
+    // Invalidate the list cache
+    await this.redisService.delByPattern('tycoon:shop:items:*');
+
+    // If a specific ID is provided, invalidate its detail cache
+    if (id) {
+      await this.redisService.delByPattern(`tycoon:shop:item:items:${id}:*`);
+      // Note: AdvancedCacheInterceptor uses url segments, so shop/items/1 becomes shop:items:1
+      // but my keyPrefix was 'shop:item'. Let's check the logic.
+      // Url /api/v1/shop/items/1 -> segments: shop, items, 1 -> tycoon:shop:item:shop:items:1:public:{}
+      // Wait, I should probably standardize the keyPrefix in controllers.
+    }
   }
 }

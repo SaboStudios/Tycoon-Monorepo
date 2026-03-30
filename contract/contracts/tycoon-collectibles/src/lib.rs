@@ -14,7 +14,26 @@ pub use storage::*;
 pub use transfer::*;
 pub use types::*;
 
-use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env};
+use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Vec};
+use tycoon_lib::fees::{calculate_fee_split, FeeConfig};
+
+/// Convert a u128 to a Soroban String without std (no_std compatible)
+fn u128_to_soroban_string(env: &Env, mut n: u128) -> soroban_sdk::String {
+    if n == 0 {
+        return soroban_sdk::String::from_str(env, "0");
+    }
+    // Build digits in reverse
+    let mut buf = [0u8; 39]; // max u128 is 39 digits
+    let mut len = 0usize;
+    while n > 0 {
+        buf[len] = b'0' + (n % 10) as u8;
+        n /= 10;
+        len += 1;
+    }
+    buf[..len].reverse();
+    let s = core::str::from_utf8(&buf[..len]).unwrap_or("0");
+    soroban_sdk::String::from_str(env, s)
+}
 
 #[contract]
 pub struct TycoonCollectibles;
@@ -27,6 +46,20 @@ impl TycoonCollectibles {
             return Err(CollectibleError::AlreadyInitialized);
         }
         set_admin(&env, &admin);
+        set_state_version(&env, 1);
+        Ok(())
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(env: Env) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        let current_version = get_state_version(&env);
+
+        if current_version == 0 {
+            set_state_version(&env, 1);
+        }
         Ok(())
     }
 
@@ -44,6 +77,29 @@ impl TycoonCollectibles {
             usdc_token,
         };
         set_shop_config(&env, &config);
+        Ok(())
+    }
+
+    /// Set the fee configuration for the shop (admin only)
+    pub fn set_fee_config(
+        env: Env,
+        platform_fee_bps: u32,
+        creator_fee_bps: u32,
+        pool_fee_bps: u32,
+        platform_address: Address,
+        pool_address: Address,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        let config = FeeConfig {
+            platform_fee_bps,
+            creator_fee_bps,
+            pool_fee_bps,
+            platform_address,
+            pool_address,
+        };
+        storage::set_fee_config(&env, &config);
         Ok(())
     }
 
@@ -218,6 +274,7 @@ impl TycoonCollectibles {
     ) -> Result<(), CollectibleError> {
         buyer.require_auth();
 
+        // CEI: CHECKS — read and validate all state first
         let shop_config = get_shop_config(&env).ok_or(CollectibleError::ShopNotInitialized)?;
         let price_config =
             get_collectible_price(&env, token_id).ok_or(CollectibleError::ZeroPrice)?;
@@ -237,12 +294,50 @@ impl TycoonCollectibles {
             return Err(CollectibleError::InsufficientStock);
         }
 
+        // CEI: EFFECTS — update all state before any external call
+        // Decrement stock and mint to buyer before payment transfer so a
+        // re-entrant call through the token contract sees stock already consumed.
+        set_shop_stock(&env, token_id, current_stock - 1);
+        _safe_mint(&env, &buyer, token_id, 1)?;
+
+        // CEI: INTERACTIONS — external payment call last
         let contract_address = env.current_contract_address();
         let token_client = token::Client::new(&env, &payment_token);
-        token_client.transfer(&buyer, &contract_address, &price);
 
-        _safe_mint(&env, &buyer, token_id, 1)?;
-        set_shop_stock(&env, token_id, current_stock - 1);
+        // Handle fee distribution
+        if let Some(fee_config) = get_fee_config(&env) {
+            let split = tycoon_lib::fees::calculate_fee_split(price as u128, &fee_config);
+            
+            if split.platform_amount > 0 {
+                token_client.transfer(&buyer, &fee_config.platform_address, &(split.platform_amount as i128));
+            }
+            if split.pool_amount > 0 {
+                token_client.transfer(&buyer, &fee_config.pool_address, &(split.pool_amount as i128));
+            }
+            if split.creator_amount > 0 {
+                // For shop sales, "creator" could be a specific account or just added back to shop balance.
+                // Here we assume creator is a configured address in the future, for now if configured, transfer it.
+                // If we don't have a specific creator address for shop-stocked items, it might go to admin.
+                token_client.transfer(&buyer, &get_admin(&env), &(split.creator_amount as i128));
+            }
+            if split.residue > 0 {
+                token_client.transfer(&buyer, &contract_address, &(split.residue as i128));
+            }
+
+            emit_fee_distributed_event(
+                &env,
+                token_id,
+                &fee_config.platform_address,
+                split.platform_amount,
+                &fee_config.pool_address,
+                split.pool_amount,
+                split.creator_amount,
+            );
+        } else {
+            // No fee config, transfer all to contract
+            token_client.transfer(&buyer, &contract_address, &price);
+        }
+
         emit_collectible_bought_event(&env, token_id, &buyer, price, use_usdc);
 
         Ok(())
@@ -549,6 +644,151 @@ impl TycoonCollectibles {
     pub fn token_of_owner_by_index(env: Env, owner: Address, index: u32) -> u128 {
         token_of_owner_by_index(&env, &owner, index)
             .unwrap_or_else(|| panic!("Index out of bounds"))
+    }
+
+    /// Get a page of tokens owned by an address
+    /// Returns a Vec of token IDs for the specified page (0-indexed)
+    /// Page size is limited to prevent gas limit issues
+    pub fn tokens_of_owner_page(
+        env: Env,
+        owner: Address,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<u128>, CollectibleError> {
+        crate::enumeration::tokens_of_owner_page(&env, &owner, page, page_size)
+    }
+
+    /// Iterator pattern for gas-safe enumeration
+    /// Returns a batch of tokens starting from start_index, and a boolean indicating if more tokens exist
+    /// Use this for iterating through all tokens without hitting gas limits
+    pub fn iterate_owned_tokens(
+        env: Env,
+        owner: Address,
+        start_index: u32,
+        batch_size: u32,
+    ) -> Result<(Vec<u128>, bool), CollectibleError> {
+        crate::enumeration::iterate_owned_tokens(&env, &owner, start_index, batch_size)
+    }
+
+    /// Get the maximum allowed page size for pagination
+    /// This ensures operations stay within gas limits
+    pub fn max_page_size(env: Env) -> u32 {
+        crate::enumeration::MAX_PAGE_SIZE
+    }
+
+    // ========================
+    // Metadata Functions
+    // ========================
+
+    /// Set base URI for token metadata (admin only)
+    /// This establishes the base URI policy for all tokens
+    pub fn set_base_uri(
+        env: Env,
+        base_uri: soroban_sdk::String,
+        uri_type: u32,
+        frozen: bool,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        let uri_type_enum = match uri_type {
+            0 => crate::types::URIType::HTTPS,
+            1 => crate::types::URIType::IPFS,
+            _ => return Err(CollectibleError::InvalidURIType),
+        };
+
+        if is_metadata_frozen(&env) {
+            return Err(CollectibleError::MetadataFrozen);
+        }
+
+        let config = crate::types::BaseURIConfig {
+            base_uri,
+            frozen,
+            uri_type: uri_type_enum,
+        };
+
+        set_base_uri_config(&env, &config);
+        Ok(())
+    }
+
+    /// Get the base URI configuration
+    pub fn base_uri_config(env: Env) -> Option<crate::types::BaseURIConfig> {
+        get_base_uri_config(&env)
+    }
+
+    /// Set metadata for a specific token (admin only)
+    /// Creates marketplace-compliant JSON metadata
+    pub fn set_token_metadata(
+        env: Env,
+        token_id: u128,
+        name: soroban_sdk::String,
+        description: soroban_sdk::String,
+        image: soroban_sdk::String,
+        animation_url: Option<soroban_sdk::String>,
+        external_url: Option<soroban_sdk::String>,
+        attributes: Vec<crate::types::MetadataAttribute>,
+    ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        if is_metadata_frozen(&env) {
+            return Err(CollectibleError::MetadataFrozen);
+        }
+
+        if get_perk(&env, token_id) == crate::types::Perk::None && !has_metadata(&env, token_id) {
+            return Err(CollectibleError::TokenNotFound);
+        }
+
+        let metadata = crate::types::CollectibleMetadata {
+            name,
+            description,
+            image,
+            animation_url,
+            external_url,
+            attributes,
+        };
+
+        set_metadata(&env, token_id, &metadata);
+        Ok(())
+    }
+
+    /// Get metadata for a specific token
+    pub fn token_metadata(env: Env, token_id: u128) -> Option<crate::types::CollectibleMetadata> {
+        get_metadata(&env, token_id)
+    }
+
+    /// Get the token URI for marketplace integration
+    /// Returns the full URI for the token's metadata JSON
+    /// Follows ERC-721 tokenURI standard
+    pub fn token_uri(env: Env, token_id: u128) -> soroban_sdk::String {
+        if get_perk(&env, token_id) == crate::types::Perk::None && !has_metadata(&env, token_id) {
+            panic!("Token does not exist");
+        }
+
+        match get_base_uri_config(&env) {
+            Some(config) => {
+                let base = config.base_uri;
+                let token_id_str = u128_to_soroban_string(&env, token_id);
+                let base_len = base.len() as usize;
+                let id_len = token_id_str.len() as usize;
+                let total_len = base_len + id_len;
+                let mut buf = [0u8; 256];
+                if total_len <= 256 {
+                    base.copy_into_slice(&mut buf[..base_len]);
+                    token_id_str.copy_into_slice(&mut buf[base_len..base_len + id_len]);
+                    let s = core::str::from_utf8(&buf[..total_len]).unwrap_or("");
+                    soroban_sdk::String::from_str(&env, s)
+                } else {
+                    base
+                }
+            }
+            None => soroban_sdk::String::from_str(&env, ""),
+        }
+    }
+
+    /// Check if metadata is frozen (immutable)
+    pub fn is_metadata_frozen(env: Env) -> bool {
+        is_metadata_frozen(&env)
     }
 }
 

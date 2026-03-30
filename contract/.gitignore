@@ -1,17 +1,1 @@
-# Build artifacts
-target/
-Cargo.lock
-
-# Test artifacts
 test_snapshots/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db

@@ -23,6 +23,13 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
     // Application metadata
     applicationName: siteConfig.name,
     generator: "Next.js",
+    themeColor: siteConfig.themeColor,
+
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: siteConfig.name,
+    },
 
     // Author and creator
     authors: [
@@ -54,6 +61,10 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
     // Icons
     icons: {
       icon: [
+        {
+          url: "/metadata/favicon.ico",
+          sizes: "any",
+        },
         {
           url: "/metadata/favicon-16x16.png",
           sizes: "16x16",

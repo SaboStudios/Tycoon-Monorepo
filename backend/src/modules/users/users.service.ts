@@ -337,10 +337,8 @@ export class UsersService {
       .orderBy('user.game_won', 'DESC')
       .addOrderBy('user.total_earned', 'DESC');
 
-    return await this.paginationService.paginate(
-      queryBuilder,
-      paginationDto,
-      ['username'],
-    );
+    return await this.paginationService.paginate(queryBuilder, paginationDto, [
+      'username',
+    ]);
   }
 }

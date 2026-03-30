@@ -315,6 +315,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "StateVersion"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u32": 1
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "TycToken"
                             }
                           ]

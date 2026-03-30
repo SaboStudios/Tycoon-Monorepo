@@ -4,15 +4,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
+import { uploadConfig } from './config/upload.config';
 import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
-import { CommonModule, HttpExceptionFilter } from './common';
+import { CommonModule, HttpExceptionFilter, AppThrottlerGuard } from './common';
 import { SuspensionCheckMiddleware } from './common/middleware/suspension-check.middleware';
 import { User } from './modules/users/entities/user.entity';
 import { UsersModule } from './modules/users/users.module';
@@ -39,15 +40,21 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
+import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
+import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig],
+      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig],
       envFilePath: '.env',
       validationSchema,
+      // Report ALL missing/invalid vars at once instead of stopping at the first.
+      validationOptions: { abortEarly: false },
     }),
 
     // Scheduler
@@ -60,6 +67,8 @@ import { EmailModule } from './modules/email/email.module';
         limit: 100,
       },
     ]),
+
+    MetricsModule,
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({
@@ -103,7 +112,11 @@ import { EmailModule } from './modules/email/email.module';
     MonetizationModule,
     WebhooksModule,
     JobsModule,
+    PrivacyModule,
     EmailModule,
+    AuditTrailModule,
+    TourAnalyticsModule,
+    LedgerReconciliationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
@@ -111,7 +124,7 @@ import { EmailModule } from './modules/email/email.module';
     SuspensionCheckMiddleware,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,
