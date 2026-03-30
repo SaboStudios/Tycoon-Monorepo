@@ -13,11 +13,15 @@ import { Coupon } from '../../coupons/entities/coupon.entity';
 
 @Entity({ name: 'purchases' })
 @Index(['user_id', 'created_at'])
+@Index(['user_id', 'idempotency_key'], { unique: true, where: '"idempotency_key" IS NOT NULL' })
 @Index(['shop_item_id'])
 @Index(['created_at'])
 export class Purchase {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  idempotency_key: string;
 
   @Column({ type: 'int', name: 'user_id' })
   user_id: number;
