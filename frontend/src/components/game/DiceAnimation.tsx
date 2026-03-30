@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 interface DiceAnimationProps {
   value?: number;
@@ -19,6 +20,7 @@ const diceDots: Record<number, number[][]> = {
 export default function DiceAnimation({ value = 1, isRolling = false }: DiceAnimationProps) {
   const clampedValue = Math.max(1, Math.min(6, value));
   const dots = diceDots[clampedValue];
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <div
@@ -29,7 +31,7 @@ export default function DiceAnimation({ value = 1, isRolling = false }: DiceAnim
     >
       <div
         className={`relative w-16 h-16 bg-[var(--tycoon-card-bg)] border-2 border-[var(--tycoon-accent)] rounded-lg shadow-lg ${
-          isRolling ? "animate-roll" : ""
+          isRolling && !prefersReducedMotion ? "animate-roll" : ""
         }`}
         style={{
           perspective: "1000px",
