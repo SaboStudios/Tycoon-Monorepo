@@ -2,7 +2,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Footer from "@/components/shared/Footer";
 
 const HeroSection = dynamic(() => import("@/components/guest/HeroSection"));
 const HeroSectionMobile = dynamic(() => import("@/components/guest/HeroSectionMobile"));
@@ -12,7 +11,7 @@ const JoinOurCommunity = dynamic(() => import("@/components/guest/JoinOurCommuni
 
 export default function HomeClient() {
   return (
-    <main className="w-full">
+    <div className="w-full">
       <div className="md:hidden">
         <HeroSectionMobile />
       </div>
@@ -22,7 +21,6 @@ export default function HomeClient() {
       <WhatIsTycoon />
       <HowItWorks />
       <JoinOurCommunity />
-      <Footer />
-    </main>
+    </div>
   );
 }

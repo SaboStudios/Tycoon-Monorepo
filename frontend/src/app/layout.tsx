@@ -11,9 +11,9 @@ import { generateBaseMetadata } from "@/lib/metadata";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { NearWalletProvider } from "@/components/providers/near-wallet-provider";
 import { PWAProvider } from "@/components/providers/pwa-provider";
-import "./globals.css";
-import NavbarMobile from "@/components/shared/NavbarMobile";
+import { SiteShell } from "@/components/layout/site-shell";
 import { MSWProvider } from "@/components/providers/msw-provider";
+import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,20 +41,19 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${kronaOne.variable} ${orbitron.variable} ${dmSans.variable} antialiased`}
       >
         <AnalyticsProvider />
-        {children}
-        <NavbarMobile />
-<AuthProvider>
-          <NearWalletProvider>
-            <MSWProvider />
-            <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
-              <Navbar />
-              {children}
-              <NavbarMobile />
-            </ErrorBoundary>
-            <ToastProvider />
-            <ScrollToTopBtn />
-          </NearWalletProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <NearWalletProvider>
+              <MSWProvider />
+              <PWAProvider />
+              <ErrorBoundary showTechnical={process.env.NODE_ENV === "development"}>
+                <SiteShell>{children}</SiteShell>
+              </ErrorBoundary>
+              <ToastProvider />
+              <ScrollToTopBtn />
+            </NearWalletProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

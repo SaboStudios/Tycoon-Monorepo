@@ -30,7 +30,7 @@ export default function ShopPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#010F10] px-6 py-16 text-[#F0F7F7]">
+    <div className="min-h-screen bg-[#010F10] px-6 py-16 text-[#F0F7F7]">
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
         <header className="space-y-4">
           <p className="font-orbitron text-sm uppercase tracking-[0.3em] text-[#00F0FF]">
@@ -75,6 +75,6 @@ export default function ShopPage() {
           ))}
         </section>
       </div>
-    </main>
+    </div>
   );
 }

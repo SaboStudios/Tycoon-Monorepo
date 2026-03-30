@@ -18,7 +18,7 @@ export const metadata: Metadata = generatePageMetadata({
 
 export default function GamePlayPage() {
   return (
-    <section className="min-h-screen w-full bg-[var(--tycoon-bg)] flex flex-col items-center justify-center py-8 px-4">
+    <section className="mx-auto flex min-h-screen w-full max-w-[min(100%,var(--shell-content-max-game))] flex-col items-center justify-center bg-[var(--tycoon-bg)] px-4 py-8">
       <h1 className="font-orbitron text-2xl font-bold text-[var(--tycoon-accent)] text-center mb-6 sr-only">
         Game Play
       </h1>

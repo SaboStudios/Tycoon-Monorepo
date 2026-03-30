@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 /**
  * Client wrapper for the game waiting page.
  * Handles mock loading (e.g. "ENTERING LOBBY...") and mock registration check.
- * Always assumes registered for demo. Renders GameWaiting inside main.
+ * Always assumes registered for demo. Renders GameWaiting inside page content.
  */
 export default function GameWaitingClient(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -21,7 +21,7 @@ export default function GameWaitingClient(): React.JSX.Element {
 
   if (loading) {
     return (
-      <main className="w-full min-h-screen flex items-center justify-center bg-[#010F10] overflow-x-hidden">
+      <div className="flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-[#010F10]">
         <div className="flex flex-col items-center gap-6">
           <Spinner size="lg" />
           <div className="text-center space-y-2">
@@ -33,23 +33,23 @@ export default function GameWaitingClient(): React.JSX.Element {
             </p>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (!isRegistered) {
     return (
-      <main className="w-full min-h-screen flex items-center justify-center bg-[#010F10] overflow-x-hidden">
+      <div className="flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-[#010F10]">
         <p className="text-[#00F0FF] font-orbitron text-center px-4">
           Please register to join the game.
         </p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="w-full min-h-screen overflow-x-hidden bg-[#010F10]">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#010F10]">
       <GameWaiting />
-    </main>
+    </div>
   );
 }

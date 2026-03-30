@@ -36,7 +36,7 @@ const HeroSection: React.FC = () => {
         </h1>
       </div>
 
-      <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
+      <div className="absolute left-0 top-0 z-2 flex h-full w-full flex-col items-center gap-1 bg-transparent lg:justify-center">
         {/* Welcome Message */}
         <div className="mt-20 md:mt-28 lg:mt-0">
           <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
@@ -213,7 +213,7 @@ const HeroSection: React.FC = () => {
             </span>
           </button>
         </div>
-      </main>
+      </div>
     </section>
   );
 };
