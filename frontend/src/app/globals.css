@@ -36,6 +36,8 @@
   --color-tycoon-border: var(--tycoon-border);
   --color-tycoon-text: var(--tycoon-text);
   --color-tycoon-card-bg: var(--tycoon-card-bg);
+  /* Focus ring — maps to brand accent so all ring-ring usages pick up brand color */
+  --color-ring: var(--tycoon-accent);
 }
 
 [data-theme="dark"] {
