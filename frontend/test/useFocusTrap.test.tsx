@@ -47,7 +47,7 @@ describe('useFocusTrap', () => {
     render(<Harness active={true} onClose={vi.fn()} />);
     const last = screen.getByTestId('last');
     last.focus();
-    fireEvent.keyDown(document, { key: 'Tab', shiftKey: false }, { target: last });
+    fireEvent.keyDown(last, { key: 'Tab', shiftKey: false });
     // Focus should wrap to first
     expect(document.activeElement).toBe(screen.getByTestId('first'));
   });
@@ -56,7 +56,7 @@ describe('useFocusTrap', () => {
     render(<Harness active={true} onClose={vi.fn()} />);
     const first = screen.getByTestId('first');
     first.focus();
-    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true }, { target: first });
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
     expect(document.activeElement).toBe(screen.getByTestId('last'));
   });
 

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/components/providers/auth-provider";
 import { NearWalletConnect } from "@/components/wallet/NearWalletConnect";
+import { Settings } from "lucide-react";
 import { NAV_LINKS, isActivePath } from "@/lib/nav-config";
 
 const Navbar = () => {

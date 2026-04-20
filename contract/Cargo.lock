@@ -1537,7 +1537,6 @@ dependencies = [
 name = "tycoon-boost-system"
 version = "0.1.0"
 dependencies = [
- "soroban-sdk 23.4.1",
  "soroban-sdk",
 ]
 
@@ -1568,13 +1567,6 @@ dependencies = [
 
 [[package]]
 name = "tycoon-lib"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
-name = "tycoon-main-game"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",

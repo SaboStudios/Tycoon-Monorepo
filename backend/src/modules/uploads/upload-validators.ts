@@ -41,10 +41,16 @@ export class MagicBytesValidator extends FileValidator<Record<string, never>> {
 
   isValid(file: Express.Multer.File): boolean {
     const buf = file.buffer;
-    if (!buf || buf.length < 12) return false;
+    if (!buf) return false;
 
     const sigs = ALLOWED_SIGNATURES[file.mimetype];
     if (!sigs) return false;
+
+    const minLen = sigs.reduce(
+      (acc, [offset, bytes]) => Math.max(acc, offset + bytes.length),
+      0,
+    );
+    if (buf.length < minLen) return false;
 
     return sigs.every(([offset, bytes]) => matchesBytes(buf, offset, bytes));
   }

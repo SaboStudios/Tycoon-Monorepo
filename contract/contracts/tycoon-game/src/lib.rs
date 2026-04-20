@@ -199,9 +199,9 @@ impl TycoonContract {
 
         // Check authorization: caller must be owner OR backend controller
         let is_owner = caller == owner;
-        let is_backend_controller =
-            backend_controller.is_some_and(|controller| caller == controller);
-            backend_controller.map_or(false, |controller| caller == controller);
+        let is_backend_controller = backend_controller
+            .as_ref()
+            .is_some_and(|controller| caller == *controller);
 
         if !is_owner && !is_backend_controller {
             panic!("Unauthorized: caller must be owner or backend game controller");

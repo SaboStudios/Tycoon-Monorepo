@@ -13,10 +13,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.0"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "issues:stellar-wave:generate": "node scripts/stellar-wave/generate-stellar-wave-issues.mjs",
+    "issues:stellar-wave:push": "bash scripts/stellar-wave/push-stellar-wave-issues.sh"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -53,6 +52,7 @@
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "concurrently": "^8.2.0",
     "eslint": "^8.42.0",
     "jest": "^29.5.0",
     "supertest": "^6.3.3",

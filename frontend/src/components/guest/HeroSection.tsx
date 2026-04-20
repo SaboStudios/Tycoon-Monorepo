@@ -1,12 +1,27 @@
 "use client";
+import React, { useEffect, useState } from "react";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { track } from "@/lib/analytics";
 
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
+
 const HeroSection: React.FC = () => {
   const router = useRouter();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const typeSpeed = prefersReducedMotion ? 99 : 40;
+  const subSpeed = prefersReducedMotion ? 99 : 50;
 
   function handleTrackedNavigation(
     event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
@@ -65,7 +80,7 @@ const HeroSection: React.FC = () => {
               500,
             ]}
             wrapper="span"
-            speed={prefersReducedMotion ? 0 : 40}
+            speed={typeSpeed}
             repeat={prefersReducedMotion ? 1 : Infinity}
             className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
           />
@@ -95,7 +110,7 @@ const HeroSection: React.FC = () => {
               2000,
             ]}
             wrapper="span"
-            speed={prefersReducedMotion ? 0 : 50}
+            speed={subSpeed}
             repeat={prefersReducedMotion ? 1 : Infinity}
             className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
           />

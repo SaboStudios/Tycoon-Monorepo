@@ -8,7 +8,7 @@ import {
   DiscrepancyType,
   DiscrepancyStatus,
 } from './entities/ledger-discrepancy.entity';
-import { IPaymentProviderClient } from './interfaces/payment-provider.interface';
+import type { IPaymentProviderClient } from './interfaces/payment-provider.interface';
 
 export interface ReconciliationReport {
   runId: string;

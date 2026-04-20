@@ -46,6 +46,7 @@ import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.mod
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { NearModule } from './modules/near/near.module';
+import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledger-reconciliation.module';
 
 @Module({
   imports: [

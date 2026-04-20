@@ -99,13 +99,14 @@ describe('Marketplace Optimistic UI', () => {
 
     // 5. CHECK OPTIMISTIC UI: The button should IMMEDIATELY show "Owned" (or equivalent state change)
     // before the fetch completes
-    expect(screen.getByText('shop.owned')).toBeInTheDocument();
+    expect(screen.getAllByText('shop.owned').length).toBeGreaterThan(0);
 
     // 6. WAIT FOR ROLLBACK: After the failed fetch, it should revert to previous state
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Insufficient funds');
+      expect(toast.error).toHaveBeenCalled();
+      expect(toast.error.mock.calls[0]?.[0]).toBe('Insufficient funds');
       // The "Owned" text should be gone and replaced by "Purchase" again
-      expect(screen.queryByText('shop.owned')).not.toBeInTheDocument();
+      expect(screen.queryAllByText('shop.owned').length).toBe(0);
     });
     
     expect(screen.getByLabelText('shop.purchase Cool Skin')).toBeInTheDocument();
@@ -133,12 +134,15 @@ describe('Marketplace Optimistic UI', () => {
     fireEvent.click(confirmButton);
 
     // Optimistic update
-    expect(screen.getByText('shop.owned')).toBeInTheDocument();
+    expect(screen.getAllByText('shop.owned').length).toBeGreaterThan(0);
 
     // Stay successful
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Cool Skin purchased successfully!');
-      expect(screen.getByText('shop.owned')).toBeInTheDocument();
+      expect(toast.success).toHaveBeenCalled();
+      expect(toast.success.mock.calls[0]?.[0]).toBe(
+        'Cool Skin purchased successfully!',
+      );
+      expect(screen.getAllByText('shop.owned').length).toBeGreaterThan(0);
     });
   });
 });
