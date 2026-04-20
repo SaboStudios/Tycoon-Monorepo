@@ -1,1 +1,4 @@
 test_snapshots/
+
+# Cargo build output (never commit)
+/target/
