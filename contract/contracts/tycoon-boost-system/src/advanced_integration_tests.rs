@@ -232,38 +232,63 @@ fn test_multi_player_isolation() {
 
 /// Test concurrent operations on different players
 #[test]
+#[allow(deprecated)]
 fn test_concurrent_multi_player_operations() {
     let env = make_env();
     set_ledger(&env, 100);
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
 
-    let players: Vec<Address> = (0..5).map(|_| Address::generate(&env)).collect();
+    // Create 5 players manually (Soroban Vec doesn't support collect)
+    let player0 = Address::generate(&env);
+    let player1 = Address::generate(&env);
+    let player2 = Address::generate(&env);
+    let player3 = Address::generate(&env);
+    let player4 = Address::generate(&env);
+    
     env.mock_all_auths();
 
-    // Each player gets different boost configurations
-    for (idx, player) in players.iter().enumerate() {
-        let boost_count = (idx + 1) as u32;
-        for i in 0..boost_count {
-            client.add_boost(
-                player,
-                &eb(i as u128 + 1, BoostType::Additive, 500, 0, 200 + (idx as u32 * 10)),
-            );
-        }
-    }
+    // Player 0: 1 boost expiring at 200
+    client.add_boost(&player0, &eb(1, BoostType::Additive, 500, 0, 200));
+
+    // Player 1: 2 boosts expiring at 210
+    client.add_boost(&player1, &eb(1, BoostType::Additive, 500, 0, 210));
+    client.add_boost(&player1, &eb(2, BoostType::Additive, 500, 0, 210));
+
+    // Player 2: 3 boosts expiring at 220
+    client.add_boost(&player2, &eb(1, BoostType::Additive, 500, 0, 220));
+    client.add_boost(&player2, &eb(2, BoostType::Additive, 500, 0, 220));
+    client.add_boost(&player2, &eb(3, BoostType::Additive, 500, 0, 220));
+
+    // Player 3: 4 boosts expiring at 230
+    client.add_boost(&player3, &eb(1, BoostType::Additive, 500, 0, 230));
+    client.add_boost(&player3, &eb(2, BoostType::Additive, 500, 0, 230));
+    client.add_boost(&player3, &eb(3, BoostType::Additive, 500, 0, 230));
+    client.add_boost(&player3, &eb(4, BoostType::Additive, 500, 0, 230));
+
+    // Player 4: 5 boosts expiring at 240
+    client.add_boost(&player4, &eb(1, BoostType::Additive, 500, 0, 240));
+    client.add_boost(&player4, &eb(2, BoostType::Additive, 500, 0, 240));
+    client.add_boost(&player4, &eb(3, BoostType::Additive, 500, 0, 240));
+    client.add_boost(&player4, &eb(4, BoostType::Additive, 500, 0, 240));
+    client.add_boost(&player4, &eb(5, BoostType::Additive, 500, 0, 240));
 
     // Verify each player has correct number of boosts
-    for (idx, player) in players.iter().enumerate() {
-        assert_eq!(client.get_boosts(player).len(), (idx + 1) as u32);
-    }
+    assert_eq!(client.get_boosts(&player0).len(), 1);
+    assert_eq!(client.get_boosts(&player1).len(), 2);
+    assert_eq!(client.get_boosts(&player2).len(), 3);
+    assert_eq!(client.get_boosts(&player3).len(), 4);
+    assert_eq!(client.get_boosts(&player4).len(), 5);
 
     // Advance ledger to expire some boosts
     set_ledger(&env, 215);
 
     // Players 0, 1 should have expired boosts; players 2, 3, 4 should still have active
-    assert_eq!(client.get_active_boosts(&players[0]).len(), 0); // Expired at 200
-    assert_eq!(client.get_active_boosts(&players[1]).len(), 0); // Expired at 210
-    assert!(client.get_active_boosts(&players[2]).len() > 0); // Expires at 220
+    assert_eq!(client.get_active_boosts(&player0).len(), 0); // Expired at 200
+    assert_eq!(client.get_active_boosts(&player1).len(), 0); // Expired at 210
+    assert!(client.get_active_boosts(&player2).len() > 0); // Expires at 220
+    assert!(client.get_active_boosts(&player3).len() > 0); // Expires at 230
+    assert!(client.get_active_boosts(&player4).len() > 0); // Expires at 240
 }
 
 // ── Complex Calculation Tests ─────────────────────────────────────────────────
