@@ -17,6 +17,8 @@ import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { Role } from './enums/role.enum';
+import { AuthAuditService } from './audit/auth-audit.service';
+import { AuthAuditEvent } from './audit/auth-audit.events';
 
 @Injectable()
 export class AuthService {
@@ -30,11 +32,14 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly authAudit: AuthAuditService,
   ) {}
 
   async validateUser(
     email: string,
     password: string,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<{
     id: number;
     email: string;
@@ -44,8 +49,12 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
 
     if (user && user.is_suspended) {
-      // Log suspended user login attempt
-      console.log(`Suspended user login attempt: ${email}`);
+      this.authAudit.record(AuthAuditEvent.LOGIN_SUSPENDED, {
+        userId: user.id,
+        email: AuthAuditService.redactEmail(email),
+        ipAddress,
+        userAgent,
+      });
       return null;
     }
 
@@ -59,12 +68,20 @@ export class AuthService {
         is_admin: boolean;
       };
     }
+
+    this.authAudit.record(AuthAuditEvent.LOGIN_FAILED, {
+      email: AuthAuditService.redactEmail(email),
+      ipAddress,
+      userAgent,
+    });
     return null;
   }
 
   async validateAdmin(
     email: string,
     password: string,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<{
     id: number;
     email: string;
@@ -74,8 +91,13 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
 
     if (user && user.is_suspended) {
-      // Log suspended admin login attempt
-      console.log(`Suspended admin login attempt: ${email}`);
+      this.authAudit.record(AuthAuditEvent.LOGIN_SUSPENDED, {
+        userId: user.id,
+        email: AuthAuditService.redactEmail(email),
+        ipAddress,
+        userAgent,
+        meta: { isAdmin: true },
+      });
       return null;
     }
 
@@ -93,6 +115,13 @@ export class AuthService {
         is_admin: boolean;
       };
     }
+
+    this.authAudit.record(AuthAuditEvent.LOGIN_FAILED, {
+      email: AuthAuditService.redactEmail(email),
+      ipAddress,
+      userAgent,
+      meta: { isAdmin: true },
+    });
     return null;
   }
 
@@ -101,7 +130,7 @@ export class AuthService {
     email: string;
     role: string;
     is_admin: boolean;
-  }) {
+  }, ipAddress?: string, userAgent?: string) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -109,7 +138,14 @@ export class AuthService {
       is_admin: user.is_admin,
     };
     const accessToken = this.jwtService.sign(payload);
-    const refreshToken = await this.createRefreshToken(Number(user.id));
+    const refreshToken = await this.createRefreshToken(Number(user.id), ipAddress, userAgent);
+
+    this.authAudit.record(AuthAuditEvent.LOGIN_SUCCESS, {
+      userId: user.id,
+      email: AuthAuditService.redactEmail(user.email),
+      ipAddress,
+      userAgent,
+    });
 
     return {
       accessToken,
@@ -117,7 +153,7 @@ export class AuthService {
     };
   }
 
-  async walletLogin(address: string, chain: string) {
+  async walletLogin(address: string, chain: string, ipAddress?: string, userAgent?: string) {
     if (!address || !chain) {
       throw new BadRequestException('Address and chain are required');
     }
@@ -125,6 +161,11 @@ export class AuthService {
     const user = await this.userRepo.findOne({ where: { address, chain } });
 
     if (!user) {
+      this.authAudit.record(AuthAuditEvent.WALLET_LOGIN_FAILED, {
+        ipAddress,
+        userAgent,
+        meta: { chain },
+      });
       throw new NotFoundException('Invalid address/chain combination');
     }
 
@@ -135,7 +176,14 @@ export class AuthService {
       is_admin: user.is_admin,
     };
     const accessToken = this.jwtService.sign(payload);
-    const refreshToken = await this.createRefreshToken(user.id);
+    const refreshToken = await this.createRefreshToken(user.id, ipAddress, userAgent);
+
+    this.authAudit.record(AuthAuditEvent.WALLET_LOGIN_SUCCESS, {
+      userId: user.id,
+      ipAddress,
+      userAgent,
+      meta: { chain },
+    });
 
     return {
       accessToken,
@@ -214,10 +262,22 @@ export class AuthService {
         { isRevoked: true },
       );
 
+      this.authAudit.record(AuthAuditEvent.TOKEN_REUSE_DETECTED, {
+        userId: refreshToken.userId,
+        ipAddress,
+        userAgent,
+      });
+
       throw new UnauthorizedException('Token reuse detected');
     }
 
     if (new Date() > refreshToken.expiresAt) {
+      this.authAudit.record(AuthAuditEvent.TOKEN_REFRESH_FAILED, {
+        userId: refreshToken.userId,
+        ipAddress,
+        userAgent,
+        meta: { reason: 'expired' },
+      });
       throw new UnauthorizedException('Refresh token expired');
     }
 
@@ -240,17 +300,28 @@ export class AuthService {
       userAgent,
     );
 
+    this.authAudit.record(AuthAuditEvent.TOKEN_REFRESHED, {
+      userId: user.id,
+      ipAddress,
+      userAgent,
+    });
+
     return {
       accessToken,
       refreshToken: newRefreshToken.token,
     };
   }
 
-  async logout(userId: number): Promise<void> {
+  async logout(userId: number, ipAddress?: string, userAgent?: string): Promise<void> {
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
       { isRevoked: true },
     );
+    this.authAudit.record(AuthAuditEvent.LOGOUT, {
+      userId,
+      ipAddress,
+      userAgent,
+    });
   }
 
   async hashPassword(password: string): Promise<string> {
