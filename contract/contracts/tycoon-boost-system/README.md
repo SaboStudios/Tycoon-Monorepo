@@ -133,6 +133,26 @@ get_active_boosts(player: Address) -> Vec<Boost>
 cargo test --package tycoon-boost-system
 ```
 
-Tests are split across two modules:
-- `src/test.rs` — core stacking behaviour (9 tests)
-- `src/cap_stacking_expiry_tests.rs` — cap, stacking matrix, expiry, and event tests (31 tests)
+### Test Coverage (121 tests total)
+
+Tests are organized across multiple modules:
+- `src/test.rs` — Core stacking behaviour (9 tests)
+- `src/cap_stacking_expiry_tests.rs` — Cap, stacking matrix, expiry, and event tests (31 tests)
+- `src/time_boundary_tests.rs` — Time boundary and ledger sequence tests (11 tests)
+- `src/advanced_integration_tests.rs` — Advanced edge cases, stress tests, and multi-player scenarios (45 tests)
+- `../integration-tests/src/boost_system_integration.rs` — Cross-contract integration tests (25 tests)
+
+See [TEST_COVERAGE_IMPROVEMENTS.md](./TEST_COVERAGE_IMPROVEMENTS.md) for comprehensive coverage details.
+
+### Running Specific Test Suites
+
+```bash
+# Unit tests only
+cargo test --package tycoon-boost-system
+
+# Integration tests only
+cargo test --package tycoon-integration-tests boost_system
+
+# With output
+cargo test --package tycoon-boost-system -- --nocapture
+```
