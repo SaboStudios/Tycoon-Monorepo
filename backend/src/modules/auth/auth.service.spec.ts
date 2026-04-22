@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
+import { AuthAuditService } from './audit/auth-audit.service';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -75,6 +76,10 @@ describe('AuthService', () => {
         {
           provide: getRepositoryToken(User),
           useValue: userRepository,
+        },
+        {
+          provide: AuthAuditService,
+          useValue: { record: jest.fn() },
         },
       ],
     }).compile();
