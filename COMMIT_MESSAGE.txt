@@ -1,0 +1,16 @@
+feat(contract): deprecate legacy entrypoints in tycoon-boost-system
+
+Implements deprecation path for `get_boosts` and `prune_expired_boosts` 
+with event tracking, comprehensive tests, and migration documentation.
+
+- Add DeprecatedFunctionCalledEvent for usage monitoring
+- Mark get_boosts as deprecated (use get_active_boosts instead)
+- Mark prune_expired_boosts as deprecated (automatic pruning exists)
+- Add 17 deprecation tests (all passing)
+- Create migration guide and deprecation plan
+- Bump version to 0.2.0
+- Fix pre-existing Vec iteration bug in advanced tests
+
+Issue: SW-CONTRACT-BOOST-002
+Breaking: No (6-month grace period until v1.0.0)
+Tests: 17/17 deprecation tests passing

@@ -41,8 +41,12 @@ impl TycoonRewardSystem {
         // Batch all initialization writes together
         e.storage().persistent().set(&DataKey::Admin, &admin);
         e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
-        e.storage().persistent().set(&DataKey::UsdcToken, &usdc_token);
-        e.storage().persistent().set(&DataKey::VoucherCount, &VOUCHER_ID_START);
+        e.storage()
+            .persistent()
+            .set(&DataKey::UsdcToken, &usdc_token);
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherCount, &VOUCHER_ID_START);
         e.storage().persistent().set(&DataKey::Paused, &false);
         e.storage().persistent().set(&DataKey::StateVersion, &1u32);
     }
@@ -104,9 +108,12 @@ impl TycoonRewardSystem {
             panic!("Unauthorized: only admin can set backend minter");
         }
         admin.require_auth();
-        e.storage().persistent().set(&DataKey::BackendMinter, &new_minter);
+        e.storage()
+            .persistent()
+            .set(&DataKey::BackendMinter, &new_minter);
         #[allow(deprecated)]
-        e.events().publish((symbol_short!("set_min"), new_minter), ());
+        e.events()
+            .publish((symbol_short!("set_min"), new_minter), ());
     }
 
     /// Clear the backend minter address (admin only)
@@ -141,11 +148,9 @@ impl TycoonRewardSystem {
         caller.require_auth();
 
         // Single read for BackendMinter — replaces has() + get() double-read
-        let backend_minter: Option<Address> =
-            e.storage().persistent().get(&DataKey::BackendMinter);
+        let backend_minter: Option<Address> = e.storage().persistent().get(&DataKey::BackendMinter);
 
-        let is_authorized = caller == admin
-            || backend_minter.map_or(false, |m| m == caller);
+        let is_authorized = caller == admin || backend_minter.map_or(false, |m| m == caller);
 
         if !is_authorized {
             panic!("Unauthorized: only admin or backend minter can mint");
@@ -213,7 +218,9 @@ impl TycoonRewardSystem {
         );
 
         // Remove voucher value entry after successful transfer
-        e.storage().persistent().remove(&DataKey::VoucherValue(token_id));
+        e.storage()
+            .persistent()
+            .remove(&DataKey::VoucherValue(token_id));
 
         #[allow(deprecated)]
         e.events()
@@ -255,8 +262,10 @@ impl TycoonRewardSystem {
         token_client.transfer(&contract_address, &to, &(amount as i128));
 
         #[allow(deprecated)]
-        e.events()
-            .publish((Symbol::new(&e, "FundsWithdrawn"), token.clone(), to), amount);
+        e.events().publish(
+            (Symbol::new(&e, "FundsWithdrawn"), token.clone(), to),
+            amount,
+        );
     }
 
     pub fn get_balance(e: Env, owner: Address, token_id: u128) -> u64 {

@@ -1,4 +1,4 @@
-﻿use super::*;
+use super::*;
 use crate::types::{Perk, CASH_TIERS};
 use soroban_sdk::{
     testutils::{Address as _, Events},
@@ -2181,8 +2181,14 @@ fn test_token_metadata_setting() {
     let name = soroban_sdk::String::from_str(&env, "Tycoon Cash Boost");
     let description = soroban_sdk::String::from_str(&env, "A powerful cash boost collectible");
     let image = soroban_sdk::String::from_str(&env, "https://images.tycoon.com/cash-boost.png");
-    let animation_url = Some(soroban_sdk::String::from_str(&env, "https://animations.tycoon.com/cash-boost.mp4"));
-    let external_url = Some(soroban_sdk::String::from_str(&env, "https://tycoon.com/collectibles/1"));
+    let animation_url = Some(soroban_sdk::String::from_str(
+        &env,
+        "https://animations.tycoon.com/cash-boost.mp4",
+    ));
+    let external_url = Some(soroban_sdk::String::from_str(
+        &env,
+        "https://tycoon.com/collectibles/1",
+    ));
 
     let mut attributes = Vec::new(&env);
     let attr1 = crate::types::MetadataAttribute {
@@ -2198,7 +2204,15 @@ fn test_token_metadata_setting() {
     attributes.push_back(attr1);
     attributes.push_back(attr2);
 
-    client.set_token_metadata(&token_id, &name, &description, &image, &animation_url, &external_url, &attributes);
+    client.set_token_metadata(
+        &token_id,
+        &name,
+        &description,
+        &image,
+        &animation_url,
+        &external_url,
+        &attributes,
+    );
 
     // Verify metadata
     let metadata = client.token_metadata(&token_id).unwrap();
@@ -2231,14 +2245,20 @@ fn test_token_uri_generation() {
 
     // Test token URI — verify it starts with the base URI and is non-empty
     let uri = client.token_uri(&token_id);
-    assert!(uri.len() > base_uri.len(), "URI should include token ID suffix");
+    assert!(
+        uri.len() > base_uri.len(),
+        "URI should include token ID suffix"
+    );
 
     // Test with IPFS
     let ipfs_uri = soroban_sdk::String::from_str(&env, "ipfs://Qm");
     client.set_base_uri(&ipfs_uri, &1, &false);
 
     let uri2 = client.token_uri(&token_id);
-    assert!(uri2.len() > ipfs_uri.len(), "IPFS URI should include token ID suffix");
+    assert!(
+        uri2.len() > ipfs_uri.len(),
+        "IPFS URI should include token ID suffix"
+    );
 }
 
 #[test]
@@ -2289,7 +2309,15 @@ fn test_metadata_frozen_prevents_metadata_changes() {
     let image = soroban_sdk::String::from_str(&env, "https://test.com/image.png");
     let attributes = Vec::new(&env);
 
-    let result = client.try_set_token_metadata(&token_id, &name, &description, &image, &None, &None, &attributes);
+    let result = client.try_set_token_metadata(
+        &token_id,
+        &name,
+        &description,
+        &image,
+        &None,
+        &None,
+        &attributes,
+    );
     assert!(result.is_err());
 }
 
