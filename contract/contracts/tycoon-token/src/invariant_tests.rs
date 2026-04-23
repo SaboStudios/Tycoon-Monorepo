@@ -260,7 +260,11 @@ fn test_inv_10_mint_burn_round_trip_restores_supply() {
     assert_eq!(client.total_supply(), before + amount);
 
     client.burn(&user, &amount);
-    assert_eq!(client.total_supply(), before, "Round-trip should restore supply");
+    assert_eq!(
+        client.total_supply(),
+        before,
+        "Round-trip should restore supply"
+    );
 }
 
 // ── INV-11 ────────────────────────────────────────────────────────────────────
@@ -336,9 +340,21 @@ fn test_inv_14_burn_from_reduces_balance_and_allowance() {
 
     client.burn_from(&spender, &admin, &burn_amount);
 
-    assert_eq!(client.balance(&admin), balance_before - burn_amount, "INV-14: balance");
-    assert_eq!(client.allowance(&admin, &spender), allowance - burn_amount, "INV-14: allowance");
-    assert_eq!(client.total_supply(), supply_before - burn_amount, "INV-14: supply");
+    assert_eq!(
+        client.balance(&admin),
+        balance_before - burn_amount,
+        "INV-14: balance"
+    );
+    assert_eq!(
+        client.allowance(&admin, &spender),
+        allowance - burn_amount,
+        "INV-14: allowance"
+    );
+    assert_eq!(
+        client.total_supply(),
+        supply_before - burn_amount,
+        "INV-14: supply"
+    );
 }
 
 /// INV-14: burn_from exhausting the full allowance leaves allowance at zero.
@@ -428,7 +444,10 @@ fn test_inv_16b_initialize_emits_mint_event() {
     client.initialize(&admin, &INITIAL_SUPPLY);
 
     let events = e.events().all();
-    assert!(!events.is_empty(), "INV-16b: expected MintEvent on initialize");
+    assert!(
+        !events.is_empty(),
+        "INV-16b: expected MintEvent on initialize"
+    );
     let last = events.last().unwrap();
     let event_data: i128 = last.2.into_val(&e);
     assert_eq!(event_data, INITIAL_SUPPLY);
@@ -464,7 +483,10 @@ fn test_inv_17b_burn_from_emits_event_with_correct_fields() {
     let events = e.events().all();
     let last = events.last().expect("expected at least one event");
     let event_data: i128 = last.2.into_val(&e);
-    assert_eq!(event_data, burn_amount, "INV-17b: BurnEvent amount mismatch");
+    assert_eq!(
+        event_data, burn_amount,
+        "INV-17b: BurnEvent amount mismatch"
+    );
 }
 
 // ── Additional edge-case / fuzz-style table tests ─────────────────────────────
@@ -478,12 +500,30 @@ fn test_supply_invariant_mixed_operations_table() {
     }
 
     let ops = [
-        Op { is_mint: true,  amount: 1_000_000_000_000_000_000_000 },
-        Op { is_mint: true,  amount: 2_000_000_000_000_000_000_000 },
-        Op { is_mint: false, amount: 500_000_000_000_000_000_000 },
-        Op { is_mint: true,  amount: 5_000_000_000_000_000_000_000 },
-        Op { is_mint: false, amount: 3_000_000_000_000_000_000_000 },
-        Op { is_mint: false, amount: 1_000_000_000_000_000_000_000 },
+        Op {
+            is_mint: true,
+            amount: 1_000_000_000_000_000_000_000,
+        },
+        Op {
+            is_mint: true,
+            amount: 2_000_000_000_000_000_000_000,
+        },
+        Op {
+            is_mint: false,
+            amount: 500_000_000_000_000_000_000,
+        },
+        Op {
+            is_mint: true,
+            amount: 5_000_000_000_000_000_000_000,
+        },
+        Op {
+            is_mint: false,
+            amount: 3_000_000_000_000_000_000_000,
+        },
+        Op {
+            is_mint: false,
+            amount: 1_000_000_000_000_000_000_000,
+        },
     ];
 
     let (_, client, admin) = setup();
