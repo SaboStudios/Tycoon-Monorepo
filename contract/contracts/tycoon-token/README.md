@@ -190,6 +190,32 @@ pub fn reward_user(e: &Env, token_address: Address, user: Address, amount: i128)
 - Authorization checks prevent unauthorized operations
 - Overflow protection on all arithmetic operations
 
+## Mint/Burn Invariants
+
+The following invariants are enforced by the contract and verified by `src/invariant_tests.rs`:
+
+| ID     | Invariant |
+|--------|-----------|
+| INV-01 | `total_supply` always equals the sum of all individual balances |
+| INV-02 | `total_supply` increases by exactly `amount` on every successful `mint` |
+| INV-03 | `total_supply` decreases by exactly `amount` on every successful `burn` / `burn_from` |
+| INV-04 | `total_supply` is never negative |
+| INV-05 | Minting zero or a negative amount is rejected (`"Amount must be positive"`) |
+| INV-06 | Burning zero or a negative amount is rejected (`"Amount must be positive"`) |
+| INV-07 | Burning more than a holder's balance is rejected (`"Insufficient balance"`) |
+| INV-08 | `burn_from` is rejected when allowance is insufficient (`"Insufficient allowance"`) |
+| INV-09 | Arithmetic overflow on `mint` is caught and panics — no silent wrap (`checked_add`) |
+| INV-10 | Sequential mint → burn round-trip restores the original `total_supply` |
+| INV-11 | Multiple independent mints accumulate correctly in `total_supply` |
+| INV-12 | Multiple independent burns reduce `total_supply` correctly |
+| INV-13 | Burning the entire supply of a holder reduces `total_supply` to zero |
+| INV-14 | `burn_from` reduces both the holder's balance and the spender's allowance |
+| INV-15 | Only the admin can mint; non-admin callers are rejected by `require_auth()` |
+| INV-16 | `MintEvent` is emitted with correct `to` and `amount` on every mint (including init) |
+| INV-17 | `BurnEvent` is emitted with correct `from` and `amount` on every burn / `burn_from` |
+
+> **Supply cap:** There is intentionally no hard supply cap. The practical ceiling is `i128::MAX` (~1.7 × 10³⁸), enforced by `checked_add` overflow guards on both `total_supply` and individual balances.
+
 ## Events
 
 All operations emit events:

@@ -1,8 +1,13 @@
+use crate::errors::CollectibleError;
 use crate::storage::{
     get_owned_tokens_vec, get_token_index, remove_token_index, set_owned_tokens_vec,
     set_token_index,
 };
 use soroban_sdk::{Address, Env, Vec};
+
+// Maximum page size for pagination to stay within gas limits
+// Each u128 is 16 bytes, 100 tokens = 1600 bytes, well under 16.4KB return value limit
+pub const MAX_PAGE_SIZE: u32 = 100;
 
 /// Add a token to an address's owned tokens list using indexed storage
 /// Only call this when balance transitions from 0 to > 0
@@ -77,6 +82,82 @@ pub fn owned_token_count(env: &Env, owner: &Address) -> u32 {
 pub fn token_of_owner_by_index(env: &Env, owner: &Address, index: u32) -> Option<u128> {
     let tokens = get_owned_tokens_vec(env, owner);
     tokens.get(index)
+}
+
+/// Get a page of tokens owned by an address with pagination
+/// Returns a Vec of token IDs for the specified page
+/// Page size is limited to MAX_PAGE_SIZE for gas safety
+pub fn tokens_of_owner_page(
+    env: &Env,
+    owner: &Address,
+    page: u32,
+    page_size: u32,
+) -> Result<Vec<u128>, CollectibleError> {
+    // Validate page size
+    if page_size > MAX_PAGE_SIZE {
+        return Err(crate::errors::CollectibleError::InvalidPageSize);
+    }
+    if page_size == 0 {
+        return Err(crate::errors::CollectibleError::InvalidPageSize);
+    }
+
+    let tokens = get_owned_tokens_vec(env, owner);
+    let total_tokens = tokens.len();
+    let start_index = page * page_size;
+
+    // Check if page is out of bounds
+    if start_index >= total_tokens {
+        return Ok(Vec::new(env)); // Return empty vec for out of bounds pages
+    }
+
+    let end_index = (start_index + page_size).min(total_tokens);
+    let mut result = Vec::new(env);
+
+    for i in start_index..end_index {
+        if let Some(token_id) = tokens.get(i) {
+            result.push_back(token_id);
+        }
+    }
+
+    Ok(result)
+}
+
+/// Iterator-like function to get the next batch of tokens
+/// This implements an iterator pattern for gas-safe enumeration
+/// Returns the tokens for the current batch and whether there are more
+pub fn iterate_owned_tokens(
+    env: &Env,
+    owner: &Address,
+    start_index: u32,
+    batch_size: u32,
+) -> Result<(Vec<u128>, bool), CollectibleError> {
+    // Validate batch size
+    if batch_size > MAX_PAGE_SIZE {
+        return Err(crate::errors::CollectibleError::InvalidPageSize);
+    }
+    if batch_size == 0 {
+        return Err(crate::errors::CollectibleError::InvalidPageSize);
+    }
+
+    let tokens = get_owned_tokens_vec(env, owner);
+    let total_tokens = tokens.len();
+
+    // Check if start_index is out of bounds
+    if start_index >= total_tokens {
+        return Ok((Vec::new(env), false)); // No more tokens
+    }
+
+    let end_index = (start_index + batch_size).min(total_tokens);
+    let mut result = Vec::new(env);
+    let has_more = end_index < total_tokens;
+
+    for i in start_index..end_index {
+        if let Some(token_id) = tokens.get(i) {
+            result.push_back(token_id);
+        }
+    }
+
+    Ok((result, has_more))
 }
 
 // Re-export for backward compatibility

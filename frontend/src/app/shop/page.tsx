@@ -1,211 +1,79 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { ShopGrid } from "@/components/game/ShopGrid";
-import { ShopItemData } from "@/components/game/ShopItem";
-import { Button } from "@/components/ui/button";
-import { toast } from "react-toastify";
+import { track } from "@/lib/analytics";
 
-const MOCK_SHOP_ITEMS: ShopItemData[] = [
+const previewItems = [
   {
-    id: "golden-house",
-    name: "Golden House",
-    description: "Upgrade your property with luxury",
-    price: 250,
-    icon: "🏠",
-    rarity: "rare",
+    id: "starter-pack",
+    name: "Starter Pack",
+    category: "bundle",
+    price: 20,
   },
   {
-    id: "lucky-dice",
-    name: "Lucky Dice",
-    description: "Increase your chances of winning",
-    price: 50,
-    icon: "🎲",
-    rarity: "common",
-  },
-  {
-    id: "legendary-card",
-    name: "Legendary Card",
-    description: "Rare collectible with special powers",
-    price: 500,
-    icon: "🎴",
-    rarity: "legendary",
-  },
-  {
-    id: "mystery-box",
-    name: "Mystery Box",
-    description: "Contains random valuable items",
-    price: 100,
-    icon: "📦",
-    rarity: "epic",
-  },
-  {
-    id: "speed-boost",
-    name: "Speed Boost",
-    description: "Move faster around the board",
-    price: 75,
-    icon: "⚡",
-    rarity: "rare",
-  },
-  {
-    id: "fortune-wheel",
-    name: "Fortune Wheel",
-    description: "Spin for extra rewards",
-    price: 150,
-    icon: "🎡",
-    rarity: "epic",
+    id: "founder-badge",
+    name: "Founder Badge",
+    category: "cosmetic",
+    price: 8,
   },
 ];
 
-export default function ShopPage(): React.JSX.Element {
-  const [items, setItems] = useState<ShopItemData[]>(MOCK_SHOP_ITEMS);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [gridColumns, setGridColumns] = useState<2 | 3 | 4>(3);
-
-  const handlePurchase = useCallback((itemId: string) => {
-    const item = items.find((i) => i.id === itemId);
-    if (item) {
-      toast.success(`Purchased ${item.name} for $${item.price}!`);
-    }
-  }, [items]);
-
-  const handleRetry = useCallback(() => {
-    setError(null);
-    setIsLoading(true);
-    setTimeout(() => {
-      setItems(MOCK_SHOP_ITEMS);
-      setIsLoading(false);
-      toast.success("Shop items loaded successfully!");
-    }, 1500);
-  }, []);
-
-  const handleSimulateError = useCallback(() => {
-    setError("Failed to connect to shop server. Please try again.");
-    setItems([]);
-  }, []);
-
-  const handleSimulateEmpty = useCallback(() => {
-    setError(null);
-    setItems([]);
-    toast.info("Shop is currently empty");
-  }, []);
-
-  const handleSimulateLoading = useCallback(() => {
-    setError(null);
-    setIsLoading(true);
-    setTimeout(() => {
-      setItems(MOCK_SHOP_ITEMS);
-      setIsLoading(false);
-    }, 2000);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setError(null);
-    setIsLoading(false);
-    setItems(MOCK_SHOP_ITEMS);
-    toast.info("Shop reset to default state");
-  }, []);
+export default function ShopPage() {
+  function handlePurchaseClick(item: (typeof previewItems)[number]) {
+    track("purchase_click", {
+      route: "/shop",
+      item_id: item.id,
+      item_name: item.name,
+      item_category: item.category,
+      currency: "USD",
+      value: item.price,
+    });
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#010F10] to-[#0E1415] text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold font-orbitron mb-2 text-[#00F0FF]">
-            Tycoon Shop
-          </h1>
-          <p className="text-gray-400">
-            Browse and purchase exclusive items to enhance your game
+    <div className="min-h-screen bg-[#010F10] px-6 py-16 text-[#F0F7F7]">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10">
+        <header className="space-y-4">
+          <p className="font-orbitron text-sm uppercase tracking-[0.3em] text-[#00F0FF]">
+            Shop Preview
           </p>
-        </div>
+          <h1 className="font-orbitron text-4xl font-[800] uppercase text-[#F0F7F7]">
+            Analytics Taxonomy Staging Route
+          </h1>
+          <p className="max-w-2xl font-dmSans text-base text-[#F0F7F7]/75">
+            Visiting this route emits <code>view_shop</code>. Clicking a purchase button emits{" "}
+            <code>purchase_click</code> with a PII-safe payload so staging dashboards can verify the
+            provider wiring without a full checkout flow.
+          </p>
+        </header>
 
-        {/* Demo Controls */}
-        <div className="bg-[#0E1415] border border-[#003B3E] rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4 text-[#00F0FF]">
-            Demo Controls
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <Button
-              onClick={handleReset}
-              variant="default"
-              className="w-full"
-              data-testid="demo-reset"
+        <section className="grid gap-6 md:grid-cols-2">
+          {previewItems.map((item) => (
+            <article
+              key={item.id}
+              className="rounded-3xl border border-[#00F0FF]/20 bg-[#0A1F21] p-6 shadow-[0_0_30px_rgba(0,240,255,0.08)]"
             >
-              Show Items
-            </Button>
-            <Button
-              onClick={handleSimulateLoading}
-              variant="outline"
-              className="w-full"
-              data-testid="demo-loading"
-            >
-              Simulate Loading
-            </Button>
-            <Button
-              onClick={handleSimulateError}
-              variant="destructive"
-              className="w-full"
-              data-testid="demo-error"
-            >
-              Simulate Error
-            </Button>
-            <Button
-              onClick={handleSimulateEmpty}
-              variant="outline"
-              className="w-full"
-              data-testid="demo-empty"
-            >
-              Simulate Empty
-            </Button>
-          </div>
-
-          {/* Grid Columns Control */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-400">Grid Columns:</span>
-            <div className="flex gap-2">
-              {[2, 3, 4].map((cols) => (
-                <Button
-                  key={cols}
-                  onClick={() => setGridColumns(cols as 2 | 3 | 4)}
-                  variant={gridColumns === cols ? "default" : "outline"}
-                  size="sm"
-                  data-testid={`grid-cols-${cols}`}
+              <p className="font-dmSans text-sm uppercase tracking-[0.2em] text-[#00F0FF]/80">
+                {item.category}
+              </p>
+              <h2 className="mt-3 font-orbitron text-2xl font-[700] text-[#F0F7F7]">
+                {item.name}
+              </h2>
+              <p className="mt-2 font-dmSans text-sm text-[#F0F7F7]/65">
+                Minimal preview item used to validate provider forwarding and taxonomy naming.
+              </p>
+              <div className="mt-6 flex items-center justify-between">
+                <span className="font-orbitron text-xl text-[#00F0FF]">${item.price}</span>
+                <button
+                  type="button"
+                  onClick={() => handlePurchaseClick(item)}
+                  className="rounded-full bg-[#00F0FF] px-5 py-3 font-orbitron text-sm font-[700] uppercase tracking-[0.15em] text-[#010F10] transition-transform hover:scale-[1.02]"
                 >
-                  {cols}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Shop Grid */}
-        <div className="bg-[#0E1415] border border-[#003B3E] rounded-lg p-6">
-          <ShopGrid
-            items={items}
-            isLoading={isLoading}
-            error={error}
-            onRetry={handleRetry}
-            onPurchase={handlePurchase}
-            columns={gridColumns}
-          />
-        </div>
-
-        {/* Info Section */}
-        <div className="mt-8 bg-[#0E1415] border border-[#003B3E] rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3 text-[#00F0FF]">
-            Component Features
-          </h3>
-          <ul className="space-y-2 text-sm text-gray-400">
-            <li>✓ Loading state with spinner</li>
-            <li>✓ Error state with retry button</li>
-            <li>✓ Empty state with helpful message</li>
-            <li>✓ Responsive grid (2, 3, or 4 columns)</li>
-            <li>✓ Item rarity levels (common, rare, epic, legendary)</li>
-            <li>✓ Accessible with ARIA labels and roles</li>
-            <li>✓ Fully tested with Vitest + React Testing Library</li>
-          </ul>
-        </div>
+                  Track Purchase
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
       </div>
     </div>
   );
