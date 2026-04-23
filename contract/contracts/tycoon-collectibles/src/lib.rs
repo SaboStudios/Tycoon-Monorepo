@@ -40,6 +40,8 @@ pub struct TycoonCollectibles;
 
 #[contractimpl]
 impl TycoonCollectibles {
+    // ── Admin-only entrypoints ────────────────────────────────────────────────
+
     /// Initialize the contract with an admin
     pub fn initialize(env: Env, admin: Address) -> Result<(), CollectibleError> {
         if has_admin(&env) {
@@ -265,6 +267,8 @@ impl TycoonCollectibles {
         Ok(())
     }
 
+    // ── Public (user-initiated) entrypoints ──────────────────────────────────
+
     /// Buy a collectible from the shop using TYC or USDC
     pub fn buy_collectible_from_shop(
         env: Env,
@@ -472,28 +476,21 @@ impl TycoonCollectibles {
 
     pub fn set_token_perk(
         env: Env,
-        admin: Address,
         token_id: u128,
         perk: Perk,
         strength: u32,
     ) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
         admin.require_auth();
-        let stored_admin = get_admin(&env);
-        if admin != stored_admin {
-            return Err(CollectibleError::Unauthorized);
-        }
 
         set_perk(&env, token_id, perk);
         set_strength(&env, token_id, strength);
         Ok(())
     }
 
-    pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<(), CollectibleError> {
+    pub fn set_pause(env: Env, paused: bool) -> Result<(), CollectibleError> {
+        let admin = get_admin(&env);
         admin.require_auth();
-        let stored_admin = get_admin(&env);
-        if admin != stored_admin {
-            return Err(CollectibleError::Unauthorized);
-        }
 
         set_paused(&env, paused);
         Ok(())

@@ -18,6 +18,9 @@ pub const MAX_BOOSTS_PER_PLAYER: u32 = 10;
 /// | `DuplicateId`      | A boost with the same `id` is already active for this player |
 /// | `InvalidValue`     | `value` is 0, which would have no effect |
 /// | `InvalidExpiry`    | `expires_at_ledger` is in the past (≤ current ledger) |
+/// | `NotInitialized`   | Contract has not been initialized yet |
+/// | `AlreadyInitialized` | Contract has already been initialized |
+/// | `Unauthorized`     | Caller is not the admin |
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BoostError {
@@ -25,6 +28,9 @@ pub enum BoostError {
     DuplicateId,
     InvalidValue,
     InvalidExpiry,
+    NotInitialized,
+    AlreadyInitialized,
+    Unauthorized,
 }
 
 // ── Data types ────────────────────────────────────────────────────────────────
@@ -54,10 +60,11 @@ pub struct Boost {
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
+    /// Admin address — set once during `initialize`, never changed.
+    Admin,
+    /// Per-player boost list.
     PlayerBoosts(Address),
 }
-
-// ── Events ────────────────────────────────────────────────────────────────────
 
 /// Emitted when a boost is successfully added to a player.
 #[contractevent]
@@ -87,6 +94,27 @@ pub struct BoostsClearedEvent {
     pub count: u32,
 }
 
+/// Emitted when the admin grants a boost to a player on their behalf.
+#[contractevent]
+pub struct AdminBoostGrantedEvent {
+    #[topic]
+    pub player: Address,
+    #[topic]
+    pub boost_id: u128,
+    pub boost_type: BoostType,
+    pub value: u32,
+    pub expires_at_ledger: u32,
+}
+
+/// Emitted when the admin revokes a specific boost from a player.
+#[contractevent]
+pub struct AdminBoostRevokedEvent {
+    #[topic]
+    pub player: Address,
+    #[topic]
+    pub boost_id: u128,
+}
+
 /// Emitted when a deprecated function is called.
 /// Helps track migration progress and identify integrations that need updating.
 #[contractevent]
@@ -98,14 +126,154 @@ pub struct DeprecatedFunctionCalledEvent {
     pub replacement_hint: u32, // Symbol short for recommended replacement
 }
 
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+/// Read the admin from instance storage. Panics if not initialized.
+fn get_admin(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .expect("NotInitialized")
+}
+
 // ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct TycoonBoostSystem;
 
+// ── Admin-only entrypoints ────────────────────────────────────────────────────
+
+#[contractimpl]
+impl TycoonBoostSystem {
+    /// Initialize the contract and set the admin address.
+    ///
+    /// Must be called exactly once before any other function.
+    /// The `admin` address must authorize this call.
+    ///
+    /// # Errors
+    /// - Panics with `"AlreadyInitialized"` if called more than once.
+    pub fn initialize(env: Env, admin: Address) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("AlreadyInitialized");
+        }
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+    }
+
+    /// Grant a boost to a player on their behalf (admin only).
+    ///
+    /// Useful for rewarding players from off-chain game logic without
+    /// requiring the player to sign the transaction themselves.
+    ///
+    /// The admin must authorize this call. The same validation rules as
+    /// `add_boost` apply (value > 0, expiry in the future, cap, no duplicate id).
+    ///
+    /// # Errors (panic messages)
+    /// - `"CapExceeded"` — player already holds `MAX_BOOSTS_PER_PLAYER` active boosts
+    /// - `"DuplicateId"` — a boost with the same `id` is already active
+    /// - `"InvalidValue"` — `boost.value` is 0
+    /// - `"InvalidExpiry"` — `boost.expires_at_ledger` is non-zero and ≤ current ledger
+    pub fn admin_grant_boost(env: Env, player: Address, boost: Boost) {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        // Validate value
+        if boost.value == 0 {
+            panic!("InvalidValue");
+        }
+
+        // Validate expiry: if set, must be strictly in the future
+        let current_ledger = env.ledger().sequence();
+        if boost.expires_at_ledger != 0 && boost.expires_at_ledger <= current_ledger {
+            panic!("InvalidExpiry");
+        }
+
+        let key = DataKey::PlayerBoosts(player.clone());
+        let mut boosts: Vec<Boost> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env));
+
+        // Prune expired boosts before checking cap/duplicate
+        boosts = Self::prune_expired(&env, boosts, player.clone());
+
+        // Cap check
+        if boosts.len() >= MAX_BOOSTS_PER_PLAYER {
+            panic!("CapExceeded");
+        }
+
+        // Duplicate ID check
+        for i in 0..boosts.len() {
+            if boosts.get(i).unwrap().id == boost.id {
+                panic!("DuplicateId");
+            }
+        }
+
+        AdminBoostGrantedEvent {
+            player: player.clone(),
+            boost_id: boost.id,
+            boost_type: boost.boost_type.clone(),
+            value: boost.value,
+            expires_at_ledger: boost.expires_at_ledger,
+        }
+        .publish(&env);
+
+        boosts.push_back(boost);
+        env.storage().persistent().set(&key, &boosts);
+    }
+
+    /// Revoke a specific boost from a player by boost id (admin only).
+    ///
+    /// Silently succeeds if the boost id is not found (idempotent).
+    /// The admin must authorize this call.
+    pub fn admin_revoke_boost(env: Env, player: Address, boost_id: u128) {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        let key = DataKey::PlayerBoosts(player.clone());
+        let boosts: Vec<Boost> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env));
+
+        let mut updated: Vec<Boost> = Vec::new(&env);
+        let mut found = false;
+        for i in 0..boosts.len() {
+            let b = boosts.get(i).unwrap();
+            if b.id == boost_id {
+                found = true;
+                // skip — effectively removing it
+            } else {
+                updated.push_back(b);
+            }
+        }
+
+        if found {
+            env.storage().persistent().set(&key, &updated);
+            AdminBoostRevokedEvent {
+                player,
+                boost_id,
+            }
+            .publish(&env);
+        }
+    }
+
+    /// Return the current admin address.
+    pub fn admin(env: Env) -> Address {
+        get_admin(&env)
+    }
+}
+
+// ── Public (player-initiated) entrypoints ─────────────────────────────────────
+
 #[contractimpl]
 impl TycoonBoostSystem {
     /// Add a boost to a player.
+    ///
+    /// The `player` must authorize this call (self-service).
+    /// To grant a boost on behalf of a player, use `admin_grant_boost`.
     ///
     /// # Errors (panic messages)
     /// - `"CapExceeded"` — player already holds `MAX_BOOSTS_PER_PLAYER` active boosts
@@ -165,6 +333,7 @@ impl TycoonBoostSystem {
     /// Calculate the final boost multiplier for a player, ignoring expired boosts.
     ///
     /// Returns a value in basis points where 10 000 = 100 % (no boost).
+    /// This is a read-only view — it does not mutate storage.
     pub fn calculate_total_boost(env: Env, player: Address) -> u32 {
         let key = DataKey::PlayerBoosts(player.clone());
         let boosts: Vec<Boost> = env
@@ -231,6 +400,8 @@ impl TycoonBoostSystem {
     }
 
     /// Remove all boosts for a player.
+    ///
+    /// The `player` must authorize this call.
     pub fn clear_boosts(env: Env, player: Address) {
         player.require_auth();
         let key = DataKey::PlayerBoosts(player.clone());
@@ -280,6 +451,8 @@ impl TycoonBoostSystem {
     }
 
     /// Get only the active (non-expired) boosts for a player.
+    ///
+    /// This is the recommended replacement for the deprecated `get_boosts`.
     pub fn get_active_boosts(env: Env, player: Address) -> Vec<Boost> {
         let key = DataKey::PlayerBoosts(player.clone());
         let boosts: Vec<Boost> = env
@@ -378,3 +551,6 @@ mod advanced_integration_tests;
 
 #[cfg(test)]
 mod deprecation_tests;
+
+#[cfg(test)]
+mod admin_access_control_tests;

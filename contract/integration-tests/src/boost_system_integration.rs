@@ -1,11 +1,11 @@
-/// # Boost System Cross-Contract Integration Tests
-///
-/// Integration tests for the tycoon-boost-system contract interacting with other
-/// contracts in the Tycoon ecosystem (game, token, reward system).
-///
-/// Part of Stellar Wave engineering batch - SW-CONTRACT-BOOST-001
-
 #![cfg(test)]
+//! # Boost System Cross-Contract Integration Tests
+//!
+//! Integration tests for the tycoon-boost-system contract interacting with other
+//! contracts in the Tycoon ecosystem (game, token, reward system).
+//!
+//! Part of Stellar Wave engineering batch - SW-CONTRACT-BOOST-001
+
 extern crate std;
 
 use crate::fixture::{TestFixture, TestFixtureConfig};

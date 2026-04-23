@@ -1,16 +1,67 @@
-feat(contract): deprecate legacy entrypoints in tycoon-boost-system
+feat(contract): SW-FE-001 — formalize admin-only vs public entrypoints
 
-Implements deprecation path for `get_boosts` and `prune_expired_boosts` 
-with event tracking, comprehensive tests, and migration documentation.
+Stellar Wave — Contract (Soroban / Stellar)
 
-- Add DeprecatedFunctionCalledEvent for usage monitoring
-- Mark get_boosts as deprecated (use get_active_boosts instead)
-- Mark prune_expired_boosts as deprecated (automatic pruning exists)
-- Add 17 deprecation tests (all passing)
-- Create migration guide and deprecation plan
-- Bump version to 0.2.0
-- Fix pre-existing Vec iteration bug in advanced tests
+## What changed
 
-Issue: SW-CONTRACT-BOOST-002
-Breaking: No (6-month grace period until v1.0.0)
-Tests: 17/17 deprecation tests passing
+### tycoon-boost-system
+- Add `initialize(admin)` entrypoint — contract now has an explicit admin role
+- Add `admin_grant_boost(player, boost)` — admin can grant boosts on behalf of
+  players without requiring the player's signature (game reward flow)
+- Add `admin_revoke_boost(player, boost_id)` — admin can revoke any boost
+  (idempotent; silently succeeds if id not found)
+- Add `admin()` view — returns the stored admin address
+- Split `#[contractimpl]` into two blocks: **Admin-only** and **Public**
+- Add `DataKey::Admin` variant to storage enum
+- Fix `advanced_integration_tests.rs`: correct stacking-with-expiry assertions
+  and replace unreliable event-count assertions with state-based checks
+- Fix `#![cfg(test)]` placement in `advanced_integration_tests.rs`
+
+### tycoon-reward-system
+- Remove `admin: Address` parameter from `set_backend_minter` and
+  `clear_backend_minter` — admin is now read from storage, eliminating the
+  dual-auth anti-pattern (caller-supplied address vs stored address)
+- Gate `test_mint` / `test_burn` behind `#[cfg(test)]` — these helpers must
+  never appear in the production WASM
+- Add section comments separating admin-only vs public entrypoints
+- Update all call-sites (tests + integration fixture)
+
+### tycoon-collectibles
+- Remove `admin: Address` parameter from `set_token_perk` and `set_pause` —
+  same dual-auth anti-pattern fix as reward-system
+- Add section comments separating admin-only vs public entrypoints
+- Update all call-sites in tests
+
+### tycoon-boost-system Cargo.toml
+- Add `"lib"` to `crate-type` alongside `"cdylib"` so the crate can be
+  imported as a library dependency in integration tests
+
+### integration-tests
+- Enable `features = ["testutils"]` for `tycoon-boost-system` dependency
+- Initialize boost system in fixture (`boost_system.initialize(&admin)`)
+- Export `TestFixture` type alias for backward compatibility
+- Fix `#![cfg(test)]` placement in `boost_system_integration.rs`
+
+## New tests added
+- `tycoon-boost-system/src/admin_access_control_tests.rs` (20 tests)
+  - initialize once / double-init panics
+  - admin_grant_boost: success, validation (zero value, past expiry, duplicate,
+    cap exceeded)
+  - admin_revoke_boost: removes boost, noop on missing id, cross-player isolation
+  - admin + player boosts coexist; calculate_total_boost includes/excludes
+    admin-granted boosts correctly
+- `tycoon-reward-system/src/admin_access_control_tests.rs` (9 tests)
+  - set_backend_minter / clear_backend_minter read admin from storage
+  - pause / unpause require admin auth
+  - mint_voucher: admin succeeds, backend minter succeeds, stranger panics
+  - redeem_voucher_from blocked when paused
+  - transfer user-initiated flow
+
+## cargo check
+Passes with zero errors across all workspace members.
+
+## CI
+All 324 tests pass (tycoon-token excluded — pre-existing SDK v23 incompatibility
+in invariant_tests.rs / error_branch_tests.rs unrelated to this PR).
+
+Closes SW-FE-001
