@@ -3,10 +3,12 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import { RedisService } from './redis.service';
+import { LoggerModule } from '../../common/logger/logger.module';
 
 @Global()
 @Module({
   imports: [
+    LoggerModule,
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
