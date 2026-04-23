@@ -11,3 +11,5 @@ mod game_reward_flow;
 mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
+#[cfg(test)]
+mod security_review_checklist;
