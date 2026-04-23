@@ -13,6 +13,7 @@ import { Request, Response } from 'express';
 import { Reflector } from '@nestjs/core';
 import { IDEMPOTENCY_KEY_OPTIONS, IdempotencyOptions } from './idempotency.constants';
 import { IdempotencyService } from './idempotency.service';
+import type { CapturedHttpResponse } from './idempotency.service';
 
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -56,15 +57,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
           // Set response headers
           Object.entries(existingRecord.response.headers).forEach(([key, value]) => {
             if (!key.toLowerCase().startsWith('x-')) {
-              response.set(key, value);
+              response.set(key, value as string);
             }
           });
-          
+
           response.set('X-Idempotent-Replayed', 'true');
           response.status(existingRecord.response.statusCode);
-          
-          return new Observable(subscriber => {
-            subscriber.next(existingRecord.response.body);
+
+          return new Observable((subscriber) => {
+            subscriber.next(existingRecord.response?.body ?? null);
             subscriber.complete();
           });
         } else {
@@ -81,15 +82,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
           // Store the response for future idempotency checks
           const statusCode = response.statusCode || HttpStatus.OK;
           
-          await this.idempotencyService.storeResponse(
-            request,
-            {
-              statusCode,
-              getHeaders: () => response.getHeaders(),
-              body: data,
-            },
-            options,
-          );
+          const captured: CapturedHttpResponse = {
+            statusCode,
+            getHeaders: () => response.getHeaders(),
+            body: data,
+          };
+          await this.idempotencyService.storeResponse(request, captured, options);
 
           response.set('X-Idempotent', 'true');
           return data;
@@ -98,19 +96,16 @@ export class IdempotencyInterceptor implements NestInterceptor {
           // Store error responses for idempotency as well
           const statusCode = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
           
-          await this.idempotencyService.storeResponse(
-            request,
-            {
-              statusCode,
-              getHeaders: () => response.getHeaders(),
-              body: {
-                error: error.response?.error || 'INTERNAL_ERROR',
-                message: error.message,
-                timestamp: new Date().toISOString(),
-              },
+          const capturedErr: CapturedHttpResponse = {
+            statusCode,
+            getHeaders: () => response.getHeaders(),
+            body: {
+              error: error.response?.error || 'INTERNAL_ERROR',
+              message: error.message,
+              timestamp: new Date().toISOString(),
             },
-            options,
-          );
+          };
+          await this.idempotencyService.storeResponse(request, capturedErr, options);
 
           response.set('X-Idempotent', 'true');
           return throwError(() => error);

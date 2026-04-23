@@ -3,7 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { createHash } from 'crypto';
 import { IdempotencyOptions, IDEMPOTENCY_HEADER, DEFAULT_IDEMPOTENCY_TTL, IDEMPOTENCY_KEY_PREFIX } from './idempotency.constants';
-import { Request, Response } from 'express';
+import { Request } from 'express';
+
+/** Minimal response shape captured for idempotency replay (not full Express Response typings). */
+export interface CapturedHttpResponse {
+  statusCode: number;
+  getHeaders: () => Record<string, string | string[] | number | undefined>;
+  body?: unknown;
+}
 
 export interface IdempotencyRecord {
   key: string;
@@ -23,12 +30,20 @@ export class IdempotencyService {
   private readonly redis: Redis;
 
   constructor(private readonly configService: ConfigService) {
-    // Initialize Redis connection for idempotency storage
+    const redisCfg = this.configService.get<{
+      host: string;
+      port: number;
+      password?: string;
+      db: number;
+    }>('redis');
+    if (!redisCfg) {
+      throw new Error('Redis configuration not found for idempotency');
+    }
     this.redis = new Redis({
-      host: this.configService.get('REDIS_HOST', 'localhost'),
-      port: this.configService.get('REDIS_PORT', 6379),
-      password: this.configService.get('REDIS_PASSWORD'),
-      retryDelayOnFailover: 100,
+      host: redisCfg.host,
+      port: redisCfg.port,
+      password: redisCfg.password,
+      db: redisCfg.db,
       maxRetriesPerRequest: 3,
     });
 
@@ -94,8 +109,9 @@ export class IdempotencyService {
         this.logger.debug('Idempotency hit', { key, timestamp: parsedRecord.timestamp });
         return parsedRecord;
       }
-    } catch (error) {
-      this.logger.error('Error checking idempotency', { key, error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error checking idempotency', { key, error: msg });
     }
 
     return null;
@@ -106,8 +122,8 @@ export class IdempotencyService {
    */
   async storeResponse(
     req: Request,
-    response: Response,
-    options: IdempotencyOptions = {}
+    response: CapturedHttpResponse,
+    options: IdempotencyOptions = {},
   ): Promise<void> {
     const key = this.generateKey(req, options);
     const ttl = options.ttl || DEFAULT_IDEMPOTENCY_TTL;
@@ -153,8 +169,9 @@ export class IdempotencyService {
     try {
       await this.redis.setex(key, ttl, JSON.stringify(record));
       this.logger.debug('Idempotency record stored', { key, ttl });
-    } catch (error) {
-      this.logger.error('Error storing idempotency record', { key, error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error storing idempotency record', { key, error: msg });
     }
   }
 
@@ -165,8 +182,9 @@ export class IdempotencyService {
     try {
       await this.redis.del(key);
       this.logger.debug('Idempotency record cleared', { key });
-    } catch (error) {
-      this.logger.error('Error clearing idempotency record', { key, error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error clearing idempotency record', { key, error: msg });
     }
   }
 
@@ -227,8 +245,9 @@ export class IdempotencyService {
         recordsByAge,
         errorRate: 0, // Could be calculated from error logs
       };
-    } catch (error) {
-      this.logger.error('Error getting idempotency stats', { error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error getting idempotency stats', { error: msg });
       return {
         totalRecords: 0,
         recordsByAge: { '0-1h': 0, '1-6h': 0, '6-24h': 0, '24h+': 0 },
@@ -259,8 +278,9 @@ export class IdempotencyService {
 
       this.logger.log('Idempotency cleanup completed', { cleaned, total: keys.length });
       return cleaned;
-    } catch (error) {
-      this.logger.error('Error during idempotency cleanup', { error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error during idempotency cleanup', { error: msg });
       return 0;
     }
   }
@@ -313,11 +333,12 @@ export class IdempotencyService {
     try {
       await this.redis.ping();
       return { status: 'healthy', redis: true };
-    } catch (error) {
-      return { 
-        status: 'unhealthy', 
-        redis: false, 
-        error: error.message 
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return {
+        status: 'unhealthy',
+        redis: false,
+        error: msg,
       };
     }
   }

@@ -1,6 +1,11 @@
 import { registerAs } from '@nestjs/config';
 
 export const uploadConfig = registerAs('upload', () => ({
+  /**
+   * When false, skips Prometheus increments and debug timing logs for uploads observability.
+   * Default true (backward compatible). See SW-BE-009 runbook.
+   */
+  observabilityEnabled: process.env.UPLOADS_OBSERVABILITY_ENABLED !== 'false',
   /** Max upload size in bytes (default 5 MB). */
   maxFileSizeBytes: parseInt(process.env.UPLOAD_MAX_FILE_SIZE_MB || '5', 10) * 1024 * 1024,
   /** Comma-separated list of allowed MIME types. */

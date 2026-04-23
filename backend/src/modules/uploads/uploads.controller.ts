@@ -25,6 +25,7 @@ import { UploadsService, StoredFile } from './uploads.service';
 import { VirusScanService } from './virus-scan.service';
 import { MagicBytesValidator, NoExecutableValidator } from './upload-validators';
 import { ConfigService } from '@nestjs/config';
+import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB – also enforced in multer limits below
 
@@ -37,6 +38,7 @@ function buildMulterOptions() {
 
 @ApiTags('uploads')
 @Controller('uploads')
+@UseInterceptors(UploadsObservabilityInterceptor)
 export class UploadsController {
   constructor(
     private readonly uploadsService: UploadsService,
