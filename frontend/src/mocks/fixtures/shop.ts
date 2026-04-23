@@ -1,56 +1,90 @@
-export const mockShopItems = [
+import type {
+  ShopItemResponse,
+  UserInventoryResponse,
+  PurchaseResponse,
+} from '@/lib/api/types/dto';
+
+export const mockShopItems: ShopItemResponse[] = [
   {
     id: 1,
     name: 'Speed Boost',
     description: 'Move 2 spaces forward',
-    price: 100,
+    type: 'dice',
+    price: '100.00',
+    currency: 'USD',
+    metadata: { imageUrl: '/game/boost-speed.svg' },
     rarity: 'common',
-    type: 'boost',
     active: true,
-    imageUrl: '/game/boost-speed.svg'
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 2,
     name: 'Get Out of Jail Free',
     description: 'Escape jail without paying',
-    price: 500,
-    rarity: 'rare',
     type: 'card',
+    price: '500.00',
+    currency: 'USD',
+    metadata: { imageUrl: '/game/gotojail.svg' },
+    rarity: 'rare',
     active: true,
-    imageUrl: '/game/gotojail.svg'
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 3,
     name: 'Roll Again',
     description: 'Roll dice again',
-    price: 200,
+    type: 'dice',
+    price: '200.00',
+    currency: 'USD',
+    metadata: null,
     rarity: 'common',
-    type: 'boost',
-    active: true
-  }
+    active: true,
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
+  },
 ];
 
-export const mockInventory = [
+export const mockInventory: UserInventoryResponse[] = [
   {
     id: 1,
-    itemId: 1,
+    user_id: 1,
+    shop_item_id: 1,
+    shop_item: mockShopItems[0],
     quantity: 3,
-    expiresAt: null
+    expires_at: null,
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 2,
-    itemId: 2,
+    user_id: 1,
+    shop_item_id: 2,
+    shop_item: mockShopItems[1],
     quantity: 1,
-    expiresAt: '2025-12-31T23:59:59Z'
-  }
+    expires_at: '2025-12-31T23:59:59.000Z',
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
+  },
 ];
 
-export const mockPurchase = {
+export const mockPurchase: PurchaseResponse = {
   id: 99,
-  userId: 1,
-  itemId: 1,
+  user_id: 1,
+  shop_item_id: 1,
+  shop_item: mockShopItems[0],
   quantity: 1,
-  totalPrice: 100,
+  unit_price: '100.00',
+  total_price: '100.00',
+  original_price: '100.00',
+  discount_amount: '0.00',
+  final_price: '100.00',
+  coupon_code: null,
+  currency: 'USD',
+  payment_method: 'balance',
+  transaction_id: null,
   status: 'completed',
-  createdAt: new Date().toISOString()
+  is_gift: false,
+  created_at: new Date().toISOString(),
 };
