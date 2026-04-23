@@ -132,3 +132,48 @@ mod tests {
         assert_ne!(ub.address, uc.address);
     }
 }
+
+    // ── SW-001 coverage additions ─────────────────────────────────────────────
+
+    /// `export_state` returns correct values in a fully wired cross-contract fixture.
+    #[test]
+    fn export_state_reflects_fixture_wiring() {
+        let f = Fixture::new();
+        let dump = f.game.export_state();
+
+        assert_eq!(dump.owner, f.admin, "owner must match fixture admin");
+        assert_eq!(dump.tyc_token, f.tyc_id, "TYC token must match fixture");
+        assert_eq!(dump.usdc_token, f.usdc_id, "USDC token must match fixture");
+        assert_eq!(dump.reward_system, f.reward_id, "reward_system must match fixture");
+        assert!(dump.is_initialized, "contract must be initialized");
+        assert_eq!(dump.state_version, 1, "state_version must be 1 after initialize");
+        // Fixture sets a backend controller — must be Some
+        assert!(
+            dump.backend_controller.is_some(),
+            "backend_controller must be set by fixture"
+        );
+        assert_eq!(dump.backend_controller, Some(f.backend.clone()));
+    }
+
+    /// `migrate` on the game contract is idempotent at v1 and does not corrupt state.
+    #[test]
+    fn game_migrate_is_idempotent() {
+        let f = Fixture::new();
+        f.game.migrate();
+        let dump = f.game.export_state();
+        assert_eq!(dump.state_version, 1, "migrate must not change version at v1");
+        assert!(dump.is_initialized);
+    }
+
+    /// `migrate` on the reward contract is idempotent at v1 and does not corrupt state.
+    #[test]
+    fn reward_migrate_is_idempotent() {
+        let f = Fixture::new();
+        f.reward.migrate();
+        // Reward contract is still functional after migrate
+        let value: u128 = 10_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        assert_eq!(f.tyc_balance(&f.player_a), value as i128);
+    }
+}

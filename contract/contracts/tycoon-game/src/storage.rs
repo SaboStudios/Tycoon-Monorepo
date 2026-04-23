@@ -1,4 +1,9 @@
 #![allow(dead_code)]
+// NOTE (SW-FE-001): The blanket allow is intentional — storage helper functions
+// are the public API surface for the contract's persistence layer. Individual
+// getters/setters may appear unused to the compiler when called only through
+// the contractimpl macro expansion. Removing this attribute produces spurious
+// dead_code warnings on every storage accessor.
 use soroban_sdk::{contracttype, Address, Env, String};
 
 /// Storage keys for the contract
@@ -191,5 +196,7 @@ pub fn get_state_version(env: &Env) -> u32 {
 
 /// Set the current state version
 pub fn set_state_version(env: &Env, version: u32) {
-    env.storage().instance().set(&DataKey::StateVersion, &version);
+    env.storage()
+        .instance()
+        .set(&DataKey::StateVersion, &version);
 }
