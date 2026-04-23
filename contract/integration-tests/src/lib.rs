@@ -4,8 +4,6 @@
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
-mod token_reward_flow;
-#[cfg(test)]
 mod game_reward_flow;
 #[cfg(test)]
 mod game_token_flow;
@@ -15,3 +13,4 @@ mod multi_player_flow;
 mod boost_system_integration;
 #[cfg(test)]
 mod boost_admin_flow;
+mod token_reward_flow;

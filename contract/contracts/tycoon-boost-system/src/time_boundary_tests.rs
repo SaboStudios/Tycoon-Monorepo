@@ -27,7 +27,11 @@ fn make_env() -> Env {
 
 fn setup(env: &Env) -> (TycoonBoostSystemClient, Address) {
     let id = env.register(TycoonBoostSystem, ());
-    (TycoonBoostSystemClient::new(env, &id), Address::generate(env))
+    let client = TycoonBoostSystemClient::new(env, &id);
+    let admin = Address::generate(env);
+    let player = Address::generate(env);
+    client.initialize(&admin);
+    (client, player)
 }
 
 fn set_seq(env: &Env, seq: u32) {
@@ -45,7 +49,13 @@ fn set_seq(env: &Env, seq: u32) {
 }
 
 fn additive(id: u128, value: u32, expires_at_ledger: u32) -> Boost {
-    Boost { id, boost_type: BoostType::Additive, value, priority: 0, expires_at_ledger }
+    Boost {
+        id,
+        boost_type: BoostType::Additive,
+        value,
+        priority: 0,
+        expires_at_ledger,
+    }
 }
 
 // ── sentinel: expires_at_ledger == 0 means never expires ─────────────────────
@@ -80,7 +90,7 @@ fn test_expiry_boundary_at_exact_ledger() {
     client.add_boost(&player, &additive(1, 1000, 200));
 
     set_seq(&env, 200); // now at the expiry ledger
-    // Boost is expired → base value only
+                        // Boost is expired → base value only
     assert_eq!(client.calculate_total_boost(&player), 10000);
 }
 
@@ -95,7 +105,7 @@ fn test_expiry_boundary_one_before() {
     client.add_boost(&player, &additive(1, 1000, 200));
 
     set_seq(&env, 199); // one ledger before expiry
-    // Boost is still active: 10000 * (1 + 0.10) = 11000
+                        // Boost is still active: 10000 * (1 + 0.10) = 11000
     assert_eq!(client.calculate_total_boost(&player), 11000);
 }
 
@@ -143,7 +153,7 @@ fn test_prune_removes_expired_keeps_active() {
 
     set_seq(&env, 50);
     client.add_boost(&player, &additive(1, 1000, 100)); // expires at 100
-    client.add_boost(&player, &additive(2, 500, 0));    // never expires
+    client.add_boost(&player, &additive(2, 500, 0)); // never expires
 
     set_seq(&env, 150); // past expiry of boost 1
     client.prune_expired_boosts(&player);

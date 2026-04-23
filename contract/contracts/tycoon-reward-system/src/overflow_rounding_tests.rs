@@ -122,7 +122,11 @@ fn test_tier_matrix_exact_value_preserved_on_redeem() {
         h.fund_contract(*tyc_value as i128);
 
         let token_id = h.client.mint_voucher(&h.admin, &user, tyc_value);
-        assert_eq!(h.client.get_balance(&user, &token_id), 1, "{name}: balance before redeem");
+        assert_eq!(
+            h.client.get_balance(&user, &token_id),
+            1,
+            "{name}: balance before redeem"
+        );
 
         let contract_before = h.tyc_balance_of(&h.contract_id);
         h.client.redeem_voucher_from(&user, &token_id);
@@ -137,7 +141,11 @@ fn test_tier_matrix_exact_value_preserved_on_redeem() {
             contract_before - *tyc_value as i128,
             "{name}: contract balance not reduced correctly"
         );
-        assert_eq!(h.client.get_balance(&user, &token_id), 0, "{name}: voucher not burned");
+        assert_eq!(
+            h.client.get_balance(&user, &token_id),
+            0,
+            "{name}: voucher not burned"
+        );
     }
 }
 
@@ -235,8 +243,14 @@ fn test_overflow_voucher_count_increments_monotonically() {
     let third_id = h.client.mint_voucher(&h.admin, &user, &TIER_BRONZE);
 
     // IDs must be strictly increasing
-    assert!(second_id > first_id, "voucher IDs must be monotonically increasing");
-    assert!(third_id > second_id, "voucher IDs must be monotonically increasing");
+    assert!(
+        second_id > first_id,
+        "voucher IDs must be monotonically increasing"
+    );
+    assert!(
+        third_id > second_id,
+        "voucher IDs must be monotonically increasing"
+    );
     // Each increment is exactly 1
     assert_eq!(second_id - first_id, 1);
     assert_eq!(third_id - second_id, 1);
@@ -511,7 +525,10 @@ fn test_accrual_redeem_fails_when_contract_underfunded() {
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         h.client.redeem_voucher_from(&user, &token_id);
     }));
-    assert!(res.is_err(), "redeem should fail when contract is underfunded");
+    assert!(
+        res.is_err(),
+        "redeem should fail when contract is underfunded"
+    );
 }
 
 /// Accrual: minting a voucher with value=0 is stored and redeems 0 TYC.

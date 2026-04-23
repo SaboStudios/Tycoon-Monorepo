@@ -60,18 +60,32 @@ fn make_env() -> Env {
 fn setup(env: &Env) -> (TycoonBoostSystemClient, Address) {
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(env, &contract_id);
+    let admin = Address::generate(env);
     let player = Address::generate(env);
+    client.initialize(&admin);
     (client, player)
 }
 
 /// Non-expiring boost.
 fn nb(id: u128, boost_type: BoostType, value: u32, priority: u32) -> Boost {
-    Boost { id, boost_type, value, priority, expires_at_ledger: 0 }
+    Boost {
+        id,
+        boost_type,
+        value,
+        priority,
+        expires_at_ledger: 0,
+    }
 }
 
 /// Expiring boost.
 fn eb(id: u128, boost_type: BoostType, value: u32, priority: u32, expires: u32) -> Boost {
-    Boost { id, boost_type, value, priority, expires_at_ledger: expires }
+    Boost {
+        id,
+        boost_type,
+        value,
+        priority,
+        expires_at_ledger: expires,
+    }
 }
 
 /// Advance the mock ledger sequence number.
@@ -94,10 +108,10 @@ fn set_ledger(env: &Env, seq: u32) {
 #[test]
 fn test_sr1_additive_sum_table() {
     let cases: &[(&[u32], u32)] = &[
-        (&[1000],             11000), // +10%
-        (&[1000, 500],        11500), // +10% + +5%
-        (&[1000, 500, 250],   11750), // +10% + +5% + +2.5%
-        (&[10000],            20000), // +100% doubles base
+        (&[1000], 11000),           // +10%
+        (&[1000, 500], 11500),      // +10% + +5%
+        (&[1000, 500, 250], 11750), // +10% + +5% + +2.5%
+        (&[10000], 20000),          // +100% doubles base
     ];
 
     for (values, expected) in cases {
@@ -119,10 +133,10 @@ fn test_sr1_additive_sum_table() {
 #[test]
 fn test_sr2_multiplicative_chain_table() {
     let cases: &[(&[u32], u32)] = &[
-        (&[15000],         15000), // 1.5x
-        (&[15000, 12000],  18000), // 1.5x * 1.2x
+        (&[15000], 15000),               // 1.5x
+        (&[15000, 12000], 18000),        // 1.5x * 1.2x
         (&[12000, 12000, 12000], 17280), // 1.2^3
-        (&[20000],         20000), // 2x
+        (&[20000], 20000),               // 2x
     ];
 
     for (values, expected) in cases {
@@ -145,10 +159,10 @@ fn test_sr2_multiplicative_chain_table() {
 fn test_sr3_override_highest_priority_table() {
     // (priorities, values, expected_value)
     let cases: &[(&[u32], &[u32], u32)] = &[
-        (&[5, 10],     &[20000, 30000], 30000),
-        (&[10, 5],     &[30000, 20000], 30000),
-        (&[1, 2, 3],   &[10000, 20000, 30000], 30000),
-        (&[100, 1],    &[50000, 10000], 50000),
+        (&[5, 10], &[20000, 30000], 30000),
+        (&[10, 5], &[30000, 20000], 30000),
+        (&[1, 2, 3], &[10000, 20000, 30000], 30000),
+        (&[100, 1], &[50000, 10000], 50000),
     ];
 
     for (priorities, values, expected) in cases {
@@ -174,8 +188,8 @@ fn test_sr4_override_supersedes_mult_and_additive() {
     let (client, player) = setup(&env);
 
     client.add_boost(&player, &nb(1, BoostType::Multiplicative, 20000, 0)); // 2x
-    client.add_boost(&player, &nb(2, BoostType::Additive, 5000, 0));        // +50%
-    client.add_boost(&player, &nb(3, BoostType::Override, 25000, 1));       // 2.5x override
+    client.add_boost(&player, &nb(2, BoostType::Additive, 5000, 0)); // +50%
+    client.add_boost(&player, &nb(3, BoostType::Override, 25000, 1)); // 2.5x override
 
     // Override wins — mult and additive are ignored
     assert_eq!(client.calculate_total_boost(&player), 25000);
@@ -442,7 +456,10 @@ fn test_evt1_add_boost_emits_activated_event() {
     client.add_boost(&player, &eb(7, BoostType::Multiplicative, 15000, 0, 500));
     let events_after = env.events().all().len();
 
-    assert!(events_after > events_before, "EVT-1: BoostActivatedEvent not emitted");
+    assert!(
+        events_after > events_before,
+        "EVT-1: BoostActivatedEvent not emitted"
+    );
 }
 
 /// EVT-2: prune_expired_boosts emits BoostExpiredEvent for each pruned boost.
@@ -627,7 +644,10 @@ fn test_cap_clear_then_refill_to_cap() {
 
     // Re-fill to cap
     for i in 0..MAX_BOOSTS_PER_PLAYER {
-        client.add_boost(&player, &nb(i as u128 + 100, BoostType::Multiplicative, 10100, 0));
+        client.add_boost(
+            &player,
+            &nb(i as u128 + 100, BoostType::Multiplicative, 10100, 0),
+        );
     }
     // 10100^10 / 10000^9 — just verify it's > base
     assert!(client.calculate_total_boost(&player) > 10000);
