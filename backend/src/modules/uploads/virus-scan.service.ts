@@ -1,6 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as net from 'net';
+import { sanitizeUploadFilename } from './uploads-logging.util';
+import { UploadsObservabilityService } from './uploads-observability.service';
 
 /**
  * Virus scan stub backed by ClamAV (clamd INSTREAM protocol).
@@ -14,22 +16,40 @@ export class VirusScanService {
   private readonly logger = new Logger(VirusScanService.name);
   private static readonly SCAN_TIMEOUT_MS = 15_000;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly uploadsObservability?: UploadsObservabilityService,
+  ) {}
 
   async scan(buffer: Buffer, filename: string): Promise<void> {
     const host = this.config.get<string>('upload.clamavHost');
 
     if (!host) {
+      const safeName = sanitizeUploadFilename(filename);
       this.logger.warn(
-        `Virus scan skipped for "${filename}" – set CLAMAV_HOST to enable ClamAV scanning`,
+        `Virus scan skipped for "${safeName}" – set CLAMAV_HOST to enable ClamAV scanning`,
       );
+      this.uploadsObservability?.recordVirusScanOutcome('skipped');
       return;
     }
 
     const port = this.config.get<number>('upload.clamavPort') ?? 3310;
-    this.logger.debug(`Scanning "${filename}" via clamd at ${host}:${port}`);
-    await this.instream(buffer, host, port, filename);
-    this.logger.debug(`"${filename}" passed virus scan`);
+    this.logger.debug(
+      `Scanning "${sanitizeUploadFilename(filename)}" via clamd at ${host}:${port}`,
+    );
+    try {
+      await this.instream(buffer, host, port, filename);
+      this.uploadsObservability?.recordVirusScanOutcome('clean');
+      this.logger.debug(`"${sanitizeUploadFilename(filename)}" passed virus scan`);
+    } catch (e) {
+      this.uploadsObservability?.recordVirusScanOutcome(
+        e instanceof InternalServerErrorException &&
+          String(e.message).toLowerCase().includes('malware')
+          ? 'infected'
+          : 'error',
+      );
+      throw e;
+    }
   }
 
   /** Streams the buffer to clamd using the INSTREAM command. */
@@ -59,13 +79,11 @@ export class VirusScanService {
 
       client.on('end', () => {
         if (response.includes('FOUND')) {
-          reject(
-            new InternalServerErrorException(
-              `Malware detected in "${filename}": ${response.trim()}`,
-            ),
-          );
+          reject(new InternalServerErrorException('Malware detected in upload (ClamAV)'));
         } else if (response.includes('ERROR')) {
-          this.logger.error(`ClamAV error for "${filename}": ${response.trim()}`);
+          this.logger.error(
+            `ClamAV error for "${sanitizeUploadFilename(filename)}": ${response.trim()}`,
+          );
           reject(new InternalServerErrorException('Virus scan returned an error'));
         } else {
           resolve();
