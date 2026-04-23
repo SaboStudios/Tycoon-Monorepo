@@ -11,3 +11,6 @@ mod game_reward_flow;
 mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
+// SW-CON-001: deprecation path for legacy entrypoints (Stellar Wave batch)
+#[cfg(test)]
+mod legacy_entrypoints;
