@@ -38,12 +38,16 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Request() req: RequestWithUser) {
-    return this.authService.login({
-      id: req.user.id,
-      email: req.user.email,
-      role: req.user.role,
-      is_admin: req.user.is_admin,
-    });
+    return this.authService.login(
+      {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role,
+        is_admin: req.user.is_admin,
+      },
+      req.ip,
+      req.headers?.['user-agent'],
+    );
   }
 
   @Post('refresh')
@@ -64,15 +68,24 @@ export class AuthController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('wallet-login')
   @HttpCode(HttpStatus.OK)
-  async walletLogin(@Body() body: WalletLoginDto) {
-    return this.authService.walletLogin(body.address, body.chain);
+  async walletLogin(@Body() body: WalletLoginDto, @Req() req: RequestWithUser) {
+    return this.authService.walletLogin(
+      body.address,
+      body.chain,
+      req.ip,
+      req.headers?.['user-agent'],
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req: RequestWithUser) {
-    return this.authService.logout(req.user.sub);
+    return this.authService.logout(
+      req.user.sub,
+      req.ip,
+      req.headers?.['user-agent'],
+    );
   }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
