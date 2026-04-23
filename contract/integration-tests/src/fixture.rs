@@ -117,10 +117,5 @@ mod inner {
         pub fn tyc_balance(&self, addr: &Address) -> i128 {
             self.tyc.balance(addr)
         }
-
-        /// Mint TYC directly to an address via the asset admin.
-        pub fn mint_tyc(&self, to: &Address, amount: i128) {
-            StellarAssetClient::new(&self.env, &self.tyc_id).mint(to, &amount);
-        }
     }
 }
