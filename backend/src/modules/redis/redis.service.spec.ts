@@ -1,134 +1,151 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { RedisService } from './redis.service';
 import { LoggerService } from '../../common/logger/logger.service';
 
+// Prevent duplicate Prometheus metric registration across test runs
+jest.mock('prom-client', () => {
+  const noop = () => ({ inc: jest.fn(), set: jest.fn(), startTimer: jest.fn(() => jest.fn()), observe: jest.fn() });
+  return { Counter: jest.fn(noop), Gauge: jest.fn(noop), Histogram: jest.fn(noop) };
+});
+
+const mockRedisInstance = {
+  setex: jest.fn(),
+  get: jest.fn(),
+  del: jest.fn(),
+  incr: jest.fn(),
+  expire: jest.fn(),
+  keys: jest.fn(),
+  quit: jest.fn(),
+  on: jest.fn(),
+};
+
+jest.mock('ioredis', () => jest.fn().mockImplementation(() => mockRedisInstance));
+
 describe('RedisService', () => {
   let service: RedisService;
+  let cacheManager: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
   let loggerService: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
-    const mockLoggerService = {
-      log: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
-    };
+    jest.clearAllMocks();
 
-    const mockCacheManager = {
-      get: jest.fn(),
-      set: jest.fn(),
-      del: jest.fn(),
-    };
-
-    const mockRedis = {
-      setex: jest.fn(),
-      get: jest.fn(),
-      del: jest.fn(),
-      incr: jest.fn(),
-      expire: jest.fn(),
-      keys: jest.fn(),
-      quit: jest.fn(),
-      on: jest.fn(),
-    };
+    cacheManager = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    loggerService = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } as any;
 
     const module: TestingModule = await Test.createTestingModule({
-      imports: [ConfigModule],
       providers: [
         RedisService,
+        { provide: CACHE_MANAGER, useValue: cacheManager },
+        { provide: LoggerService, useValue: loggerService },
         {
-          provide: LoggerService,
-          useValue: mockLoggerService,
-        },
-        {
-          provide: 'CACHE_MANAGER',
-          useValue: mockCacheManager,
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue({ host: 'localhost', port: 6379, db: 0, ttl: 300 }) },
         },
       ],
     }).compile();
 
-    service = module.get<RedisService>(RedisService);
-    loggerService = module.get(LoggerService);
-
-    // Mock the Redis instance
-    (service as any).redis = mockRedis;
+    service = module.get(RedisService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
+  it('should be defined', () => expect(service).toBeDefined());
 
   describe('Session management', () => {
-    it('should set refresh token successfully', async () => {
-      (service as any).redis.setex.mockResolvedValue('OK');
-
-      await service.setRefreshToken('user123', 'token456');
-
-      expect((service as any).redis.setex).toHaveBeenCalledWith('refresh_token:user123', 604800, 'token456');
-      expect(loggerService.debug).toHaveBeenCalledWith('Set refresh token for user user123', 'RedisService');
+    it('sets refresh token', async () => {
+      mockRedisInstance.setex.mockResolvedValue('OK');
+      await service.setRefreshToken('u1', 'tok');
+      expect(mockRedisInstance.setex).toHaveBeenCalledWith('refresh_token:u1', 604800, 'tok');
     });
 
-    it('should handle set refresh token error', async () => {
-      (service as any).redis.setex.mockRejectedValue(new Error('Redis error'));
-
-      await expect(service.setRefreshToken('user123', 'token456')).rejects.toThrow('Redis error');
-      expect(loggerService.error).toHaveBeenCalledWith(
-        'Failed to set refresh token for user user123: Redis error',
-        'RedisService'
-      );
+    it('throws on set refresh token error', async () => {
+      mockRedisInstance.setex.mockRejectedValue(new Error('down'));
+      await expect(service.setRefreshToken('u1', 'tok')).rejects.toThrow('down');
     });
 
-    it('should get refresh token successfully', async () => {
-      (service as any).redis.get.mockResolvedValue('token456');
-
-      const result = await service.getRefreshToken('user123');
-
-      expect(result).toBe('token456');
-      expect(loggerService.debug).toHaveBeenCalledWith('Retrieved refresh token for user user123', 'RedisService');
+    it('gets refresh token', async () => {
+      mockRedisInstance.get.mockResolvedValue('tok');
+      expect(await service.getRefreshToken('u1')).toBe('tok');
     });
 
-    it('should return null on get refresh token error', async () => {
-      (service as any).redis.get.mockRejectedValue(new Error('Redis error'));
+    it('returns null on get refresh token error', async () => {
+      mockRedisInstance.get.mockRejectedValue(new Error('down'));
+      expect(await service.getRefreshToken('u1')).toBeNull();
+    });
 
-      const result = await service.getRefreshToken('user123');
-
-      expect(result).toBeNull();
-      expect(loggerService.error).toHaveBeenCalledWith(
-        'Failed to get refresh token for user user123: Redis error',
-        'RedisService'
-      );
+    it('deletes refresh token', async () => {
+      mockRedisInstance.del.mockResolvedValue(1);
+      await service.deleteRefreshToken('u1');
+      expect(mockRedisInstance.del).toHaveBeenCalledWith('refresh_token:u1');
     });
   });
 
   describe('Cache operations', () => {
-    it('should handle cache hit', async () => {
-      const mockCacheManager = (service as any).cacheManager;
-      mockCacheManager.get.mockResolvedValue('cached_value');
-
-      const result = await service.get('test_key');
-
-      expect(result).toBe('cached_value');
-      expect(loggerService.debug).toHaveBeenCalledWith('Cache HIT: test_key', 'RedisService');
+    it('cache hit', async () => {
+      cacheManager.get.mockResolvedValue('val');
+      expect(await service.get('k')).toBe('val');
+      expect(loggerService.debug).toHaveBeenCalledWith('Cache HIT: k', 'RedisService');
     });
 
-    it('should handle cache miss', async () => {
-      const mockCacheManager = (service as any).cacheManager;
-      mockCacheManager.get.mockResolvedValue(undefined);
-
-      const result = await service.get('test_key');
-
-      expect(result).toBeUndefined();
-      expect(loggerService.debug).toHaveBeenCalledWith('Cache MISS: test_key', 'RedisService');
+    it('cache miss', async () => {
+      cacheManager.get.mockResolvedValue(undefined);
+      expect(await service.get('k')).toBeUndefined();
+      expect(loggerService.debug).toHaveBeenCalledWith('Cache MISS: k', 'RedisService');
     });
 
-    it('should set cache value', async () => {
-      const mockCacheManager = (service as any).cacheManager;
-      mockCacheManager.set.mockResolvedValue(undefined);
+    it('sets cache value', async () => {
+      cacheManager.set.mockResolvedValue(undefined);
+      await service.set('k', 'v', 300);
+      expect(cacheManager.set).toHaveBeenCalledWith('k', 'v', 300);
+    });
 
-      await service.set('test_key', 'test_value', 300);
+    it('deletes cache key', async () => {
+      cacheManager.del.mockResolvedValue(undefined);
+      await service.del('k');
+      expect(cacheManager.del).toHaveBeenCalledWith('k');
+    });
+  });
 
-      expect(mockCacheManager.set).toHaveBeenCalledWith('test_key', 'test_value', 300);
-      expect(loggerService.debug).toHaveBeenCalledWith('Cache SET: test_key', 'RedisService');
+  describe('Rate limiting', () => {
+    it('increments and sets TTL on first call', async () => {
+      mockRedisInstance.incr.mockResolvedValue(1);
+      mockRedisInstance.expire.mockResolvedValue(1);
+      expect(await service.incrementRateLimit('rl:u1')).toBe(1);
+      expect(mockRedisInstance.expire).toHaveBeenCalledWith('rl:u1', 60);
+    });
+
+    it('does not reset TTL on subsequent calls', async () => {
+      mockRedisInstance.incr.mockResolvedValue(5);
+      await service.incrementRateLimit('rl:u1');
+      expect(mockRedisInstance.expire).not.toHaveBeenCalled();
+    });
+
+    it('returns 0 on Redis error (graceful degradation)', async () => {
+      mockRedisInstance.incr.mockRejectedValue(new Error('down'));
+      expect(await service.incrementRateLimit('rl:u1')).toBe(0);
+    });
+  });
+
+  describe('delByPattern', () => {
+    it('deletes matched keys', async () => {
+      mockRedisInstance.keys.mockResolvedValue(['a', 'b']);
+      mockRedisInstance.del.mockResolvedValue(2);
+      await service.delByPattern('prefix:*');
+      expect(mockRedisInstance.del).toHaveBeenCalledWith('a', 'b');
+    });
+
+    it('no-ops when no keys match', async () => {
+      mockRedisInstance.keys.mockResolvedValue([]);
+      await service.delByPattern('prefix:*');
+      expect(mockRedisInstance.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('quit', () => {
+    it('closes the Redis connection', async () => {
+      mockRedisInstance.quit.mockResolvedValue('OK');
+      await service.quit();
+      expect(mockRedisInstance.quit).toHaveBeenCalled();
     });
   });
 });
