@@ -2,7 +2,23 @@
 
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { track } from "@/lib/analytics";
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  return reduced;
+}
 
 /**
  * Mobile-responsive hero section for Tycoon.
@@ -26,6 +42,7 @@ import { track } from "@/lib/analytics";
  */
 export default function HeroSectionMobile() {
   const router = useRouter();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
@@ -61,15 +78,17 @@ export default function HeroSectionMobile() {
         </p>
 
         {/* Title - stacked, smaller */}
-        <h1 className="font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
+        <h1 className="min-h-[42px] font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
           TYCOON
-          <span className="ml-1 text-[16px] text-[#0FF0FC] rotate-12 animate-pulse inline-block">
+          <span
+            className={`ml-1 text-[16px] text-[#0FF0FC] rotate-12 inline-block ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+          >
             ?
           </span>
         </h1>
 
         {/* Tagline - condensed */}
-        <p className="font-orbitron text-[16px] font-[700] text-[#F0F7F7]">
+        <p className="min-h-[24px] font-orbitron text-[16px] font-[700] text-[#F0F7F7]">
           Conquer • Build • Trade On
         </p>
 

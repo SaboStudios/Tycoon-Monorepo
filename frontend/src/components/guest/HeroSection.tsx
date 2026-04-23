@@ -60,8 +60,8 @@ const HeroSection: React.FC = () => {
           </p>
         </div>
 
-          {/* Animated Tagline */}
-        <div className="flex justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4">
+        {/* Animated Tagline */}
+        <div className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4">
           <TypeAnimation
             sequence={[
               "Conquer",
@@ -76,44 +76,49 @@ const HeroSection: React.FC = () => {
               1000,
               "Conquer",
               1000,
-              "",
-              500,
             ]}
             wrapper="span"
             speed={typeSpeed}
             repeat={prefersReducedMotion ? 1 : Infinity}
+            preRenderFirstString
             className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
           />
         </div>
 
         {/* Main Title */}
-        <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative">
+        <h1
+          data-testid="hero-main-title"
+          className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative"
+        >
           TYCOON
-          <span className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? 'animate-pulse' : ''}`}>
+          <span className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}>
             ?
           </span>
         </h1>
 
         {/* Description + Animated Sub-text */}
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
-          <TypeAnimation
-            sequence={[
-              "Roll the dice",
-              2000,
-              "Buy properties",
-              2000,
-              "Collect rent",
-              2000,
-              "Play against AI opponents",
-              2200,
-              "Become the top tycoon",
-              2000,
-            ]}
-            wrapper="span"
-            speed={subSpeed}
-            repeat={prefersReducedMotion ? 1 : Infinity}
-            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
-          />
+          <div className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]">
+            <TypeAnimation
+              sequence={[
+                "Roll the dice",
+                2000,
+                "Buy properties",
+                2000,
+                "Collect rent",
+                2000,
+                "Play against AI opponents",
+                2200,
+                "Become the top tycoon",
+                2000,
+              ]}
+              wrapper="span"
+              speed={subSpeed}
+              repeat={prefersReducedMotion ? 1 : Infinity}
+              preRenderFirstString
+              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
+            />
+          </div>
           <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of strategy,
             ownership, and fortune. Play solo against AI, compete in multiplayer
@@ -126,6 +131,7 @@ const HeroSection: React.FC = () => {
         <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
           {/* Continue Game */}
           <button
+            data-testid="hero-primary-cta"
             onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
             className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
@@ -135,7 +141,7 @@ const HeroSection: React.FC = () => {
               viewBox="0 0 300 56"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? 'group-hover:animate-pulse' : ''}`}
+              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
             >
               <path
                 d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
@@ -161,14 +167,14 @@ const HeroSection: React.FC = () => {
               viewBox="0 0 227 40"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1] ${!prefersReducedMotion ? 'group-hover:stroke-[#00F0FF] transition-all duration-300' : ''}`}
+              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1] ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
             >
               <path
                 d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
                 fill="#003B3E"
                 stroke="#003B3E"
                 strokeWidth={1}
-                className={`${!prefersReducedMotion ? 'group-hover:stroke-[#00F0FF] transition-all duration-300' : ''}`}
+                className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
               />
             </svg>
             <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
@@ -188,14 +194,14 @@ const HeroSection: React.FC = () => {
               viewBox="0 0 140 40"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full ${!prefersReducedMotion ? 'group-hover:stroke-[#00F0FF] transition-all duration-300' : ''}`}
+              className={`absolute top-0 left-0 w-full h-full ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
             >
               <path
                 d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
                 fill="#0E1415"
                 stroke="#003B3E"
                 strokeWidth={1}
-                className={`${!prefersReducedMotion ? 'group-hover:stroke-[#00F0FF] transition-all duration-300' : ''}`}
+                className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
               />
             </svg>
             <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
@@ -215,7 +221,7 @@ const HeroSection: React.FC = () => {
               viewBox="0 0 260 52"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? 'group-hover:animate-pulse' : ''}`}
+              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
             >
               <path
                 d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
