@@ -35,7 +35,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = response;
       } else {
         const responseObj = response as Record<string, unknown>;
-        message = (responseObj.message as string) || exception.message;
+        // ValidationPipe emits message as string[] — preserve the array so
+        // callers receive all constraint violations, not just the first one.
+        const raw = responseObj.message;
+        message = Array.isArray(raw) ? (raw as string[]).join('; ') : ((raw as string) || exception.message);
         error = responseObj.error as string | undefined;
       }
       stack = exception.stack;
@@ -68,9 +71,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }
       }
     } else {
-      const exceptionStr = typeof exception === 'object' && exception !== null
-        ? JSON.stringify(exception)
-        : String(exception);
+      const exceptionStr =
+        typeof exception === 'object' && exception !== null
+          ? JSON.stringify(exception)
+          : String(exception);
 
       this.logger.error(
         'Unknown exception occurred',

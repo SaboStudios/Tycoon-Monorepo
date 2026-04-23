@@ -1,20 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from '../src/modules/users/entities/user.entity';
-import { RefreshToken } from '../src/modules/auth/entities/refresh-token.entity';
 import { ConfigModule } from '@nestjs/config';
-import { UsersModule } from '../src/modules/users/users.module';
-import { AuthModule } from '../src/modules/auth/auth.module';
-import { CommonModule } from '../src/common/common.module';
-import { RedisModule } from '../src/modules/redis/redis.module';
+import { AuthController } from '../src/modules/auth/auth.controller';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { UsersController } from '../src/modules/users/users.controller';
+import { UsersService } from '../src/modules/users/users.service';
+import { GamePlayersService } from '../src/modules/games/game-players.service';
+import { UserPreferencesService } from '../src/modules/users/user-preferences.service';
+import { LocalAuthGuard } from '../src/modules/auth/guards/local-auth.guard';
+import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../src/modules/auth/guards/admin.guard';
+import { RedisRateLimitGuard } from '../src/common/guards/redis-rate-limit.guard';
+import { configureApiVersioning } from '../src/common/versioning/api-versioning';
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
+    const moduleBuilder = Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
@@ -33,32 +37,70 @@ describe('AuthController (e2e)', () => {
             }),
           ],
         }),
-        TypeOrmModule.forRoot({
-          type: 'sqlite',
-          database: ':memory:',
-          entities: [User, RefreshToken],
-          synchronize: true,
-          dropSchema: true,
-          logging: false,
-        }),
-        TypeOrmModule.forFeature([User, RefreshToken]),
-        CommonModule,
-        RedisModule,
-        UsersModule,
-        AuthModule,
       ],
-    }).compile();
+      controllers: [AuthController, UsersController],
+      providers: [
+        {
+          provide: AuthService,
+          useValue: {
+            refreshTokens: jest.fn().mockResolvedValue({
+              accessToken: 'test-access-token',
+              refreshToken: 'test-refresh-token',
+            }),
+          },
+        },
+        {
+          provide: UsersService,
+          useValue: {
+            findAll: jest.fn().mockResolvedValue({
+              data: [],
+              meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+            }),
+          },
+        },
+        {
+          provide: GamePlayersService,
+          useValue: { findGamesByUser: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: UserPreferencesService,
+          useValue: {
+            getPreferences: jest.fn().mockResolvedValue({}),
+            updatePreferences: jest.fn().mockResolvedValue({}),
+          },
+        },
+      ],
+    })
+      .overrideGuard(LocalAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(AdminGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RedisRateLimitGuard)
+      .useValue({ canActivate: () => true });
+
+    const moduleFixture: TestingModule = await moduleBuilder.compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
+    configureApiVersioning(app, {
+      apiPrefix: 'api',
+      defaultVersion: '1',
+      enableLegacyUnversionedRoutes: true,
+      legacyUnversionedSunset: '2026-12-31T00:00:00.000Z',
+    });
     await app.init();
   });
 
-  it('/auth/login (POST) - Login endpoint exists', () => {
+  it('/auth/refresh (POST) - Refresh endpoint works', () => {
     return request(app.getHttpServer() as Parameters<typeof request>[0])
-      .post('/api/v1/auth/login')
-      .send({ email: 'test@test.com', password: 'password' })
-      .expect(401); // Expect 401 for invalid credentials
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: 'valid-refresh-token' })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveProperty('accessToken');
+        expect(res.body).toHaveProperty('refreshToken');
+      });
   });
 
   it('/users (GET) - Returns paginated users list', () => {
@@ -80,6 +122,16 @@ describe('AuthController (e2e)', () => {
         expect(body.meta).toHaveProperty('limit');
         expect(body.meta).toHaveProperty('totalItems');
         expect(Array.isArray(body.data)).toBe(true);
+      });
+  });
+
+  it('/users (GET) - Legacy unversioned route is supported with deprecation headers', () => {
+    return request(app.getHttpServer() as Parameters<typeof request>[0])
+      .get('/api/users')
+      .expect(200)
+      .expect((res) => {
+        expect(res.headers).toHaveProperty('deprecation', 'true');
+        expect(res.headers).toHaveProperty('sunset');
       });
   });
 

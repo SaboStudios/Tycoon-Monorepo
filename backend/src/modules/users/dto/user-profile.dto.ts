@@ -17,4 +17,6 @@ export class UserProfileDto {
   total_earned: string;
 
   total_withdrawn: string;
+
+  is_admin: boolean;
 }

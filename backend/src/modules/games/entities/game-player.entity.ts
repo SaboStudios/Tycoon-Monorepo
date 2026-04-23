@@ -5,24 +5,36 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { GamePlayerSymbol } from '../enums/game-player-symbol.enum';
+import { Game } from './game.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity({ name: 'game_players' })
 @Index(['game_id'])
 @Index(['user_id'])
-@Index(['game_id', 'user_id'])
+@Index(['game_id', 'user_id'], { unique: true })
 @Index(['game_id', 'in_jail'])
 @Index(['user_id', 'in_jail'])
 export class GamePlayer {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id: number;
 
-  @Column({ type: 'int', unsigned: true })
+  @Column({ type: 'int', unsigned: true, name: 'game_id' })
   game_id: number;
 
-  @Column({ type: 'int', unsigned: true })
+  @Column({ type: 'int', unsigned: true, name: 'user_id' })
   user_id: number;
+
+  @ManyToOne(() => Game, (game) => game.players, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'game_id' })
+  game: Game;
+
+  @ManyToOne(() => User, { onDelete: 'NO ACTION' })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   address: string | null;

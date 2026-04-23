@@ -24,6 +24,9 @@ export enum NotificationType {
   FRIEND_REQUEST = 'FRIEND_REQUEST',
   FRIEND_ACCEPTED = 'FRIEND_ACCEPTED',
   USER_FOLLOWED = 'USER_FOLLOWED',
+
+  // Perks & Boosts
+  BOOST_EXPIRED = 'BOOST_EXPIRED',
 }
 
 @Schema({ timestamps: true, collection: 'notifications' })
@@ -45,7 +48,9 @@ export class Notification extends Document {
   })
   recipientId: MongooseSchema.Types.ObjectId;
 
-  @ApiPropertyOptional({ description: 'ID of the user who triggered the notification' })
+  @ApiPropertyOptional({
+    description: 'ID of the user who triggered the notification',
+  })
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'User',
