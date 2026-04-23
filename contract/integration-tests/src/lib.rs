@@ -10,6 +10,7 @@ mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
 #[cfg(test)]
+mod security_review_checklist;
 mod boost_system_integration;
 #[cfg(test)]
 mod boost_admin_flow;
