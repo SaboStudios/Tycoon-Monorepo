@@ -26,6 +26,10 @@
 #[cfg(test)]
 pub use inner::{Fixture, TestFixtureConfig, GAME_FUND, REWARD_FUND};
 
+/// Type alias for backward compatibility with tests that use `TestFixture`.
+#[cfg(test)]
+pub use inner::Fixture as TestFixture;
+
 #[cfg(test)]
 mod inner {
     use soroban_sdk::{
@@ -110,7 +114,7 @@ mod inner {
             let reward = TycoonRewardSystemClient::new(env, &reward_id);
             reward.initialize(&admin, &tyc_id, &usdc_id);
             StellarAssetClient::new(env, &tyc_id).mint(&reward_id, &REWARD_FUND);
-            reward.set_backend_minter(&admin, &backend);
+            reward.set_backend_minter(&backend);
 
             // Game contract
             let game_id = env.register(tycoon_game::TycoonContract, ());
@@ -126,6 +130,9 @@ mod inner {
                 Address::generate(env)
             };
             let boost_system = TycoonBoostSystemClient::new(env, &boost_system_id);
+            if config.deploy_boost_system {
+                boost_system.initialize(&admin);
+            }
 
             Fixture {
                 env: env.clone(),
