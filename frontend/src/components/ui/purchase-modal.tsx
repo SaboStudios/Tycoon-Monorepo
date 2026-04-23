@@ -23,6 +23,11 @@ interface PurchaseModalProps {
   itemCurrency: string;
 }
 
+/** Strip HTML tags and trim to prevent XSS via prop injection. */
+function sanitizeText(value: string): string {
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
 export function PurchaseModal({
   isOpen,
   onClose,
@@ -48,8 +53,14 @@ export function PurchaseModal({
 
   if (!isOpen) return null;
 
+  // SW-FE-031: sanitize user-supplied strings before rendering
+  const safeName = sanitizeText(itemName);
+  const safePrice = sanitizeText(itemPrice);
+  const safeCurrency = sanitizeText(itemCurrency);
+
   return (
     <div
+      data-testid="purchase-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
@@ -57,6 +68,12 @@ export function PurchaseModal({
       aria-describedby="purchase-modal-description"
       data-testid="purchase-modal"
     >
+      {/* Backdrop click closes modal */}
+      <div
+        data-testid="purchase-modal-backdrop"
+        className="absolute inset-0"
+        onClick={onClose}
+        aria-hidden="true"
       {/* Backdrop — click closes modal */}
       <div
         className="absolute inset-0"
@@ -65,7 +82,13 @@ export function PurchaseModal({
         data-testid="purchase-modal-backdrop"
       />
 
+      {/*
+        SW-FE-028: explicit min-h prevents CLS when modal content loads.
+        The card has a fixed minimum height so the overlay never reflows.
+      */}
       <div ref={containerRef} className="relative z-10 w-full max-w-md">
+        <Card className="min-h-[220px] border-neutral-800 bg-neutral-900 shadow-2xl">
+          <CardHeader>
         <Card className="border-neutral-800 bg-neutral-900 shadow-2xl">
           <CardHeader className="relative">
             {/* ① Close (×) — first in tab order, top-right corner */}
@@ -82,6 +105,14 @@ export function PurchaseModal({
             <CardTitle id="purchase-modal-title" className="text-xl text-white">
               {t('shop.confirm_purchase', { defaultValue: 'Confirm Purchase' })}
             </CardTitle>
+            <CardDescription id="purchase-modal-description" className="text-neutral-400">
+              {t('shop.purchase_confirmation_msg', { name: safeName })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent data-testid="purchase-modal-price" className="py-6 text-center">
+            {/* SW-FE-028: explicit h-10 reserves space for the price line → no CLS */}
+            <div className="flex h-10 items-center justify-center text-3xl font-bold text-cyan-400">
+              {safePrice} {safeCurrency}
             <CardDescription
               id="purchase-modal-description"
               className="text-neutral-400"
@@ -109,6 +140,7 @@ export function PurchaseModal({
           {/* ③ Confirm — third (last) in tab order */}
           <CardFooter className="flex justify-end gap-3">
             <Button
+              data-testid="purchase-modal-cancel"
               type="button"
               variant="outline"
               onClick={onClose}
@@ -118,6 +150,7 @@ export function PurchaseModal({
               {t('shop.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
+              data-testid="purchase-modal-confirm"
               type="button"
               onClick={onConfirm}
               className="bg-cyan-500 text-black hover:bg-cyan-400"
