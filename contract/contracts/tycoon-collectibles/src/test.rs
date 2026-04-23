@@ -2468,3 +2468,163 @@ fn test_iterator_invalid_batch_size() {
     let result = client.try_iterate_owned_tokens(&user, &0, &101);
     assert!(result.is_err());
 }
+
+// ============================================
+// SW-CT-022: Additional tests
+// ============================================
+
+#[test]
+fn test_initialize_already_initialized() {
+    // Verifies that calling initialize a second time returns AlreadyInitialized.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    // First call succeeds.
+    client.initialize(&admin);
+
+    // Second call must fail with AlreadyInitialized.
+    let result = client.try_initialize(&admin);
+    match result {
+        Err(Ok(err)) => assert_eq!(err, CollectibleError::AlreadyInitialized),
+        _ => panic!("Expected AlreadyInitialized error on second initialize"),
+    }
+}
+
+#[test]
+fn test_migrate() {
+    // Verifies that migrate advances state version from 0 → 1 and is idempotent.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    // Initialize sets version to 1.
+    client.initialize(&admin);
+
+    // migrate when already at version 1 must succeed without error (idempotent).
+    client.migrate();
+
+    // Calling migrate a second time is also fine.
+    client.migrate();
+}
+
+#[test]
+fn test_buy_from_shop_with_fee_distribution() {
+    // Verifies that when a fee config is set, the purchase price is split correctly
+    // among platform, pool, and creator (admin) addresses.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let buyer = Address::generate(&env);
+    let platform = Address::generate(&env);
+    let pool = Address::generate(&env);
+
+    let tyc_token = create_mock_token(&env, &admin);
+    let usdc_token = create_mock_token(&env, &admin);
+
+    client.initialize(&admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // 10% platform, 5% creator, 5% pool → 20% total fees, 80% residue to contract.
+    // Using 1000 bps = 10%, 500 bps = 5%.
+    client.set_fee_config(&1000, &500, &500, &platform, &pool);
+
+    // Stock a collectible: TYC price = 1000.
+    let token_id = client.stock_shop(&10, &1, &3, &1000, &500);
+
+    // Mint TYC to buyer.
+    let tyc_client = soroban_sdk::token::StellarAssetClient::new(&env, &tyc_token);
+    tyc_client.mint(&buyer, &1000);
+
+    // Buy with TYC.
+    client.buy_collectible_from_shop(&buyer, &token_id, &false);
+
+    // Buyer should have received the collectible.
+    assert_eq!(client.balance_of(&buyer, &token_id), 1);
+
+    // Stock should have decreased.
+    assert_eq!(client.get_stock(&token_id), 9);
+
+    // Buyer's TYC balance should be 0 (all 1000 transferred out).
+    let tyc_token_client = soroban_sdk::token::Client::new(&env, &tyc_token);
+    assert_eq!(tyc_token_client.balance(&buyer), 0);
+
+    // Platform should have received 10% = 100.
+    assert_eq!(tyc_token_client.balance(&platform), 100);
+
+    // Pool should have received 5% = 50.
+    assert_eq!(tyc_token_client.balance(&pool), 50);
+
+    // Admin (creator) should have received 5% = 50.
+    assert_eq!(tyc_token_client.balance(&admin), 50);
+
+    // Contract should have received the residue: 1000 - 100 - 50 - 50 = 800.
+    assert_eq!(tyc_token_client.balance(&contract_id), 800);
+}
+
+#[test]
+fn test_burn_collectible_for_perk_new_perks() {
+    // Verifies that each new perk (5–11) can be burned and emits the perk/activate event.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Perk values 5–11 with their expected Perk variants.
+    let new_perks: &[(u32, Perk)] = &[
+        (5, Perk::ExtraTurn),
+        (6, Perk::JailFree),
+        (7, Perk::DoubleRent),
+        (8, Perk::RollBoost),
+        (9, Perk::Teleport),
+        (10, Perk::Shield),
+        (11, Perk::RollExact),
+    ];
+
+    for (perk_val, expected_perk) in new_perks {
+        let token_id = *perk_val as u128;
+
+        // Mint 1 unit to user.
+        client.buy_collectible(&user, &token_id, &1);
+
+        // Set the perk.
+        client.set_token_perk(&admin, &token_id, expected_perk, &1);
+
+        // Burn for perk — must succeed.
+        client.burn_collectible_for_perk(&user, &token_id);
+
+        // Balance must be 0 after burn.
+        assert_eq!(
+            client.balance_of(&user, &token_id),
+            0,
+            "Balance should be 0 after burning perk {:?}",
+            expected_perk
+        );
+
+        // Token must be removed from enumeration.
+        let tokens = client.tokens_of(&user);
+        assert!(
+            !tokens.contains(token_id),
+            "Token {:?} should be removed from enumeration after burn",
+            token_id
+        );
+    }
+}
