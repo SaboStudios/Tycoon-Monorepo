@@ -6,26 +6,35 @@ import { ShopItemData } from "./ShopItem";
 describe("ShopGrid", () => {
   const mockItems: ShopItemData[] = [
     {
-      id: "item-1",
+      id: 1,
       name: "Golden House",
       description: "Upgrade your property",
-      price: 100,
+      price: "100.00",
+      type: "skin",
+      currency: "USD",
+      active: true,
       icon: "🏠",
       rarity: "rare",
     },
     {
-      id: "item-2",
+      id: 2,
       name: "Lucky Dice",
       description: "Increase your luck",
-      price: 50,
+      price: "50.00",
+      type: "dice",
+      currency: "USD",
+      active: true,
       icon: "🎲",
       rarity: "common",
     },
     {
-      id: "item-3",
+      id: 3,
       name: "Legendary Card",
       description: "Rare collectible",
-      price: 500,
+      price: "500.00",
+      type: "card",
+      currency: "USD",
+      active: true,
       icon: "🎴",
       rarity: "legendary",
     },
@@ -113,7 +122,7 @@ describe("ShopGrid", () => {
 
     test("renders correct number of items", () => {
       render(<ShopGrid items={mockItems} />);
-      const items = screen.getAllByTestId(/^shop-item-item-/);
+      const items = screen.getAllByTestId(/^shop-item-\d+$/);
       expect(items).toHaveLength(mockItems.length);
     });
 
@@ -121,22 +130,22 @@ describe("ShopGrid", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
 
-      const buyButton = screen.getByTestId("shop-item-buy-item-1");
+      const buyButton = screen.getByTestId("shop-item-buy-1");
       fireEvent.click(buyButton);
 
-      expect(onPurchase).toHaveBeenCalledWith("item-1");
+      expect(onPurchase).toHaveBeenCalledWith("1");
     });
 
     test("calls onPurchase for each item independently", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
 
-      fireEvent.click(screen.getByTestId("shop-item-buy-item-1"));
-      fireEvent.click(screen.getByTestId("shop-item-buy-item-2"));
+      fireEvent.click(screen.getByTestId("shop-item-buy-1"));
+      fireEvent.click(screen.getByTestId("shop-item-buy-2"));
 
       expect(onPurchase).toHaveBeenCalledTimes(2);
-      expect(onPurchase).toHaveBeenNthCalledWith(1, "item-1");
-      expect(onPurchase).toHaveBeenNthCalledWith(2, "item-2");
+      expect(onPurchase).toHaveBeenNthCalledWith(1, "1");
+      expect(onPurchase).toHaveBeenNthCalledWith(2, "2");
     });
   });
 

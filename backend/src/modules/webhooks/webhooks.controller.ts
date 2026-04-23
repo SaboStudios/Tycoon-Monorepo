@@ -1,9 +1,11 @@
 import {
   Controller,
   Post,
+  Get,
   Headers,
   Req,
   Body,
+  Query,
   HttpCode,
   HttpStatus,
   UnauthorizedException,
@@ -12,6 +14,7 @@ import {
 import { WebhooksService } from './webhooks.service';
 import { Request } from 'express';
 import { StripeWebhookDto } from './dto/webhook.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Controller('webhooks')
 export class WebhooksController {
@@ -43,5 +46,14 @@ export class WebhooksController {
       }
       throw new BadRequestException('Invalid webhook payload');
     }
+  }
+
+  /**
+   * SW-BE-020: List stored webhook events with pagination and stable sorting.
+   * GET /webhooks/events?page=1&limit=20&sortBy=createdAt&sortOrder=DESC
+   */
+  @Get('events')
+  listEvents(@Query() query: PaginationDto) {
+    return this.webhooksService.listEvents(query);
   }
 }

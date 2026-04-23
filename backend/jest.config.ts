@@ -19,6 +19,11 @@ const config: Config = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/$1',
+    '^@nestjs/config$': '<rootDir>/../test/mocks/nestjs-config.mock.ts',
+    '^@nestjs/cache-manager$': '<rootDir>/../test/mocks/nestjs-cache-manager.mock.ts',
+    '^prom-client$': '<rootDir>/../test/mocks/prom-client.mock.ts',
+    '^ioredis$': '<rootDir>/../test/mocks/ioredis.mock.ts',
+    '^nest-winston$': '<rootDir>/../test/mocks/nest-winston.mock.ts',
   },
   coverageThreshold: {
     global: {

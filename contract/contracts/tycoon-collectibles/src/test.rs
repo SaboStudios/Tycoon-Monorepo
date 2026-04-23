@@ -786,7 +786,9 @@ fn test_set_token_perk_no_auth_fails() {
     client2.initialize(&admin2);
     // Verify the set_backend_minter_unauthorized pattern works for set_token_perk too
     // (set_backend_minter_unauthorized already tests the no-auth path)
-    assert!(client2.try_set_token_perk(&1, &Perk::CashTiered, &3).is_ok()); // mock_all_auths still active
+    assert!(client2
+        .try_set_token_perk(&1, &Perk::CashTiered, &3)
+        .is_ok()); // mock_all_auths still active
 }
 
 #[test]
@@ -2641,7 +2643,7 @@ fn test_burn_collectible_for_perk_new_perks() {
         client.buy_collectible(&user, &token_id, &1);
 
         // Set the perk.
-        client.set_token_perk(&admin, &token_id, expected_perk, &1);
+        client.set_token_perk(&token_id, expected_perk, &1);
 
         // Burn for perk — must succeed.
         client.burn_collectible_for_perk(&user, &token_id);
