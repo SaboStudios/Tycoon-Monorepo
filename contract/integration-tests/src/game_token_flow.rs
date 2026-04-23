@@ -108,8 +108,14 @@ mod tests {
     fn collectible_info_round_trip() {
         let f = Fixture::new();
         let token_id: u128 = 42;
-        f.game
-            .set_collectible_info(&token_id, &7, &3, &500_000_000_000_000_000_000, &10_000_000, &100);
+        f.game.set_collectible_info(
+            &token_id,
+            &7,
+            &3,
+            &500_000_000_000_000_000_000,
+            &10_000_000,
+            &100,
+        );
         let info = f.game.get_collectible_info(&token_id);
         assert_eq!(info, (7, 3, 500_000_000_000_000_000_000, 10_000_000, 100));
     }
@@ -117,11 +123,23 @@ mod tests {
     #[test]
     fn cash_tier_round_trip() {
         let f = Fixture::new();
-        f.game.set_cash_tier_value(&1, &1_000_000_000_000_000_000_000);
-        f.game.set_cash_tier_value(&2, &5_000_000_000_000_000_000_000);
-        f.game.set_cash_tier_value(&3, &10_000_000_000_000_000_000_000);
-        assert_eq!(f.game.get_cash_tier_value(&1), 1_000_000_000_000_000_000_000);
-        assert_eq!(f.game.get_cash_tier_value(&2), 5_000_000_000_000_000_000_000);
-        assert_eq!(f.game.get_cash_tier_value(&3), 10_000_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&1, &1_000_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&2, &5_000_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&3, &10_000_000_000_000_000_000_000);
+        assert_eq!(
+            f.game.get_cash_tier_value(&1),
+            1_000_000_000_000_000_000_000
+        );
+        assert_eq!(
+            f.game.get_cash_tier_value(&2),
+            5_000_000_000_000_000_000_000
+        );
+        assert_eq!(
+            f.game.get_cash_tier_value(&3),
+            10_000_000_000_000_000_000_000
+        );
     }
 }

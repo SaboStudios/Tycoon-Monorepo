@@ -51,9 +51,8 @@ mod tests {
         ];
         let players = [&f.player_a, &f.player_b, &f.player_c];
 
-        let tids: [u128; 3] = core::array::from_fn(|i| {
-            f.reward.mint_voucher(&f.admin, players[i], &values[i])
-        });
+        let tids: [u128; 3] =
+            core::array::from_fn(|i| f.reward.mint_voucher(&f.admin, players[i], &values[i]));
 
         // Redeem in reverse order
         f.reward.redeem_voucher_from(&f.player_c, &tids[2]);

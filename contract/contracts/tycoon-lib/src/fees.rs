@@ -1,10 +1,9 @@
-#![no_std]
-use soroban_sdk::{contracttype, Address, Env, Vec};
+use soroban_sdk::{contracttype, Address};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfig {
-    pub platform_fee_bps: u32,  // Basis points (100 = 1%)
+    pub platform_fee_bps: u32, // Basis points (100 = 1%)
     pub creator_fee_bps: u32,
     pub pool_fee_bps: u32,
     pub platform_address: Address,
@@ -24,7 +23,7 @@ pub fn calculate_fee_split(amount: u128, config: &FeeConfig) -> FeeSplit {
     let platform_amount = (amount * config.platform_fee_bps as u128) / 10000;
     let creator_amount = (amount * config.creator_fee_bps as u128) / 10000;
     let pool_amount = (amount * config.pool_fee_bps as u128) / 10000;
-    
+
     let total_distributed = platform_amount + creator_amount + pool_amount;
     let residue = amount.saturating_sub(total_distributed);
 
@@ -56,8 +55,13 @@ mod tests {
         let amounts = [100, 1000, 10000, 1234567, 0, 1];
         for amount in amounts {
             let split = calculate_fee_split(amount, &config);
-            let sum = split.platform_amount + split.creator_amount + split.pool_amount + split.residue;
-            assert_eq!(sum, amount, "Sum of split + residue must equal input for amount {}", amount);
+            let sum =
+                split.platform_amount + split.creator_amount + split.pool_amount + split.residue;
+            assert_eq!(
+                sum, amount,
+                "Sum of split + residue must equal input for amount {}",
+                amount
+            );
             assert!(split.platform_amount + split.creator_amount + split.pool_amount <= amount);
         }
     }
