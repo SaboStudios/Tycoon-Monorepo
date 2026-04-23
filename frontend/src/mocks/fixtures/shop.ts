@@ -1,8 +1,4 @@
-import type {
-  ShopItemResponse,
-  UserInventoryResponse,
-  PurchaseResponse,
-} from '@/lib/api/types/dto';
+import type { ShopItemResponse, UserInventoryResponse, PurchaseResponse } from '@/lib/api/types/dto';
 
 export const mockShopItems: ShopItemResponse[] = [
   {
