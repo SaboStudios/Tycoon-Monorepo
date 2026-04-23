@@ -14,3 +14,4 @@ soroban-sdk          = { workspace = true, features = ["testutils"] }
 tycoon-token         = { path = "../contracts/tycoon-token" }
 tycoon-reward-system = { path = "../contracts/tycoon-reward-system" }
 tycoon-game          = { path = "../contracts/tycoon-game" }
+tycoon-boost-system  = { path = "../contracts/tycoon-boost-system", features = ["testutils"] }

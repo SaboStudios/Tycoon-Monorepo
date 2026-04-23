@@ -61,8 +61,16 @@ fn test_transfer_zero_is_noop() {
 
     client.transfer(&admin, &user, &0);
 
-    assert_eq!(client.balance(&admin), before_admin, "admin balance changed on zero transfer");
-    assert_eq!(client.balance(&user), before_user, "user balance changed on zero transfer");
+    assert_eq!(
+        client.balance(&admin),
+        before_admin,
+        "admin balance changed on zero transfer"
+    );
+    assert_eq!(
+        client.balance(&user),
+        before_user,
+        "user balance changed on zero transfer"
+    );
 }
 
 // ── transfer_from error branches ──────────────────────────────────────────────
@@ -93,7 +101,11 @@ fn test_transfer_from_zero_is_noop() {
 
     client.transfer_from(&spender, &admin, &recipient, &0);
 
-    assert_eq!(client.balance(&admin), before_balance, "balance changed on zero transfer_from");
+    assert_eq!(
+        client.balance(&admin),
+        before_balance,
+        "balance changed on zero transfer_from"
+    );
     assert_eq!(
         client.allowance(&admin, &spender),
         before_allowance,
@@ -122,7 +134,11 @@ fn test_approve_zero_clears_allowance() {
     assert_eq!(client.allowance(&admin, &spender), allowance);
 
     client.approve(&admin, &spender, &0, &0);
-    assert_eq!(client.allowance(&admin, &spender), 0, "allowance should be 0 after approve(0)");
+    assert_eq!(
+        client.allowance(&admin, &spender),
+        0,
+        "allowance should be 0 after approve(0)"
+    );
 }
 
 // ── set_admin error branch ────────────────────────────────────────────────────
@@ -246,13 +262,25 @@ fn test_snapshot_state_after_operations() {
 
     // SNAPSHOT: user ends with mint - transfer - burn = 300 TYC
     let expected_user: i128 = mint_amount - transfer_amount - burn_amount;
-    assert_eq!(client.balance(&user), expected_user, "snapshot: user balance");
+    assert_eq!(
+        client.balance(&user),
+        expected_user,
+        "snapshot: user balance"
+    );
 
     // SNAPSHOT: admin ends with INITIAL_SUPPLY + transfer
     let expected_admin: i128 = INITIAL_SUPPLY + transfer_amount;
-    assert_eq!(client.balance(&admin), expected_admin, "snapshot: admin balance");
+    assert_eq!(
+        client.balance(&admin),
+        expected_admin,
+        "snapshot: admin balance"
+    );
 
     // SNAPSHOT: total_supply = INITIAL_SUPPLY + mint - burn
     let expected_supply: i128 = INITIAL_SUPPLY + mint_amount - burn_amount;
-    assert_eq!(client.total_supply(), expected_supply, "snapshot: total_supply");
+    assert_eq!(
+        client.total_supply(),
+        expected_supply,
+        "snapshot: total_supply"
+    );
 }

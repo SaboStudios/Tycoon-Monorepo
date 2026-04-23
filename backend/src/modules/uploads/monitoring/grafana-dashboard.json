@@ -1,0 +1,192 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Uploads & Validation - Operations Dashboard",
+    "tags": ["uploads", "validation", "tycoon"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Upload Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(tycoon_uploads_success_total[5m]) / rate(tycoon_uploads_total[5m]) * 100",
+            "legendFormat": "Success Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 90},
+                {"color": "green", "value": 95}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Upload Volume",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(tycoon_uploads_total[5m])",
+            "legendFormat": "Uploads/sec"
+          }
+        ],
+        "yAxes": [
+          {"label": "Uploads per second"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Average Upload Time",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(tycoon_upload_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(tycoon_upload_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "seconds",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 10}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Virus Scan Results",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(rate(tycoon_virus_scan_total[5m])) by (result)",
+            "legendFormat": "{{result}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Storage Usage",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tycoon_storage_usage_bytes / tycoon_storage_capacity_bytes * 100",
+            "legendFormat": "Usage %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 80},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Error Rate by Type",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(tycoon_upload_errors_total[5m]) by (error_type)",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "yAxes": [
+          {"label": "Errors per second"}
+        ],
+        "gridPos": {"h": 8, "w": 18, "x": 6, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "File Size Distribution",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "rate(tycoon_upload_size_bytes_bucket[5m])",
+            "legendFormat": "{{le}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "S3 vs Local Storage",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(rate(tycoon_uploads_total[5m])) by (storage_backend)",
+            "legendFormat": "{{storage_backend}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 9,
+        "title": "Active Uploads",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tycoon_uploads_active",
+            "legendFormat": "Active Uploads"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}
