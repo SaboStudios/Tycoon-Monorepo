@@ -22,7 +22,7 @@
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use crate::{TycoonContract, TycoonContractClient, TreasurySnapshot};
+    use crate::{TreasurySnapshot, TycoonContract, TycoonContractClient};
     use soroban_sdk::{
         testutils::Address as _,
         token::{StellarAssetClient, TokenClient},
@@ -103,7 +103,10 @@ mod tests {
             liabilities: 700, // 700 > 600 total assets → invariant broken
             treasury: 0,
         };
-        assert!(!snap.invariant_holds(), "SIM-03: invariant should be violated");
+        assert!(
+            !snap.invariant_holds(),
+            "SIM-03: invariant should be violated"
+        );
     }
 
     // ── SIM-04 ────────────────────────────────────────────────────────────────
@@ -187,7 +190,10 @@ mod tests {
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             client.remove_player_from_game(&old_controller, &3, &player, &1);
         }));
-        assert!(res.is_err(), "SIM-06: old controller should be rejected after rotation");
+        assert!(
+            res.is_err(),
+            "SIM-06: old controller should be rejected after rotation"
+        );
     }
 
     // ── SIM-07 ────────────────────────────────────────────────────────────────
@@ -284,8 +290,14 @@ mod tests {
         assert_eq!(dump.owner, owner, "SIM-11: owner mismatch");
         assert_eq!(dump.tyc_token, tyc_id, "SIM-11: TYC token mismatch");
         assert_eq!(dump.usdc_token, usdc_id, "SIM-11: USDC token mismatch");
-        assert!(dump.is_initialized, "SIM-11: contract should be initialized");
-        assert_eq!(dump.state_version, 1, "SIM-11: state version should be 1 after initialize");
+        assert!(
+            dump.is_initialized,
+            "SIM-11: contract should be initialized"
+        );
+        assert_eq!(
+            dump.state_version, 1,
+            "SIM-11: state version should be 1 after initialize"
+        );
         assert!(
             dump.backend_controller.is_none(),
             "SIM-11: backend_controller should be None before set_backend_game_controller"

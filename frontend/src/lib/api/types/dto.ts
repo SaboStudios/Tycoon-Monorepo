@@ -156,6 +156,55 @@ export interface UpdateGamePlayerDto {
   symbol?: GamePlayerSymbol;
 }
 
+// ─── Shop ────────────────────────────────────────────────────────────────────
+
+export type ShopItemType = 'dice' | 'skin' | 'symbol' | 'theme' | 'card';
+
+export interface ShopItemResponse {
+  id: number;
+  name: string;
+  description: string | null;
+  type: ShopItemType;
+  price: string;
+  currency: string;
+  metadata: Record<string, unknown> | null;
+  rarity: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserInventoryResponse {
+  id: number;
+  user_id: number;
+  shop_item_id: number;
+  shop_item: ShopItemResponse;
+  quantity: number;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseResponse {
+  id: number;
+  user_id: number;
+  shop_item_id: number;
+  shop_item?: ShopItemResponse;
+  quantity: number;
+  unit_price: string;
+  total_price: string;
+  original_price: string;
+  discount_amount: string;
+  final_price: string;
+  coupon_code: string | null;
+  currency: string;
+  payment_method: string;
+  transaction_id: string | null;
+  status: string;
+  is_gift: boolean;
+  created_at: string;
+}
+
 // ─── Game Responses ───────────────────────────────────────────────────────────
 
 export interface GamePlayerResponse {

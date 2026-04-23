@@ -1,6 +1,15 @@
 #![no_std]
 use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, Env, String};
 
+// SW-CON-TOKEN-001: allowance entry stores amount + expiration together so
+// transfer_from / burn_from can enforce the ledger-based expiry.
+#[contracttype]
+#[derive(Clone)]
+pub struct AllowanceValue {
+    pub amount: i128,
+    pub expiration_ledger: u32,
+}
+
 #[contractevent(data_format = "single-value")]
 pub struct MintEvent {
     #[topic]
@@ -32,6 +41,14 @@ pub struct ApproveEvent {
     pub spender: Address,
     pub amount: i128,
     pub expiration_ledger: u32,
+}
+
+#[contractevent]
+pub struct SetAdminEvent {
+    #[topic]
+    pub old_admin: Address,
+    #[topic]
+    pub new_admin: Address,
 }
 
 #[contracttype]
@@ -67,6 +84,9 @@ impl TycoonToken {
     pub fn initialize(e: Env, admin: Address, initial_supply: i128) {
         if e.storage().instance().has(&DataKey::Initialized) {
             panic!("Already initialized");
+        }
+        if initial_supply < 0 {
+            panic!("Initial supply cannot be negative");
         }
         e.storage().instance().set(&DataKey::Initialized, &true);
         e.storage().instance().set(&DataKey::Admin, &admin);
@@ -112,6 +132,11 @@ impl TycoonToken {
     pub fn set_admin(e: Env, new_admin: Address) {
         require_admin(&e);
         e.storage().instance().set(&DataKey::Admin, &new_admin);
+        SetAdminEvent {
+            old_admin: admin,
+            new_admin,
+        }
+        .publish(&e);
     }
 
     pub fn admin(e: Env) -> Address {
@@ -129,10 +154,20 @@ impl TycoonToken {
 #[contractimpl]
 impl TycoonToken {
     pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage()
+        let entry: Option<AllowanceValue> = e
+            .storage()
             .persistent()
-            .get(&DataKey::Allowance(from, spender))
-            .unwrap_or(0)
+            .get(&DataKey::Allowance(from, spender));
+        match entry {
+            None => 0,
+            Some(v) => {
+                if v.expiration_ledger > 0 && e.ledger().sequence() > v.expiration_ledger {
+                    0
+                } else {
+                    v.amount
+                }
+            }
+        }
     }
 
     pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
@@ -140,9 +175,13 @@ impl TycoonToken {
         if amount < 0 {
             panic!("Amount cannot be negative");
         }
-        e.storage()
-            .persistent()
-            .set(&DataKey::Allowance(from.clone(), spender.clone()), &amount);
+        e.storage().persistent().set(
+            &DataKey::Allowance(from.clone(), spender.clone()),
+            &AllowanceValue {
+                amount,
+                expiration_ledger,
+            },
+        );
         ApproveEvent {
             from,
             spender,
@@ -202,17 +241,26 @@ impl TycoonToken {
             return;
         }
 
-        let allowance: i128 = e
+        let entry: AllowanceValue = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
-        if allowance < amount {
+            .unwrap_or(AllowanceValue {
+                amount: 0,
+                expiration_ledger: 0,
+            });
+        if entry.expiration_ledger > 0 && e.ledger().sequence() > entry.expiration_ledger {
+            panic!("Allowance expired");
+        }
+        if entry.amount < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &AllowanceValue {
+                amount: entry.amount - amount,
+                expiration_ledger: entry.expiration_ledger,
+            },
         );
 
         let from_balance: i128 = e
@@ -259,9 +307,10 @@ impl TycoonToken {
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
 
         let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
-        e.storage()
-            .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
+        e.storage().instance().set(
+            &DataKey::TotalSupply,
+            &supply.checked_sub(amount).expect("Supply underflow"),
+        );
 
         BurnEvent { from, amount }.publish(&e);
     }
@@ -272,17 +321,26 @@ impl TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let allowance: i128 = e
+        let entry: AllowanceValue = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
-        if allowance < amount {
+            .unwrap_or(AllowanceValue {
+                amount: 0,
+                expiration_ledger: 0,
+            });
+        if entry.expiration_ledger > 0 && e.ledger().sequence() > entry.expiration_ledger {
+            panic!("Allowance expired");
+        }
+        if entry.amount < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &AllowanceValue {
+                amount: entry.amount - amount,
+                expiration_ledger: entry.expiration_ledger,
+            },
         );
 
         let balance: i128 = e
@@ -298,9 +356,10 @@ impl TycoonToken {
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
 
         let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
-        e.storage()
-            .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
+        e.storage().instance().set(
+            &DataKey::TotalSupply,
+            &supply.checked_sub(amount).expect("Supply underflow"),
+        );
 
         BurnEvent { from, amount }.publish(&e);
     }
@@ -329,3 +388,4 @@ mod error_branch_tests;
 
 #[cfg(test)]
 mod access_control_tests;
+mod security_review_tests;
