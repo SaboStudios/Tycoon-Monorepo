@@ -68,7 +68,7 @@ mod tests {
         let value: u128 = 10_000_000_000_000_000_000;
 
         // Set a fresh backend minter
-        f.reward.set_backend_minter(&f.admin, &new_minter);
+        f.reward.set_backend_minter(&new_minter);
         assert_eq!(f.reward.get_backend_minter(), Some(new_minter.clone()));
 
         // New minter can mint
@@ -76,7 +76,7 @@ mod tests {
         assert_eq!(f.reward.get_balance(&f.player_a, &tid), 1);
 
         // Admin clears the minter
-        f.reward.clear_backend_minter(&f.admin);
+        f.reward.clear_backend_minter();
         assert_eq!(f.reward.get_backend_minter(), None);
 
         // Revoked minter can no longer mint

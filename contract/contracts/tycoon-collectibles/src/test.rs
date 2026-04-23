@@ -2641,7 +2641,7 @@ fn test_burn_collectible_for_perk_new_perks() {
         client.buy_collectible(&user, &token_id, &1);
 
         // Set the perk.
-        client.set_token_perk(&admin, &token_id, expected_perk, &1);
+        client.set_token_perk(&token_id, expected_perk, &1);
 
         // Burn for perk — must succeed.
         client.burn_collectible_for_perk(&user, &token_id);

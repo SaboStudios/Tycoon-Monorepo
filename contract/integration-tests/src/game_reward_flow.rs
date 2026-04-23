@@ -131,7 +131,6 @@ mod tests {
         assert_ne!(ua.address, ub.address);
         assert_ne!(ub.address, uc.address);
     }
-}
 
     // ── SW-001 coverage additions ─────────────────────────────────────────────
 
