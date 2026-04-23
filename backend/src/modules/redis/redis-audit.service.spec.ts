@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { RedisService } from './redis.service';
 import { AuditTrailService } from '../audit-trail/audit-trail.service';
 import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { LoggerService } from '../../common/logger/logger.service';
 
 // Minimal ioredis stub — only the methods RedisService actually calls
 jest.mock('ioredis', () => {
@@ -42,6 +43,14 @@ const makeConfigService = (auditEnabled: boolean) =>
 const makeAuditService = () =>
   ({ log: jest.fn().mockResolvedValue({}) }) as unknown as AuditTrailService;
 
+const makeLoggerService = () =>
+  ({
+    log: jest.fn(),
+    debug: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }) as unknown as LoggerService;
+
 async function buildService(
   auditEnabled: boolean,
   auditService?: AuditTrailService,
@@ -51,6 +60,7 @@ async function buildService(
       RedisService,
       { provide: CACHE_MANAGER, useValue: makeCacheManager() },
       { provide: ConfigService, useValue: makeConfigService(auditEnabled) },
+      { provide: LoggerService, useValue: makeLoggerService() },
       ...(auditService
         ? [{ provide: AuditTrailService, useValue: auditService }]
         : []),

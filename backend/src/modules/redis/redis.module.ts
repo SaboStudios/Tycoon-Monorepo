@@ -8,6 +8,7 @@ import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { ValidatedCacheService } from './validated-cache.service';
 import { CacheExceptionFilter } from './cache-exception.filter';
 import { LoggerModule } from '../../common/logger/logger.module';
+import { AuditTrailModule } from '../audit-trail/audit-trail.module';
 
 @Global()
 @Module({
