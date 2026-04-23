@@ -12,7 +12,7 @@
 /// | `admin_withdraws_from_both_contracts`   | independent contract balances |
 #[cfg(test)]
 mod tests {
-    use crate::fixture::{Fixture, GAME_FUND, REWARD_FUND};
+    use crate::fixture::{Fixture, REWARD_FUND};
     use soroban_sdk::String;
 
     #[test]
