@@ -645,3 +645,56 @@ fn test_backend_controller_integration() {
     let events = env.events().all();
     assert!(!events.is_empty());
 }
+
+// ===== EXPORT STATE TESTS (SW-001) =====
+
+#[test]
+fn test_export_state_reflects_initialized_values() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let dump = client.export_state();
+
+    assert_eq!(dump.owner, owner);
+    assert_eq!(dump.tyc_token, tyc_token);
+    assert_eq!(dump.usdc_token, usdc_token);
+    assert_eq!(dump.reward_system, reward_system);
+    assert_eq!(dump.state_version, 1);
+    assert!(dump.is_initialized);
+    assert!(dump.backend_controller.is_none());
+}
+
+#[test]
+fn test_export_state_reflects_backend_controller_after_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let controller = Address::generate(&env);
+    client.set_backend_game_controller(&controller);
+
+    let dump = client.export_state();
+    assert_eq!(dump.backend_controller, Some(controller));
+}
+
+// ===== MIGRATE TESTS (SW-001) =====
+
+#[test]
+fn test_migrate_is_idempotent_at_version_1() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // migrate at v1 is a no-op placeholder — must not panic
+    client.migrate();
+
+    let dump = client.export_state();
+    assert_eq!(dump.state_version, 1, "migrate must not change version when already at v1");
+}
