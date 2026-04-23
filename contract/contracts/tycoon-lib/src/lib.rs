@@ -4,6 +4,9 @@
 // See tycoon-main-game/src/storage.rs for pause implementation example
 pub mod fees;
 
+#[cfg(test)]
+mod fees_coverage_tests;
+
 use soroban_sdk::contracttype;
 
 // ============================================================
