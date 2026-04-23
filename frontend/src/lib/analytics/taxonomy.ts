@@ -6,6 +6,13 @@ export const analyticsEventSchema = {
   multiplayer_click: ["route", "destination"],
   join_room_click: ["route", "destination"],
   play_ai_click: ["route", "destination"],
+  // NEAR wallet telemetry — SW-FE-005
+  // Intentionally omits account_id, wallet_address, and tx hashes (PII / linkable).
+  near_wallet_connected: ["network_id"],
+  near_wallet_disconnected: ["network_id"],
+  near_tx_submitted: ["network_id", "method_name"],
+  near_tx_confirmed: ["network_id", "method_name"],
+  near_tx_failed: ["network_id", "method_name", "error_type"],
 } as const;
 
 export type AnalyticsEventName = keyof typeof analyticsEventSchema;
