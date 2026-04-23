@@ -1,27 +1,33 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
 @Injectable()
 export class RedisService {
   private redis: Redis;
   private readonly logger = new Logger(RedisService.name);
+  private readonly auditEnabled: boolean;
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private configService: ConfigService,
+    @Optional() private readonly auditTrailService?: AuditTrailService,
   ) {
     const redisConfig = configService.get<{
       host: string;
       port: number;
       password?: string;
       db: number;
+      cacheAuditEnabled?: boolean;
     }>('redis');
     if (!redisConfig) {
       throw new Error('Redis configuration not found');
     }
+    this.auditEnabled = redisConfig.cacheAuditEnabled ?? false;
     this.redis = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -32,6 +38,19 @@ export class RedisService {
     this.redis.on('error', (err: any) => {
       this.logger.error(`Redis connection error: ${err.message}`);
     });
+  }
+
+  private emitAudit(
+    action: AuditAction,
+    changes: Record<string, unknown>,
+  ): void {
+    if (!this.auditEnabled || !this.auditTrailService) return;
+    // Fire-and-forget; errors must not propagate to callers
+    this.auditTrailService
+      .log(action, { changes })
+      .catch((err: Error) =>
+        this.logger.error(`Audit log failed [${action}]: ${err.message}`),
+      );
   }
 
   // Session management
@@ -97,6 +116,7 @@ export class RedisService {
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
     try {
       await this.cacheManager.set(key, value, ttl);
+      this.emitAudit(AuditAction.CACHE_SET, { key, ttl });
     } catch (error: any) {
       this.logger.error(`Cache SET error for ${key}: ${error.message}`);
     }
@@ -105,6 +125,7 @@ export class RedisService {
   async del(key: string): Promise<void> {
     try {
       await this.cacheManager.del(key);
+      this.emitAudit(AuditAction.CACHE_DEL, { key });
     } catch (error: any) {
       this.logger.error(`Cache DEL error for ${key}: ${error.message}`);
     }
@@ -118,6 +139,7 @@ export class RedisService {
         this.logger.log(
           `Invalidated ${keys.length} keys with pattern: ${pattern}`,
         );
+        this.emitAudit(AuditAction.CACHE_INVALIDATE, { pattern, count: keys.length });
       }
     } catch (error: any) {
       this.logger.error(

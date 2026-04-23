@@ -3,6 +3,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import { RedisService } from './redis.service';
+import { AuditTrailModule } from '../audit-trail/audit-trail.module';
 
 @Global()
 @Module({
@@ -31,6 +32,7 @@ import { RedisService } from './redis.service';
         };
       },
     }),
+    AuditTrailModule,
   ],
   providers: [RedisService],
   exports: [CacheModule, RedisService],

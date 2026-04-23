@@ -12,6 +12,10 @@ export enum AuditAction {
     USER_SOFT_DELETED = 'USER_SOFT_DELETED',
     USER_RESTORED = 'USER_RESTORED',
     USER_HARD_DELETED = 'USER_HARD_DELETED',
+    // Cache audit actions (SW-CACHE-001)
+    CACHE_SET = 'CACHE_SET',
+    CACHE_DEL = 'CACHE_DEL',
+    CACHE_INVALIDATE = 'CACHE_INVALIDATE',
 }
 
 @Entity({ name: 'audit_trails' })

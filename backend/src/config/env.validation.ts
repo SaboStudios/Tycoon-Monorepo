@@ -66,6 +66,7 @@ export const validationSchema = Joi.object({
   REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
   REDIS_TTL: Joi.number().default(300),
+  CACHE_AUDIT_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
 
   // ─── Logging ────────────────────────────────────────────────────────────────
   LOG_LEVEL: Joi.string()
