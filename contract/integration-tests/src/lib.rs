@@ -10,4 +10,5 @@ mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
 #[cfg(test)]
+mod boost_system_integration;
 mod token_reward_flow;

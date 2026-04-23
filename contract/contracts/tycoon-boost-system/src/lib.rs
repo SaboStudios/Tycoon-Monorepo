@@ -331,3 +331,6 @@ mod cap_stacking_expiry_tests;
 
 #[cfg(test)]
 mod time_boundary_tests;
+
+#[cfg(test)]
+mod advanced_integration_tests;
