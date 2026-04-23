@@ -1,7 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { RedisService } from '../redis/redis.service';
 import * as crypto from 'crypto';
+import { RedisService } from '../redis/redis.service';
+import { WebhookEvent } from './entities/webhook-event.entity';
+import { PaginationDto, SortOrder } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+
+const ALLOWED_SORT_FIELDS = new Set(['id', 'eventType', 'source', 'createdAt']);
 
 @Injectable()
 export class WebhooksService {
@@ -11,6 +18,8 @@ export class WebhooksService {
   constructor(
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    @InjectRepository(WebhookEvent)
+    private readonly webhookEventRepo: Repository<WebhookEvent>,
   ) {
     this.webhookSecret =
       this.configService.get<string>('WEBHOOK_SECRET') ||
@@ -69,19 +78,63 @@ export class WebhooksService {
     const isProcessed = await this.redisService.get<boolean>(idempotencyKey);
 
     if (isProcessed) {
-      // Webhook already processed, return success without reprocessing
       return { received: true, idempotent: true };
     }
 
     // Mark as processed (TTL of 7 days to handle potential retries)
     await this.redisService.set(idempotencyKey, true, 604800);
 
-    // Logic to process the validated webhook payload
-    // This could trigger jobs, update database, etc.
-    console.log('Processing webhook payload:', payload);
+    // Persist the event for audit / listing
+    await this.webhookEventRepo.save(
+      this.webhookEventRepo.create({
+        eventId: webhookId,
+        eventType: payload.type ?? 'unknown',
+        source: 'stripe',
+        payload,
+      }),
+    );
 
-    // Simulate processing
-    // In real implementation, this would handle different event types
-    return Promise.resolve({ received: true, processed: true });
+    return { received: true, processed: true };
+  }
+
+  /**
+   * List webhook events with pagination and stable sorting.
+   * Stable sort is guaranteed by always appending `id ASC` as a tiebreaker.
+   */
+  async listEvents(
+    dto: PaginationDto,
+  ): Promise<PaginatedResponse<WebhookEvent>> {
+    const {
+      page = 1,
+      limit = 10,
+      sortBy,
+      sortOrder = SortOrder.ASC,
+    } = dto;
+
+    const safeSortBy =
+      sortBy && ALLOWED_SORT_FIELDS.has(sortBy) ? sortBy : 'createdAt';
+
+    const qb = this.webhookEventRepo
+      .createQueryBuilder('we')
+      .orderBy(`we.${safeSortBy}`, sortOrder)
+      // Stable tiebreaker: always secondary-sort by id ASC
+      .addOrderBy('we.id', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, totalItems] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 }
