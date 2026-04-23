@@ -191,5 +191,7 @@ pub fn get_state_version(env: &Env) -> u32 {
 
 /// Set the current state version
 pub fn set_state_version(env: &Env, version: u32) {
-    env.storage().instance().set(&DataKey::StateVersion, &version);
+    env.storage()
+        .instance()
+        .set(&DataKey::StateVersion, &version);
 }
