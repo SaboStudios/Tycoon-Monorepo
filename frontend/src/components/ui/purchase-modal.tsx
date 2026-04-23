@@ -36,7 +36,7 @@ export function PurchaseModal({
 
   useFocusTrap(containerRef, isOpen, onClose);
 
-  // Lock body scroll while open; restore previous value on close / unmount
+  // Lock body scroll while open; restore on close/unmount
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.body.style.overflow;
@@ -68,7 +68,7 @@ export function PurchaseModal({
       <div ref={containerRef} className="relative z-10 w-full max-w-md">
         <Card className="border-neutral-800 bg-neutral-900 shadow-2xl">
           <CardHeader className="relative">
-            {/* ① Close (×) — first in tab order */}
+            {/* ① Close (×) — first in tab order, top-right corner */}
             <button
               type="button"
               onClick={onClose}
@@ -94,6 +94,7 @@ export function PurchaseModal({
           </CardHeader>
 
           <CardContent className="py-6 text-center">
+            {/* aria-live so screen readers announce the price in context */}
             <div
               className="text-3xl font-bold text-cyan-400"
               aria-live="polite"
@@ -104,7 +105,8 @@ export function PurchaseModal({
             </div>
           </CardContent>
 
-          {/* ② Cancel  ③ Confirm */}
+          {/* ② Cancel — second in tab order */}
+          {/* ③ Confirm — third (last) in tab order */}
           <CardFooter className="flex justify-end gap-3">
             <Button
               type="button"
