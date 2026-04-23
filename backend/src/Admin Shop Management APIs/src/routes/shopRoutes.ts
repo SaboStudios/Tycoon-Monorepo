@@ -1,9 +1,25 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response, Router } from 'express';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
-import { upload, rejectExecutables } from '../middleware/upload';
-import { shopService } from '../services/shopService';
+import { rejectExecutables, upload } from '../middleware/upload';
+import { shopService, SortableField, SortOrder } from '../services/shopService';
 
 const router = Router();
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const SORTABLE_FIELDS: SortableField[] = ['name', 'price', 'createdAt', 'updatedAt'];
+const SORT_ORDERS: SortOrder[] = ['asc', 'desc'];
+
+function parsePositiveInt(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
 
 // Create item
 router.post(
@@ -35,11 +51,37 @@ router.post(
   },
 );
 
-// Get all items
+/**
+ * GET /api/shop
+ *
+ * Query parameters:
+ *   active     boolean string   – "true" to return only active items
+ *   page       integer ≥ 1      – page number (default 1)
+ *   limit      integer 1-100    – items per page (default 20)
+ *   sortBy     SortableField    – name | price | createdAt | updatedAt (default createdAt)
+ *   sortOrder  asc | desc       – sort direction (default asc)
+ *
+ * Response: PaginatedResult<ShopItem>
+ *   { items, total, page, limit, totalPages }
+ */
 router.get('/', (req: Request, res: Response) => {
   const activeOnly = req.query.active === 'true';
-  const items = shopService.getItems(activeOnly);
-  res.json(items);
+
+  const page = parsePositiveInt(req.query.page, 1);
+  const limit = parsePositiveInt(req.query.limit, 20);
+
+  const sortByRaw = req.query.sortBy as string;
+  const sortBy: SortableField = SORTABLE_FIELDS.includes(sortByRaw as SortableField)
+    ? (sortByRaw as SortableField)
+    : 'createdAt';
+
+  const sortOrderRaw = req.query.sortOrder as string;
+  const sortOrder: SortOrder = SORT_ORDERS.includes(sortOrderRaw as SortOrder)
+    ? (sortOrderRaw as SortOrder)
+    : 'asc';
+
+  const result = shopService.getItems({ activeOnly, page, limit, sortBy, sortOrder });
+  res.json(result);
 });
 
 // Get item by ID
