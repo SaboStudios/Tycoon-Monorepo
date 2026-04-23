@@ -330,7 +330,7 @@ impl TycoonCollectibles {
                 // For shop sales, "creator" could be a specific account or just added back to shop balance.
                 // Here we assume creator is a configured address in the future, for now if configured, transfer it.
                 // If we don't have a specific creator address for shop-stocked items, it might go to admin.
-                token_client.transfer(&buyer, &get_admin(&env), &(split.creator_amount as i128));
+                token_client.transfer(&buyer, get_admin(&env), &(split.creator_amount as i128));
             }
             if split.residue > 0 {
                 token_client.transfer(&buyer, &contract_address, &(split.residue as i128));

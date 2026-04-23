@@ -7,7 +7,7 @@
 //! AC1.1 - AC1.4: Contract initialization and cross-contract references
 
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::Address as _,
     token::{StellarAssetClient, TokenClient},
     Address, Env,
 };
@@ -16,6 +16,11 @@ use soroban_sdk::{
 fn create_token_contract(env: &Env, admin: &Address) -> Address {
     let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
     token_contract.address()
+}
+
+/// Helper: Mint tokens using StellarAssetClient
+fn mint_tokens(env: &Env, token: &Address, to: &Address, amount: i128) {
+    StellarAssetClient::new(env, token).mint(to, &amount);
 }
 
 /// AC1.1: Token Contract Initialization
@@ -158,11 +163,11 @@ fn test_contract_initialization_idempotency() {
     let token_client = TokenClient::new(&env, &token);
 
     // First operation should succeed
-    token_client.mint(&admin, &1_000_000);
+    mint_tokens(&env, &token, &admin, 1_000_000);
     assert_eq!(token_client.balance(&admin), 1_000_000);
 
     // Second operation should also succeed (tokens are idempotent)
-    token_client.mint(&admin, &1_000_000);
+    mint_tokens(&env, &token, &admin, 1_000_000);
     assert_eq!(token_client.balance(&admin), 2_000_000);
 }
 
@@ -199,7 +204,13 @@ fn test_cross_contract_address_validation() {
     let reward_system = Address::generate(&env);
 
     // Verify all addresses are unique
-    let addresses = vec![admin, owner, game_contract, collectibles_contract, reward_system];
+    let addresses = vec![
+        admin,
+        owner,
+        game_contract,
+        collectibles_contract,
+        reward_system,
+    ];
     for i in 0..addresses.len() {
         for j in (i + 1)..addresses.len() {
             assert_ne!(addresses[i], addresses[j]);

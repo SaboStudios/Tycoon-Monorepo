@@ -44,11 +44,23 @@ mod tests {
     }
 
     fn nb(id: u128, boost_type: BoostType, value: u32, priority: u32) -> Boost {
-        Boost { id, boost_type, value, priority, expires_at_ledger: 0 }
+        Boost {
+            id,
+            boost_type,
+            value,
+            priority,
+            expires_at_ledger: 0,
+        }
     }
 
     fn eb(id: u128, boost_type: BoostType, value: u32, priority: u32, expires: u32) -> Boost {
-        Boost { id, boost_type, value, priority, expires_at_ledger: expires }
+        Boost {
+            id,
+            boost_type,
+            value,
+            priority,
+            expires_at_ledger: expires,
+        }
     }
 
     // ── Fixture sanity ────────────────────────────────────────────────────────
@@ -94,8 +106,10 @@ mod tests {
         let f = Fixture::new();
         set_ledger(&f.env, 100);
 
-        f.boost_system
-            .admin_grant_boost(&f.player_b, &eb(1, BoostType::Multiplicative, 15000, 0, 200));
+        f.boost_system.admin_grant_boost(
+            &f.player_b,
+            &eb(1, BoostType::Multiplicative, 15000, 0, 200),
+        );
 
         // Active at ledger 150
         set_ledger(&f.env, 150);
@@ -267,7 +281,9 @@ mod tests {
         assert_eq!(boosted_reward, 200_000_000_000_000_000_000);
 
         // Mint the boosted reward voucher and redeem it
-        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &boosted_reward);
+        let tid = f
+            .reward
+            .mint_voucher(&f.admin, &f.player_a, &boosted_reward);
         f.reward.redeem_voucher_from(&f.player_a, &tid);
 
         assert_eq!(f.tyc_balance(&f.player_a), boosted_reward as i128);
@@ -292,7 +308,9 @@ mod tests {
         let boosted_reward = base_reward * multiplier as u128 / 10_000;
         assert_eq!(boosted_reward, base_reward);
 
-        let tid = f.reward.mint_voucher(&f.admin, &f.player_b, &boosted_reward);
+        let tid = f
+            .reward
+            .mint_voucher(&f.admin, &f.player_b, &boosted_reward);
         f.reward.redeem_voucher_from(&f.player_b, &tid);
         assert_eq!(f.tyc_balance(&f.player_b), base_reward as i128);
     }

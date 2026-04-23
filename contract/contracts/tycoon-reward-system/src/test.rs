@@ -437,8 +437,12 @@ fn test_set_backend_minter_unauthorized() {
     let admin = Address::generate(&env);
     let minter = Address::generate(&env);
 
-    let tyc = env.register_stellar_asset_contract_v2(Address::generate(&env)).address();
-    let usdc = env.register_stellar_asset_contract_v2(Address::generate(&env)).address();
+    let tyc = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
     let cid = env.register(TycoonRewardSystem, ());
     let client = TycoonRewardSystemClient::new(&env, &cid);
 
@@ -453,8 +457,12 @@ fn test_set_backend_minter_no_auth_fails() {
     let env = Env::default();
     // No mock_all_auths
 
-    let tyc = env.register_stellar_asset_contract_v2(Address::generate(&env)).address();
-    let usdc = env.register_stellar_asset_contract_v2(Address::generate(&env)).address();
+    let tyc = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
     let cid = env.register(TycoonRewardSystem, ());
     let client = TycoonRewardSystemClient::new(&env, &cid);
     let admin = Address::generate(&env);
@@ -467,8 +475,12 @@ fn test_set_backend_minter_no_auth_fails() {
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let env2 = Env::default();
         // No mock_all_auths
-        let tyc2 = env2.register_stellar_asset_contract_v2(Address::generate(&env2)).address();
-        let usdc2 = env2.register_stellar_asset_contract_v2(Address::generate(&env2)).address();
+        let tyc2 = env2
+            .register_stellar_asset_contract_v2(Address::generate(&env2))
+            .address();
+        let usdc2 = env2
+            .register_stellar_asset_contract_v2(Address::generate(&env2))
+            .address();
         let cid2 = env2.register(TycoonRewardSystem, ());
         let c2 = TycoonRewardSystemClient::new(&env2, &cid2);
         let a2 = Address::generate(&env2);
@@ -723,7 +735,10 @@ fn test_migrate_is_idempotent_at_version_1() {
             .get(&DataKey::StateVersion)
             .unwrap_or(0)
     });
-    assert_eq!(version, 1, "migrate must not change version when already at v1");
+    assert_eq!(
+        version, 1,
+        "migrate must not change version when already at v1"
+    );
 }
 
 // ===== DEPRECATED redeem_voucher STUB TEST (SW-001) =====
@@ -748,7 +763,10 @@ fn test_redeem_voucher_deprecated_always_panics() {
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.redeem_voucher(&999);
     }));
-    assert!(res.is_err(), "redeem_voucher (deprecated) must always panic");
+    assert!(
+        res.is_err(),
+        "redeem_voucher (deprecated) must always panic"
+    );
 }
 
 // ===== TRANSFER WHILE PAUSED TEST (SW-001) =====
@@ -782,7 +800,10 @@ fn test_transfer_blocked_when_paused() {
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.transfer(&user_a, &user_b, &token_id, &1);
     }));
-    assert!(res.is_err(), "transfer must be blocked when contract is paused");
+    assert!(
+        res.is_err(),
+        "transfer must be blocked when contract is paused"
+    );
 
     // Unpause — transfer must succeed
     client.unpause();
