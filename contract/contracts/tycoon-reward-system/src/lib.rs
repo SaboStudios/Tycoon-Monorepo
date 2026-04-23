@@ -34,6 +34,9 @@ pub struct TycoonRewardSystem;
 
 #[contractimpl]
 impl TycoonRewardSystem {
+    // ── Admin-only entrypoints ────────────────────────────────────────────────
+
+    /// Initialize the contract (one-time setup).
     pub fn initialize(e: Env, admin: Address, tyc_token: Address, usdc_token: Address) {
         if e.storage().persistent().has(&DataKey::Admin) {
             panic!("Already initialized");
@@ -41,8 +44,12 @@ impl TycoonRewardSystem {
         // Batch all initialization writes together
         e.storage().persistent().set(&DataKey::Admin, &admin);
         e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
-        e.storage().persistent().set(&DataKey::UsdcToken, &usdc_token);
-        e.storage().persistent().set(&DataKey::VoucherCount, &VOUCHER_ID_START);
+        e.storage()
+            .persistent()
+            .set(&DataKey::UsdcToken, &usdc_token);
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherCount, &VOUCHER_ID_START);
         e.storage().persistent().set(&DataKey::Paused, &false);
         e.storage().persistent().set(&DataKey::StateVersion, &1u32);
     }
@@ -94,36 +101,35 @@ impl TycoonRewardSystem {
     }
 
     /// Set the backend minter address (admin only)
-    pub fn set_backend_minter(e: Env, admin: Address, new_minter: Address) {
-        let stored_admin: Address = e
+    pub fn set_backend_minter(e: Env, new_minter: Address) {
+        let admin: Address = e
             .storage()
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        if admin != stored_admin {
-            panic!("Unauthorized: only admin can set backend minter");
-        }
         admin.require_auth();
-        e.storage().persistent().set(&DataKey::BackendMinter, &new_minter);
+        e.storage()
+            .persistent()
+            .set(&DataKey::BackendMinter, &new_minter);
         #[allow(deprecated)]
-        e.events().publish((symbol_short!("set_min"), new_minter), ());
+        e.events()
+            .publish((symbol_short!("set_min"), new_minter), ());
     }
 
     /// Clear the backend minter address (admin only)
-    pub fn clear_backend_minter(e: Env, admin: Address) {
-        let stored_admin: Address = e
+    pub fn clear_backend_minter(e: Env) {
+        let admin: Address = e
             .storage()
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        if admin != stored_admin {
-            panic!("Unauthorized: only admin can clear backend minter");
-        }
         admin.require_auth();
         e.storage().persistent().remove(&DataKey::BackendMinter);
         #[allow(deprecated)]
         e.events().publish((symbol_short!("clr_min"),), ());
     }
+
+    // ── Public (user-initiated) entrypoints ──────────────────────────────────
 
     /// Get the current backend minter address. Returns None if not set.
     pub fn get_backend_minter(e: Env) -> Option<Address> {
@@ -141,11 +147,9 @@ impl TycoonRewardSystem {
         caller.require_auth();
 
         // Single read for BackendMinter — replaces has() + get() double-read
-        let backend_minter: Option<Address> =
-            e.storage().persistent().get(&DataKey::BackendMinter);
+        let backend_minter: Option<Address> = e.storage().persistent().get(&DataKey::BackendMinter);
 
-        let is_authorized = caller == admin
-            || backend_minter.map_or(false, |m| m == caller);
+        let is_authorized = caller == admin || backend_minter.map_or(false, |m| m == caller);
 
         if !is_authorized {
             panic!("Unauthorized: only admin or backend minter can mint");
@@ -213,7 +217,9 @@ impl TycoonRewardSystem {
         );
 
         // Remove voucher value entry after successful transfer
-        e.storage().persistent().remove(&DataKey::VoucherValue(token_id));
+        e.storage()
+            .persistent()
+            .remove(&DataKey::VoucherValue(token_id));
 
         #[allow(deprecated)]
         e.events()
@@ -255,8 +261,10 @@ impl TycoonRewardSystem {
         token_client.transfer(&contract_address, &to, &(amount as i128));
 
         #[allow(deprecated)]
-        e.events()
-            .publish((Symbol::new(&e, "FundsWithdrawn"), token.clone(), to), amount);
+        e.events().publish(
+            (Symbol::new(&e, "FundsWithdrawn"), token.clone(), to),
+            amount,
+        );
     }
 
     pub fn get_balance(e: Env, owner: Address, token_id: u128) -> u64 {
@@ -378,6 +386,7 @@ impl TycoonRewardSystem {
     }
 }
 
+#[cfg(test)]
 #[contractimpl]
 impl TycoonRewardSystem {
     pub fn test_mint(e: Env, to: Address, token_id: u128, amount: u64) {
@@ -394,3 +403,6 @@ mod test;
 
 #[cfg(test)]
 mod overflow_rounding_tests;
+
+#[cfg(test)]
+mod admin_access_control_tests;

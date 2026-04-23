@@ -4,13 +4,17 @@
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
-mod token_reward_flow;
-#[cfg(test)]
 mod game_reward_flow;
 #[cfg(test)]
 mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
-// SW-CON-001: deprecation path for legacy entrypoints (Stellar Wave batch)
+// Stellar Wave (SW-FE-001): simulation scenarios
 #[cfg(test)]
-mod legacy_entrypoints;
+mod simulation_scenarios;
+#[cfg(test)]
+mod security_review_checklist;
+mod boost_system_integration;
+#[cfg(test)]
+mod boost_admin_flow;
+mod token_reward_flow;
