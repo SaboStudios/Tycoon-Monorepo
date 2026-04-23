@@ -313,3 +313,39 @@ mod invariant_tests;
 
 #[cfg(test)]
 mod error_branch_tests;
+
+/// Legacy entrypoints — deprecated in SW-CT-005.
+///
+/// These functions existed in earlier versions of the contract under different
+/// names.  They are retained in the ABI so that callers receive an explicit
+/// panic message rather than a silent "function not found" error, giving
+/// integrators a clear migration signal.
+///
+/// **Do not call these from new code.**  Use the canonical replacements listed
+/// in each function's doc comment.
+#[contractimpl]
+impl TycoonToken {
+    /// Deprecated alias for `mint`.
+    ///
+    /// Canonical replacement: `mint(e, to, amount)`
+    pub fn legacy_mint(_e: Env, _to: Address, _amount: i128) {
+        panic!("legacy_mint is deprecated; use mint instead");
+    }
+
+    /// Deprecated alias for `burn`.
+    ///
+    /// Canonical replacement: `burn(e, from, amount)`
+    pub fn legacy_burn(_e: Env, _from: Address, _amount: i128) {
+        panic!("legacy_burn is deprecated; use burn instead");
+    }
+
+    /// Deprecated alias for `transfer`.
+    ///
+    /// Canonical replacement: `transfer(e, from, to, amount)`
+    pub fn legacy_transfer(_e: Env, _from: Address, _to: Address, _amount: i128) {
+        panic!("legacy_transfer is deprecated; use transfer instead");
+    }
+}
+
+#[cfg(test)]
+mod deprecation_tests;
