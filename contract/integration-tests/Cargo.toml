@@ -1,0 +1,28 @@
+[package]
+name = "integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+tycoon-token = { path = "../contracts/tycoon-token" }
+tycoon-game = { path = "../contracts/tycoon-game" }
+tycoon-collectibles = { path = "../contracts/tycoon-collectibles" }
+tycoon-reward-system = { path = "../contracts/tycoon-reward-system" }
+
+[[test]]
+name = "cross_contract_integration"
+path = "tests/cross_contract_integration.rs"
+
+[[test]]
+name = "token_interactions"
+path = "tests/token_interactions.rs"
+
+[[test]]
+name = "game_flow"
+path = "tests/game_flow.rs"
+
+[[test]]
+name = "reward_system_integration"
+path = "tests/reward_system_integration.rs"
