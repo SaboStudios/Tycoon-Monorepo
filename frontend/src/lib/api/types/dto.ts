@@ -156,7 +156,7 @@ export interface UpdateGamePlayerDto {
   symbol?: GamePlayerSymbol;
 }
 
-// ─── Shop ─────────────────────────────────────────────────────────────────────
+// ─── Shop ────────────────────────────────────────────────────────────────────
 
 export type ShopItemType = 'dice' | 'skin' | 'symbol' | 'theme' | 'card';
 

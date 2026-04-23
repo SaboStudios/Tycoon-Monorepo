@@ -260,6 +260,97 @@ export class RedisService {
     }
   }
 
+  /**
+   * Cursor-based key scan with a stable page size.
+   *
+   * Uses Redis SCAN (non-blocking) instead of KEYS so it is safe to call
+   * against production instances.  Returns the next cursor (0 = last page)
+   * and the matched keys sorted lexicographically for stable ordering across
+   * pages.
+   */
+  async scanPage(
+    pattern: string,
+    cursor: number = 0,
+    count: number = 20,
+  ): Promise<{ nextCursor: number; keys: string[] }> {
+    const endTimer = this.redisOperationDuration.startTimer({ operation: 'scan_page' });
+    try {
+      const [nextCursorStr, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        count,
+      );
+      const sorted = [...keys].sort();
+      this.redisOperationsTotal.inc({ operation: 'scan_page' });
+      return { nextCursor: parseInt(nextCursorStr, 10), keys: sorted };
+    } catch (error: any) {
+      this.redisErrorsTotal.inc({ operation: 'scan_page' });
+      this.logger.error(`scanPage error for ${pattern}: ${error.message}`, 'RedisService');
+      return { nextCursor: 0, keys: [] };
+    } finally {
+      endTimer();
+    }
+  }
+
+  /**
+   * Add a member to a sorted set with a numeric score.
+   * Used to build stable-sorted collections (e.g. leaderboards, queues).
+   */
+  async zAdd(key: string, score: number, member: string): Promise<void> {
+    const endTimer = this.redisOperationDuration.startTimer({ operation: 'zadd' });
+    try {
+      await this.redis.zadd(key, score, member);
+      this.redisOperationsTotal.inc({ operation: 'zadd' });
+    } catch (error: any) {
+      this.redisErrorsTotal.inc({ operation: 'zadd' });
+      this.logger.error(`zAdd error for ${key}: ${error.message}`, 'RedisService');
+      throw error;
+    } finally {
+      endTimer();
+    }
+  }
+
+  /**
+   * Paginate a sorted set by score (ascending).
+   *
+   * Returns members in score order (stable sort).  Ties are broken
+   * lexicographically by member name so the order is deterministic.
+   *
+   * @param key   Sorted-set key
+   * @param page  0-based page index
+   * @param limit Items per page (default 20)
+   */
+  async getSortedPage(
+    key: string,
+    page: number = 0,
+    limit: number = 20,
+  ): Promise<{ items: Array<{ member: string; score: number }>; total: number }> {
+    const endTimer = this.redisOperationDuration.startTimer({ operation: 'get_sorted_page' });
+    try {
+      const offset = page * limit;
+      const [rawItems, total] = await Promise.all([
+        this.redis.zrange(key, offset, offset + limit - 1, 'WITHSCORES'),
+        this.redis.zcard(key),
+      ]);
+
+      const items: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < rawItems.length; i += 2) {
+        items.push({ member: rawItems[i], score: parseFloat(rawItems[i + 1]) });
+      }
+
+      this.redisOperationsTotal.inc({ operation: 'get_sorted_page' });
+      return { items, total };
+    } catch (error: any) {
+      this.redisErrorsTotal.inc({ operation: 'get_sorted_page' });
+      this.logger.error(`getSortedPage error for ${key}: ${error.message}`, 'RedisService');
+      return { items: [], total: 0 };
+    } finally {
+      endTimer();
+    }
+  }
+
   /** Gracefully close the raw ioredis connection. Called during shutdown. */
   async quit(): Promise<void> {
     this.logger.log('Closing Redis connection', 'RedisService');
