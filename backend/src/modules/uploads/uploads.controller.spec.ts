@@ -5,6 +5,8 @@ import { UploadsController } from './uploads.controller';
 import { UploadsService } from './uploads.service';
 import { VirusScanService } from './virus-scan.service';
 import { MulterExceptionFilter } from './multer-exception.filter';
+import { UploadsObservabilityService } from './uploads-observability.service';
+import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { ConfigService } from '@nestjs/config';
@@ -42,6 +44,13 @@ const mockConfigService = {
   get: jest.fn().mockReturnValue(undefined),
 };
 
+const mockUploadsObservability = {
+  recordUploadOutcome: jest.fn(),
+  recordMulterError: jest.fn(),
+  recordVirusScanOutcome: jest.fn(),
+  createTraceContext: jest.fn().mockReturnValue({ trace_id: 't', route: 'avatar', ts: '' }),
+};
+
 const allowAllGuard = { canActivate: jest.fn().mockReturnValue(true) };
 
 // ---------------------------------------------------------------------------
@@ -57,6 +66,8 @@ describe('UploadsController – integration', () => {
         { provide: UploadsService, useValue: mockUploadsService },
         { provide: VirusScanService, useValue: mockVirusScan },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: UploadsObservabilityService, useValue: mockUploadsObservability },
+        UploadsObservabilityInterceptor,
       ],
     })
       .overrideGuard(JwtAuthGuard)

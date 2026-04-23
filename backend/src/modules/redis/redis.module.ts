@@ -6,6 +6,7 @@ import { RedisService } from './redis.service';
 import { IdempotencyService } from './idempotency.service';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { LoggerModule } from '../../common/logger/logger.module';
+import { AuditTrailModule } from '../audit-trail/audit-trail.module';
 
 @Global()
 @Module({

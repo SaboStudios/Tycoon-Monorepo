@@ -100,7 +100,8 @@ export class GamesObservabilityService {
    * Log game join attempts and results
    */
   logGameJoin(gameId: number, userId: number, result: 'success' | 'error', reason?: string, duration?: number) {
-    const labels = { result, reason: reason || 'none' };
+    const normalizedReason = reason || 'none';
+    const labels = { result, reason: normalizedReason };
     this.gamesJoinedTotal.inc(labels);
 
     if (duration !== undefined) {
@@ -113,7 +114,7 @@ export class GamesObservabilityService {
       game_id: gameId,
       user_id: userId,
       result,
-      reason,
+      reason: normalizedReason,
       duration_ms: duration ? duration * 1000 : undefined,
     });
   }
@@ -209,7 +210,7 @@ export class GamesObservabilityService {
   /**
    * Log game view operations
    */
-  logGameView(gameId: number | undefined, userId?: number, found: boolean) {
+  logGameView(gameId: number | undefined, found: boolean, userId?: number) {
     this.logger.debug('Game view requested', {
       event: 'game_view',
       game_id: gameId,

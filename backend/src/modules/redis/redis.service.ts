@@ -1,14 +1,17 @@
-import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Counter, Gauge, Histogram } from 'prom-client';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '../../common/logger/logger.service';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
 @Injectable()
 export class RedisService {
   private readonly logger: LoggerService;
+  private readonly auditEnabled: boolean;
   private redis: Redis;
 
   // Prometheus metrics
@@ -23,6 +26,7 @@ export class RedisService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private configService: ConfigService,
     loggerService: LoggerService,
+    @Optional() private readonly auditTrailService?: AuditTrailService,
   ) {
     this.logger = loggerService;
 
@@ -36,7 +40,7 @@ export class RedisService {
     if (!redisConfig) {
       throw new Error('Redis configuration not found');
     }
-    this.auditEnabled = redisConfig.cacheAuditEnabled ?? false;
+    this.auditEnabled = redisConfig.cacheAuditEnabled === true;
     this.redis = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -208,6 +212,10 @@ export class RedisService {
       await this.cacheManager.set(key, value, ttl);
       this.redisOperationsTotal.inc({ operation: 'cache_set' });
       this.logger.debug(`Cache SET: ${key}`, 'RedisService');
+      this.emitAudit(AuditAction.CACHE_SET, {
+        key,
+        ...(ttl !== undefined ? { ttl } : {}),
+      });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_set' });
       this.logger.error(`Cache SET error for ${key}: ${error.message}`, 'RedisService');
@@ -223,6 +231,7 @@ export class RedisService {
       await this.cacheManager.del(key);
       this.redisOperationsTotal.inc({ operation: 'cache_del' });
       this.logger.debug(`Cache DEL: ${key}`, 'RedisService');
+      this.emitAudit(AuditAction.CACHE_DEL, { key });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_del' });
       this.logger.error(`Cache DEL error for ${key}: ${error.message}`, 'RedisService');

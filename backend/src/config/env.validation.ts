@@ -68,6 +68,9 @@ export const validationSchema = Joi.object({
   REDIS_TTL: Joi.number().default(300),
   CACHE_AUDIT_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
 
+  // ─── Uploads observability (SW-BE-009) ───────────────────────────────────────
+  UPLOADS_OBSERVABILITY_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+
   // ─── Logging ────────────────────────────────────────────────────────────────
   LOG_LEVEL: Joi.string()
     .valid('error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly')

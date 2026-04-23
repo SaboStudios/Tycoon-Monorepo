@@ -35,6 +35,7 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 import { AuditLog } from '../audit-trail/audit-log.decorator';
 import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -48,7 +49,7 @@ function buildMulterOptions() {
 @ApiTags('uploads-enhanced')
 @Controller('uploads-enhanced')
 @ApplyIdempotency(IdempotencyInterceptor)
-@UseInterceptors(AuditTrailInterceptor)
+@UseInterceptors(AuditTrailInterceptor, UploadsObservabilityInterceptor)
 export class UploadsEnhancedController {
   constructor(
     private readonly uploadsService: UploadsService,

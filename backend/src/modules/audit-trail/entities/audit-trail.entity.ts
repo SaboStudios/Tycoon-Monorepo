@@ -7,6 +7,9 @@ import {
 } from 'typeorm';
 
 export enum AuditAction {
+    CACHE_SET = 'CACHE_SET',
+    CACHE_DEL = 'CACHE_DEL',
+    CACHE_INVALIDATE = 'CACHE_INVALIDATE',
     USER_CREATED = 'USER_CREATED',
     USER_UPDATED = 'USER_UPDATED',
     USER_SOFT_DELETED = 'USER_SOFT_DELETED',
