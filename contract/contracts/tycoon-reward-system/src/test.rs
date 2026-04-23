@@ -695,3 +695,98 @@ fn test_owned_token_count() {
     let user3 = Address::generate(&env);
     assert_eq!(client.owned_token_count(&user3), 0);
 }
+
+// ===== MIGRATE TESTS (SW-001) =====
+
+#[test]
+fn test_migrate_is_idempotent_at_version_1() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let tyc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_id, &usdc_id);
+
+    // migrate at v1 is a no-op — must not panic
+    client.migrate();
+
+    // State version should still be 1
+    let version: u32 = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0)
+    });
+    assert_eq!(version, 1, "migrate must not change version when already at v1");
+}
+
+// ===== DEPRECATED redeem_voucher STUB TEST (SW-001) =====
+
+/// `redeem_voucher` (the old entry-point) must always panic with a helpful message.
+/// This guards against callers accidentally using the deprecated path.
+#[test]
+fn test_redeem_voucher_deprecated_always_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let tyc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_id, &usdc_id);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.redeem_voucher(&999);
+    }));
+    assert!(res.is_err(), "redeem_voucher (deprecated) must always panic");
+}
+
+// ===== TRANSFER WHILE PAUSED TEST (SW-001) =====
+
+/// `transfer` must be blocked when the contract is paused.
+#[test]
+fn test_transfer_blocked_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let tyc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_id, &usdc_id);
+
+    // Mint a voucher to user_a
+    let token_id = client.mint_voucher(&admin, &user_a, &100u128);
+    assert_eq!(client.get_balance(&user_a, &token_id), 1);
+
+    // Pause the contract
+    client.pause();
+
+    // Transfer must be blocked
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.transfer(&user_a, &user_b, &token_id, &1);
+    }));
+    assert!(res.is_err(), "transfer must be blocked when contract is paused");
+
+    // Unpause — transfer must succeed
+    client.unpause();
+    client.transfer(&user_a, &user_b, &token_id, &1);
+    assert_eq!(client.get_balance(&user_a, &token_id), 0);
+    assert_eq!(client.get_balance(&user_b, &token_id), 1);
+}

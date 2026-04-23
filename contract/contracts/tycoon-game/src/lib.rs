@@ -231,3 +231,6 @@ impl TycoonContract {
 }
 
 mod test;
+
+#[cfg(test)]
+mod simulation_scenarios;
