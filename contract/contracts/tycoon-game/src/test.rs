@@ -696,5 +696,8 @@ fn test_migrate_is_idempotent_at_version_1() {
     client.migrate();
 
     let dump = client.export_state();
-    assert_eq!(dump.state_version, 1, "migrate must not change version when already at v1");
+    assert_eq!(
+        dump.state_version, 1,
+        "migrate must not change version when already at v1"
+    );
 }

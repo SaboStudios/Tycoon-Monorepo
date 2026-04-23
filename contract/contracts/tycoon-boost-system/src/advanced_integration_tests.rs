@@ -26,6 +26,8 @@ fn make_env() -> Env {
 fn setup(env: &Env) -> (TycoonBoostSystemClient, Address) {
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(env, &contract_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin);
     let player = Address::generate(env);
     (client, player)
 }
@@ -44,7 +46,13 @@ fn set_ledger(env: &Env, seq: u32) {
 }
 
 fn boost(id: u128, boost_type: BoostType, value: u32, priority: u32, expires: u32) -> Boost {
-    Boost { id, boost_type, value, priority, expires_at_ledger: expires }
+    Boost {
+        id,
+        boost_type,
+        value,
+        priority,
+        expires_at_ledger: expires,
+    }
 }
 
 fn nb(id: u128, boost_type: BoostType, value: u32, priority: u32) -> Boost {
@@ -121,12 +129,19 @@ fn test_full_capacity_multiplicative_boosts() {
 
     // Add MAX_BOOSTS_PER_PLAYER multiplicative boosts
     for i in 0..MAX_BOOSTS_PER_PLAYER {
-        client.add_boost(&player, &nb(i as u128 + 1, BoostType::Multiplicative, 11000, 0));
+        client.add_boost(
+            &player,
+            &nb(i as u128 + 1, BoostType::Multiplicative, 11000, 0),
+        );
     }
 
     let result = client.calculate_total_boost(&player);
     // Each boost is 1.1x, so 1.1^10 ≈ 2.594x
-    assert!(result > 25000 && result < 26000, "Expected ~25940, got {}", result);
+    assert!(
+        result > 25000 && result < 26000,
+        "Expected ~25940, got {}",
+        result
+    );
 }
 
 /// Test filling to exact capacity with all additive boosts
@@ -154,7 +169,10 @@ fn test_full_capacity_override_boosts() {
     for i in 0..MAX_BOOSTS_PER_PLAYER {
         let priority = (i + 1) * 10;
         let value = 10000 + (i * 1000);
-        client.add_boost(&player, &nb(i as u128 + 1, BoostType::Override, value, priority));
+        client.add_boost(
+            &player,
+            &nb(i as u128 + 1, BoostType::Override, value, priority),
+        );
     }
 
     // Highest priority (100) with value 19000 should win
@@ -181,7 +199,10 @@ fn test_rapid_add_prune_cycles() {
 
     // Cycle 2: Add new boosts
     for i in 0..5u128 {
-        client.add_boost(&player, &eb(i + 10, BoostType::Multiplicative, 12000, 0, 200));
+        client.add_boost(
+            &player,
+            &eb(i + 10, BoostType::Multiplicative, 12000, 0, 200),
+        );
     }
     assert_eq!(client.get_boosts(&player).len(), 5);
 
@@ -200,12 +221,12 @@ fn test_multi_player_isolation() {
     let env = make_env();
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
 
     let player1 = Address::generate(&env);
     let player2 = Address::generate(&env);
     let player3 = Address::generate(&env);
-
-    env.mock_all_auths();
 
     // Player 1: Additive boosts
     client.add_boost(&player1, &nb(1, BoostType::Additive, 2000, 0));
@@ -238,6 +259,8 @@ fn test_concurrent_multi_player_operations() {
     set_ledger(&env, 100);
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
 
     // Create 5 players manually (Soroban Vec doesn't support collect)
     let player0 = Address::generate(&env);
@@ -245,8 +268,6 @@ fn test_concurrent_multi_player_operations() {
     let player2 = Address::generate(&env);
     let player3 = Address::generate(&env);
     let player4 = Address::generate(&env);
-    
-    env.mock_all_auths();
 
     // Player 0: 1 boost expiring at 200
     client.add_boost(&player0, &eb(1, BoostType::Additive, 500, 0, 200));
@@ -286,9 +307,9 @@ fn test_concurrent_multi_player_operations() {
     // Players 0, 1 should have expired boosts; players 2, 3, 4 should still have active
     assert_eq!(client.get_active_boosts(&player0).len(), 0); // Expired at 200
     assert_eq!(client.get_active_boosts(&player1).len(), 0); // Expired at 210
-    assert!(client.get_active_boosts(&player2).len() > 0); // Expires at 220
-    assert!(client.get_active_boosts(&player3).len() > 0); // Expires at 230
-    assert!(client.get_active_boosts(&player4).len() > 0); // Expires at 240
+    assert!(!client.get_active_boosts(&player2).is_empty()); // Expires at 220
+    assert!(!client.get_active_boosts(&player3).is_empty()); // Expires at 230
+    assert!(!client.get_active_boosts(&player4).is_empty()); // Expires at 240
 }
 
 // ── Complex Calculation Tests ─────────────────────────────────────────────────
@@ -353,12 +374,19 @@ fn test_large_multiplicative_chain() {
 
     // Add 10 boosts of 1.05x each
     for i in 0..MAX_BOOSTS_PER_PLAYER {
-        client.add_boost(&player, &nb(i as u128 + 1, BoostType::Multiplicative, 10500, 0));
+        client.add_boost(
+            &player,
+            &nb(i as u128 + 1, BoostType::Multiplicative, 10500, 0),
+        );
     }
 
     let result = client.calculate_total_boost(&player);
     // 1.05^10 ≈ 1.6289 → ~16289
-    assert!(result >= 16200 && result <= 16300, "Expected ~16289, got {}", result);
+    assert!(
+        (16200..=16300).contains(&result),
+        "Expected ~16289, got {}",
+        result
+    );
 }
 
 // ── Event Verification Tests ──────────────────────────────────────────────────
@@ -375,7 +403,7 @@ fn test_boost_activated_event_data() {
 
     // Verify event was emitted (basic check - detailed event inspection would require more SDK features)
     let events = env.events().all();
-    assert!(events.len() > 0, "Expected at least one event");
+    assert!(!events.is_empty(), "Expected at least one event");
 }
 
 /// Test multiple BoostExpiredEvent emissions
@@ -397,7 +425,10 @@ fn test_multiple_boost_expired_events() {
     let events_after = env.events().all().len();
 
     // Should have emitted 5 BoostExpiredEvent events
-    assert!(events_after > events_before, "Expected expired events to be emitted");
+    assert!(
+        events_after > events_before,
+        "Expected expired events to be emitted"
+    );
 }
 
 /// Test BoostsClearedEvent with correct count
@@ -644,7 +675,10 @@ fn test_recovery_after_cap_exceeded() {
 
     // Fill to capacity with expiring boosts
     for i in 0..MAX_BOOSTS_PER_PLAYER {
-        client.add_boost(&player, &eb(i as u128 + 1, BoostType::Additive, 100, 0, 200));
+        client.add_boost(
+            &player,
+            &eb(i as u128 + 1, BoostType::Additive, 100, 0, 200),
+        );
     }
 
     // Try to add one more - should panic
@@ -661,4 +695,3 @@ fn test_recovery_after_cap_exceeded() {
     client.add_boost(&player, &nb(1000, BoostType::Additive, 500, 0));
     assert_eq!(client.get_boosts(&player).len(), 1);
 }
-

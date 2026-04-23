@@ -68,7 +68,7 @@ mod tests {
         let value: u128 = 10_000_000_000_000_000_000;
 
         // Set a fresh backend minter
-        f.reward.set_backend_minter(&f.admin, &new_minter);
+        f.reward.set_backend_minter(&new_minter);
         assert_eq!(f.reward.get_backend_minter(), Some(new_minter.clone()));
 
         // New minter can mint
@@ -76,7 +76,7 @@ mod tests {
         assert_eq!(f.reward.get_balance(&f.player_a, &tid), 1);
 
         // Admin clears the minter
-        f.reward.clear_backend_minter(&f.admin);
+        f.reward.clear_backend_minter();
         assert_eq!(f.reward.get_backend_minter(), None);
 
         // Revoked minter can no longer mint
@@ -181,7 +181,10 @@ mod tests {
         f.game.migrate();
 
         let after = f.game.export_state();
-        assert_eq!(after.state_version, 1, "migrate on v1 must not bump version");
+        assert_eq!(
+            after.state_version, 1,
+            "migrate on v1 must not bump version"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -304,8 +307,14 @@ mod tests {
         let f = Fixture::new();
         let token_id: u128 = 99;
 
-        f.game
-            .set_collectible_info(&token_id, &1, &10, &100_000_000_000_000_000_000, &500_000, &50);
+        f.game.set_collectible_info(
+            &token_id,
+            &1,
+            &10,
+            &100_000_000_000_000_000_000,
+            &500_000,
+            &50,
+        );
         let first = f.game.get_collectible_info(&token_id);
         assert_eq!(first, (1, 10, 100_000_000_000_000_000_000, 500_000, 50));
 
@@ -332,9 +341,12 @@ mod tests {
     fn cash_tier_independent_slots() {
         let f = Fixture::new();
 
-        f.game.set_cash_tier_value(&1, &1_000_000_000_000_000_000_000);
-        f.game.set_cash_tier_value(&2, &2_000_000_000_000_000_000_000);
-        f.game.set_cash_tier_value(&3, &3_000_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&1, &1_000_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&2, &2_000_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&3, &3_000_000_000_000_000_000_000);
 
         assert_eq!(
             f.game.get_cash_tier_value(&1),
@@ -350,7 +362,8 @@ mod tests {
         );
 
         // Overwrite tier 2 and verify tiers 1 and 3 are unaffected
-        f.game.set_cash_tier_value(&2, &9_999_000_000_000_000_000_000);
+        f.game
+            .set_cash_tier_value(&2, &9_999_000_000_000_000_000_000);
         assert_eq!(
             f.game.get_cash_tier_value(&1),
             1_000_000_000_000_000_000_000
@@ -396,6 +409,9 @@ mod tests {
             f.game
                 .register_player(&String::from_str(&f.env, "alice2"), &f.player_a);
         }));
-        assert!(res.is_err(), "re-registration of existing address must be rejected");
+        assert!(
+            res.is_err(),
+            "re-registration of existing address must be rejected"
+        );
     }
 }
