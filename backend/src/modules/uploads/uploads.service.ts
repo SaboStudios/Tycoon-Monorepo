@@ -1,17 +1,25 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
+import { Upload } from './entities/upload.entity';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
 export interface StoredFile {
+  id?: number;
   /** Storage key (S3 key or relative path for local). */
   key: string;
   /** Pre-signed URL valid for `signedUrlTtlSeconds` seconds. */
@@ -31,6 +39,9 @@ export class UploadsService {
   constructor(
     private readonly config: ConfigService,
     private readonly jwt: JwtService,
+    @InjectRepository(Upload)
+    private readonly uploadRepository: Repository<Upload>,
+    private readonly auditTrail: AuditTrailService,
   ) {
     const bucket = this.config.get<string>('upload.s3Bucket');
     if (bucket) {
@@ -48,18 +59,117 @@ export class UploadsService {
     buffer: Buffer,
     originalName: string,
     mimeType: string,
+    userId?: number,
   ): Promise<StoredFile> {
     const key = `${Date.now()}-${randomBytes(8).toString('hex')}/${originalName}`;
 
+    // 1. Physical Storage
     if (this.s3) {
       await this.storeS3(buffer, key, mimeType);
-      const url = await this.getS3SignedUrl(key);
-      return { key, url };
+    } else {
+      await this.storeLocal(buffer, key);
     }
 
-    await this.storeLocal(buffer, key);
-    const url = this.buildLocalSignedUrl(key);
-    return { key, url };
+    // 2. Database Record
+    const upload = this.uploadRepository.create({
+      key,
+      originalName,
+      mimeType,
+      size: buffer.length,
+      userId,
+    });
+    const savedUpload = await this.uploadRepository.save(upload);
+
+    // 3. Audit Trail
+    await this.auditTrail.log(AuditAction.UPLOAD_CREATED, {
+      userId,
+      changes: { key, originalName, mimeType, size: buffer.length },
+      reason: 'File upload processed',
+    });
+
+    const url = this.s3
+      ? await this.getS3SignedUrl(key)
+      : this.buildLocalSignedUrl(key);
+
+    return { id: savedUpload.id, key, url };
+  }
+
+  /**
+   * Get paginated and sorted list of uploads.
+   */
+  async findAll(paginationDto: PaginationDto) {
+    const { page = 1, limit = 10, sortBy = 'id', sortOrder = 'DESC', search } = paginationDto;
+    const queryBuilder = this.uploadRepository.createQueryBuilder('upload');
+
+    if (search) {
+      queryBuilder.andWhere('upload.originalName ILIKE :search OR upload.key ILIKE :search', {
+        search: `%${search}%`,
+      });
+    }
+
+    // Stable sorting requirement: always include ID as a secondary sort key if not already primary
+    const order: any = {};
+    order[sortBy] = sortOrder;
+    if (sortBy !== 'id') {
+      order['id'] = 'ASC';
+    }
+
+    const [items, total] = await this.uploadRepository.findAndCount({
+      where: search ? undefined : {}, // findAndCount doesn't take QueryBuilder results directly easily without find
+      // Better use queryBuilder for pagination
+    });
+
+    // Re-doing with query builder for proper pagination and sorting
+    queryBuilder
+      .orderBy(`upload.${sortBy}`, sortOrder as any)
+      .addOrderBy('upload.id', 'ASC') // secondary sort for stability
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, count] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        totalItems: count,
+        itemCount: data.length,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(count / limit),
+        currentPage: page,
+      },
+    };
+  }
+
+  /**
+   * Delete a stored file and its database record.
+   */
+  async deleteFile(key: string, userId?: number): Promise<void> {
+    const upload = await this.uploadRepository.findOne({ where: { key } });
+
+    // 1. Delete from physical storage
+    if (this.s3) {
+      const bucket = this.config.get<string>('upload.s3Bucket')!;
+      await this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    } else {
+      const baseDir = this.config.get<string>('upload.localUploadDir') ?? './storage/uploads';
+      try {
+        await unlink(join(baseDir, key));
+      } catch (err) {
+        this.logger.error(`Failed to delete local file ${key}:`, err);
+      }
+    }
+
+    // 2. Delete database record
+    if (upload) {
+      await this.uploadRepository.remove(upload);
+    }
+
+    // 3. Audit Trail
+    await this.auditTrail.log(AuditAction.UPLOAD_DELETED, {
+      userId,
+      changes: { key },
+      reason: 'File deletion processed',
+    });
   }
 
   /**
