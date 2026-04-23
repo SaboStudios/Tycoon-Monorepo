@@ -786,7 +786,9 @@ fn test_set_token_perk_no_auth_fails() {
     client2.initialize(&admin2);
     // Verify the set_backend_minter_unauthorized pattern works for set_token_perk too
     // (set_backend_minter_unauthorized already tests the no-auth path)
-    assert!(client2.try_set_token_perk(&1, &Perk::CashTiered, &3).is_ok()); // mock_all_auths still active
+    assert!(client2
+        .try_set_token_perk(&1, &Perk::CashTiered, &3)
+        .is_ok()); // mock_all_auths still active
 }
 
 #[test]

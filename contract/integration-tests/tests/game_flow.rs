@@ -6,7 +6,7 @@
 //! AC3.1 - AC3.4: Player registration, game creation, completion, and collectibles
 
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::Address as _,
     token::{StellarAssetClient, TokenClient},
     Address, Env,
 };

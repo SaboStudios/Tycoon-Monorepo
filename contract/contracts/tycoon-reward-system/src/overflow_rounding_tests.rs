@@ -60,7 +60,7 @@ struct Harness<'a> {
     contract_id: Address,
 }
 
-impl<'a> Harness<'a> {
+impl Harness<'_> {
     fn new() -> Self {
         let env = Env::default();
         env.mock_all_auths();

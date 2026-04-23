@@ -33,7 +33,13 @@ fn set_ledger(env: &Env, seq: u32) {
 }
 
 fn boost(id: u128, boost_type: BoostType, value: u32, priority: u32, expires: u32) -> Boost {
-    Boost { id, boost_type, value, priority, expires_at_ledger: expires }
+    Boost {
+        id,
+        boost_type,
+        value,
+        priority,
+        expires_at_ledger: expires,
+    }
 }
 
 fn nb(id: u128, boost_type: BoostType, value: u32, priority: u32) -> Boost {
@@ -284,10 +290,7 @@ fn test_boost_system_many_players_performance() {
     // Each player gets 5 boosts
     for player in &players {
         for i in 0..5u128 {
-            boost_client.add_boost(
-                player,
-                &nb(i + 1, BoostType::Additive, 500, 0),
-            );
+            boost_client.add_boost(player, &nb(i + 1, BoostType::Additive, 500, 0));
         }
     }
 
@@ -532,4 +535,3 @@ fn test_boost_state_consistency_integration() {
     assert_eq!(active_boosts_after.len(), 1); // Only permanent boost active
     assert_eq!(total_after, 11000); // Only permanent boost counted
 }
-

@@ -58,13 +58,16 @@ mod tests {
             f.reward
                 .mint_voucher(&attacker, &f.player_a, &1_000_000_000_000_000_000u128);
         }));
-        assert!(res.is_err(), "non-privileged address must not mint vouchers");
+        assert!(
+            res.is_err(),
+            "non-privileged address must not mint vouchers"
+        );
     }
 
     #[test]
     fn only_admin_can_set_backend_minter() {
-        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         use soroban_sdk::IntoVal;
+        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         let env = soroban_sdk::Env::default();
         let contract_id = env.register(TycoonRewardSystem, ());
         let client = TycoonRewardSystemClient::new(&env, &contract_id);
@@ -91,8 +94,8 @@ mod tests {
 
     #[test]
     fn only_admin_can_withdraw_from_reward() {
-        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         use soroban_sdk::IntoVal;
+        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         let env = soroban_sdk::Env::default();
         let contract_id = env.register(TycoonRewardSystem, ());
         let client = TycoonRewardSystemClient::new(&env, &contract_id);
@@ -118,13 +121,16 @@ mod tests {
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             client.withdraw_funds(&token, &attacker, &1_000_000_000_000_000_000u128);
         }));
-        assert!(res.is_err(), "non-admin must not withdraw from reward contract");
+        assert!(
+            res.is_err(),
+            "non-admin must not withdraw from reward contract"
+        );
     }
 
     #[test]
     fn only_owner_can_withdraw_from_game() {
-        use tycoon_game::{TycoonContract, TycoonContractClient};
         use soroban_sdk::IntoVal;
+        use tycoon_game::{TycoonContract, TycoonContractClient};
         let env = soroban_sdk::Env::default();
         let contract_id = env.register(TycoonContract, ());
         let client = TycoonContractClient::new(&env, &contract_id);
@@ -151,7 +157,10 @@ mod tests {
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             client.withdraw_funds(&token, &attacker, &1_000_000_000_000_000_000u128);
         }));
-        assert!(res.is_err(), "non-owner must not withdraw from game contract");
+        assert!(
+            res.is_err(),
+            "non-owner must not withdraw from game contract"
+        );
     }
 
     #[test]
@@ -175,8 +184,8 @@ mod tests {
 
     #[test]
     fn non_admin_cannot_become_backend_minter_self() {
-        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         use soroban_sdk::IntoVal;
+        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         let env = soroban_sdk::Env::default();
         let contract_id = env.register(TycoonRewardSystem, ());
         let client = TycoonRewardSystemClient::new(&env, &contract_id);
@@ -197,13 +206,16 @@ mod tests {
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             client.set_backend_minter(&attacker);
         }));
-        assert!(res.is_err(), "attacker must not self-grant backend minter role");
+        assert!(
+            res.is_err(),
+            "attacker must not self-grant backend minter role"
+        );
     }
 
     #[test]
     fn backend_minter_cannot_withdraw() {
-        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         use soroban_sdk::IntoVal;
+        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
         let env = soroban_sdk::Env::default();
         let contract_id = env.register(TycoonRewardSystem, ());
         let client = TycoonRewardSystemClient::new(&env, &contract_id);
@@ -242,8 +254,14 @@ mod tests {
         let tyc_price: u128 = 500;
         let usdc_price: u128 = 100;
         let shop_stock: u64 = 10;
-        f.game
-            .set_collectible_info(&token_id, &perk, &strength, &tyc_price, &usdc_price, &shop_stock);
+        f.game.set_collectible_info(
+            &token_id,
+            &perk,
+            &strength,
+            &tyc_price,
+            &usdc_price,
+            &shop_stock,
+        );
         assert_eq!(
             f.game.get_collectible_info(&token_id),
             (perk, strength, tyc_price, usdc_price, shop_stock)
@@ -328,6 +346,9 @@ mod tests {
             f.reward
                 .mint_voucher(&f.player_a, &f.player_a, &1_000_000_000_000_000_000u128);
         }));
-        assert!(res.is_err(), "registered player must not mint their own voucher");
+        assert!(
+            res.is_err(),
+            "registered player must not mint their own voucher"
+        );
     }
 }

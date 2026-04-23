@@ -7,7 +7,7 @@
 //! AC1.1 - AC1.4: Contract initialization and cross-contract references
 
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::Address as _,
     token::{StellarAssetClient, TokenClient},
     Address, Env,
 };
@@ -204,7 +204,13 @@ fn test_cross_contract_address_validation() {
     let reward_system = Address::generate(&env);
 
     // Verify all addresses are unique
-    let addresses = vec![admin, owner, game_contract, collectibles_contract, reward_system];
+    let addresses = vec![
+        admin,
+        owner,
+        game_contract,
+        collectibles_contract,
+        reward_system,
+    ];
     for i in 0..addresses.len() {
         for j in (i + 1)..addresses.len() {
             assert_ne!(addresses[i], addresses[j]);

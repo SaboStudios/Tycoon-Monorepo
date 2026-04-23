@@ -253,11 +253,7 @@ impl TycoonBoostSystem {
 
         if found {
             env.storage().persistent().set(&key, &updated);
-            AdminBoostRevokedEvent {
-                player,
-                boost_id,
-            }
-            .publish(&env);
+            AdminBoostRevokedEvent { player, boost_id }.publish(&env);
         }
     }
 
