@@ -61,6 +61,21 @@ pub enum DataKey {
     Initialized,
 }
 
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/// Reads the stored admin address and calls `require_auth()` on it.
+///
+/// Every admin-only entrypoint must call this function before mutating state.
+/// Centralising the check here ensures the pattern is applied consistently and
+/// makes the access-control boundary easy to audit.
+fn require_admin(e: &Env) -> Address {
+    let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    admin.require_auth();
+    admin
+}
+
 #[contract]
 pub struct TycoonToken;
 
@@ -89,8 +104,7 @@ impl TycoonToken {
     }
 
     pub fn mint(e: Env, to: Address, amount: i128) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(&e);
 
         if amount <= 0 {
             panic!("Amount must be positive");
@@ -116,8 +130,7 @@ impl TycoonToken {
     }
 
     pub fn set_admin(e: Env, new_admin: Address) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(&e);
         e.storage().instance().set(&DataKey::Admin, &new_admin);
         SetAdminEvent {
             old_admin: admin,
@@ -374,4 +387,5 @@ mod invariant_tests;
 mod error_branch_tests;
 
 #[cfg(test)]
+mod access_control_tests;
 mod security_review_tests;
