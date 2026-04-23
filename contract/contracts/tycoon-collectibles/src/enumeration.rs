@@ -1,8 +1,8 @@
+use crate::errors::CollectibleError;
 use crate::storage::{
     get_owned_tokens_vec, get_token_index, remove_token_index, set_owned_tokens_vec,
     set_token_index,
 };
-use crate::errors::CollectibleError;
 use soroban_sdk::{Address, Env, Vec};
 
 // Maximum page size for pagination to stay within gas limits
@@ -104,7 +104,7 @@ pub fn tokens_of_owner_page(
     let tokens = get_owned_tokens_vec(env, owner);
     let total_tokens = tokens.len();
     let start_index = page * page_size;
-    
+
     // Check if page is out of bounds
     if start_index >= total_tokens {
         return Ok(Vec::new(env)); // Return empty vec for out of bounds pages
@@ -112,13 +112,13 @@ pub fn tokens_of_owner_page(
 
     let end_index = (start_index + page_size).min(total_tokens);
     let mut result = Vec::new(env);
-    
+
     for i in start_index..end_index {
         if let Some(token_id) = tokens.get(i) {
             result.push_back(token_id);
         }
     }
-    
+
     Ok(result)
 }
 
@@ -141,7 +141,7 @@ pub fn iterate_owned_tokens(
 
     let tokens = get_owned_tokens_vec(env, owner);
     let total_tokens = tokens.len();
-    
+
     // Check if start_index is out of bounds
     if start_index >= total_tokens {
         return Ok((Vec::new(env), false)); // No more tokens
@@ -150,13 +150,13 @@ pub fn iterate_owned_tokens(
     let end_index = (start_index + batch_size).min(total_tokens);
     let mut result = Vec::new(env);
     let has_more = end_index < total_tokens;
-    
+
     for i in start_index..end_index {
         if let Some(token_id) = tokens.get(i) {
             result.push_back(token_id);
         }
     }
-    
+
     Ok((result, has_more))
 }
 

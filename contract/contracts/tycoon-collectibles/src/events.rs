@@ -2,7 +2,7 @@ use crate::types::Perk;
 use soroban_sdk::{symbol_short, Address, Env};
 
 pub fn emit_transfer_event(env: &Env, from: &Address, to: &Address, token_id: u128, amount: u64) {
-    // Standardizing on (symbol, from, to) for better indexing
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("transfer"), from.clone(), to.clone()),
         (token_id, amount),
@@ -16,7 +16,7 @@ pub fn emit_collectible_burned_event(
     perk: Perk,
     strength: u32,
 ) {
-    // Tests are looking for "burn" and "coll"
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("burn"), symbol_short!("coll"), burner.clone()),
         (token_id, perk, strength),
@@ -27,8 +27,9 @@ pub fn emit_cash_perk_activated_event(
     env: &Env,
     activator: &Address,
     token_id: u128,
-    cash_value: i128, // Changed to i128 to match price/balance types
+    cash_value: i128,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (
             symbol_short!("perk"),
@@ -46,6 +47,7 @@ pub fn emit_collectible_bought_event(
     price: i128,
     use_usdc: bool,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("coll_buy"), buyer.clone()),
         (token_id, price, use_usdc),
@@ -61,6 +63,7 @@ pub fn emit_collectible_stocked_event(
     tyc_price: u128,
     usdc_price: u128,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("stock"), symbol_short!("new")),
         (token_id, amount, perk, strength, tyc_price, usdc_price),
@@ -73,6 +76,7 @@ pub fn emit_collectible_restocked_event(
     additional_amount: u64,
     new_total: u64,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("restock"),),
         (token_id, additional_amount, new_total),
@@ -85,6 +89,7 @@ pub fn emit_price_updated_event(
     new_tyc_price: u128,
     new_usdc_price: u128,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("price"), symbol_short!("update")),
         (token_id, new_tyc_price, new_usdc_price),
@@ -98,6 +103,7 @@ pub fn emit_collectible_minted_event(
     perk: u32,
     strength: u32,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("coll_mint"), recipient.clone()),
         (token_id, perk, strength),
@@ -113,14 +119,20 @@ pub fn emit_fee_distributed_event(
     pool_amount: u128,
     creator_amount: u128,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (symbol_short!("fee_dist"), token_id),
-        (platform.clone(), platform_amount, pool.clone(), pool_amount, creator_amount),
+        (
+            platform.clone(),
+            platform_amount,
+            pool.clone(),
+            pool_amount,
+            creator_amount,
+        ),
     );
 }
 
 /// Emit event for non-cash perk activation (stubs for future implementation)
-/// Used for: ExtraTurn, JailFree, DoubleRent, RollBoost, Teleport, Shield, PropertyDiscount, RollExact
 pub fn emit_perk_activated_event(
     env: &Env,
     activator: &Address,
@@ -128,6 +140,7 @@ pub fn emit_perk_activated_event(
     perk: Perk,
     strength: u32,
 ) {
+    #[allow(deprecated)]
     env.events().publish(
         (
             symbol_short!("perk"),
