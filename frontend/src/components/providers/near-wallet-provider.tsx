@@ -1,6 +1,7 @@
 "use client";
 
-import "@near-wallet-selector/modal-ui/styles.css";
+// Modal UI styles are loaded lazily inside the useEffect that bootstraps the
+// wallet selector — keeping them off the critical CSS path improves LCP.
 
 import React, {
   createContext,
@@ -95,6 +96,9 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
             import("@near-wallet-selector/core"),
             import("@near-wallet-selector/modal-ui"),
             import("@near-wallet-selector/my-near-wallet"),
+            // Load modal CSS only when the selector is actually bootstrapped so
+            // it stays off the critical CSS path and does not block LCP.
+            import("@near-wallet-selector/modal-ui/styles.css"),
           ]);
 
         const selector = await setupWalletSelector({

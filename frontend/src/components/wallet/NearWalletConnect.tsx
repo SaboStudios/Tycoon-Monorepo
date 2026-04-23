@@ -46,9 +46,11 @@ export function NearWalletConnect({
         </span>
       )}
 
+      {/* min-h reserves the button row height so surrounding layout does not
+          shift when the wallet transitions between ready/not-ready states. */}
       <div
         className={cn(
-          "flex flex-wrap items-center gap-2",
+          "flex min-h-[28px] flex-wrap items-center gap-2",
           panel ? "justify-start" : "justify-end",
         )}
       >
@@ -82,46 +84,50 @@ export function NearWalletConnect({
         )}
       </div>
 
-      {latest && (
-        <div
-          className={cn(
-            "flex max-w-[280px] flex-col gap-0.5 rounded-lg border border-[var(--tycoon-border)]/80 bg-[#010F10]/80 px-2 py-1.5",
-            panel ? "items-start" : "items-end",
-          )}
-        >
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-dm-sans text-[var(--tycoon-text)]/80">
-            {latest.phase === "pending" && (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]" />
-                <span>Transaction pending…</span>
-              </>
+      {/* min-h reserves space for the transaction status row so content below
+          does not shift when a transaction appears or disappears (CLS). */}
+      <div className={cn("min-h-[28px]", panel ? "items-start" : "items-end")}>
+        {latest && (
+          <div
+            className={cn(
+              "flex max-w-[280px] flex-col gap-0.5 rounded-lg border border-[var(--tycoon-border)]/80 bg-[#010F10]/80 px-2 py-1.5",
+              panel ? "items-start" : "items-end",
             )}
-            {latest.phase === "confirmed" && (
-              <span className="text-emerald-400/90">Confirmed</span>
+          >
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-dm-sans text-[var(--tycoon-text)]/80">
+              {latest.phase === "pending" && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]" />
+                  <span>Transaction pending…</span>
+                </>
+              )}
+              {latest.phase === "confirmed" && (
+                <span className="text-emerald-400/90">Confirmed</span>
+              )}
+              {latest.phase === "failed" && (
+                <span className="text-red-400/90">Failed</span>
+              )}
+              <span className="font-mono text-[var(--tycoon-text)]/60">
+                {latest.methodName}
+              </span>
+            </div>
+            {latest.errorMessage && (
+              <span className="text-[10px] text-red-400/90">{latest.errorMessage}</span>
             )}
-            {latest.phase === "failed" && (
-              <span className="text-red-400/90">Failed</span>
+            {latest.hash && latest.explorerUrl && (
+              <a
+                href={latest.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-[var(--tycoon-accent)] hover:underline"
+              >
+                View on explorer
+                <ExternalLink className="h-3 w-3" />
+              </a>
             )}
-            <span className="font-mono text-[var(--tycoon-text)]/60">
-              {latest.methodName}
-            </span>
           </div>
-          {latest.errorMessage && (
-            <span className="text-[10px] text-red-400/90">{latest.errorMessage}</span>
-          )}
-          {latest.hash && latest.explorerUrl && (
-            <a
-              href={latest.explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] text-[var(--tycoon-accent)] hover:underline"
-            >
-              View on explorer
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

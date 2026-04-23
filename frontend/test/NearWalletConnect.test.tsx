@@ -166,6 +166,37 @@ describe("NearWalletConnect", () => {
     expect(container.firstChild).toHaveClass("items-end");
     expect(container.firstChild).toHaveClass("text-right");
   });
+
+  it("button row has min-h to prevent CLS", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ accountId: null, ready: true }),
+    );
+    const buttonRow = container.querySelector(".min-h-\\[28px\\]");
+    expect(buttonRow).not.toBeNull();
+  });
+
+  it("transaction status wrapper always rendered to prevent CLS", () => {
+    // No transactions — wrapper must still be in the DOM (min-h reserved).
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ accountId: null, transactions: [] }),
+    );
+    const wrappers = container.querySelectorAll(".min-h-\\[28px\\]");
+    // Both the button row and the status wrapper should be present.
+    expect(wrappers.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("transaction status wrapper present even when no transactions", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ transactions: [] }),
+    );
+    // The inner transaction card should NOT be rendered...
+    expect(screen.queryByText(/transaction pending/i)).toBeNull();
+    // ...but the reserved wrapper div must still exist in the DOM.
+    const statusWrapper = container.querySelector(
+      ".min-h-\\[28px\\]:last-child",
+    );
+    expect(statusWrapper).not.toBeNull();
+  });
 });
 
 describe("useNearWallet", () => {
