@@ -130,6 +130,7 @@ impl TycoonRewardSystem {
     }
 
     // ── Public (user-initiated) entrypoints ──────────────────────────────────
+    // These functions can be called by any authenticated user
 
     /// Get the current backend minter address. Returns None if not set.
     pub fn get_backend_minter(e: Env) -> Option<Address> {
@@ -179,6 +180,7 @@ impl TycoonRewardSystem {
         token_id
     }
 
+    #[deprecated(note = "Use redeem_voucher_from instead")]
     pub fn redeem_voucher(_e: Env, _token_id: u128) {
         panic!("Use redeem_voucher_from instead");
     }
@@ -389,10 +391,12 @@ impl TycoonRewardSystem {
 #[cfg(test)]
 #[contractimpl]
 impl TycoonRewardSystem {
+    #[deprecated(note = "Test function - will be removed in future version")]
     pub fn test_mint(e: Env, to: Address, token_id: u128, amount: u64) {
         Self::_mint(&e, to, token_id, amount);
     }
 
+    #[deprecated(note = "Test function - will be removed in future version")]
     pub fn test_burn(e: Env, from: Address, token_id: u128, amount: u64) {
         Self::_burn(&e, from, token_id, amount);
     }
