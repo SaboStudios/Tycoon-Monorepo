@@ -5,6 +5,8 @@ import { redisStore } from 'cache-manager-ioredis-yet';
 import { RedisService } from './redis.service';
 import { IdempotencyService } from './idempotency.service';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
+import { ValidatedCacheService } from './validated-cache.service';
+import { CacheExceptionFilter } from './cache-exception.filter';
 import { LoggerModule } from '../../common/logger/logger.module';
 import { AuditTrailModule } from '../audit-trail/audit-trail.module';
 
@@ -38,7 +40,7 @@ import { AuditTrailModule } from '../audit-trail/audit-trail.module';
     }),
     AuditTrailModule,
   ],
-  providers: [RedisService, IdempotencyService, IdempotencyInterceptor],
-  exports: [CacheModule, RedisService, IdempotencyService, IdempotencyInterceptor],
+  providers: [RedisService, IdempotencyService, IdempotencyInterceptor, ValidatedCacheService, CacheExceptionFilter],
+  exports: [CacheModule, RedisService, IdempotencyService, IdempotencyInterceptor, ValidatedCacheService, CacheExceptionFilter],
 })
 export class RedisModule {}

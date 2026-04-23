@@ -7,8 +7,11 @@ import {
 } from 'typeorm';
 
 export enum AuditAction {
+    /** Emitted when RedisService cache set succeeds (gated by CACHE_AUDIT_ENABLED). */
     CACHE_SET = 'CACHE_SET',
+    /** Emitted when RedisService cache del succeeds (gated by CACHE_AUDIT_ENABLED). */
     CACHE_DEL = 'CACHE_DEL',
+    /** Emitted when RedisService delByPattern removes one or more keys (gated by CACHE_AUDIT_ENABLED). */
     CACHE_INVALIDATE = 'CACHE_INVALIDATE',
     USER_CREATED = 'USER_CREATED',
     USER_UPDATED = 'USER_UPDATED',
