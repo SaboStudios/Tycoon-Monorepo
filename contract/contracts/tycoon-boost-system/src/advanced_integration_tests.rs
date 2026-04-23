@@ -12,7 +12,7 @@ extern crate std;
 use crate::{Boost, BoostType, TycoonBoostSystem, TycoonBoostSystemClient, MAX_BOOSTS_PER_PLAYER};
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger, LedgerInfo},
-    Address, Env, Vec,
+    Address, Env,
 };
 
 // ── Test Helpers ──────────────────────────────────────────────────────────────
@@ -417,8 +417,10 @@ fn test_boosts_cleared_event_count() {
 
     // All boosts removed — primary observable effect
     assert_eq!(client.get_active_boosts(&player).len(), 0);
+    // get_boosts (deprecated) should also return 0 after clear
     #[allow(deprecated)]
-    assert_eq!(client.get_boosts(&player).len(), 0);
+    let remaining = client.get_boosts(&player);
+    assert_eq!(remaining.len(), 0);
 }
 
 // ── Authorization Tests ───────────────────────────────────────────────────────

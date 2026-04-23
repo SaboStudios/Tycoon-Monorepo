@@ -268,6 +268,7 @@ fn test_boost_with_token_operations() {
 
 /// Test boost system performance with many players
 #[test]
+#[allow(deprecated)]
 fn test_boost_system_many_players_performance() {
     let env = Env::default();
     env.mock_all_auths();
@@ -300,6 +301,7 @@ fn test_boost_system_many_players_performance() {
 
 /// Test boost system with rapid state changes
 #[test]
+#[allow(deprecated)]
 fn test_boost_system_rapid_state_changes() {
     let env = Env::default();
     env.mock_all_auths();
@@ -399,6 +401,7 @@ fn test_boost_system_ledger_boundary_integration() {
 
 /// Test boost system with maximum capacity across multiple players
 #[test]
+#[allow(deprecated)]
 fn test_boost_system_max_capacity_multi_player() {
     let env = Env::default();
     env.mock_all_auths();
@@ -490,6 +493,7 @@ fn test_boost_determinism_across_calls() {
 
 /// Test boost system state consistency after multiple operations
 #[test]
+#[allow(deprecated)]
 fn test_boost_state_consistency_integration() {
     let env = Env::default();
     env.mock_all_auths();
