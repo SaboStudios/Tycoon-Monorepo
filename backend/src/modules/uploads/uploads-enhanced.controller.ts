@@ -21,7 +21,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { UploadsService, StoredFile } from './uploads.service';
@@ -31,6 +31,10 @@ import { ConfigService } from '@nestjs/config';
 import { Idempotent } from './idempotency/idempotency.decorator';
 import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
 import { UseInterceptors as ApplyIdempotency } from '@nestjs/common';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -44,12 +48,13 @@ function buildMulterOptions() {
 @ApiTags('uploads-enhanced')
 @Controller('uploads-enhanced')
 @ApplyIdempotency(IdempotencyInterceptor)
+@UseInterceptors(AuditTrailInterceptor)
 export class UploadsEnhancedController {
   constructor(
     private readonly uploadsService: UploadsService,
     private readonly virusScan: VirusScanService,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   /**
    * Upload the authenticated user's avatar with idempotency support.
@@ -60,6 +65,7 @@ export class UploadsEnhancedController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
+  @AuditLog(AuditAction.UPLOAD_CREATED)
   @ApiBody({
     schema: {
       type: 'object',
@@ -88,7 +94,7 @@ export class UploadsEnhancedController {
     @Request() req: { user: { id: number } },
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
-    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
+    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype, req.user.id);
   }
 
   /**
@@ -100,6 +106,7 @@ export class UploadsEnhancedController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
+  @AuditLog(AuditAction.UPLOAD_CREATED)
   @ApiBody({
     schema: {
       type: 'object',
@@ -125,9 +132,22 @@ export class UploadsEnhancedController {
       }),
     )
     file: Express.Multer.File,
+    @Request() req: { user: { id: number } },
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
-    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
+    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype, req.user.id);
+  }
+
+  /**
+   * List uploads with pagination and stable sorting.
+   * GET /uploads-enhanced
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List uploads with pagination and stable sorting' })
+  async listUploads(@Query() paginationDto: PaginationDto) {
+    return this.uploadsService.findAll(paginationDto);
   }
 
   /**
@@ -206,11 +226,11 @@ export class UploadsEnhancedController {
   @ApiBody({
     schema: {
       type: 'object',
-      properties: { 
-        files: { 
-          type: 'array', 
-          items: { type: 'string', format: 'binary' } 
-        } 
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' }
+        }
       },
       required: ['files'],
     },
@@ -245,7 +265,7 @@ export class UploadsEnhancedController {
     }
 
     const results: StoredFile[] = [];
-    
+
     for (const file of files) {
       await this.virusScan.scan(file.buffer, file.originalname);
       const result = await this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
@@ -262,18 +282,20 @@ export class UploadsEnhancedController {
   @Delete('file')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
+  @AuditLog(AuditAction.UPLOAD_DELETED)
   @Idempotent({
     ttl: 3600, // 1 hour for deletions
     includeBody: true,
     storeResponse: true,
   })
-  async deleteFile(@Body() body: { key: string }): Promise<{ success: boolean }> {
+  async deleteFile(
+    @Body() body: { key: string },
+    @Request() req: { user: { id: number } },
+  ): Promise<{ success: boolean }> {
     if (!body.key) throw new BadRequestException('key is required');
-    
-    // Implementation would depend on storage backend
-    // For S3: await this.s3.deleteObject({ Bucket: bucket, Key: body.key });
-    // For local: await fs.unlink(path.join(uploadDir, body.key));
-    
+
+    await this.uploadsService.deleteFile(body.key, req.user.id);
+
     return { success: true };
   }
 
