@@ -3,6 +3,8 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import { RedisService } from './redis.service';
+import { IdempotencyService } from './idempotency.service';
+import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { LoggerModule } from '../../common/logger/logger.module';
 
 @Global()
@@ -34,7 +36,7 @@ import { LoggerModule } from '../../common/logger/logger.module';
       },
     }),
   ],
-  providers: [RedisService],
-  exports: [CacheModule, RedisService],
+  providers: [RedisService, IdempotencyService, IdempotencyInterceptor],
+  exports: [CacheModule, RedisService, IdempotencyService, IdempotencyInterceptor],
 })
 export class RedisModule {}
