@@ -63,7 +63,7 @@ export function NearWalletConnect({
             </span>
             <button
               type="button"
-              onClick={() => void disconnect()}
+              onClick={() => { void disconnect(); }}
               className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 hover:text-[var(--tycoon-accent)] transition-colors"
             >
               Disconnect NEAR
