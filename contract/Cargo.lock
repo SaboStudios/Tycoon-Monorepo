@@ -1535,7 +1535,7 @@ dependencies = [
 
 [[package]]
 name = "tycoon-boost-system"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
 ]
@@ -1560,6 +1560,7 @@ name = "tycoon-integration-tests"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
+ "tycoon-boost-system",
  "tycoon-game",
  "tycoon-reward-system",
  "tycoon-token",

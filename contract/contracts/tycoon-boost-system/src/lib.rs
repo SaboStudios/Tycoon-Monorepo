@@ -92,6 +92,17 @@ pub struct BoostsClearedEvent {
     pub count: u32,
 }
 
+/// Emitted when a deprecated function is called.
+/// Helps track migration progress and identify integrations that need updating.
+#[contractevent]
+pub struct DeprecatedFunctionCalledEvent {
+    #[topic]
+    pub function_name: u32, // Symbol short for function name
+    #[topic]
+    pub caller: Address,
+    pub replacement_hint: u32, // Symbol short for recommended replacement
+}
+
 // ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
@@ -182,8 +193,33 @@ impl TycoonBoostSystem {
 
     /// Explicitly prune all expired boosts from storage and emit `BoostExpiredEvent`
     /// for each one removed. Returns the number of boosts pruned.
+    ///
+    /// # Deprecation Notice
+    /// ⚠️ **DEPRECATED**: This function is deprecated and will be removed in v1.0.0.
+    ///
+    /// **Reason**: Manual pruning is unnecessary because:
+    /// - `add_boost` automatically prunes expired boosts before adding new ones
+    /// - `calculate_total_boost` ignores expired boosts without mutating storage
+    /// - Adds unnecessary gas cost and complexity for clients
+    ///
+    /// **Migration**: Simply remove calls to this function. Expired boosts are
+    /// automatically handled by other contract functions.
+    ///
+    /// **Timeline**: This function will be removed in v1.0.0 (Q4 2026).
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use automatic pruning via add_boost. This function will be removed in v1.0.0."
+    )]
     /// Permissionless — anyone may call this to trigger cleanup.
     pub fn prune_expired_boosts(env: Env, player: Address) -> u32 {
+        // Emit deprecation event
+        DeprecatedFunctionCalledEvent {
+            function_name: 1, // "prune_expired_boosts"
+            caller: player.clone(),
+            replacement_hint: 2, // "automatic"
+        }
+        .publish(&env);
+
         let key = DataKey::PlayerBoosts(player.clone());
         let boosts: Vec<Boost> = env
             .storage()
@@ -223,7 +259,32 @@ impl TycoonBoostSystem {
     }
 
     /// Get all boosts for a player (including expired ones still in storage).
+    ///
+    /// # Deprecation Notice
+    /// ⚠️ **DEPRECATED**: This function is deprecated and will be removed in v1.0.0.
+    ///
+    /// **Reason**: Returns expired boosts which:
+    /// - Wastes gas reading stale data
+    /// - Confuses clients (expired boosts have no effect)
+    /// - Duplicates functionality with `get_active_boosts`
+    ///
+    /// **Migration**: Use `get_active_boosts` instead, which returns only
+    /// non-expired boosts that actually affect calculations.
+    ///
+    /// **Timeline**: This function will be removed in v1.0.0 (Q4 2026).
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use get_active_boosts instead. This function will be removed in v1.0.0."
+    )]
     pub fn get_boosts(env: Env, player: Address) -> Vec<Boost> {
+        // Emit deprecation event
+        DeprecatedFunctionCalledEvent {
+            function_name: 3, // "get_boosts"
+            caller: player.clone(),
+            replacement_hint: 4, // "get_active_boosts"
+        }
+        .publish(&env);
+
         let key = DataKey::PlayerBoosts(player);
         env.storage()
             .persistent()
@@ -334,3 +395,6 @@ mod time_boundary_tests;
 
 #[cfg(test)]
 mod advanced_integration_tests;
+
+#[cfg(test)]
+mod deprecation_tests;
