@@ -35,6 +35,7 @@ import { LoggerModule } from '../../common/logger/logger.module';
         };
       },
     }),
+    AuditTrailModule,
   ],
   providers: [RedisService, IdempotencyService, IdempotencyInterceptor],
   exports: [CacheModule, RedisService, IdempotencyService, IdempotencyInterceptor],

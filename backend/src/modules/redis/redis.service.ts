@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Counter, Gauge, Histogram } from 'prom-client';
@@ -31,10 +31,12 @@ export class RedisService {
       port: number;
       password?: string;
       db: number;
+      cacheAuditEnabled?: boolean;
     }>('redis');
     if (!redisConfig) {
       throw new Error('Redis configuration not found');
     }
+    this.auditEnabled = redisConfig.cacheAuditEnabled ?? false;
     this.redis = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -91,6 +93,19 @@ export class RedisService {
       this.logger.error(`Redis connection error: ${err.message}`, 'RedisService');
       this.redisErrorsTotal.inc({ operation: 'connection' });
     });
+  }
+
+  private emitAudit(
+    action: AuditAction,
+    changes: Record<string, unknown>,
+  ): void {
+    if (!this.auditEnabled || !this.auditTrailService) return;
+    // Fire-and-forget; errors must not propagate to callers
+    this.auditTrailService
+      .log(action, { changes })
+      .catch((err: Error) =>
+        this.logger.error(`Audit log failed [${action}]: ${err.message}`),
+      );
   }
 
   // Session management
@@ -228,6 +243,7 @@ export class RedisService {
           `Invalidated ${keys.length} keys with pattern: ${pattern}`,
           'RedisService',
         );
+        this.emitAudit(AuditAction.CACHE_INVALIDATE, { pattern, count: keys.length });
       }
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'del_by_pattern' });
