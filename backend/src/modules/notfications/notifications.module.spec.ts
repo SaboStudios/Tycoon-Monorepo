@@ -37,7 +37,9 @@ describe('NotificationsModule', () => {
   });
 
   it('should provide NotificationsController', () => {
-    const controller = module.get<NotificationsController>(NotificationsController);
+    const controller = module.get<NotificationsController>(
+      NotificationsController,
+    );
     expect(controller).toBeDefined();
   });
 

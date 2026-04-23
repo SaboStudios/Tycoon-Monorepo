@@ -6,7 +6,9 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
@@ -14,6 +16,15 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { WalletLoginDto } from './dto/wallet-login.dto';
+import { JwtPayload } from './interfaces/jwt-payload.interface';
+
+interface RequestWithUser {
+  user: JwtPayload;
+  ip?: string;
+  headers?: {
+    'user-agent'?: string;
+  };
+}
 
 @Controller('auth')
 export class AuthController {
@@ -22,39 +33,65 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Request() req, // Type changed to 'any' or inferred
-  ) {
-    return this.authService.login(req.user);
+  async login(@Request() req: RequestWithUser) {
+    return this.authService.login(
+      {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role,
+        is_admin: req.user.is_admin,
+      },
+      req.ip,
+      req.headers?.['user-agent'],
+    );
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshTokenDto.refreshToken);
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Req() req: RequestWithUser,
+  ) {
+    const ipAddress = req.ip;
+    const userAgent = req.headers?.['user-agent'];
+    return this.authService.refreshTokens(
+      refreshTokenDto.refreshToken,
+      ipAddress,
+      userAgent,
+    );
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('wallet-login')
   @HttpCode(HttpStatus.OK)
-  async walletLogin(@Body() body: WalletLoginDto) {
-    return this.authService.walletLogin(body.address, body.chain);
+  async walletLogin(@Body() body: WalletLoginDto, @Req() req: RequestWithUser) {
+    return this.authService.walletLogin(
+      body.address,
+      body.chain,
+      req.ip,
+      req.headers?.['user-agent'],
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req) {
-    // Type changed to 'any' or inferred
-    return this.authService.logout(req.user.id);
+  async logout(@Request() req: RequestWithUser) {
+    return this.authService.logout(
+      req.user.sub,
+      req.ip,
+      req.headers?.['user-agent'],
+    );
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() createUserDto: CreateUserDto) {
-    // Type fixed
-    return this.usersService.create(createUserDto); // Service and method call corrected
+    return this.usersService.create(createUserDto);
   }
 }

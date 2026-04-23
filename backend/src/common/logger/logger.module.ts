@@ -14,7 +14,8 @@ import { LoggerService } from './logger.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const environment = configService.get<string>('app.environment') || 'development';
+        const environment =
+          configService.get<string>('app.environment') || 'development';
         return createWinstonConfig(environment);
       },
     }),

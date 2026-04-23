@@ -5,16 +5,20 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { AdminAuthController } from './admin-auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { UsersModule } from '../users/users.module';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
+import { AdminLogsModule } from '../admin-logs/admin-logs.module';
+import { AuthAuditService } from './audit/auth-audit.service';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
+    AdminLogsModule,
     TypeOrmModule.forFeature([RefreshToken, User]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -24,11 +28,15 @@ import { User } from '../users/entities/user.entity';
         signOptions: {
           expiresIn: configService.get<number>('jwt.expiresIn') || 900,
         },
+        verifyOptions: {
+          clockTolerance:
+            configService.get<number>('jwt.clockTolerance') || 60,
+        },
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy],
-  exports: [AuthService],
+  controllers: [AuthController, AdminAuthController],
+  providers: [AuthService, JwtStrategy, LocalStrategy, AuthAuditService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

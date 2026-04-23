@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
+import { AuthAuditService } from './audit/auth-audit.service';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -76,6 +77,10 @@ describe('AuthService', () => {
           provide: getRepositoryToken(User),
           useValue: userRepository,
         },
+        {
+          provide: AuthAuditService,
+          useValue: { record: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -90,28 +95,31 @@ describe('AuthService', () => {
     it('should return user without password if validation succeeds', async () => {
       const hashedPassword = 'hashedpassword';
       const user = {
-        id: '1',
+        id: 1,
         email: 'test@example.com',
         password: hashedPassword,
         role: 'user',
+        is_admin: false,
       };
       (usersService.findByEmail as jest.Mock).mockResolvedValue(user);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.validateUser('test@example.com', 'password');
       expect(result).toEqual({
-        id: '1',
+        id: 1,
         email: 'test@example.com',
         role: 'user',
+        is_admin: false,
       });
     });
 
     it('should return null if password does not match', async () => {
       const user = {
-        id: '1',
+        id: 1,
         email: 'test@example.com',
         password: 'hashedpassword',
         role: 'user',
+        is_admin: false,
       };
       (usersService.findByEmail as jest.Mock).mockResolvedValue(user);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
@@ -136,7 +144,12 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('should return access and refresh tokens', async () => {
-      const user = { id: '1', email: 'test@example.com', role: 'user' };
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        role: 'user',
+        is_admin: false,
+      };
 
       const result = await service.login(user);
 

@@ -5,6 +5,12 @@ members = [
   "integration-tests",
 ]
 
+# Exclude archived/experimental contracts from the workspace
+exclude = [
+  "archive/*",
+  "contracts/tycoon-main-game",
+]
+
 [workspace.dependencies]
 soroban-sdk = "23"
 

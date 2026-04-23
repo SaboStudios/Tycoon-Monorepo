@@ -2,6 +2,23 @@
 
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { track } from "@/lib/analytics";
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  return reduced;
+}
 
 /**
  * Mobile-responsive hero section for Tycoon.
@@ -25,9 +42,22 @@ import { useRouter } from "next/navigation";
  */
 export default function HeroSectionMobile() {
   const router = useRouter();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
+
+  function handleTrackedNavigation(
+    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
+    destination: string,
+  ) {
+    track(event, {
+      route: "/",
+      destination,
+    });
+
+    router.push(destination);
+  }
 
   return (
     <section className="z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10]">
@@ -41,22 +71,24 @@ export default function HeroSectionMobile() {
         aria-hidden
       />
 
-      <main className="relative z-10 flex flex-col items-center gap-6 text-center max-w-md mx-auto">
+      <div className="relative z-10 mx-auto flex max-w-md flex-col items-center gap-6 text-center">
         {/* Welcome */}
         <p className="text-[14px] font-orbitron font-[700] text-[#00F0FF]">
           Welcome back, Player!
         </p>
 
         {/* Title - stacked, smaller */}
-        <h1 className="font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
+        <h1 className="min-h-[42px] font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
           TYCOON
-          <span className="ml-1 text-[16px] text-[#0FF0FC] rotate-12 animate-pulse inline-block">
+          <span
+            className={`ml-1 text-[16px] text-[#0FF0FC] rotate-12 inline-block ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+          >
             ?
           </span>
         </h1>
 
         {/* Tagline - condensed */}
-        <p className="font-orbitron text-[16px] font-[700] text-[#F0F7F7]">
+        <p className="min-h-[24px] font-orbitron text-[16px] font-[700] text-[#F0F7F7]">
           Conquer • Build • Trade On
         </p>
 
@@ -69,7 +101,7 @@ export default function HeroSectionMobile() {
         {/* Stacked CTAs - touch-friendly (min 48px) */}
         <div className="w-full flex flex-col gap-3 mt-2">
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[16px] py-4`}
             aria-label="Continue game"
           >
@@ -78,7 +110,7 @@ export default function HeroSectionMobile() {
           </button>
 
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
             className={`w-full ${ctaBase} border-2 border-[#00F0FF] text-[#00F0FF] text-[14px] py-3`}
             aria-label="Multiplayer"
           >
@@ -87,7 +119,7 @@ export default function HeroSectionMobile() {
           </button>
 
           <button
-            onClick={() => router.push("/join-room")}
+            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
             className={`w-full ${ctaBase} border-2 border-[#003B3E] text-[#0FF0FC] text-[14px] py-3`}
             aria-label="Join room"
           >
@@ -96,7 +128,7 @@ export default function HeroSectionMobile() {
           </button>
 
           <button
-            onClick={() => router.push("/play-ai")}
+            onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[14px] py-4 uppercase tracking-wide`}
             aria-label="Challenge AI"
           >
@@ -104,7 +136,7 @@ export default function HeroSectionMobile() {
             Challenge AI!
           </button>
         </div>
-      </main>
+      </div>
     </section>
   );
 }
