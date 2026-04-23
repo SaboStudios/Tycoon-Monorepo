@@ -26,6 +26,8 @@ fn make_env() -> Env {
 fn setup(env: &Env) -> (TycoonBoostSystemClient, Address) {
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(env, &contract_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin);
     let player = Address::generate(env);
     (client, player)
 }
@@ -200,12 +202,12 @@ fn test_multi_player_isolation() {
     let env = make_env();
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
 
     let player1 = Address::generate(&env);
     let player2 = Address::generate(&env);
     let player3 = Address::generate(&env);
-
-    env.mock_all_auths();
 
     // Player 1: Additive boosts
     client.add_boost(&player1, &nb(1, BoostType::Additive, 2000, 0));
@@ -238,6 +240,8 @@ fn test_concurrent_multi_player_operations() {
     set_ledger(&env, 100);
     let contract_id = env.register(TycoonBoostSystem, ());
     let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
 
     // Create 5 players manually (Soroban Vec doesn't support collect)
     let player0 = Address::generate(&env);
@@ -245,8 +249,6 @@ fn test_concurrent_multi_player_operations() {
     let player2 = Address::generate(&env);
     let player3 = Address::generate(&env);
     let player4 = Address::generate(&env);
-    
-    env.mock_all_auths();
 
     // Player 0: 1 boost expiring at 200
     client.add_boost(&player0, &eb(1, BoostType::Additive, 500, 0, 200));

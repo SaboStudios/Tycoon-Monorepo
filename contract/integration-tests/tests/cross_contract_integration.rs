@@ -18,6 +18,11 @@ fn create_token_contract(env: &Env, admin: &Address) -> Address {
     token_contract.address()
 }
 
+/// Helper: Mint tokens using StellarAssetClient
+fn mint_tokens(env: &Env, token: &Address, to: &Address, amount: i128) {
+    StellarAssetClient::new(env, token).mint(to, &amount);
+}
+
 /// AC1.1: Token Contract Initialization
 /// Verifies that TYC and USDC token contracts initialize successfully
 /// with correct metadata.
@@ -158,11 +163,11 @@ fn test_contract_initialization_idempotency() {
     let token_client = TokenClient::new(&env, &token);
 
     // First operation should succeed
-    token_client.mint(&admin, &1_000_000);
+    mint_tokens(&env, &token, &admin, 1_000_000);
     assert_eq!(token_client.balance(&admin), 1_000_000);
 
     // Second operation should also succeed (tokens are idempotent)
-    token_client.mint(&admin, &1_000_000);
+    mint_tokens(&env, &token, &admin, 1_000_000);
     assert_eq!(token_client.balance(&admin), 2_000_000);
 }
 
