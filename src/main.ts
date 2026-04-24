@@ -1,7 +1,6 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { AppModule } from "./app.module";
-import { AppLogger } from "./logger/app-logger.service";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,6 +11,6 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  await app.listen(3000);
+  await app.listen(3002);
 }
 bootstrap();

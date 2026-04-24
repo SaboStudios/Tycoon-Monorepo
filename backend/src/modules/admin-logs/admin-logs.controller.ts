@@ -15,20 +15,17 @@ import { AdminLogQueryDto } from './dto/admin-log-query.dto';
 import { AdminLogExportDto } from './dto/admin-log-export.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
-import {
-  RedisRateLimitGuard,
-  RateLimit,
-} from '../../common/guards/redis-rate-limit.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('admin-logs')
 @ApiBearerAuth()
 @Controller('admin/logs')
-@UseGuards(JwtAuthGuard, AdminGuard, RedisRateLimitGuard)
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminLogsController {
   constructor(private readonly adminLogsService: AdminLogsService) {}
 
   @Get()
-  @RateLimit(50, 60)
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @ApiOperation({ summary: 'Retrieve admin audit logs with filters and pagination' })
   @ApiResponse({ status: HttpStatus.OK, type: [AdminLog] })
   async findAll(
@@ -38,7 +35,7 @@ export class AdminLogsController {
   }
 
   @Get('export')
-  @RateLimit(10, 60)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Export admin audit logs as CSV' })
   async export(
     @Query() queryDto: AdminLogExportDto,

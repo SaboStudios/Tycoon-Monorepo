@@ -111,11 +111,29 @@ All values are in basis points (10 000 = 100 %)
 ```rust
 add_boost(player: Address, boost: Boost)
 calculate_total_boost(player: Address) -> u32
-prune_expired_boosts(player: Address) -> u32
 clear_boosts(player: Address)
-get_boosts(player: Address) -> Vec<Boost>
 get_active_boosts(player: Address) -> Vec<Boost>
+
+// ⚠️ DEPRECATED - Will be removed in v1.0.0
+get_boosts(player: Address) -> Vec<Boost>              // Use get_active_boosts instead
+prune_expired_boosts(player: Address) -> u32           // Use automatic pruning instead
 ```
+
+### Deprecated Functions
+
+⚠️ **The following functions are deprecated and will be removed in v1.0.0 (Q4 2026)**:
+
+- **`get_boosts`** - Returns all boosts including expired ones
+  - **Replacement**: Use `get_active_boosts` instead
+  - **Reason**: Wastes gas and confuses clients
+  - **Migration**: [See Migration Guide](./MIGRATION_GUIDE.md#migration-1-get_boosts--get_active_boosts)
+
+- **`prune_expired_boosts`** - Manually prunes expired boosts
+  - **Replacement**: Automatic pruning (remove calls)
+  - **Reason**: Unnecessary - pruning happens automatically
+  - **Migration**: [See Migration Guide](./MIGRATION_GUIDE.md#migration-2-prune_expired_boosts--automatic)
+
+For detailed migration instructions, see [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md).
 
 ---
 
@@ -133,6 +151,27 @@ get_active_boosts(player: Address) -> Vec<Boost>
 cargo test --package tycoon-boost-system
 ```
 
-Tests are split across two modules:
-- `src/test.rs` — core stacking behaviour (9 tests)
-- `src/cap_stacking_expiry_tests.rs` — cap, stacking matrix, expiry, and event tests (31 tests)
+### Test Coverage (151 tests total)
+
+Tests are organized across multiple modules:
+- `src/test.rs` — Core stacking behaviour (9 tests)
+- `src/cap_stacking_expiry_tests.rs` — Cap, stacking matrix, expiry, and event tests (31 tests)
+- `src/time_boundary_tests.rs` — Time boundary and ledger sequence tests (11 tests)
+- `src/advanced_integration_tests.rs` — Advanced edge cases, stress tests, and multi-player scenarios (45 tests)
+- `src/deprecation_tests.rs` — Deprecation behavior and migration tests (30 tests)
+- `../integration-tests/src/boost_system_integration.rs` — Cross-contract integration tests (25 tests)
+
+See [TEST_COVERAGE_IMPROVEMENTS.md](./TEST_COVERAGE_IMPROVEMENTS.md) for comprehensive coverage details.
+
+### Running Specific Test Suites
+
+```bash
+# Unit tests only
+cargo test --package tycoon-boost-system
+
+# Integration tests only
+cargo test --package tycoon-integration-tests boost_system
+
+# With output
+cargo test --package tycoon-boost-system -- --nocapture
+```

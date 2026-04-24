@@ -242,9 +242,9 @@ describe('retry logic', () => {
     vi.useFakeTimers();
 
     const promise = apiClient.get('/games', { retries: 2 });
+    const expectRejected = expect(promise).rejects.toMatchObject({ statusCode: 429 });
     await vi.runAllTimersAsync();
-
-    await expect(promise).rejects.toMatchObject({ statusCode: 429 });
+    await expectRejected;
     // 1 initial + 2 retries = 3 total calls
     expect(fetchMock).toHaveBeenCalledTimes(3);
     vi.useRealTimers();

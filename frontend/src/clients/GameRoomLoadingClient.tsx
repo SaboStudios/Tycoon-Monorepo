@@ -5,8 +5,8 @@ import GameRoomLoading from '@/components/settings/GameRoomLoading';
 
 export default function GameRoomLoadingClient() {
     return (
-        <main className="w-full h-full">
+        <div className="h-full w-full">
             <GameRoomLoading />
-        </main>
+        </div>
     );
 }

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 /*
  * Tycoon theme CSS variables
  * Usage: var(--tycoon-bg), var(--tycoon-accent), etc.
@@ -10,16 +12,17 @@
  * --tycoon-text     : Primary text color
  * --tycoon-card-bg  : Card / panel background
  */
-:root {
+:root,
+[data-theme="light"] {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #12262a;
 
   /* Tycoon theme */
-  --tycoon-bg: #010F10;
-  --tycoon-accent: #00F0FF;
-  --tycoon-border: #003B3E;
-  --tycoon-text: #F0F7F7;
-  --tycoon-card-bg: #0E1415;
+  --tycoon-bg: #f7fafb;
+  --tycoon-accent: #006d77;
+  --tycoon-border: #c6dde0;
+  --tycoon-text: #12262a;
+  --tycoon-card-bg: #ffffff;
 }
 
 @theme inline {
@@ -33,13 +36,31 @@
   --color-tycoon-border: var(--tycoon-border);
   --color-tycoon-text: var(--tycoon-text);
   --color-tycoon-card-bg: var(--tycoon-card-bg);
+  /* Focus ring — maps to brand accent so all ring-ring usages pick up brand color */
+  --color-ring: var(--tycoon-accent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * Shell content widths (rem; align with Tailwind max-w-7xl / custom game width).
+ * Marketing/default: 80rem. Game surfaces can use max-w-[var(--shell-content-max-game)].
+ */
+:root {
+  --shell-content-max-marketing: 80rem;
+  --shell-content-max-game: 90rem;
+}
+
+[data-theme="dark"] {
+  --background: #010f10;
+  --foreground: #f0f7f7;
+  --tycoon-bg: #010f10;
+  --tycoon-accent: #00f0ff;
+  --tycoon-border: #003b3e;
+  --tycoon-text: #f0f7f7;
+  --tycoon-card-bg: #0e1415;
+}
+
+html {
+  background: var(--background);
 }
 
 body {
@@ -57,4 +78,16 @@ body {
 }
 .font-dm-sans {
   font-family: var(--font-dm-sans), sans-serif;
+}
+
+/* Accessibility: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

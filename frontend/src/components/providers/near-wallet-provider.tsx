@@ -1,6 +1,7 @@
 "use client";
 
-import "@near-wallet-selector/modal-ui/styles.css";
+// Modal UI styles are loaded lazily inside the useEffect that bootstraps the
+// wallet selector — keeping them off the critical CSS path improves LCP.
 
 import React, {
   createContext,
@@ -34,6 +35,13 @@ import {
 } from "@/lib/near/execution";
 import { getExplorerTransactionUrl } from "@/lib/near/explorer";
 import type { NearTxRecord } from "@/lib/near/types";
+import {
+  trackNearWalletConnected,
+  trackNearWalletDisconnected,
+  trackNearTxSubmitted,
+  trackNearTxConfirmed,
+  trackNearTxFailed,
+} from "@/lib/near/telemetry";
 
 export interface CallContractMethodParams {
   contractId: string;
@@ -80,9 +88,17 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
   const syncAccounts = useCallback((selector: WalletSelector) => {
     const s = selector.store.getState();
     const active = s.accounts.find((a) => a.active);
-    setAccountId(active?.accountId ?? null);
+    const nextAccountId = active?.accountId ?? null;
+    setAccountId((prev) => {
+      if (prev === null && nextAccountId !== null) {
+        trackNearWalletConnected(networkId);
+      } else if (prev !== null && nextAccountId === null) {
+        trackNearWalletDisconnected(networkId);
+      }
+      return nextAccountId;
+    });
     setAccounts(s.accounts.map((a) => a.accountId));
-  }, []);
+  }, [networkId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +111,9 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
             import("@near-wallet-selector/core"),
             import("@near-wallet-selector/modal-ui"),
             import("@near-wallet-selector/my-near-wallet"),
+            // Load modal CSS only when the selector is actually bootstrapped so
+            // it stays off the critical CSS path and does not block LCP.
+            import("@near-wallet-selector/modal-ui/styles.css"),
           ]);
 
         const selector = await setupWalletSelector({
@@ -167,6 +186,7 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         contractId: params.contractId,
       };
       setTransactions((prev) => [pending, ...prev].slice(0, 8));
+      trackNearTxSubmitted(networkId, params.methodName);
 
       try {
         const wallet = await selector.wallet();
@@ -198,6 +218,7 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         });
 
         if (outcome === undefined || outcome === null) {
+          trackNearTxFailed(networkId, params.methodName, "no_outcome");
           setTransactions((prev) =>
             prev.map((t) =>
               t.id === id
@@ -235,10 +256,17 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
           ),
         );
 
+        if (success) {
+          trackNearTxConfirmed(networkId, params.methodName);
+        } else {
+          trackNearTxFailed(networkId, params.methodName, "on_chain");
+        }
+
         return outcome;
       } catch (e) {
         const msg = nearErrorMessage(e);
         if (isLikelyUserRejectedError(e)) {
+          trackNearTxFailed(networkId, params.methodName, "rejected");
           toast.error(NEAR_SIGNATURE_REJECTED_MESSAGE);
         } else {
           toast.error(msg);

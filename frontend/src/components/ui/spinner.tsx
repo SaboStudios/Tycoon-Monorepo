@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 /** Tycoon-branded loading spinner. Uses #00F0FF accent. */
 export function Spinner({
@@ -11,6 +12,7 @@ export function Spinner({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
+  const prefersReducedMotion = useReducedMotion();
   const sizeClasses = {
     sm: "h-6 w-6 border-2",
     md: "h-12 w-12 border-[3px]",
