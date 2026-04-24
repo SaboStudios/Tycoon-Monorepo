@@ -9,6 +9,8 @@ mod game_reward_flow;
 mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
+#[cfg(test)]
+mod reward_transfer_flow;
 // Stellar Wave (SW-FE-001): simulation scenarios
 #[cfg(test)]
 mod boost_admin_flow;

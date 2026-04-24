@@ -409,6 +409,7 @@ mod test;
 mod overflow_rounding_tests;
 
 #[cfg(test)]
+mod transfer_tests;
 mod admin_access_control_tests;
 
 #[cfg(test)]
