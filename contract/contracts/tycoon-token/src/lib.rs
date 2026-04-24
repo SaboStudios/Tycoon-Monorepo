@@ -130,10 +130,10 @@ impl TycoonToken {
     }
 
     pub fn set_admin(e: Env, new_admin: Address) {
-        require_admin(&e);
+        let old_admin = require_admin(&e);
         e.storage().instance().set(&DataKey::Admin, &new_admin);
         SetAdminEvent {
-            old_admin: admin,
+            old_admin,
             new_admin,
         }
         .publish(&e);
@@ -423,4 +423,5 @@ impl TycoonToken {
 mod deprecation_tests;
 #[cfg(test)]
 mod access_control_tests;
+#[cfg(test)]
 mod security_review_tests;
