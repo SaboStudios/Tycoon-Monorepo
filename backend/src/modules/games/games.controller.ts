@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Query,
   UseGuards,
+  UseInterceptors,
   Req,
   HttpCode,
   HttpStatus,
@@ -28,6 +29,7 @@ import {
 import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
+import { GamesAuditInterceptor } from './audit/games-audit.interceptor';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
@@ -43,6 +45,7 @@ import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 
 @ApiTags('games')
+@UseInterceptors(GamesAuditInterceptor)
 @Controller('games')
 @UseInterceptors(IdempotencyInterceptor)
 export class GamesController {
