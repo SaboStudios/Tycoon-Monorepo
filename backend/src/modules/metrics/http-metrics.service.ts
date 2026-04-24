@@ -26,6 +26,14 @@ export class HttpMetricsService {
   private readonly dbPoolWaiting: Gauge;
   private readonly dbPoolExhaustionTotal: Counter;
 
+  // ── Process / runtime metrics (SW-BE-025) ──────────────────────────────────
+  private readonly processHeapUsed: Gauge;
+  private readonly processHeapTotal: Gauge;
+  private readonly processRss: Gauge;
+  private readonly processExternalMemory: Gauge;
+  private readonly processUptimeSeconds: Gauge;
+  private readonly eventLoopLagSeconds: Gauge;
+
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {
     const commonLabelNames = ['method', 'route_group'] as const;
 
@@ -65,6 +73,43 @@ export class HttpMetricsService {
     this.dbPoolExhaustionTotal = new Counter({
       name: 'tycoon_db_pool_exhaustion_total',
       help: 'Number of times the pool waiting queue exceeded the exhaustion threshold',
+      registers: [this.registry],
+    });
+
+    // Process memory gauges
+    this.processHeapUsed = new Gauge({
+      name: 'tycoon_process_heap_used_bytes',
+      help: 'V8 heap used in bytes',
+      registers: [this.registry],
+    });
+
+    this.processHeapTotal = new Gauge({
+      name: 'tycoon_process_heap_total_bytes',
+      help: 'V8 heap total allocated in bytes',
+      registers: [this.registry],
+    });
+
+    this.processRss = new Gauge({
+      name: 'tycoon_process_rss_bytes',
+      help: 'Resident set size in bytes',
+      registers: [this.registry],
+    });
+
+    this.processExternalMemory = new Gauge({
+      name: 'tycoon_process_external_memory_bytes',
+      help: 'External (C++) memory referenced by V8 objects',
+      registers: [this.registry],
+    });
+
+    this.processUptimeSeconds = new Gauge({
+      name: 'tycoon_process_uptime_seconds',
+      help: 'Process uptime in seconds',
+      registers: [this.registry],
+    });
+
+    this.eventLoopLagSeconds = new Gauge({
+      name: 'tycoon_event_loop_lag_seconds',
+      help: 'Approximate Node.js event-loop lag in seconds (sampled at scrape time)',
       registers: [this.registry],
     });
   }
@@ -114,8 +159,29 @@ export class HttpMetricsService {
     }
   }
 
+  /**
+   * Snapshot Node.js process metrics (memory, uptime, event-loop lag).
+   * Called at scrape time so values are always fresh.
+   */
+  collectProcessMetrics(): void {
+    const mem = process.memoryUsage();
+    this.processHeapUsed.set(mem.heapUsed);
+    this.processHeapTotal.set(mem.heapTotal);
+    this.processRss.set(mem.rss);
+    this.processExternalMemory.set(mem.external);
+    this.processUptimeSeconds.set(process.uptime());
+
+    // Approximate event-loop lag: schedule a timer and measure how late it fires.
+    const start = process.hrtime.bigint();
+    setImmediate(() => {
+      const lagNs = Number(process.hrtime.bigint() - start);
+      this.eventLoopLagSeconds.set(lagNs / 1e9);
+    });
+  }
+
   async getMetricsText(): Promise<string> {
     this.collectPoolMetrics();
+    this.collectProcessMetrics();
     return this.registry.metrics();
   }
 }
