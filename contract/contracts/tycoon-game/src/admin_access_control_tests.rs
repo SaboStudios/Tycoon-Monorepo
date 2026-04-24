@@ -231,6 +231,7 @@ mod tests {
     // ── ACT-11: deprecated shims still work ──────────────────────────────────
 
     #[test]
+    #[allow(deprecated)]
     fn act_11_deprecated_shims_still_work() {
         let env = Env::default();
         env.mock_all_auths();
