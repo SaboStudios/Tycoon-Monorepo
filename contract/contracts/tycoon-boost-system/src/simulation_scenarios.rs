@@ -183,7 +183,12 @@ fn sim_07_end_of_season_clear_all_players() {
     env.mock_all_auths();
     let (client, _) = setup(&env);
 
-    let players: Vec<Address> = (0..4).map(|_| Address::generate(&env)).collect();
+    let players = [
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
+    ];
 
     for (i, p) in players.iter().enumerate() {
         client.admin_grant_boost(p, &nb(1, BoostType::Additive, (i as u32 + 1) * 1000));

@@ -50,6 +50,7 @@ mod tests {
     /// GCT-01: `withdraw_funds` emits a `FundsWithdrawn` event whose data
     /// field equals the withdrawn amount.
     #[test]
+    #[allow(deprecated)]
     fn gct_01_withdraw_event_carries_correct_data() {
         let env = Env::default();
         env.mock_all_auths();
@@ -73,6 +74,7 @@ mod tests {
     /// GCT-02: Withdraw TYC then USDC in sequence; both token balances are
     /// updated independently.
     #[test]
+    #[allow(deprecated)]
     fn gct_02_sequential_withdraw_tyc_then_usdc() {
         let env = Env::default();
         env.mock_all_auths();
@@ -130,6 +132,7 @@ mod tests {
     /// GCT-04: `export_state` reflects the backend controller address after
     /// `set_backend_game_controller` is called.
     #[test]
+    #[allow(deprecated)]
     fn gct_04_export_state_reflects_backend_controller() {
         let env = Env::default();
         env.mock_all_auths();
@@ -154,6 +157,7 @@ mod tests {
 
     /// GCT-05: `migrate` at v0 advances to v1; a second call at v1 is a no-op.
     #[test]
+    #[allow(deprecated)]
     fn gct_05_migrate_v0_to_v1_then_noop() {
         let env = Env::default();
         env.mock_all_auths();
@@ -170,19 +174,30 @@ mod tests {
             .address();
         let reward = Address::generate(&env);
 
-        storage::set_owner(&env, &owner);
-        storage::set_tyc_token(&env, &tyc_id);
-        storage::set_usdc_token(&env, &usdc_id);
-        storage::set_reward_system(&env, &reward);
-        // state_version defaults to 0
+        // Wrap direct storage writes in as_contract so soroban-sdk v23 allows them.
+        env.as_contract(&contract_id, || {
+            storage::set_owner(&env, &owner);
+            storage::set_tyc_token(&env, &tyc_id);
+            storage::set_usdc_token(&env, &usdc_id);
+            storage::set_reward_system(&env, &reward);
+            // state_version defaults to 0
+        });
 
-        assert_eq!(storage::get_state_version(&env), 0, "GCT-05: pre-condition: version must be 0");
+        env.as_contract(&contract_id, || {
+            assert_eq!(storage::get_state_version(&env), 0, "GCT-05: pre-condition: version must be 0");
+        });
 
         client.migrate();
-        assert_eq!(storage::get_state_version(&env), 1, "GCT-05: version must be 1 after first migrate");
+
+        env.as_contract(&contract_id, || {
+            assert_eq!(storage::get_state_version(&env), 1, "GCT-05: version must be 1 after first migrate");
+        });
 
         // Second migrate at v1 must be a no-op (no panic, version unchanged).
         client.migrate();
-        assert_eq!(storage::get_state_version(&env), 1, "GCT-05: version must remain 1 after second migrate");
+
+        env.as_contract(&contract_id, || {
+            assert_eq!(storage::get_state_version(&env), 1, "GCT-05: version must remain 1 after second migrate");
+        });
     }
 }
