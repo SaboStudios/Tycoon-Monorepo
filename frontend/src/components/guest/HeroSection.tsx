@@ -5,19 +5,28 @@ import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { track } from "@/lib/analytics";
 
+interface HeroSectionProps {
+  className?: string;
+}
+
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
+
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mq.matches);
+
     const onChange = () => setReduced(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
   return reduced;
 }
 
-const HeroSection: React.FC = () => {
+const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const router = useRouter();
   const prefersReducedMotion = usePrefersReducedMotion();
   const typeSpeed = prefersReducedMotion ? 99 : 40;
@@ -38,7 +47,7 @@ const HeroSection: React.FC = () => {
   return (
     <section
       aria-label="Hero"
-      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]"
+      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className || ""}`}
     >
       {/* Background gradient */}
       <div

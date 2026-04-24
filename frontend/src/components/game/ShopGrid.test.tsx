@@ -48,11 +48,10 @@ describe("ShopGrid", () => {
   ];
 
   describe("Loading State", () => {
-    test("renders loading spinner when isLoading is true", () => {
+    test("renders skeleton grid when isLoading is true", () => {
       render(<ShopGrid isLoading={true} />);
       expect(screen.getByTestId("shop-grid-loading")).toBeInTheDocument();
-      expect(screen.getByRole("status", { name: /loading/i })).toBeInTheDocument();
-      expect(screen.getByText("Loading shop items...")).toBeInTheDocument();
+      expect(screen.getAllByTestId("shop-grid-skeleton-card").length).toBeGreaterThan(0);
     });
 
     test("does not render items when loading", () => {
@@ -223,9 +222,11 @@ describe("ShopGrid", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
 
-    test("loading state has status role", () => {
+    test("loading state has aria-busy and aria-label", () => {
       render(<ShopGrid isLoading={true} />);
-      expect(screen.getByRole("status")).toBeInTheDocument();
+      const loading = screen.getByTestId("shop-grid-loading");
+      expect(loading).toHaveAttribute("aria-busy", "true");
+      expect(loading).toHaveAttribute("aria-label", "Loading shop items");
     });
   });
 
