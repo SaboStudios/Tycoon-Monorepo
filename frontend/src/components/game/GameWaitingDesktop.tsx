@@ -125,7 +125,7 @@ export function GameWaitingDesktop({
 
     return (
         <section className="w-full min-h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
-            <main className="w-full min-h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6 py-8">
+            <div className="flex min-h-full w-full flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 py-8 sm:px-6">
                 <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-5 sm:p-6 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
                     {/* Header & Game Code */}
                     <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent">
@@ -386,7 +386,7 @@ export function GameWaitingDesktop({
                         </p>
                     )}
                 </div>
-            </main>
+            </div>
         </section>
     );
 }

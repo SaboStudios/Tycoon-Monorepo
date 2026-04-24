@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Query,
   UseGuards,
+  UseInterceptors,
   Req,
   HttpCode,
   HttpStatus,
@@ -28,6 +29,7 @@ import {
 import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
+import { GamesAuditInterceptor } from './audit/games-audit.interceptor';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
@@ -39,9 +41,13 @@ import { PayTaxDto } from './dto/pay-tax.dto';
 import { BuyPropertyDto } from './dto/buy-property.dto';
 import { JoinGameDto } from './dto/join-game.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Idempotent } from '../../common/decorators/idempotent.decorator';
+import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 
 @ApiTags('games')
+@UseInterceptors(GamesAuditInterceptor)
 @Controller('games')
+@UseInterceptors(IdempotencyInterceptor)
 export class GamesController {
   constructor(
     private readonly gamePlayersService: GamePlayersService,
@@ -49,6 +55,7 @@ export class GamesController {
   ) {}
 
   @Post()
+  @Idempotent()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
@@ -164,6 +171,7 @@ export class GamesController {
   }
 
   @Post(':id/join')
+  @Idempotent()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
@@ -287,6 +295,7 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/roll-dice')
+  @Idempotent()
   async rollDice(
     @Param('gameId', ParseIntPipe) gameId: number,
     @Param('playerId', ParseIntPipe) playerId: number,
@@ -311,6 +320,7 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/pay-rent')
+  @Idempotent()
   @ApiOperation({ summary: 'Pay rent with boost modifiers applied' })
   async payRent(
     @Param('gameId', ParseIntPipe) gameId: number,
@@ -326,6 +336,7 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/pay-tax')
+  @Idempotent()
   @ApiOperation({ summary: 'Pay tax with boost modifiers applied' })
   async payTax(
     @Param('gameId', ParseIntPipe) gameId: number,
@@ -336,6 +347,7 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/buy-property')
+  @Idempotent()
   @ApiOperation({ summary: 'Buy property and emit event for boost hooks' })
   async buyProperty(
     @Param('gameId', ParseIntPipe) gameId: number,

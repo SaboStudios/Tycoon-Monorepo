@@ -181,6 +181,99 @@ fn test_withdraw_emits_event() {
     assert!(!events.is_empty());
 }
 
+// ===== TREASURY INVARIANT TESTS =====
+
+fn valid(sum_of_balances: u64, escrow: u64, liabilities: u64, treasury: u64) -> TreasurySnapshot {
+    TreasurySnapshot {
+        sum_of_balances,
+        escrow,
+        liabilities,
+        treasury,
+    }
+}
+
+#[test]
+fn test_treasury_invariant_balanced_zero_state() {
+    assert!(valid(0, 0, 0, 0).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_balanced_typical_state() {
+    assert!(valid(900, 100, 600, 400).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_balanced_escrow_heavy_state() {
+    assert!(valid(0, 1_000, 500, 500).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_unbalanced_returns_false() {
+    assert!(!valid(900, 100, 600, 401).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_unbalanced_zero_treasury() {
+    assert!(!valid(500, 0, 500, 1).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_assert_does_not_panic_when_balanced() {
+    valid(800, 200, 700, 300).assert_invariant();
+}
+
+#[test]
+#[should_panic(expected = "Treasury invariant violated")]
+fn test_treasury_invariant_assert_panics_when_unbalanced() {
+    valid(800, 200, 700, 301).assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_lock_into_escrow_preserves_invariant() {
+    let mut snapshot = valid(1_000, 0, 0, 1_000);
+    let amount = 200_u64;
+
+    snapshot.sum_of_balances -= amount;
+    snapshot.escrow += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_release_escrow_back_to_balances_preserves_invariant() {
+    let mut snapshot = valid(800, 200, 500, 500);
+    let amount = 200_u64;
+
+    snapshot.escrow -= amount;
+    snapshot.sum_of_balances += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_reclassify_liability_to_treasury_preserves_invariant() {
+    let mut snapshot = valid(800, 0, 200, 600);
+    let amount = 200_u64;
+
+    snapshot.liabilities -= amount;
+    snapshot.treasury += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_generated_scenarios_pass() {
+    for sum_of_balances in [0_u64, 125, 400, 1_250, 10_000] {
+        for escrow in [0_u64, 1, 25, 100, 750] {
+            let total_assets = sum_of_balances + escrow;
+            let liabilities = total_assets / 2;
+            let treasury = total_assets - liabilities;
+
+            valid(sum_of_balances, escrow, liabilities, treasury).assert_invariant();
+        }
+    }
+}
+
 // ===== VIEW FUNCTION TESTS =====
 
 #[test]
@@ -551,4 +644,155 @@ fn test_backend_controller_integration() {
     // Verify events were emitted - just check that we have events
     let events = env.events().all();
     assert!(!events.is_empty());
+}
+
+// ===== EXPORT STATE TESTS (SW-001) =====
+
+#[test]
+fn test_export_state_reflects_initialized_values() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let dump = client.export_state();
+
+    assert_eq!(dump.owner, owner);
+    assert_eq!(dump.tyc_token, tyc_token);
+    assert_eq!(dump.usdc_token, usdc_token);
+    assert_eq!(dump.reward_system, reward_system);
+    assert_eq!(dump.state_version, 1);
+    assert!(dump.is_initialized);
+    assert!(dump.backend_controller.is_none());
+}
+
+#[test]
+fn test_export_state_reflects_backend_controller_after_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let controller = Address::generate(&env);
+    client.set_backend_game_controller(&controller);
+
+    let dump = client.export_state();
+    assert_eq!(dump.backend_controller, Some(controller));
+}
+
+// ===== MIGRATE TESTS (SW-001) =====
+
+#[test]
+fn test_migrate_is_idempotent_at_version_1() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // migrate at v1 is a no-op placeholder — must not panic
+    client.migrate();
+
+    let dump = client.export_state();
+    assert_eq!(
+        dump.state_version, 1,
+        "migrate must not change version when already at v1"
+    );
+}
+
+#[test]
+fn test_migrate_from_v0_to_v1() {
+    // Simulate a legacy contract that was deployed before initialize set the
+    // version: register the contract without calling initialize so the stored
+    // version defaults to 0, then call migrate and confirm it advances to 1.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonContract, ());
+    let client = TycoonContractClient::new(&env, &contract_id);
+
+    let owner = Address::generate(&env);
+    let tyc_admin = Address::generate(&env);
+    let usdc_admin = Address::generate(&env);
+    let (tyc_token, _) = create_token_contract(&env, &tyc_admin);
+    let (usdc_token, _) = create_token_contract(&env, &usdc_admin);
+    let reward_system = Address::generate(&env);
+
+    // Manually bootstrap the minimum state that migrate requires (owner key)
+    // without going through initialize, so state_version stays at 0.
+    use crate::storage;
+    storage::set_owner(&env, &owner);
+    storage::set_tyc_token(&env, &tyc_token);
+    storage::set_usdc_token(&env, &usdc_token);
+    storage::set_reward_system(&env, &reward_system);
+    // state_version is intentionally NOT set → get_state_version returns 0
+
+    client.migrate();
+
+    // After migrate the version must be 1
+    assert_eq!(storage::get_state_version(&env), 1, "migrate must upgrade v0 to v1");
+}
+
+// ===== USERNAME BOUNDARY TESTS (SW-CT-008) =====
+
+#[test]
+fn test_register_player_username_exactly_3_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abc");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_register_player_username_exactly_20_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abcdefghij1234567890");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_get_user_unregistered_returns_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let unregistered = Address::generate(&env);
+    assert!(client.get_user(&unregistered).is_none());
+}
+
+#[test]
+fn test_set_collectible_info_overwrite() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let token_id = 42;
+    client.set_collectible_info(&token_id, &1, &10, &100, &50, &5);
+    assert_eq!(client.get_collectible_info(&token_id), (1, 10, 100, 50, 5));
+
+    client.set_collectible_info(&token_id, &2, &20, &200, &100, &10);
+    assert_eq!(client.get_collectible_info(&token_id), (2, 20, 200, 100, 10));
 }

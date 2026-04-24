@@ -394,3 +394,26 @@ stellar contract invoke --id <CONTRACT_ID> --source "$DEPLOYER_ACCOUNT" \
 1. Immediately rotate the key (create a new account, transfer ownership).
 2. Notify the Smart Contract Lead and Security Reviewer.
 3. Audit all transactions from the compromised account.
+
+---
+
+## 11. State Export for Support
+
+Support can capture a snapshot of the contract's critical state for debugging:
+
+```bash
+# Using Makefile
+make export-state CONTRACT_ID=<id> NETWORK=testnet
+
+# Manual script call
+./scripts/export-state.sh --contract-id <id> --network <testnet|mainnet>
+```
+
+This tool calls the `export_state` view function, which returns:
+- Admin/Owner addresses
+- Token addresses (TYC, USDC)
+- State schema version
+- Initialization status
+- Backend controller configuration
+
+**Note:** This tool is read-only and does not expose private keys or sensitive user data.

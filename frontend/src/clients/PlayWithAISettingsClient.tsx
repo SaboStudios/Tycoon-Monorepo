@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ToastContainer } from "react-toastify"
-import "react-toastify/dist/ReactToastify.css"
 import { PlayWithAISettings } from "@/components/settings/PlayWithAISettings"
 
 export default function PlayWithAISettingsClient() {
@@ -46,20 +44,8 @@ export default function PlayWithAISettingsClient() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50/50 dark:bg-neutral-950">
-            <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="light"
-            />
+        <div className="min-h-screen bg-gray-50/50 dark:bg-neutral-950">
             <PlayWithAISettings />
-        </main>
+        </div>
     )
 }

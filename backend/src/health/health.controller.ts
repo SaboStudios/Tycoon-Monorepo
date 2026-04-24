@@ -1,11 +1,16 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseInterceptors } from '@nestjs/common';
 import { RedisService } from '../modules/redis/redis.service';
+import { AuditTrailInterceptor } from '../modules/audit-trail/audit-trail.interceptor';
+import { AuditLog } from '../modules/audit-trail/audit-log.decorator';
+import { AuditAction } from '../modules/audit-trail/entities/audit-trail.entity';
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly redisService: RedisService) {}
+  constructor(private readonly redisService: RedisService) { }
 
   @Get('redis')
+  @UseInterceptors(AuditTrailInterceptor)
+  @AuditLog(AuditAction.HEALTH_CHECK_ACCESSED)
   async checkRedis() {
     try {
       await this.redisService.set('health-check', 'ok', 10);

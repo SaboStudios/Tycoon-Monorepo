@@ -29,11 +29,7 @@ export function Marketplace() {
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchItems();
-  }, [filter]);
-
-  const fetchItems = async () => {
+  const fetchItems = React.useCallback(async () => {
     setLoading(true);
     try {
       const typeParam = filter !== 'all' ? `&type=${filter}` : '';
@@ -47,7 +43,11 @@ export function Marketplace() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  React.useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
   const handlePurchaseClick = (item: ShopItem) => {
     if (item.is_owned) return;
@@ -58,23 +58,69 @@ export function Marketplace() {
   const handleConfirmPurchase = async () => {
     if (!selectedItem) return;
 
+    // Generate a unique idempotency key for this purchase attempt
+    const idempotencyKey = crypto.randomUUID();
+    
+    // Capture previous state for rollback
+    const previousItems = [...items];
+    
+    // Optimistically update the UI
+    setItems(items.map(item => 
+      item.id === selectedItem.id ? { ...item, is_owned: true } : item
+    ));
+    setIsModalOpen(false);
+
     try {
       const response = await fetch('/api/shop/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shop_item_id: selectedItem.id, quantity: 1 }),
+        body: JSON.stringify({ 
+          shop_item_id: selectedItem.id, 
+          quantity: 1,
+          idempotency_key: idempotencyKey 
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Purchase failed');
+        let errorMessage = 'Purchase failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          
+          // Specific conflict handling
+          if (response.status === 409) {
+            errorMessage = `Conflict: ${errorMessage}`;
+          }
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      toast.success(`${selectedItem.name} purchased successfully!`);
-      setIsModalOpen(false);
-      fetchItems(); // Refresh items to show "Owned" badge
-    } catch (error: any) {
-      toast.error(error.message);
+      toast.success(`${selectedItem.name} purchased successfully!`, {
+        position: "top-center",
+        autoClose: 3000,
+        theme: "dark",
+      });
+      
+      // Full reconciliation with server state
+      fetchItems(); 
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unknown error occurred';
+      
+      // Rollback on failure: Revert to the previous items state
+      setItems(previousItems);
+      
+      toast.error(message, {
+        position: "top-center",
+        autoClose: 5000,
+        theme: "dark",
+      });
+      
+      // Re-fetch items just in case the optimistic update left the UI in an inconsistent state
+      // even after manual rollback
+      fetchItems();
     }
   };
 

@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { randomBytes } from "crypto";
 
 /**
- * Generate a cryptographically secure nonce for CSP
+ * Generate a cryptographically secure nonce for CSP (Edge-compatible)
  */
 function generateNonce(): string {
-  return randomBytes(16).toString("base64");
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
 }
 
 export function middleware(request: NextRequest) {

@@ -7,8 +7,8 @@ import { RxDiscordLogo } from "react-icons/rx";
 
 const Footer = () => {
   return (
-    <footer className="w-full md:pb-12 pb-8 px-4">
-      <div className="w-full max-w-[1120px] mx-auto flex flex-col md:flex-row items-center md:justify-between justify-center md:gap-0 gap-4 bg-[#0B191A] rounded-[16px] p-[20px]">
+    <footer className="w-full px-4 pb-8 md:pb-12 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center gap-4 rounded-2xl bg-[#0B191A] p-5 md:flex-row md:justify-between md:gap-0">
         <Link href="/" className="md:w-[60px] w-[55px] block">
           <Image src="/footerLogo.svg" alt="Tycoon" width={60} height={55} className="md:w-[60px] w-[55px] h-auto" unoptimized />
         </Link>

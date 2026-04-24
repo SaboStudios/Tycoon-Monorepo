@@ -1,0 +1,245 @@
+groups:
+  - name: uploads_alerts
+    rules:
+      # Upload Success Rate Alerts
+      - alert: UploadSuccessRateLow
+        expr: rate(tycoon_uploads_success_total[5m]) / rate(tycoon_uploads_total[5m]) * 100 < 95
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Upload success rate is below 95%"
+          description: "Upload success rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#upload-success-rate-low"
+
+      - alert: UploadSuccessRateCritical
+        expr: rate(tycoon_uploads_success_total[5m]) / rate(tycoon_uploads_total[5m]) * 100 < 90
+        for: 2m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Upload success rate is critically low"
+          description: "Upload success rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#upload-success-rate-critical"
+
+      # Upload Latency Alerts
+      - alert: UploadLatencyHigh
+        expr: histogram_quantile(0.95, rate(tycoon_upload_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Upload latency is high"
+          description: "95th percentile upload time is {{ $value }}s"
+          runbook: "https://docs.company.com/runbooks/uploads#upload-latency-high"
+
+      - alert: UploadLatencyCritical
+        expr: histogram_quantile(0.95, rate(tycoon_upload_duration_seconds_bucket[5m])) > 20
+        for: 2m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Upload latency is critically high"
+          description: "95th percentile upload time is {{ $value }}s"
+          runbook: "https://docs.company.com/runbooks/uploads#upload-latency-critical"
+
+      # Virus Scan Alerts
+      - alert: VirusScanFailureRate
+        expr: rate(tycoon_virus_scan_failures_total[5m]) / rate(tycoon_virus_scan_total[5m]) * 100 > 1
+        for: 2m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Virus scan failure rate is high"
+          description: "Virus scan failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#virus-scan-failure-rate"
+
+      - alert: VirusScanLatencyHigh
+        expr: histogram_quantile(0.95, rate(tycoon_virus_scan_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Virus scan latency is high"
+          description: "95th percentile virus scan time is {{ $value }}s"
+          runbook: "https://docs.company.com/runbooks/uploads#virus-scan-latency-high"
+
+      # Storage Alerts
+      - alert: StorageUsageHigh
+        expr: tycoon_storage_usage_bytes / tycoon_storage_capacity_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Storage usage is high"
+          description: "Storage usage is {{ $value | humanizePercentage }}"
+          runbook: "https://docs.company.com/runbooks/uploads#storage-usage-high"
+
+      - alert: StorageUsageCritical
+        expr: tycoon_storage_usage_bytes / tycoon_storage_capacity_bytes * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Storage usage is critically high"
+          description: "Storage usage is {{ $value | humanizePercentage }}"
+          runbook: "https://docs.company.com/runbooks/uploads#storage-usage-critical"
+
+      # Error Rate Alerts
+      - alert: UploadErrorRateHigh
+        expr: rate(tycoon_upload_errors_total[5m]) / rate(tycoon_uploads_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Upload error rate is high"
+          description: "Upload error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#upload-error-rate-high"
+
+      - alert: UploadErrorRateCritical
+        expr: rate(tycoon_upload_errors_total[5m]) / rate(tycoon_uploads_total[5m]) * 100 > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Upload error rate is critically high"
+          description: "Upload error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#upload-error-rate-critical"
+
+      # S3 Specific Alerts
+      - alert: S3ConnectivityFailure
+        expr: up{job="s3-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "S3 connectivity failure"
+          description: "Cannot connect to S3 service"
+          runbook: "https://docs.company.com/runbooks/uploads#s3-connectivity-failure"
+
+      - alert: S3ErrorRateHigh
+        expr: rate(tycoon_s3_errors_total[5m]) / rate(tycoon_s3_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "S3 error rate is high"
+          description: "S3 error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#s3-error-rate-high"
+
+      # Memory and CPU Alerts
+      - alert: UploadServiceMemoryHigh
+        expr: process_resident_memory_bytes{job="tycoon-backend"} / 1024 / 1024 > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Upload service memory usage is high"
+          description: "Memory usage is {{ $value }}MB"
+          runbook: "https://docs.company.com/runbooks/uploads#memory-usage-high"
+
+      - alert: UploadServiceCPUHigh
+        expr: rate(process_cpu_seconds_total{job="tycoon-backend"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Upload service CPU usage is high"
+          description: "CPU usage is {{ $value }}%"
+          runbook: "https://docs.company.com/runbooks/uploads#cpu-usage-high"
+
+      # Queue Depth Alerts (if using message queues)
+      - alert: UploadQueueDepthHigh
+        expr: tycoon_upload_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Upload queue depth is high"
+          description: "Upload queue has {{ $value }} pending items"
+          runbook: "https://docs.company.com/runbooks/uploads#queue-depth-high"
+
+      - alert: UploadQueueDepthCritical
+        expr: tycoon_upload_queue_depth > 500
+        for: 2m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Upload queue depth is critically high"
+          description: "Upload queue has {{ $value }} pending items"
+          runbook: "https://docs.company.com/runbooks/uploads#queue-depth-critical"
+
+      # File Type Validation Alerts
+      - alert: InvalidFileTypeRate
+        expr: rate(tycoon_invalid_file_type_total[5m]) / rate(tycoon_uploads_total[5m]) * 100 > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Invalid file type rate is high"
+          description: "Invalid file type rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://docs.company.com/runbooks/uploads#invalid-file-type-rate"
+
+      # Malware Detection Alerts
+      - alert: MalwareDetected
+        expr: rate(tycoon_malware_detected_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Malware detected in uploaded file"
+          description: "Malware detected in uploaded file(s)"
+          runbook: "https://docs.company.com/runbooks/uploads#malware-detected"
+
+      # Service Health Alerts
+      - alert: UploadServiceDown
+        expr: up{job="tycoon-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Upload service is down"
+          description: "Upload service is not responding"
+          runbook: "https://docs.company.com/runbooks/uploads#service-down"
+
+      # Database Connectivity Alerts
+      - alert: DatabaseConnectionFailure
+        expr: tycoon_db_connections_active == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: uploads
+        annotations:
+          summary: "Database connection failure"
+          description: "Cannot connect to database"
+          runbook: "https://docs.company.com/runbooks/uploads#database-connection-failure"
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: tycoon_db_connections_waiting / tycoon_db_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: uploads
+        annotations:
+          summary: "Database connection pool exhaustion"
+          description: "Database connection pool waiting queue is {{ $value | humanizePercentage }} full"
+          runbook: "https://docs.company.com/runbooks/uploads#database-pool-exhaustion"

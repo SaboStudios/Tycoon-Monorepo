@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -21,6 +22,8 @@ export interface PurchaseCalculation {
 
 @Injectable()
 export class PurchaseService {
+  private readonly logger = new Logger(PurchaseService.name);
+
   constructor(
     @InjectRepository(Purchase)
     private readonly purchaseRepository: Repository<Purchase>,
@@ -40,7 +43,21 @@ export class PurchaseService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<Purchase> {
-    const { shop_item_id, quantity = 1, coupon_code } = createPurchaseDto;
+    const { shop_item_id, quantity = 1, coupon_code, idempotency_key } = createPurchaseDto;
+
+    this.logger.log(`Initiating purchase for user ${userId}, item ${shop_item_id}, quantity ${quantity}`);
+
+    // 1. Check for existing purchase with the same idempotency key
+    if (idempotency_key) {
+      const existingPurchase = await this.purchaseRepository.findOne({
+        where: { user_id: userId, idempotency_key },
+        relations: ['shop_item'],
+      });
+      if (existingPurchase) {
+        this.logger.log(`Idempotency hit for user ${userId}, key ${idempotency_key}`);
+        return existingPurchase;
+      }
+    }
 
     // Validate shop item exists and is active
     const shopItem = await this.shopItemRepository.findOne({
@@ -48,6 +65,7 @@ export class PurchaseService {
     });
 
     if (!shopItem) {
+      this.logger.warn(`Purchase failed: Shop item ${shop_item_id} not found`);
       throw new NotFoundException(
         `Shop item with ID ${shop_item_id} not found`,
       );
@@ -86,6 +104,7 @@ export class PurchaseService {
         coupon_code: calculation.coupon_code,
         currency: shopItem.currency,
         status: 'completed',
+        idempotency_key,
       });
 
       const savedPurchase = await queryRunner.manager.save(purchase);
@@ -118,6 +137,8 @@ export class PurchaseService {
 
       await queryRunner.commitTransaction();
 
+      this.logger.log(`Purchase successful: ${savedPurchase.id} for user ${userId}`);
+
       // Load relations for response
       const purchaseWithRelations = await this.purchaseRepository.findOne({
         where: { id: savedPurchase.id },
@@ -130,6 +151,7 @@ export class PurchaseService {
 
       return purchaseWithRelations;
     } catch (error) {
+      this.logger.error(`Purchase failed for user ${userId}: ${error.message}`, error.stack);
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {

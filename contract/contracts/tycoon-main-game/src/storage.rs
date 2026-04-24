@@ -4,70 +4,106 @@ use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 // Pause-related types (re-exported from tycoon-lib concept)
 // ============================================================
 
-/// Pause configuration for multisig support
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct PauseConfig {
-    /// Admin address (single admin mode)
-    pub admin: Option<Address>,
-    /// Multisig signers (if using multisig)
-    pub signers: Vec<Address>,
-    /// Required signatures for multisig (0 = single admin mode)
-    pub required_signatures: u32,
-}
-
-/// Pause reasons for transparency
-#[contracttype]
-#[derive(Clone, Debug)]
-pub enum PauseReason {
-    SecurityIssue,
-    Upgrade,
-    Compliance,
-    MarketConditions,
-    Maintenance,
-    Emergency,
-    Custom(Symbol),
-}
-
-/// Pause status details
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct PauseStatus {
-    pub is_paused: bool,
-    pub paused_by: Option<Address>,
-    pub paused_at: Option<u64>,
-    pub expiry: Option<u32>,
-    pub reason: Option<Symbol>,
-}
-
-// ============================================================
-// Storage Keys
-// ============================================================
-
-#[contracttype]
+/// Storage keys for the tycoon-main-game contract.
+///
+/// Packing notes:
+/// - Singleton keys (Owner, RewardSystem, UsdcToken, IsInitialized,
+///   NextGameId) live in `instance()` storage — one ledger entry for the
+///   whole contract, cheaper to read/write than separate `persistent()`
+///   entries.
+/// - Per-entity keys (Registered, Game, GameSettings) stay in
+///   `persistent()` storage so they can be individually expired/archived.
 #[derive(Clone)]
+#[contracttype]
 pub enum DataKey {
-    /// The contract admin/owner address
-    Admin,
-    /// Pause configuration
-    PauseConfig,
-    /// Whether the contract is currently paused
-    Paused,
-    /// Address that initiated the pause
-    PausedBy,
-    /// Ledger timestamp when pause was initiated
-    PausedAt,
-    /// Optional: Ledger sequence when pause should auto-expire (0 = no expiry)
-    PauseExpiry,
-    /// Reason for pause
-    PauseReason,
-    /// Tracks whether the contract has been initialized
+    /// The contract admin/owner address.
+    Owner,
+    /// The reward system contract address used for voucher minting.
+    RewardSystem,
+    /// The USDC token contract address used for stake refunds.
+    UsdcToken,
+    /// Tracks whether the contract has been initialized.
     IsInitialized,
+    /// The current version of the state schema
+    StateVersion,
+    /// Auto-incrementing game ID counter.
+    NextGameId,
+    /// Marks whether a given address has registered as a player.
+    Registered(Address),
+    /// Maps game_id -> Game.
+    Game(u64),
+    /// Maps game_id -> GameSettings.
+    GameSettings(u64),
 }
 
-// ============================================================
-// Initialization helpers
-// ============================================================
+// -----------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------
+
+/// Lifecycle state of a Tycoon game.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GameStatus {
+    Pending,
+    Ongoing,
+    Ended,
+}
+
+/// Who can join a Tycoon game.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GameMode {
+    Public,
+    Private,
+}
+
+// -----------------------------------------------------------------------
+// GameSettings struct
+// -----------------------------------------------------------------------
+
+/// Configuration parameters for a Tycoon game lobby.
+///
+/// Stored separately from `Game` so settings can be read without loading
+/// the full game state (avoids deserialising the joined_players Vec).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GameSettings {
+    pub max_players: u32,
+    pub auction: bool,
+    pub starting_cash: u128,
+    pub private_room_code: String,
+}
+
+// -----------------------------------------------------------------------
+// Game struct
+// -----------------------------------------------------------------------
+
+/// Full state of a Tycoon game instance.
+///
+/// `joined_players` is stored inline as a `Vec<Address>` — acceptable for
+/// up to 8 players.  Fields are ordered largest → smallest to minimise
+/// XDR padding.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Game {
+    pub id: u64,
+    pub code: String,
+    pub creator: Address,
+    pub status: GameStatus,
+    pub winner: Option<Address>,
+    pub number_of_players: u32,
+    pub joined_players: Vec<Address>,
+    pub mode: GameMode,
+    pub ai: bool,
+    pub stake_per_player: u128,
+    pub total_staked: u128,
+    pub created_at: u64,
+    pub ended_at: u64,
+}
+
+// -----------------------------------------------------------------------
+// Initialization helpers  (instance storage)
+// -----------------------------------------------------------------------
 
 pub fn is_initialized(env: &Env) -> bool {
     env.storage()
@@ -81,8 +117,26 @@ pub fn set_initialized(env: &Env) {
 }
 
 // ============================================================
+// State Version helpers
+// ============================================================
+
+pub fn get_state_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::StateVersion)
+        .unwrap_or(0)
+}
+
+pub fn set_state_version(env: &Env, version: u32) {
+    env.storage().instance().set(&DataKey::StateVersion, &version);
+}
+
+// ============================================================
 // Admin helpers
 // ============================================================
+// -----------------------------------------------------------------------
+// Owner helpers  (instance storage)
+// -----------------------------------------------------------------------
 
 pub fn get_admin(env: &Env) -> Address {
     env.storage()
@@ -95,9 +149,9 @@ pub fn set_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&DataKey::Admin, admin);
 }
 
-// ============================================================
-// Pause configuration helpers
-// ============================================================
+// -----------------------------------------------------------------------
+// Reward system helpers  (instance storage)
+// -----------------------------------------------------------------------
 
 pub fn set_pause_config(env: &Env, config: &PauseConfig) {
     env.storage()
@@ -105,56 +159,28 @@ pub fn set_pause_config(env: &Env, config: &PauseConfig) {
         .set(&DataKey::PauseConfig, config);
 }
 
-pub fn get_pause_config(env: &Env) -> Option<PauseConfig> {
-    env.storage().persistent().get(&DataKey::PauseConfig)
+pub fn set_reward_system(env: &Env, address: &Address) {
+    env.storage().instance().set(&DataKey::RewardSystem, address);
 }
 
-// ============================================================
-// Pause state helpers
-// ============================================================
+// -----------------------------------------------------------------------
+// USDC token helpers  (instance storage)
+// -----------------------------------------------------------------------
 
-/// Check if the contract is currently paused (with auto-expiry check)
-pub fn is_paused(env: &Env) -> bool {
-    let paused: bool = env
-        .storage()
-        .persistent()
-        .get(&DataKey::Paused)
-        .unwrap_or(false);
-
-    if !paused {
-        return false;
-    }
-
-    // Check if pause has expired
-    let expiry: u32 = env
-        .storage()
-        .persistent()
-        .get(&DataKey::PauseExpiry)
-        .unwrap_or(0);
-
-    if expiry > 0 && env.ledger().sequence() >= expiry {
-        // Auto-unpause if expired
-        unpause(env);
-        return false;
-    }
-
-    true
+pub fn get_usdc_token(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::UsdcToken)
+        .expect("USDC token not set")
 }
 
-/// Require that the contract is not paused
-pub fn require_not_paused(env: &Env, operation: Symbol) {
-    if is_paused(env) {
-        panic_with_pause_reason(env, operation);
-    }
+pub fn set_usdc_token(env: &Env, address: &Address) {
+    env.storage().instance().set(&DataKey::UsdcToken, address);
 }
 
-/// Panic with detailed pause reason
-fn panic_with_pause_reason(env: &Env, operation: Symbol) -> ! {
-    let reason: Symbol = env
-        .storage()
-        .persistent()
-        .get(&DataKey::PauseReason)
-        .unwrap_or(symbol_short!("unknown"));
+// -----------------------------------------------------------------------
+// Player registration helpers  (persistent storage)
+// -----------------------------------------------------------------------
 
     let paused_by: Address = env
         .storage()
@@ -186,59 +212,48 @@ pub fn pause_with_expiry(env: &Env, caller: &Address, reason: &Symbol, duration_
         .set(&DataKey::PauseReason, reason);
 }
 
-/// Unpause the contract
-pub fn unpause(env: &Env) {
-    env.storage().persistent().set(&DataKey::Paused, &false);
-    env.storage().persistent().remove(&DataKey::PausedBy);
-    env.storage().persistent().remove(&DataKey::PausedAt);
-    env.storage().persistent().remove(&DataKey::PauseExpiry);
-    env.storage().persistent().remove(&DataKey::PauseReason);
+// -----------------------------------------------------------------------
+// Game ID counter  (instance storage)
+// -----------------------------------------------------------------------
+
+/// Increments and returns the next game ID, starting at 1.
+pub fn next_game_id(env: &Env) -> u64 {
+    let id: u64 = env
+        .storage()
+        .instance()
+        .get(&DataKey::NextGameId)
+        .unwrap_or(0);
+    let next = id + 1;
+    env.storage().instance().set(&DataKey::NextGameId, &next);
+    next
 }
 
-/// Get paused_by address
-pub fn get_paused_by(env: &Env) -> Option<Address> {
-    env.storage().persistent().get(&DataKey::PausedBy)
+// -----------------------------------------------------------------------
+// Game storage helpers  (persistent storage)
+// -----------------------------------------------------------------------
+
+pub fn get_game(env: &Env, game_id: u64) -> Option<Game> {
+    env.storage().persistent().get(&DataKey::Game(game_id))
 }
 
-/// Get paused_at timestamp
-pub fn get_paused_at(env: &Env) -> Option<u64> {
-    env.storage().persistent().get(&DataKey::PausedAt)
+pub fn set_game(env: &Env, game: &Game) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Game(game.id), game);
 }
 
-/// Get pause status
-pub fn get_pause_status(env: &Env) -> PauseStatus {
-    let paused = is_paused(env);
+// -----------------------------------------------------------------------
+// GameSettings storage helpers  (persistent storage)
+// -----------------------------------------------------------------------
 
-    PauseStatus {
-        is_paused: paused,
-        paused_by: env.storage().persistent().get(&DataKey::PausedBy),
-        paused_at: env.storage().persistent().get(&DataKey::PausedAt),
-        expiry: env.storage().persistent().get(&DataKey::PauseExpiry),
-        reason: env.storage().persistent().get(&DataKey::PauseReason),
-    }
+pub fn get_game_settings(env: &Env, game_id: u64) -> Option<GameSettings> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::GameSettings(game_id))
 }
 
-// ============================================================
-// Authorization helpers
-// ============================================================
-
-/// Check if an address is authorized to pause/unpause
-pub fn is_authorized_to_pause(_env: &Env, caller: &Address, config: &PauseConfig) -> bool {
-    // Single admin mode
-    if let Some(admin) = &config.admin {
-        if caller == admin {
-            return true;
-        }
-    }
-
-    // Multisig mode - check if caller is one of the signers
-    if config.required_signatures > 0 && !config.signers.is_empty() {
-        for signer in config.signers.iter() {
-            if caller == &signer {
-                return true;
-            }
-        }
-    }
-
-    false
+pub fn set_game_settings(env: &Env, game_id: u64, settings: &GameSettings) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::GameSettings(game_id), settings);
 }
