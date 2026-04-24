@@ -7,6 +7,7 @@ import { RedisService } from '../redis/redis.service';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { PaginationDto, SortOrder } from '../../common/dto/pagination.dto';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+import { WebhooksObservabilityService } from './webhooks-observability.service';
 
 const ALLOWED_SORT_FIELDS = new Set(['id', 'eventType', 'source', 'createdAt']);
 
@@ -18,6 +19,7 @@ export class WebhooksService {
   constructor(
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly observability: WebhooksObservabilityService,
     @InjectRepository(WebhookEvent)
     private readonly webhookEventRepo: Repository<WebhookEvent>,
   ) {
@@ -28,73 +30,161 @@ export class WebhooksService {
 
   /**
    * Verify HMAC signature of a webhook request
+   * Includes observability: logs and metrics for verification attempts
    */
   verifySignature(
     signature: string,
     timestamp: string,
     rawBody: Buffer,
+    source = 'stripe',
   ): boolean {
-    if (!signature || !timestamp || !rawBody) {
-      throw new UnauthorizedException('Missing webhook signature or timestamp');
-    }
+    const startTime = Date.now();
+    let failureReason: string | undefined;
 
-    // Anti-replay protection: Check timestamp tolerance
-    const now = Math.floor(Date.now() / 1000);
-    const ts = parseInt(timestamp, 10);
-    if (isNaN(ts) || Math.abs(now - ts) > this.toleranceSeconds) {
-      throw new UnauthorizedException('Webhook timestamp outside of tolerance');
-    }
-
-    // Construct the payload for verification (standard pattern: timestamp + '.' + body)
-    const signedPayload = `${timestamp}.${rawBody.toString()}`;
-    const expectedSignature = crypto
-      .createHmac('sha256', this.webhookSecret)
-      .update(signedPayload)
-      .digest('hex');
-
-    // Constant-time comparison to prevent timing attacks
     try {
-      const signatureBuffer = Buffer.from(signature, 'hex');
-      const expectedBuffer = Buffer.from(expectedSignature, 'hex');
-
-      if (signatureBuffer.length !== expectedBuffer.length) {
-        return false;
+      if (!signature || !timestamp || !rawBody) {
+        failureReason = 'missing_signature_or_timestamp';
+        this.observability.logSignatureVerification(
+          source,
+          false,
+          Date.now() - startTime,
+          failureReason,
+        );
+        throw new UnauthorizedException('Missing webhook signature or timestamp');
       }
 
-      return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
-    } catch (ignore) {
-      return false;
+      // Anti-replay protection: Check timestamp tolerance
+      const now = Math.floor(Date.now() / 1000);
+      const ts = parseInt(timestamp, 10);
+      if (isNaN(ts) || Math.abs(now - ts) > this.toleranceSeconds) {
+        failureReason = 'timestamp_outside_tolerance';
+        this.observability.logSignatureVerification(
+          source,
+          false,
+          Date.now() - startTime,
+          failureReason,
+        );
+        throw new UnauthorizedException('Webhook timestamp outside of tolerance');
+      }
+
+      // Construct the payload for verification (standard pattern: timestamp + '.' + body)
+      const signedPayload = `${timestamp}.${rawBody.toString()}`;
+      const expectedSignature = crypto
+        .createHmac('sha256', this.webhookSecret)
+        .update(signedPayload)
+        .digest('hex');
+
+      // Constant-time comparison to prevent timing attacks
+      let isValid = false;
+      try {
+        const signatureBuffer = Buffer.from(signature, 'hex');
+        const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+
+        if (signatureBuffer.length !== expectedBuffer.length) {
+          failureReason = 'signature_length_mismatch';
+          isValid = false;
+        } else {
+          isValid = crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
+          if (!isValid) {
+            failureReason = 'signature_mismatch';
+          }
+        }
+      } catch (error) {
+        failureReason = 'signature_format_error';
+        isValid = false;
+      }
+
+      // Log verification result
+      this.observability.logSignatureVerification(
+        source,
+        isValid,
+        Date.now() - startTime,
+        failureReason,
+      );
+
+      return isValid;
+    } catch (error) {
+      // If we haven't logged yet, log the failure
+      if (!failureReason) {
+        this.observability.logSignatureVerification(
+          source,
+          false,
+          Date.now() - startTime,
+          'unexpected_error',
+        );
+      }
+      throw error;
     }
   }
 
-  async processWebhook(payload: any) {
-    // Idempotency check: Use the webhook ID to prevent duplicate processing
+  async processWebhook(payload: any, source = 'stripe') {
+    const startTime = Date.now();
     const webhookId = payload.id;
-    if (!webhookId) {
-      throw new UnauthorizedException('Webhook payload missing ID for idempotency');
+    const eventType = payload.type ?? 'unknown';
+
+    // Log webhook received
+    this.observability.logWebhookReceived({
+      webhookId,
+      eventType,
+      source,
+    });
+
+    try {
+      // Idempotency check: Use the webhook ID to prevent duplicate processing
+      if (!webhookId) {
+        throw new UnauthorizedException('Webhook payload missing ID for idempotency');
+      }
+
+      const idempotencyKey = `webhook:${webhookId}`;
+      const isProcessed = await this.redisService.get<boolean>(idempotencyKey);
+
+      if (isProcessed) {
+        // Log idempotency hit
+        this.observability.logIdempotencyHit({
+          webhookId,
+          eventType,
+          source,
+        });
+        return { received: true, idempotent: true };
+      }
+
+      // Mark as processed (TTL of 7 days to handle potential retries)
+      await this.redisService.set(idempotencyKey, true, 604800);
+
+      // Persist the event for audit / listing
+      await this.webhookEventRepo.save(
+        this.webhookEventRepo.create({
+          eventId: webhookId,
+          eventType,
+          source,
+          payload,
+        }),
+      );
+
+      // Log successful processing
+      this.observability.logWebhookProcessed(
+        {
+          webhookId,
+          eventType,
+          source,
+        },
+        Date.now() - startTime,
+      );
+
+      return { received: true, processed: true };
+    } catch (error) {
+      // Log processing failure
+      this.observability.logWebhookProcessingFailed(
+        {
+          webhookId,
+          eventType,
+          source,
+        },
+        error as Error,
+        Date.now() - startTime,
+      );
+      throw error;
     }
-
-    const idempotencyKey = `webhook:${webhookId}`;
-    const isProcessed = await this.redisService.get<boolean>(idempotencyKey);
-
-    if (isProcessed) {
-      return { received: true, idempotent: true };
-    }
-
-    // Mark as processed (TTL of 7 days to handle potential retries)
-    await this.redisService.set(idempotencyKey, true, 604800);
-
-    // Persist the event for audit / listing
-    await this.webhookEventRepo.save(
-      this.webhookEventRepo.create({
-        eventId: webhookId,
-        eventType: payload.type ?? 'unknown',
-        source: 'stripe',
-        payload,
-      }),
-    );
-
-    return { received: true, processed: true };
   }
 
   /**
