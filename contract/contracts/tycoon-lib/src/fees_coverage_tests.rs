@@ -36,7 +36,10 @@ mod tests {
         assert_eq!(split.platform_amount, 2500);
         assert_eq!(split.creator_amount, 2500);
         assert_eq!(split.pool_amount, 5000);
-        assert_eq!(split.residue, 0, "residue must be zero when fees sum to 100%");
+        assert_eq!(
+            split.residue, 0,
+            "residue must be zero when fees sum to 100%"
+        );
     }
 
     /// Total fees exceed 10 000 bps — saturating_sub must prevent underflow.

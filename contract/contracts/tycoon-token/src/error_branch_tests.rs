@@ -26,7 +26,7 @@
 /// add a comment explaining the change (e.g. `// SNAPSHOT UPDATED: decimals
 /// changed from 18 to 6 in PR #NNN`).
 use super::*;
-use soroban_sdk::{testutils::Address as _, Env};
+use soroban_sdk::{testutils::Address as _, Env, IntoVal};
 
 const INITIAL_SUPPLY: i128 = 1_000_000_000_000_000_000_000_000_000;
 

@@ -82,7 +82,7 @@ mod inner {
         pub boost_system: TycoonBoostSystemClient<'a>,
     }
 
-    impl<'a> Fixture<'a> {
+    impl Fixture<'_> {
         pub fn new() -> Self {
             let env = Env::default();
             let config = TestFixtureConfig::default();

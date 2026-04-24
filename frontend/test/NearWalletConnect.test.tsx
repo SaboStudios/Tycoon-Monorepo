@@ -54,6 +54,48 @@ describe("NearWalletConnect", () => {
     expect(screen.getByText("Wallet init failed")).toBeTruthy();
   });
 
+  // ── Accessibility ────────────────────────────────────────────────────────
+
+  it("initError has role=alert so screen readers announce it immediately", () => {
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed" }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Wallet init failed");
+  });
+
+  it("account badge has aria-label with full account id", () => {
+    renderWithMock(
+      createMockNearWalletValue({ accountId: "very-long-account.testnet" }),
+    );
+    const badge = screen.getByLabelText(/connected as very-long-account\.testnet/i);
+    expect(badge).toBeTruthy();
+  });
+
+  it("disconnect button aria-label includes the account id", () => {
+    renderWithMock(
+      createMockNearWalletValue({ accountId: "a.testnet" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /disconnect near wallet a\.testnet/i }),
+    ).toBeTruthy();
+  });
+
+  it("transaction status wrapper has aria-live=polite", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ accountId: "a.testnet", transactions: [] }),
+    );
+    const liveRegion = container.querySelector("[aria-live='polite']");
+    expect(liveRegion).not.toBeNull();
+  });
+
+  it("transaction status wrapper has aria-atomic=true", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ accountId: "a.testnet", transactions: [] }),
+    );
+    const liveRegion = container.querySelector("[aria-atomic='true']");
+    expect(liveRegion).not.toBeNull();
+  });
+
   it("invokes connect when clicking Connect NEAR", async () => {
     const connect = vi.fn();
     renderWithMock(createMockNearWalletValue({ connect }));

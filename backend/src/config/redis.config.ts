@@ -6,4 +6,5 @@ export const redisConfig = registerAs('redis', () => ({
   password: process.env.REDIS_PASSWORD,
   db: parseInt(process.env.REDIS_DB || '0', 10),
   ttl: parseInt(process.env.REDIS_TTL || '300', 10), // 5 minutes default
+  cacheAuditEnabled: process.env.CACHE_AUDIT_ENABLED === 'true',
 }));

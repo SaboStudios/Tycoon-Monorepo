@@ -5,12 +5,13 @@ This runbook provides operational procedures for troubleshooting and managing th
 
 ## Table of Contents
 1. [System Architecture](#system-architecture)
-2. [Monitoring & Alerting](#monitoring--alerting)
-3. [Common Issues & Troubleshooting](#common-issues--troubleshooting)
-4. [Maintenance Procedures](#maintenance-procedures)
-5. [Emergency Procedures](#emergency-procedures)
-6. [Performance Optimization](#performance-optimization)
-7. [Security Procedures](#security-procedures)
+2. [Observability (Stellar Wave SW-BE-009)](#observability-stellar-wave-sw-be-009)
+3. [Monitoring & Alerting](#monitoring--alerting)
+4. [Common Issues & Troubleshooting](#common-issues--troubleshooting)
+5. [Maintenance Procedures](#maintenance-procedures)
+6. [Emergency Procedures](#emergency-procedures)
+7. [Performance Optimization](#performance-optimization)
+8. [Security Procedures](#security-procedures)
 
 ## System Architecture
 
@@ -18,6 +19,7 @@ This runbook provides operational procedures for troubleshooting and managing th
 - **UploadsController**: HTTP endpoints for file uploads
 - **UploadsService**: Core business logic for file storage
 - **VirusScanService**: Malware scanning integration
+- **UploadsObservabilityService / Interceptor**: Prometheus metrics, structured debug logs, and request `trace_id` (SW-BE-009)
 - **Storage Backends**: S3 (primary) and local disk (fallback)
 
 ### Storage Flow
@@ -31,6 +33,29 @@ Client Upload -> Validation -> Virus Scan -> Storage -> Signed URL Generation
 - Virus scan results
 - Storage utilization
 - Error rates by type
+
+## Observability (Stellar Wave SW-BE-009)
+
+### Feature flag
+- **`UPLOADS_OBSERVABILITY_ENABLED`** — validated in `src/config/env.validation.ts`, mapped in `upload.config.ts` as `upload.observabilityEnabled`. Default **on** (`true`). Set to `false` to disable Prometheus increments and structured debug timing logs for uploads (handlers still behave the same).
+
+### Prometheus metrics (low-cardinality labels)
+| Metric | Labels | Purpose |
+|--------|--------|---------|
+| `tycoon_uploads_requests_total` | `route`, `outcome` | Count of uploads-related HTTP requests (`outcome`: `success`, `validation_error`, `multer_error`, `virus_error`, `storage_error`, `unknown_error`). |
+| `tycoon_uploads_request_duration_seconds` | `route`, `outcome` | Histogram of handler duration. |
+| `tycoon_uploads_multer_errors_total` | `code` | Multer limit errors (`LIMIT_FILE_SIZE`, etc.). |
+| `tycoon_uploads_virus_scan_total` | `outcome` | `skipped`, `clean`, `infected`, `error`. |
+
+### Traces / correlation
+- **`x-request-id`** header (≤128 chars), when present, is reused as `trace_id` in debug logs; otherwise a short random id is generated per request. No OpenTelemetry exporter is added in this batch.
+
+### Logging hygiene
+- Client filenames in **warn/info** paths use `sanitizeUploadFilename` (basename, no path segments). Do not log pre-signed URLs, JWT download tokens, or `REDIS_PASSWORD` / S3 secrets.
+
+### Rollout
+1. Deploy code (metrics on by default).
+2. If scrapers or cardinality are an issue, set `UPLOADS_OBSERVABILITY_ENABLED=false` and redeploy (no migration).
 
 ## Monitoring & Alerting
 

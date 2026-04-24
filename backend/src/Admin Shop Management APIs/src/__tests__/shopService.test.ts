@@ -5,6 +5,10 @@ describe('ShopService', () => {
     shopService.clearAll();
   });
 
+  // ---------------------------------------------------------------------------
+  // createItem
+  // ---------------------------------------------------------------------------
+
   describe('createItem', () => {
     it('should create a new item', () => {
       const item = shopService.createItem({
@@ -23,7 +27,11 @@ describe('ShopService', () => {
     });
   });
 
-  describe('getItems', () => {
+  // ---------------------------------------------------------------------------
+  // getItems — basic filtering
+  // ---------------------------------------------------------------------------
+
+  describe('getItems — filtering', () => {
     beforeEach(() => {
       shopService.createItem({
         name: 'Active Item',
@@ -41,17 +49,166 @@ describe('ShopService', () => {
       });
     });
 
-    it('should get all items', () => {
-      const items = shopService.getItems();
-      expect(items).toHaveLength(2);
+    it('should return all items by default', () => {
+      const result = shopService.getItems();
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(2);
     });
 
-    it('should get only active items', () => {
-      const items = shopService.getItems(true);
-      expect(items).toHaveLength(1);
-      expect(items[0].isActive).toBe(true);
+    it('should return only active items when activeOnly is true', () => {
+      const result = shopService.getItems({ activeOnly: true });
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].isActive).toBe(true);
+      expect(result.total).toBe(1);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // getItems — pagination
+  // ---------------------------------------------------------------------------
+
+  describe('getItems — pagination', () => {
+    beforeEach(() => {
+      // Create 5 items
+      for (let i = 1; i <= 5; i++) {
+        shopService.createItem({
+          name: `Item ${i}`,
+          description: 'Test',
+          price: i * 10,
+          isActive: true,
+          images: [],
+        });
+      }
+    });
+
+    it('should return the first page with correct metadata', () => {
+      const result = shopService.getItems({ page: 1, limit: 2 });
+
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(2);
+      expect(result.total).toBe(5);
+      expect(result.totalPages).toBe(3);
+      expect(result.items).toHaveLength(2);
+    });
+
+    it('should return the last page (partial)', () => {
+      const result = shopService.getItems({ page: 3, limit: 2 });
+
+      expect(result.page).toBe(3);
+      expect(result.items).toHaveLength(1); // 5 items, page 3 of 2-per-page = 1 item
+    });
+
+    it('should return an empty items array for a page beyond totalPages', () => {
+      const result = shopService.getItems({ page: 99, limit: 10 });
+
+      expect(result.items).toHaveLength(0);
+      expect(result.total).toBe(5);
+    });
+
+    it('should clamp limit to MAX_LIMIT (100)', () => {
+      const result = shopService.getItems({ page: 1, limit: 9999 });
+
+      expect(result.limit).toBe(100);
+    });
+
+    it('should default to page 1 and limit 20 when not specified', () => {
+      const result = shopService.getItems();
+
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(20);
+    });
+
+    it('totalPages should be 1 when store is empty', () => {
+      shopService.clearAll();
+      const result = shopService.getItems();
+
+      expect(result.total).toBe(0);
+      expect(result.totalPages).toBe(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getItems — sorting
+  // ---------------------------------------------------------------------------
+
+  describe('getItems — sorting', () => {
+    beforeEach(() => {
+      shopService.createItem({
+        name: 'Zebra',
+        description: 'Test',
+        price: 30,
+        isActive: true,
+        images: [],
+      });
+      shopService.createItem({
+        name: 'Apple',
+        description: 'Test',
+        price: 10,
+        isActive: true,
+        images: [],
+      });
+      shopService.createItem({
+        name: 'Mango',
+        description: 'Test',
+        price: 20,
+        isActive: true,
+        images: [],
+      });
+    });
+
+    it('should sort by name ascending', () => {
+      const result = shopService.getItems({ sortBy: 'name', sortOrder: 'asc' });
+      const names = result.items.map((i) => i.name);
+      expect(names).toEqual(['Apple', 'Mango', 'Zebra']);
+    });
+
+    it('should sort by name descending', () => {
+      const result = shopService.getItems({ sortBy: 'name', sortOrder: 'desc' });
+      const names = result.items.map((i) => i.name);
+      expect(names).toEqual(['Zebra', 'Mango', 'Apple']);
+    });
+
+    it('should sort by price ascending', () => {
+      const result = shopService.getItems({ sortBy: 'price', sortOrder: 'asc' });
+      const prices = result.items.map((i) => i.price);
+      expect(prices).toEqual([10, 20, 30]);
+    });
+
+    it('should sort by price descending', () => {
+      const result = shopService.getItems({ sortBy: 'price', sortOrder: 'desc' });
+      const prices = result.items.map((i) => i.price);
+      expect(prices).toEqual([30, 20, 10]);
+    });
+
+    it('should default to sorting by createdAt ascending', () => {
+      const result = shopService.getItems();
+      // Insertion order matches createdAt asc
+      const names = result.items.map((i) => i.name);
+      expect(names).toEqual(['Zebra', 'Apple', 'Mango']);
+    });
+
+    it('should produce a stable order for items with identical sort field values', () => {
+      shopService.clearAll();
+      // All items have the same price — stable sort must preserve id order
+      const a = shopService.createItem({
+        name: 'A', description: 'Test', price: 50, isActive: true, images: [],
+      });
+      const b = shopService.createItem({
+        name: 'B', description: 'Test', price: 50, isActive: true, images: [],
+      });
+      const c = shopService.createItem({
+        name: 'C', description: 'Test', price: 50, isActive: true, images: [],
+      });
+
+      const result = shopService.getItems({ sortBy: 'price', sortOrder: 'asc' });
+      const ids = result.items.map((i) => i.id);
+      expect(ids).toEqual([a.id, b.id, c.id]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getItemById
+  // ---------------------------------------------------------------------------
 
   describe('getItemById', () => {
     it('should get item by id', () => {
@@ -73,6 +230,10 @@ describe('ShopService', () => {
       expect(item).toBeUndefined();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // updateItem
+  // ---------------------------------------------------------------------------
 
   describe('updateItem', () => {
     it('should update item', () => {
@@ -101,6 +262,10 @@ describe('ShopService', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // updatePrice
+  // ---------------------------------------------------------------------------
+
   describe('updatePrice', () => {
     it('should update price', () => {
       const created = shopService.createItem({
@@ -116,6 +281,10 @@ describe('ShopService', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // toggleActive
+  // ---------------------------------------------------------------------------
+
   describe('toggleActive', () => {
     it('should toggle active status', () => {
       const created = shopService.createItem({
@@ -130,6 +299,10 @@ describe('ShopService', () => {
       expect(updated?.isActive).toBe(false);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // deleteItem
+  // ---------------------------------------------------------------------------
 
   describe('deleteItem', () => {
     it('should delete item', () => {
@@ -153,6 +326,10 @@ describe('ShopService', () => {
       expect(success).toBe(false);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // bulkUpdate
+  // ---------------------------------------------------------------------------
 
   describe('bulkUpdate', () => {
     it('should bulk update multiple items', () => {
