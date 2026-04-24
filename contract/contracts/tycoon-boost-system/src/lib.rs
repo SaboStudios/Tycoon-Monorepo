@@ -64,7 +64,6 @@ pub enum DataKey {
     /// Admin address — set once during `initialize`, never changed.
     Admin,
     /// Per-player boost list.
-    Admin,
     PlayerBoosts(Address),
 }
 
@@ -254,11 +253,7 @@ impl TycoonBoostSystem {
 
         if found {
             env.storage().persistent().set(&key, &updated);
-            AdminBoostRevokedEvent {
-                player,
-                boost_id,
-            }
-            .publish(&env);
+            AdminBoostRevokedEvent { player, boost_id }.publish(&env);
         }
     }
 
@@ -272,17 +267,6 @@ impl TycoonBoostSystem {
 
 #[contractimpl]
 impl TycoonBoostSystem {
-    // ── Admin entrypoints ─────────────────────────────────────────────────────
-
-    /// One-time initialization. Sets the admin address.
-    /// Panics with `"AlreadyInitialized"` if called again.
-    pub fn initialize(env: Env, admin: Address) {
-        if env.storage().persistent().has(&DataKey::Admin) {
-            panic!("AlreadyInitialized");
-        }
-        env.storage().persistent().set(&DataKey::Admin, &admin);
-    }
-
     /// Grant a boost to a player. Admin-only.
     ///
     /// The `player` must authorize this call (self-service).
@@ -338,11 +322,6 @@ impl TycoonBoostSystem {
         env.storage().persistent().set(&key, &boosts);
     }
 
-    /// Calculate the final boost multiplier for a player, ignoring expired boosts.
-    ///
-    /// Returns a value in basis points where 10 000 = 100 % (no boost).
-    /// This is a read-only view — it does not mutate storage.
-    pub fn calculate_total_boost(env: Env, player: Address) -> u32 {
     /// Remove all boosts for a player. Admin-only.
     pub fn clear_boosts(env: Env, player: Address) {
         Self::require_admin(&env);
@@ -359,34 +338,16 @@ impl TycoonBoostSystem {
         BoostsClearedEvent { player, count }.publish(&env);
     }
 
-    // ── Public entrypoints ────────────────────────────────────────────────────
-
-    /// Explicitly prune all expired boosts from storage and emit `BoostExpiredEvent`
-    /// for each one removed. Returns the number of boosts pruned.
-    ///
-    /// # Deprecation Notice
-    /// ⚠️ **DEPRECATED**: This function is deprecated and will be removed in v1.0.0.
-    ///
-    /// **Reason**: Manual pruning is unnecessary because:
-    /// - `add_boost` automatically prunes expired boosts before adding new ones
-    /// - `calculate_total_boost` ignores expired boosts without mutating storage
-    /// - Adds unnecessary gas cost and complexity for clients
-    ///
-    /// **Migration**: Simply remove calls to this function. Expired boosts are
-    /// automatically handled by other contract functions.
-    ///
-    /// **Timeline**: This function will be removed in v1.0.0 (Q4 2026).
+    /// Explicitly prune all expired boosts. Deprecated — automatic pruning is preferred.
     #[deprecated(
         since = "0.2.0",
         note = "Use automatic pruning via add_boost. This function will be removed in v1.0.0."
     )]
-    /// Permissionless — anyone may call this to trigger cleanup.
     pub fn prune_expired_boosts(env: Env, player: Address) -> u32 {
-        // Emit deprecation event
         DeprecatedFunctionCalledEvent {
-            function_name: 1, // "prune_expired_boosts"
+            function_name: 1,
             caller: player.clone(),
-            replacement_hint: 2, // "automatic"
+            replacement_hint: 2,
         }
         .publish(&env);
 
@@ -400,19 +361,11 @@ impl TycoonBoostSystem {
         let before = boosts.len();
         let pruned = Self::prune_expired(&env, boosts, player.clone());
         let after = pruned.len();
-
         env.storage().persistent().set(&key, &pruned);
-
         before - after
     }
 
-    /// Remove all boosts for a player.
-    ///
-    /// The `player` must authorize this call.
-    pub fn clear_boosts(env: Env, player: Address) {
-        player.require_auth();
-    /// Calculate the final boost multiplier for a player, ignoring expired boosts.
-    /// Returns a value in basis points where 10 000 = 100 % (no boost).
+    /// Calculate the final boost multiplier for a player in basis points (10000 = 100%).
     pub fn calculate_total_boost(env: Env, player: Address) -> u32 {
         let key = DataKey::PlayerBoosts(player.clone());
         let boosts: Vec<Boost> = env
@@ -496,7 +449,7 @@ impl TycoonBoostSystem {
     fn require_admin(env: &Env) {
         let admin: Address = env
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("NotInitialized");
         admin.require_auth();

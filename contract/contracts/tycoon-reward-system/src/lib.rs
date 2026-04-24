@@ -150,7 +150,7 @@ impl TycoonRewardSystem {
         // Single read for BackendMinter — replaces has() + get() double-read
         let backend_minter: Option<Address> = e.storage().persistent().get(&DataKey::BackendMinter);
 
-        let is_authorized = caller == admin || backend_minter.map_or(false, |m| m == caller);
+        let is_authorized = caller == admin || backend_minter == Some(caller);
 
         if !is_authorized {
             panic!("Unauthorized: only admin or backend minter can mint");

@@ -1,6 +1,15 @@
 #![no_std]
 use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, Env, String};
 
+// SW-CON-TOKEN-001: allowance entry stores amount + expiration together so
+// transfer_from / burn_from can enforce the ledger-based expiry.
+#[contracttype]
+#[derive(Clone)]
+pub struct AllowanceValue {
+    pub amount: i128,
+    pub expiration_ledger: u32,
+}
+
 #[contractevent(data_format = "single-value")]
 pub struct MintEvent {
     #[topic]
@@ -34,6 +43,14 @@ pub struct ApproveEvent {
     pub expiration_ledger: u32,
 }
 
+#[contractevent]
+pub struct SetAdminEvent {
+    #[topic]
+    pub old_admin: Address,
+    #[topic]
+    pub new_admin: Address,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -44,6 +61,21 @@ pub enum DataKey {
     Initialized,
 }
 
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/// Reads the stored admin address and calls `require_auth()` on it.
+///
+/// Every admin-only entrypoint must call this function before mutating state.
+/// Centralising the check here ensures the pattern is applied consistently and
+/// makes the access-control boundary easy to audit.
+fn require_admin(e: &Env) -> Address {
+    let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    admin.require_auth();
+    admin
+}
+
 #[contract]
 pub struct TycoonToken;
 
@@ -52,6 +84,9 @@ impl TycoonToken {
     pub fn initialize(e: Env, admin: Address, initial_supply: i128) {
         if e.storage().instance().has(&DataKey::Initialized) {
             panic!("Already initialized");
+        }
+        if initial_supply < 0 {
+            panic!("Initial supply cannot be negative");
         }
         e.storage().instance().set(&DataKey::Initialized, &true);
         e.storage().instance().set(&DataKey::Admin, &admin);
@@ -69,8 +104,7 @@ impl TycoonToken {
     }
 
     pub fn mint(e: Env, to: Address, amount: i128) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(&e);
 
         if amount <= 0 {
             panic!("Amount must be positive");
@@ -96,9 +130,13 @@ impl TycoonToken {
     }
 
     pub fn set_admin(e: Env, new_admin: Address) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(&e);
         e.storage().instance().set(&DataKey::Admin, &new_admin);
+        SetAdminEvent {
+            old_admin: admin,
+            new_admin,
+        }
+        .publish(&e);
     }
 
     pub fn admin(e: Env) -> Address {
@@ -116,10 +154,20 @@ impl TycoonToken {
 #[contractimpl]
 impl TycoonToken {
     pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage()
+        let entry: Option<AllowanceValue> = e
+            .storage()
             .persistent()
-            .get(&DataKey::Allowance(from, spender))
-            .unwrap_or(0)
+            .get(&DataKey::Allowance(from, spender));
+        match entry {
+            None => 0,
+            Some(v) => {
+                if v.expiration_ledger > 0 && e.ledger().sequence() > v.expiration_ledger {
+                    0
+                } else {
+                    v.amount
+                }
+            }
+        }
     }
 
     pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
@@ -127,9 +175,13 @@ impl TycoonToken {
         if amount < 0 {
             panic!("Amount cannot be negative");
         }
-        e.storage()
-            .persistent()
-            .set(&DataKey::Allowance(from.clone(), spender.clone()), &amount);
+        e.storage().persistent().set(
+            &DataKey::Allowance(from.clone(), spender.clone()),
+            &AllowanceValue {
+                amount,
+                expiration_ledger,
+            },
+        );
         ApproveEvent {
             from,
             spender,
@@ -189,17 +241,26 @@ impl TycoonToken {
             return;
         }
 
-        let allowance: i128 = e
+        let entry: AllowanceValue = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
-        if allowance < amount {
+            .unwrap_or(AllowanceValue {
+                amount: 0,
+                expiration_ledger: 0,
+            });
+        if entry.expiration_ledger > 0 && e.ledger().sequence() > entry.expiration_ledger {
+            panic!("Allowance expired");
+        }
+        if entry.amount < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &AllowanceValue {
+                amount: entry.amount - amount,
+                expiration_ledger: entry.expiration_ledger,
+            },
         );
 
         let from_balance: i128 = e
@@ -246,9 +307,10 @@ impl TycoonToken {
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
 
         let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
-        e.storage()
-            .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
+        e.storage().instance().set(
+            &DataKey::TotalSupply,
+            &supply.checked_sub(amount).expect("Supply underflow"),
+        );
 
         BurnEvent { from, amount }.publish(&e);
     }
@@ -259,17 +321,26 @@ impl TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let allowance: i128 = e
+        let entry: AllowanceValue = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
-        if allowance < amount {
+            .unwrap_or(AllowanceValue {
+                amount: 0,
+                expiration_ledger: 0,
+            });
+        if entry.expiration_ledger > 0 && e.ledger().sequence() > entry.expiration_ledger {
+            panic!("Allowance expired");
+        }
+        if entry.amount < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &AllowanceValue {
+                amount: entry.amount - amount,
+                expiration_ledger: entry.expiration_ledger,
+            },
         );
 
         let balance: i128 = e
@@ -285,9 +356,10 @@ impl TycoonToken {
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
 
         let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
-        e.storage()
-            .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
+        e.storage().instance().set(
+            &DataKey::TotalSupply,
+            &supply.checked_sub(amount).expect("Supply underflow"),
+        );
 
         BurnEvent { from, amount }.publish(&e);
     }
@@ -313,3 +385,42 @@ mod invariant_tests;
 
 #[cfg(test)]
 mod error_branch_tests;
+
+/// Legacy entrypoints — deprecated in SW-CT-005.
+///
+/// These functions existed in earlier versions of the contract under different
+/// names.  They are retained in the ABI so that callers receive an explicit
+/// panic message rather than a silent "function not found" error, giving
+/// integrators a clear migration signal.
+///
+/// **Do not call these from new code.**  Use the canonical replacements listed
+/// in each function's doc comment.
+#[contractimpl]
+impl TycoonToken {
+    /// Deprecated alias for `mint`.
+    ///
+    /// Canonical replacement: `mint(e, to, amount)`
+    pub fn legacy_mint(_e: Env, _to: Address, _amount: i128) {
+        panic!("legacy_mint is deprecated; use mint instead");
+    }
+
+    /// Deprecated alias for `burn`.
+    ///
+    /// Canonical replacement: `burn(e, from, amount)`
+    pub fn legacy_burn(_e: Env, _from: Address, _amount: i128) {
+        panic!("legacy_burn is deprecated; use burn instead");
+    }
+
+    /// Deprecated alias for `transfer`.
+    ///
+    /// Canonical replacement: `transfer(e, from, to, amount)`
+    pub fn legacy_transfer(_e: Env, _from: Address, _to: Address, _amount: i128) {
+        panic!("legacy_transfer is deprecated; use transfer instead");
+    }
+}
+
+#[cfg(test)]
+mod deprecation_tests;
+#[cfg(test)]
+mod access_control_tests;
+mod security_review_tests;

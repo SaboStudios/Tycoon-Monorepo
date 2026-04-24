@@ -6,7 +6,7 @@
 //! AC3.1 - AC3.4: Player registration, game creation, completion, and collectibles
 
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::Address as _,
     token::{StellarAssetClient, TokenClient},
     Address, Env,
 };
@@ -15,6 +15,11 @@ use soroban_sdk::{
 fn create_token_contract(env: &Env, admin: &Address) -> Address {
     let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
     token_contract.address()
+}
+
+/// Helper: Mint tokens using StellarAssetClient (admin-only operation)
+fn mint_tokens(env: &Env, token: &Address, to: &Address, amount: i128) {
+    StellarAssetClient::new(env, token).mint(to, &amount);
 }
 
 /// AC3.1: Player Registration
@@ -173,7 +178,7 @@ fn test_game_capacity_limits() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create game with capacity limit (e.g., 4 players)
@@ -199,9 +204,9 @@ fn test_game_completion() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player1, &1_000_000);
-    token_client.mint(&player2, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player1, 1_000_000);
+    mint_tokens(&env, &token, &player2, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create and populate game
@@ -228,9 +233,9 @@ fn test_winner_identification() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player1, &1_000_000);
-    token_client.mint(&player2, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player1, 1_000_000);
+    mint_tokens(&env, &token, &player2, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create game with players
@@ -256,9 +261,9 @@ fn test_reward_distribution_to_winner() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player1, &1_000_000);
-    token_client.mint(&player2, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player1, 1_000_000);
+    mint_tokens(&env, &token, &player2, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create and complete game
@@ -284,9 +289,9 @@ fn test_game_history_recording() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player1, &1_000_000);
-    token_client.mint(&player2, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player1, 1_000_000);
+    mint_tokens(&env, &token, &player2, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create and complete game
@@ -311,8 +316,8 @@ fn test_collectibles_purchase_during_game() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create game and register player
@@ -338,8 +343,8 @@ fn test_collectible_ownership_transfer() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create collectible
@@ -364,8 +369,8 @@ fn test_cash_deduction_on_collectible_purchase() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Get player initial cash
@@ -390,8 +395,8 @@ fn test_multiple_collectible_purchases() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Player purchases collectible 1
@@ -415,7 +420,7 @@ fn test_initial_cash_allocation() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&player, &1_000_000);
+    mint_tokens(&env, &token, &player, 1_000_000);
 
     // Verify player has initial balance
     assert_eq!(token_client.balance(&player), 1_000_000);
@@ -443,9 +448,9 @@ fn test_players_joining_game() {
     let token_client = TokenClient::new(&env, &token);
 
     // Mint tokens
-    token_client.mint(&owner, &1_000_000);
-    token_client.mint(&player1, &1_000_000);
-    token_client.mint(&player2, &1_000_000);
+    mint_tokens(&env, &token, &owner, 1_000_000);
+    mint_tokens(&env, &token, &player1, 1_000_000);
+    mint_tokens(&env, &token, &player2, 1_000_000);
 
     // In a full integration test, we would:
     // 1. Create game

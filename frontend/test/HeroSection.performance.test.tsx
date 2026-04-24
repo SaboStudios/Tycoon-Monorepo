@@ -47,3 +47,39 @@ describe("HeroSection performance guardrails", () => {
   });
 });
 
+describe("HeroSection accessibility", () => {
+  beforeEach(() => {
+    animationProps.length = 0;
+    mockPush.mockClear();
+    mockTrack.mockClear();
+  });
+
+  it("has a single h1 in the hero section", () => {
+    render(<HeroSection />);
+    const headings = document.querySelectorAll("h1");
+    expect(headings).toHaveLength(1);
+  });
+
+  it("section has aria-label", () => {
+    render(<HeroSection />);
+    expect(screen.getByRole("region", { name: "Hero" })).toBeInTheDocument();
+  });
+
+  it("all CTA buttons have accessible names", () => {
+    render(<HeroSection />);
+    const buttons = screen.getAllByRole("button");
+    for (const btn of buttons) {
+      expect(btn).toHaveAttribute("aria-label");
+    }
+  });
+
+  it("decorative background elements are hidden from assistive technology", () => {
+    const { container } = render(<HeroSection />);
+    // The decorative wrapper div (background gradient) must be aria-hidden
+    const decorativeBg = container.querySelector<HTMLElement>(
+      "section > div[aria-hidden='true']",
+    );
+    expect(decorativeBg).not.toBeNull();
+  });
+});
+

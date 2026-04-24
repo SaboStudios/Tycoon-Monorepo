@@ -131,7 +131,6 @@ mod tests {
         assert_ne!(ua.address, ub.address);
         assert_ne!(ub.address, uc.address);
     }
-}
 
     // ── SW-001 coverage additions ─────────────────────────────────────────────
 
@@ -144,9 +143,15 @@ mod tests {
         assert_eq!(dump.owner, f.admin, "owner must match fixture admin");
         assert_eq!(dump.tyc_token, f.tyc_id, "TYC token must match fixture");
         assert_eq!(dump.usdc_token, f.usdc_id, "USDC token must match fixture");
-        assert_eq!(dump.reward_system, f.reward_id, "reward_system must match fixture");
+        assert_eq!(
+            dump.reward_system, f.reward_id,
+            "reward_system must match fixture"
+        );
         assert!(dump.is_initialized, "contract must be initialized");
-        assert_eq!(dump.state_version, 1, "state_version must be 1 after initialize");
+        assert_eq!(
+            dump.state_version, 1,
+            "state_version must be 1 after initialize"
+        );
         // Fixture sets a backend controller — must be Some
         assert!(
             dump.backend_controller.is_some(),
@@ -161,7 +166,10 @@ mod tests {
         let f = Fixture::new();
         f.game.migrate();
         let dump = f.game.export_state();
-        assert_eq!(dump.state_version, 1, "migrate must not change version at v1");
+        assert_eq!(
+            dump.state_version, 1,
+            "migrate must not change version at v1"
+        );
         assert!(dump.is_initialized);
     }
 

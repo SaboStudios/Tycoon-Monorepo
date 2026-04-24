@@ -1,14 +1,17 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Counter, Gauge, Histogram } from 'prom-client';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '../../common/logger/logger.service';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
 @Injectable()
 export class RedisService {
   private readonly logger: LoggerService;
+  private readonly auditEnabled: boolean;
   private redis: Redis;
 
   // Prometheus metrics
@@ -23,6 +26,7 @@ export class RedisService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private configService: ConfigService,
     loggerService: LoggerService,
+    @Optional() private readonly auditTrailService?: AuditTrailService,
   ) {
     this.logger = loggerService;
 
@@ -31,10 +35,12 @@ export class RedisService {
       port: number;
       password?: string;
       db: number;
+      cacheAuditEnabled?: boolean;
     }>('redis');
     if (!redisConfig) {
       throw new Error('Redis configuration not found');
     }
+    this.auditEnabled = redisConfig.cacheAuditEnabled === true;
     this.redis = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -91,6 +97,19 @@ export class RedisService {
       this.logger.error(`Redis connection error: ${err.message}`, 'RedisService');
       this.redisErrorsTotal.inc({ operation: 'connection' });
     });
+  }
+
+  private emitAudit(
+    action: AuditAction,
+    changes: Record<string, unknown>,
+  ): void {
+    if (!this.auditEnabled || !this.auditTrailService) return;
+    // Fire-and-forget; errors must not propagate to callers
+    this.auditTrailService
+      .log(action, { changes })
+      .catch((err: Error) =>
+        this.logger.error(`Audit log failed [${action}]: ${err.message}`),
+      );
   }
 
   // Session management
@@ -193,6 +212,10 @@ export class RedisService {
       await this.cacheManager.set(key, value, ttl);
       this.redisOperationsTotal.inc({ operation: 'cache_set' });
       this.logger.debug(`Cache SET: ${key}`, 'RedisService');
+      this.emitAudit(AuditAction.CACHE_SET, {
+        key,
+        ...(ttl !== undefined ? { ttl } : {}),
+      });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_set' });
       this.logger.error(`Cache SET error for ${key}: ${error.message}`, 'RedisService');
@@ -208,6 +231,7 @@ export class RedisService {
       await this.cacheManager.del(key);
       this.redisOperationsTotal.inc({ operation: 'cache_del' });
       this.logger.debug(`Cache DEL: ${key}`, 'RedisService');
+      this.emitAudit(AuditAction.CACHE_DEL, { key });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_del' });
       this.logger.error(`Cache DEL error for ${key}: ${error.message}`, 'RedisService');
@@ -228,6 +252,7 @@ export class RedisService {
           `Invalidated ${keys.length} keys with pattern: ${pattern}`,
           'RedisService',
         );
+        this.emitAudit(AuditAction.CACHE_INVALIDATE, { pattern, count: keys.length });
       }
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'del_by_pattern' });
@@ -255,6 +280,97 @@ export class RedisService {
       this.redisErrorsTotal.inc({ operation: 'cache_reset' });
       this.logger.error(`Cache reset error: ${error.message}`, 'RedisService');
       throw error;
+    } finally {
+      endTimer();
+    }
+  }
+
+  /**
+   * Cursor-based key scan with a stable page size.
+   *
+   * Uses Redis SCAN (non-blocking) instead of KEYS so it is safe to call
+   * against production instances.  Returns the next cursor (0 = last page)
+   * and the matched keys sorted lexicographically for stable ordering across
+   * pages.
+   */
+  async scanPage(
+    pattern: string,
+    cursor: number = 0,
+    count: number = 20,
+  ): Promise<{ nextCursor: number; keys: string[] }> {
+    const endTimer = this.redisOperationDuration.startTimer({ operation: 'scan_page' });
+    try {
+      const [nextCursorStr, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        count,
+      );
+      const sorted = [...keys].sort();
+      this.redisOperationsTotal.inc({ operation: 'scan_page' });
+      return { nextCursor: parseInt(nextCursorStr, 10), keys: sorted };
+    } catch (error: any) {
+      this.redisErrorsTotal.inc({ operation: 'scan_page' });
+      this.logger.error(`scanPage error for ${pattern}: ${error.message}`, 'RedisService');
+      return { nextCursor: 0, keys: [] };
+    } finally {
+      endTimer();
+    }
+  }
+
+  /**
+   * Add a member to a sorted set with a numeric score.
+   * Used to build stable-sorted collections (e.g. leaderboards, queues).
+   */
+  async zAdd(key: string, score: number, member: string): Promise<void> {
+    const endTimer = this.redisOperationDuration.startTimer({ operation: 'zadd' });
+    try {
+      await this.redis.zadd(key, score, member);
+      this.redisOperationsTotal.inc({ operation: 'zadd' });
+    } catch (error: any) {
+      this.redisErrorsTotal.inc({ operation: 'zadd' });
+      this.logger.error(`zAdd error for ${key}: ${error.message}`, 'RedisService');
+      throw error;
+    } finally {
+      endTimer();
+    }
+  }
+
+  /**
+   * Paginate a sorted set by score (ascending).
+   *
+   * Returns members in score order (stable sort).  Ties are broken
+   * lexicographically by member name so the order is deterministic.
+   *
+   * @param key   Sorted-set key
+   * @param page  0-based page index
+   * @param limit Items per page (default 20)
+   */
+  async getSortedPage(
+    key: string,
+    page: number = 0,
+    limit: number = 20,
+  ): Promise<{ items: Array<{ member: string; score: number }>; total: number }> {
+    const endTimer = this.redisOperationDuration.startTimer({ operation: 'get_sorted_page' });
+    try {
+      const offset = page * limit;
+      const [rawItems, total] = await Promise.all([
+        this.redis.zrange(key, offset, offset + limit - 1, 'WITHSCORES'),
+        this.redis.zcard(key),
+      ]);
+
+      const items: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < rawItems.length; i += 2) {
+        items.push({ member: rawItems[i], score: parseFloat(rawItems[i + 1]) });
+      }
+
+      this.redisOperationsTotal.inc({ operation: 'get_sorted_page' });
+      return { items, total };
+    } catch (error: any) {
+      this.redisErrorsTotal.inc({ operation: 'get_sorted_page' });
+      this.logger.error(`getSortedPage error for ${key}: ${error.message}`, 'RedisService');
+      return { items: [], total: 0 };
     } finally {
       endTimer();
     }

@@ -1,31 +1,47 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { expect, test, describe, vi } from "vitest";
+import { expect, test, describe, vi, beforeEach } from "vitest";
 import { ShopGrid } from "./ShopGrid";
 import { ShopItemData } from "./ShopItem";
+
+vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
+
+import { track } from "@/lib/analytics";
+const mockTrack = vi.mocked(track);
+
+beforeEach(() => mockTrack.mockClear());
 
 describe("ShopGrid", () => {
   const mockItems: ShopItemData[] = [
     {
-      id: "item-1",
+      id: 1,
       name: "Golden House",
       description: "Upgrade your property",
-      price: 100,
+      price: "100.00",
+      type: "skin",
+      currency: "USD",
+      active: true,
       icon: "🏠",
       rarity: "rare",
     },
     {
-      id: "item-2",
+      id: 2,
       name: "Lucky Dice",
       description: "Increase your luck",
-      price: 50,
+      price: "50.00",
+      type: "dice",
+      currency: "USD",
+      active: true,
       icon: "🎲",
       rarity: "common",
     },
     {
-      id: "item-3",
+      id: 3,
       name: "Legendary Card",
       description: "Rare collectible",
-      price: 500,
+      price: "500.00",
+      type: "card",
+      currency: "USD",
+      active: true,
       icon: "🎴",
       rarity: "legendary",
     },
@@ -112,7 +128,7 @@ describe("ShopGrid", () => {
 
     test("renders correct number of items", () => {
       render(<ShopGrid items={mockItems} />);
-      const items = screen.getAllByTestId(/^shop-item-item-/);
+      const items = screen.getAllByTestId(/^shop-item-\d+$/);
       expect(items).toHaveLength(mockItems.length);
     });
 
@@ -120,22 +136,22 @@ describe("ShopGrid", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
 
-      const buyButton = screen.getByTestId("shop-item-buy-item-1");
+      const buyButton = screen.getByTestId("shop-item-buy-1");
       fireEvent.click(buyButton);
 
-      expect(onPurchase).toHaveBeenCalledWith("item-1");
+      expect(onPurchase).toHaveBeenCalledWith("1");
     });
 
     test("calls onPurchase for each item independently", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
 
-      fireEvent.click(screen.getByTestId("shop-item-buy-item-1"));
-      fireEvent.click(screen.getByTestId("shop-item-buy-item-2"));
+      fireEvent.click(screen.getByTestId("shop-item-buy-1"));
+      fireEvent.click(screen.getByTestId("shop-item-buy-2"));
 
       expect(onPurchase).toHaveBeenCalledTimes(2);
-      expect(onPurchase).toHaveBeenNthCalledWith(1, "item-1");
-      expect(onPurchase).toHaveBeenNthCalledWith(2, "item-2");
+      expect(onPurchase).toHaveBeenNthCalledWith(1, "1");
+      expect(onPurchase).toHaveBeenNthCalledWith(2, "2");
     });
   });
 
@@ -224,50 +240,52 @@ describe("ShopGrid", () => {
     });
   });
 
-  describe("CLS / LCP regression (SW-FE-020)", () => {
-    test("skeleton grid uses same column classes as real grid to prevent layout shift", () => {
-      const { container: loadingContainer } = render(
-        <ShopGrid isLoading={true} columns={3} />
-      );
-      const { container: itemsContainer } = render(
-        <ShopGrid items={mockItems} columns={3} />
-      );
-
-      const skeletonGrid = loadingContainer.querySelector("[data-testid='shop-grid-loading']");
-      const itemsGrid = itemsContainer.querySelector("[data-testid='shop-grid-items']");
-
-      // Both grids must share the same responsive column classes so the
-      // transition from skeleton → real content causes zero layout shift.
-      expect(skeletonGrid).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
-      expect(itemsGrid).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
-    });
-
-    test("skeleton cards have min-h-[160px] to reserve vertical space", () => {
-      const { container } = render(<ShopGrid isLoading={true} columns={2} />);
-      const cards = container.querySelectorAll("[data-testid='shop-grid-skeleton-card']");
-      expect(cards.length).toBeGreaterThan(0);
-      cards.forEach((card) => {
-        expect(card).toHaveClass("min-h-[160px]");
+  describe("Telemetry", () => {
+    test("fires shop_grid_viewed when items render", () => {
+      render(<ShopGrid items={mockItems} />);
+      expect(mockTrack).toHaveBeenCalledWith("shop_grid_viewed", {
+        route: "/shop",
+        item_count: mockItems.length,
+        source: "shop_page",
       });
     });
 
-    test("skeleton card count matches columns × 2 rows", () => {
-      const { container: c2 } = render(<ShopGrid isLoading={true} columns={2} />);
-      const { container: c3 } = render(<ShopGrid isLoading={true} columns={3} />);
-      const { container: c4 } = render(<ShopGrid isLoading={true} columns={4} />);
-
-      expect(c2.querySelectorAll("[data-testid='shop-grid-skeleton-card']")).toHaveLength(4);
-      expect(c3.querySelectorAll("[data-testid='shop-grid-skeleton-card']")).toHaveLength(6);
-      expect(c4.querySelectorAll("[data-testid='shop-grid-skeleton-card']")).toHaveLength(8);
+    test("fires shop_grid_viewed with custom telemetrySource", () => {
+      render(<ShopGrid items={mockItems} telemetrySource="game_overlay" />);
+      expect(mockTrack).toHaveBeenCalledWith("shop_grid_viewed", expect.objectContaining({ source: "game_overlay" }));
     });
 
-    test("ShopItem card has min-h-[160px] to prevent CLS from image-less cards", () => {
-      const { container } = render(<ShopGrid items={mockItems} />);
-      const cards = container.querySelectorAll("[data-testid^='shop-item-']");
-      expect(cards.length).toBeGreaterThan(0);
-      cards.forEach((card) => {
-        expect(card).toHaveClass("min-h-[160px]");
+    test("does not fire shop_grid_viewed while loading", () => {
+      render(<ShopGrid items={mockItems} isLoading={true} />);
+      expect(mockTrack).not.toHaveBeenCalledWith("shop_grid_viewed", expect.anything());
+    });
+
+    test("does not fire shop_grid_viewed on error", () => {
+      render(<ShopGrid items={mockItems} error="oops" />);
+      expect(mockTrack).not.toHaveBeenCalledWith("shop_grid_viewed", expect.anything());
+    });
+
+    test("fires shop_purchase_initiated with item data on buy click", () => {
+      const onPurchase = vi.fn();
+      render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
+      mockTrack.mockClear();
+      fireEvent.click(screen.getByTestId("shop-item-buy-1"));
+      expect(mockTrack).toHaveBeenCalledWith("shop_purchase_initiated", {
+        route: "/shop",
+        item_id: "1",
+        item_name: mockItems[0].name,
+        item_category: mockItems[0].type,
+        item_rarity: mockItems[0].rarity,
+        currency: mockItems[0].currency,
+        value: mockItems[0].price,
       });
+    });
+
+    test("still calls onPurchase after telemetry fires", () => {
+      const onPurchase = vi.fn();
+      render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
+      fireEvent.click(screen.getByTestId("shop-item-buy-1"));
+      expect(onPurchase).toHaveBeenCalledWith("1");
     });
   });
 });

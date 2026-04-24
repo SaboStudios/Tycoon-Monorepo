@@ -36,20 +36,24 @@ const HeroSection: React.FC = () => {
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
+    <section
+      aria-label="Hero"
+      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]"
+    >
       {/* Background gradient */}
       <div
+        aria-hidden="true"
         className="w-full h-full overflow-hidden bg-cover bg-center"
         style={{
           background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 50%, #010F10 100%)",
         }}
       />
 
-      {/* Large Background TYCOON Text */}
-      <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
-        <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
+      {/* Large Background TYCOON Text — decorative only */}
+      <div aria-hidden="true" className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
+        <p className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
           TYCOON
-        </h1>
+        </p>
       </div>
 
       <div className="absolute left-0 top-0 z-2 flex h-full w-full flex-col items-center gap-1 bg-transparent lg:justify-center">
@@ -85,13 +89,16 @@ const HeroSection: React.FC = () => {
           />
         </div>
 
-        {/* Main Title */}
+        {/* Main Title — single h1 on this page */}
         <h1
           data-testid="hero-main-title"
           className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative"
         >
           TYCOON
-          <span className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}>
+          <span
+            aria-hidden="true"
+            className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+          >
             ?
           </span>
         </h1>
@@ -132,10 +139,12 @@ const HeroSection: React.FC = () => {
           {/* Continue Game */}
           <button
             data-testid="hero-primary-cta"
+            aria-label="Continue game"
             onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
             className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
             <svg
+              aria-hidden="true"
               width="300"
               height="56"
               viewBox="0 0 300 56"
@@ -150,7 +159,7 @@ const HeroSection: React.FC = () => {
                 strokeWidth={2}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
               <Gamepad2 className="mr-2 w-7 h-7" />
               Continue Game
             </span>
@@ -158,10 +167,12 @@ const HeroSection: React.FC = () => {
 
           {/* Multiplayer */}
           <button
+            aria-label="Multiplayer"
             onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
+              aria-hidden="true"
               width="227"
               height="40"
               viewBox="0 0 227 40"
@@ -177,7 +188,7 @@ const HeroSection: React.FC = () => {
                 className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
               <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
               Multiplayer
             </span>
@@ -185,10 +196,12 @@ const HeroSection: React.FC = () => {
 
           {/* Join Room */}
           <button
+            aria-label="Join room"
             onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
+              aria-hidden="true"
               width="140"
               height="40"
               viewBox="0 0 140 40"
@@ -204,7 +217,7 @@ const HeroSection: React.FC = () => {
                 className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
               <Dices className="mr-1.5 w-[16px] h-[16px]" />
               Join Room
             </span>
@@ -212,10 +225,12 @@ const HeroSection: React.FC = () => {
 
           {/* Challenge AI */}
           <button
+            aria-label="Challenge AI"
             onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
+              aria-hidden="true"
               width="260"
               height="52"
               viewBox="0 0 260 52"
@@ -230,7 +245,7 @@ const HeroSection: React.FC = () => {
                 strokeWidth={1}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
               Challenge AI!
             </span>
           </button>

@@ -68,8 +68,6 @@ export class EnhancedUpdateGameDto {
     example: '2024-01-15T10:30:00.000Z',
   })
   @IsOptional()
-  @IsDateString({ 
-    message: 'startTime must be a valid ISO 8601 date string' 
-  })
+  @IsDateString({}, { message: 'startTime must be a valid ISO 8601 date string' })
   startTime?: string;
 }
