@@ -7,11 +7,13 @@ import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
 import { GamesController } from './games.controller';
 import { PerksBoostsModule } from '../perks-boosts/perks-boosts.module';
+import { GamesAuditModule } from './audit/games-audit.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Game, GameSettings, GamePlayer]),
     forwardRef(() => PerksBoostsModule),
+    GamesAuditModule,
   ],
   controllers: [GamesController],
   providers: [GamePlayersService, GamesService],

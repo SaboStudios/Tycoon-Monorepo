@@ -1,13 +1,13 @@
 "use client";
 
 import React from "react";
-import { ExternalLink, Loader2, Wallet } from "lucide-react";
+import { AlertCircle, ExternalLink, Loader2, Wallet } from "lucide-react";
 import { useNearWallet } from "@/components/providers/near-wallet-provider";
 import { cn } from "@/lib/utils";
 
 function truncateAccount(id: string, head = 6, tail = 4) {
   if (id.length <= head + tail + 1) return id;
-  return `${id.slice(0, head)}…${id.slice(-tail)}`;
+  return `${id.slice(0, head)}...${id.slice(-tail)}`;
 }
 
 type NearWalletConnectVariant = "navbar" | "panel";
@@ -21,16 +21,12 @@ export function NearWalletConnect({
   variant?: NearWalletConnectVariant;
 }) {
   const panel = variant === "panel";
-  const {
-    ready,
-    initError,
-    accountId,
-    connect,
-    disconnect,
-    transactions,
-  } = useNearWallet();
+  const { ready, initError, accountId, connect, disconnect, transactions } =
+    useNearWallet();
 
   const latest = transactions[0];
+  const showLoadingState = !ready && !initError;
+  const showEmptyState = ready && !initError && !accountId;
 
   return (
     <div
@@ -40,14 +36,20 @@ export function NearWalletConnect({
         className,
       )}
     >
-      {/* role="alert" makes screen readers announce the error immediately */}
       {initError && (
-        <span
+        <div
           role="alert"
-          className="max-w-[220px] text-[10px] text-red-400 font-dm-sans"
+          className={cn(
+            "flex max-w-[240px] items-start gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-left text-[10px] font-dm-sans text-red-200",
+            panel ? "self-start" : "self-end",
+          )}
         >
-          {initError}
-        </span>
+          <AlertCircle
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300"
+          />
+          <span className="leading-relaxed">{initError}</span>
+        </div>
       )}
 
       {/* min-h reserves the button row height so surrounding layout does not
@@ -65,14 +67,21 @@ export function NearWalletConnect({
               title={accountId}
               aria-label={`Connected as ${accountId}`}
             >
-              <Wallet aria-hidden="true" className="h-3.5 w-3.5 text-[var(--tycoon-accent)]" />
-              <span className="font-mono" aria-hidden="true">{truncateAccount(accountId)}</span>
+              <Wallet
+                aria-hidden="true"
+                className="h-3.5 w-3.5 text-[var(--tycoon-accent)]"
+              />
+              <span className="font-mono" aria-hidden="true">
+                {truncateAccount(accountId)}
+              </span>
             </span>
             <button
               type="button"
-              onClick={() => { void disconnect(); }}
+              onClick={() => {
+                void disconnect();
+              }}
               aria-label={`Disconnect NEAR wallet ${accountId}`}
-              className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 hover:text-[var(--tycoon-accent)] transition-colors"
+              className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 transition-colors hover:text-[var(--tycoon-accent)]"
             >
               Disconnect NEAR
             </button>
@@ -82,13 +91,50 @@ export function NearWalletConnect({
             type="button"
             onClick={connect}
             disabled={!ready}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[var(--tycoon-card-bg)] border border-[var(--tycoon-border)] px-3 py-1.5 text-[11px] font-dm-sans font-medium text-[var(--tycoon-text)] hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-card-bg)] px-3 py-1.5 text-[11px] font-dm-sans font-medium text-[var(--tycoon-text)] transition-colors hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] disabled:opacity-50"
           >
             <Wallet aria-hidden="true" className="h-3.5 w-3.5" />
             Connect NEAR
           </button>
         )}
       </div>
+
+      {showLoadingState && (
+        <div
+          data-testid="near-wallet-empty-state"
+          className={cn(
+            "flex max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
+            panel ? "self-start" : "self-end",
+          )}
+        >
+          <Loader2
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--tycoon-accent)]"
+          />
+          <span className="leading-relaxed">
+            Preparing NEAR wallet support...
+          </span>
+        </div>
+      )}
+
+      {showEmptyState && (
+        <div
+          data-testid="near-wallet-empty-state"
+          className={cn(
+            "flex max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
+            panel ? "self-start" : "self-end",
+          )}
+        >
+          <Wallet
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--tycoon-accent)]"
+          />
+          <span className="leading-relaxed">
+            No NEAR wallet connected yet. Connect to sign in and submit
+            transactions.
+          </span>
+        </div>
+      )}
 
       {/* aria-live="polite" announces transaction status changes without
           interrupting the user. role="status" is implied by aria-live but
@@ -108,8 +154,11 @@ export function NearWalletConnect({
             <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-dm-sans text-[var(--tycoon-text)]/80">
               {latest.phase === "pending" && (
                 <>
-                  <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]" />
-                  <span>Transaction pending…</span>
+                  <Loader2
+                    aria-hidden="true"
+                    className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]"
+                  />
+                  <span>Transaction pending...</span>
                 </>
               )}
               {latest.phase === "confirmed" && (
@@ -123,7 +172,9 @@ export function NearWalletConnect({
               </span>
             </div>
             {latest.errorMessage && (
-              <span className="text-[10px] text-red-400/90">{latest.errorMessage}</span>
+              <span className="text-[10px] text-red-400/90">
+                {latest.errorMessage}
+              </span>
             )}
             {latest.hash && latest.explorerUrl && (
               <a

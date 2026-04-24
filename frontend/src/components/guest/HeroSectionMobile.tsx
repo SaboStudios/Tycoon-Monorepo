@@ -5,10 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { track } from "@/lib/analytics";
 
+interface HeroSectionMobileProps {
+  className?: string;
+}
+
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mq.matches);
 
@@ -40,7 +46,7 @@ function usePrefersReducedMotion(): boolean {
  * <div className="hidden md:block"><HeroSection /></div>
  * ```
  */
-export default function HeroSectionMobile() {
+export default function HeroSectionMobile({ className }: HeroSectionMobileProps) {
   const router = useRouter();
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -60,7 +66,7 @@ export default function HeroSectionMobile() {
   }
 
   return (
-    <section className="z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10]">
+    <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className || ""}`}>
       {/* Simplified background: flat gradient */}
       <div
         className="absolute inset-0 opacity-60"

@@ -1,4 +1,4 @@
-/// # Security Review Tests — tycoon-boost-system (SW-CONTRACT-HYGIENE-001)
+/// # Security Review Tests — tycoon-boost-system (SW-CONTRACT-HYGIENE-001 / SW-CT-025)
 ///
 /// Covers the security properties enumerated in SECURITY_REVIEW_CHECKLIST.md.
 ///
@@ -456,5 +456,72 @@ mod tests {
 
         // Storage not mutated — expired boost still present via get_boosts
         assert_eq!(client.get_boosts(&player).len(), 1);
+    }
+
+    // ── SEC-02: additive_total u32 wrapping overflow ──────────────────────────
+
+    /// Documents that additive_total wraps on u32 overflow.
+    /// Pins current (wrapping) behavior so any future fix is visible.
+    #[test]
+    fn test_additive_overflow_wraps() {
+        let env = make_env();
+        let (client, _, player) = setup(&env);
+
+        // Each value = 429_496_730 (≈ u32::MAX / 10 + 1)
+        // 10 × 429_496_730 = 4_294_967_300 which wraps to 4 in u32
+        let per_boost: u32 = u32::MAX / 10 + 1;
+        for i in 0..10u128 {
+            client.add_boost(&player, &nb(i, per_boost));
+        }
+
+        let total = client.calculate_total_boost(&player);
+        let correct_additive_sum = (per_boost as u64) * 10;
+        let expected_if_no_overflow =
+            (10000u64 * (10000 + correct_additive_sum) / 10000) as u32;
+        assert_ne!(
+            total, expected_if_no_overflow,
+            "SEC-02: additive overflow no longer wraps — update checklist"
+        );
+    }
+
+    // ── SEC-03: mixed-stacking final cast truncation ──────────────────────────
+
+    /// Documents that the final `as u32` cast in apply_stacking_rules silently
+    /// truncates when the result exceeds u32::MAX.
+    /// Pins current behavior; a future fix will cause this test to fail.
+    #[test]
+    fn test_mixed_overflow_truncates() {
+        let env = make_env();
+        let (client, _, player) = setup(&env);
+
+        let large = u32::MAX / 2;
+        client.add_boost(&player, &Boost {
+            id: 1,
+            boost_type: BoostType::Multiplicative,
+            value: large,
+            priority: 0,
+            expires_at_ledger: 0,
+        });
+        client.add_boost(&player, &Boost {
+            id: 2,
+            boost_type: BoostType::Multiplicative,
+            value: large,
+            priority: 0,
+            expires_at_ledger: 0,
+        });
+
+        let total = client.calculate_total_boost(&player);
+
+        let step1 = 10000u64 * large as u64 / 10000;
+        let step2 = step1 * large as u64 / 10000;
+        let correct_u64 = step2 * 10000 / 10000;
+
+        if correct_u64 > u32::MAX as u64 {
+            assert_eq!(
+                total,
+                correct_u64 as u32,
+                "SEC-03: truncation behavior changed — update checklist"
+            );
+        }
     }
 }
