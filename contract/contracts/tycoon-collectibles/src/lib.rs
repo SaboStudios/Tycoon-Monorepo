@@ -800,3 +800,7 @@ impl TycoonCollectibles {
 
 #[cfg(test)]
 mod test;
+#[cfg(test)]
+mod coverage_tests;
+#[cfg(test)]
+mod entrypoint_auth_tests;

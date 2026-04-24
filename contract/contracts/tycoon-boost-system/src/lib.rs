@@ -531,3 +531,6 @@ mod deprecation_tests;
 
 #[cfg(test)]
 mod admin_access_control_tests;
+
+#[cfg(test)]
+mod security_review_tests;
