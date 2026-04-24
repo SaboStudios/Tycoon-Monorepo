@@ -57,7 +57,7 @@ export default function TradeDemoClient() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <main className="min-h-screen bg-[#010F10] flex flex-col items-center justify-center gap-8 p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#010F10] p-8">
       {/* Header */}
       <div className="text-center space-y-3">
         <h1 className="text-3xl font-bold text-[#00F0FF] font-orbitron tracking-wider">
@@ -107,6 +107,6 @@ export default function TradeDemoClient() {
         players={MOCK_PLAYERS}
         currentPlayer={MOCK_PLAYERS[0]}
       />
-    </main>
+    </div>
   );
 }

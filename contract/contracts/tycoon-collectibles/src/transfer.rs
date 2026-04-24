@@ -96,6 +96,7 @@ pub fn _safe_mint(
     }
 
     // Emit mint event (from zero address concept)
+    #[allow(deprecated)]
     env.events()
         .publish((symbol_short!("mint"),), (to.clone(), token_id, amount));
 

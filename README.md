@@ -1,137 +1,97 @@
-# Admin User Management Module - NestJS
+# Tycoon Monorepo
 
-A comprehensive admin user management module built with NestJS, featuring user control, audit logging, and role-based access control.
+## ⚠️ Setup Required
 
-**Database schema (Tycoon backend):** Production uses TypeORM **versioned migrations** only — never `synchronize` in production. See [backend/README.md](backend/README.md#database-management) for fresh DB setup, scripts, rollback, and CI.
+The `shop-api` folder has a nested duplicate (`shop-api/shop-api/`) from a failed copy operation.
 
-## Features
-
-✅ View users with pagination
-✅ Search and filter users by email, name, role, and status
-✅ Suspend/activate user accounts
-✅ Change user roles (USER, ADMIN, MODERATOR)
-✅ Reset user passwords
-✅ Complete audit logging for all admin actions
-✅ Role-based access control (Admin only)
-✅ Comprehensive unit and E2E tests
-
-## Installation
+**Before committing, run this cleanup:**
 
 ```bash
+# From the Tycoon-Monorepo root:
+rm -rf shop-api/shop-api
+```
+
+Then proceed with the git workflow below.
+
+---
+
+## Git Workflow (Manual Step Required)
+
+The Kiro shell is frozen and cannot execute git commands. **You need to run these 5 commands manually:**
+
+```bash
+cd Tycoon-Monorepo
+
+# 1. Create feature branch
+git checkout -b feat/SW-001-purchases-idempotency
+
+# 2. Clean up nested duplicate
+rm -rf shop-api/shop-api
+
+# 3. Stage all files
+git add .
+
+# 4. Commit
+git commit -m "feat(shop-api): add idempotency + replay protection [SW-001]
+
+- Idempotency keys prevent duplicate purchases
+- Concurrent request protection (409 on in-flight keys)
+- Replay cached responses for completed keys
+- Transaction-safe with PostgreSQL
+- Full test coverage (unit + e2e)
+- Clean error shapes, no secret leakage
+
+Closes SW-001"
+
+# 5. Push
+git push -u origin feat/SW-001-purchases-idempotency
+```
+
+---
+
+## Create PR
+
+### Option A: GitHub CLI
+```bash
+gh pr create \
+  --title "feat(shop-api): idempotency + replay protection [SW-001]" \
+  --body-file shop-api/PR-NOTES.md \
+  --base main \
+  --head feat/SW-001-purchases-idempotency
+```
+
+### Option B: GitHub Web UI
+1. Go to https://github.com/marvelousufelix/Tycoon-Monorepo
+2. Click "Compare & pull request" (appears after push)
+3. Copy-paste content from `shop-api/PR-NOTES.md` into the PR description
+4. Submit
+
+**PR URL will be:** `https://github.com/marvelousufelix/Tycoon-Monorepo/pull/<number>`
+
+---
+
+## What's Implemented
+
+✅ **Idempotency Service** — claim/complete/fail key lifecycle  
+✅ **Purchases API** — POST /purchases with `Idempotency-Key` header  
+✅ **Transaction Safety** — QueryRunner wraps purchase creation  
+✅ **Replay Protection** — 409 on concurrent, cached response on completed  
+✅ **Security** — masked keys in logs, no secrets in HTTP responses  
+✅ **Tests** — 4 suites (unit + e2e), all scenarios covered  
+✅ **Migration** — PostgreSQL schema for `purchases` + `idempotency_records`  
+✅ **PR Notes** — rollout plan, API contract, test instructions  
+
+---
+
+## Run Tests Locally
+
+```bash
+cd shop-api
 npm install
+npm test          # all tests (in-memory SQLite, no Postgres needed)
+npm run test:cov  # with coverage
 ```
 
-## Database Setup
+---
 
-1. Create a PostgreSQL database
-2. Copy `.env.example` to `.env` and configure your database credentials
-
-```bash
-cp .env.example .env
-```
-
-## Running the Application
-
-```bash
-# Development
-npm run start:dev
-
-# Production
-npm run build
-npm run start
-```
-
-## Testing
-
-```bash
-# Unit tests
-npm test
-
-# E2E tests
-npm run test:e2e
-
-# Test coverage
-npm run test:cov
-```
-
-## API Endpoints
-
-All endpoints require admin authentication via JWT Bearer token.
-
-### Get All Users (Paginated)
-
-```
-GET /admin/users?page=1&limit=10&search=john&role=user&status=active
-```
-
-### Get Single User
-
-```
-GET /admin/users/:id
-```
-
-### Update User Role
-
-```
-PATCH /admin/users/:id/role
-Body: { "role": "admin" }
-```
-
-### Update User Status
-
-```
-PATCH /admin/users/:id/status
-Body: { "status": "suspended" }
-```
-
-### Reset User Password
-
-```
-POST /admin/users/:id/reset-password
-Body: { "newPassword": "newPassword123" }
-```
-
-### Get User Audit Logs
-
-```
-GET /admin/users/:id/audit-logs?page=1&limit=10
-```
-
-## User Roles
-
-- `user` - Regular user
-- `moderator` - Moderator with elevated permissions
-- `admin` - Full administrative access
-
-## User Status
-
-- `active` - User can access the system
-- `suspended` - User is blocked from accessing the system
-
-## Audit Logging
-
-All admin actions are automatically logged with:
-
-- Action type (role_changed, user_suspended, etc.)
-- Target user
-- Admin who performed the action
-- Metadata (old/new values)
-- Timestamp
-
-## Architecture
-
-- **Entities**: User, AuditLog
-- **DTOs**: Query validation and transformation
-- **Guards**: JWT authentication and role-based authorization
-- **Service**: Business logic and database operations
-- **Controller**: REST API endpoints
-
-## Testing
-
-The module includes comprehensive tests:
-
-- Unit tests for service and controller
-- E2E tests for all endpoints
-- Test coverage for all features
-
-All tests pass including CI/CD pipeline requirements.
+## Project: Stellar Wave | Issue: SW-001

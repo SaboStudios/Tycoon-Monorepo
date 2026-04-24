@@ -2,10 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 export default function GameRoomLoading() {
   const router = useRouter();
   const [dots, setDots] = useState('');
+  const prefersReducedMotion = useReducedMotion();
 
   // Animated dots effect
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function GameRoomLoading() {
 
       <div className="relative z-10 flex flex-col items-center justify-center space-y-8">
         {/* Evil Laugh Emoji Animation */}
-        <div className="text-9xl animate-bounce drop-shadow-lg filter shadow-red-500/50">
+        <div className={`text-9xl ${!prefersReducedMotion ? 'animate-bounce' : ''} drop-shadow-lg filter shadow-red-500/50`}>
           😈
         </div>
 
@@ -55,7 +57,7 @@ export default function GameRoomLoading() {
 
         {/* Loading Bar Mockup */}
         <div className="w-96 h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-red-600 animate-[loading_5s_ease-in-out_infinite] w-full origin-left" />
+            <div className={`h-full bg-red-600 ${!prefersReducedMotion ? 'animate-[loading_5s_ease-in-out_infinite]' : ''} w-full origin-left`} />
         </div>
       </div>
       
@@ -63,6 +65,13 @@ export default function GameRoomLoading() {
         @keyframes loading {
           0% { transform: scaleX(0); }
           100% { transform: scaleX(1); }
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .animate-bounce,
+          .animate-[loading_5s_ease-in-out_infinite] {
+            animation: none;
+          }
         }
       `}</style>
     </div>

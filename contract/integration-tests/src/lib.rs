@@ -4,10 +4,17 @@
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
-mod token_reward_flow;
-#[cfg(test)]
 mod game_reward_flow;
 #[cfg(test)]
 mod game_token_flow;
 #[cfg(test)]
 mod multi_player_flow;
+// Stellar Wave (SW-FE-001): simulation scenarios
+#[cfg(test)]
+mod boost_admin_flow;
+mod boost_system_integration;
+#[cfg(test)]
+mod security_review_checklist;
+#[cfg(test)]
+mod simulation_scenarios;
+mod token_reward_flow;

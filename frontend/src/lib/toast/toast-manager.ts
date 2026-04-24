@@ -61,19 +61,19 @@ class ToastManager {
         }, this.DEDUP_TIMEOUT);
     }
 
-    success(message: string, options?: ToastOptions) {
+    success(message: string, options?: Omit<ToastOptions, 'type'>) {
         this.show({ type: 'success', message, ...options });
     }
 
-    error(message: string, options?: ToastOptions) {
+    error(message: string, options?: Omit<ToastOptions, 'type'>) {
         this.show({ type: 'error', message, ...options });
     }
 
-    info(message: string, options?: ToastOptions) {
+    info(message: string, options?: Omit<ToastOptions, 'type'>) {
         this.show({ type: 'info', message, ...options });
     }
 
-    warning(message: string, options?: ToastOptions) {
+    warning(message: string, options?: Omit<ToastOptions, 'type'>) {
         this.show({ type: 'warning', message, ...options });
     }
 
