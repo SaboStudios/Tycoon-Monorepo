@@ -434,3 +434,6 @@ mod test;
 
 #[cfg(test)]
 mod overflow_rounding_tests;
+
+#[cfg(test)]
+mod transfer_tests;
