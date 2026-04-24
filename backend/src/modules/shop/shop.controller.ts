@@ -37,9 +37,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdvancedCacheInterceptor } from '../../common/interceptors/advanced-cache.interceptor';
 import { CacheOptions } from '../../common/decorators/cache-options.decorator';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @ApiTags('shop')
 @Controller('shop')
+@UseInterceptors(AuditTrailInterceptor)
 export class ShopController {
   constructor(
     private readonly shopService: ShopService,
@@ -52,6 +56,7 @@ export class ShopController {
    * Create a new shop item (admin use)
    */
   @Post('items')
+  @AuditLog(AuditAction.SHOP_ITEM_CREATED)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new shop item' })
   @ApiResponse({
@@ -107,6 +112,7 @@ export class ShopController {
    * PATCH /shop/items/:id
    */
   @Patch('items/:id')
+  @AuditLog(AuditAction.SHOP_ITEM_UPDATED)
   @ApiOperation({ summary: 'Update a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -126,6 +132,7 @@ export class ShopController {
    * Soft-deletes by setting active = false
    */
   @Delete('items/:id')
+  @AuditLog(AuditAction.SHOP_ITEM_DELETED)
   @ApiOperation({ summary: 'Deactivate (soft-delete) a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -142,6 +149,7 @@ export class ShopController {
    * Create a purchase with optional coupon validation
    */
   @Post('purchase')
+  @AuditLog(AuditAction.PURCHASE_CREATED)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
@@ -175,6 +183,7 @@ export class ShopController {
    * Purchase an item and send it as a gift
    */
   @Post('gift')
+  @AuditLog(AuditAction.GIFT_SENT)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
