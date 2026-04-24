@@ -534,3 +534,6 @@ mod admin_access_control_tests;
 
 #[cfg(test)]
 mod security_review_tests;
+
+#[cfg(test)]
+mod simulation_scenarios;

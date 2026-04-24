@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - SW-CT-027
+
+### Added
+- `src/simulation_scenarios.rs` — 7 end-to-end game-session simulation tests:
+  SIM-01 new player receives admin boost, SIM-02 boost expires mid-session,
+  SIM-03 admin revokes mid-session, SIM-04 cap freed by expiry allows new boost,
+  SIM-05 multi-player isolation, SIM-06 mixed boost types full round,
+  SIM-07 end-of-season clear all players.
+
 ## [Unreleased] - SW-CT-025
 
 ### Added
