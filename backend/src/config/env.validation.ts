@@ -112,6 +112,30 @@ export const validationSchema = Joi.object({
     .default(true),
   DEFAULT_STARTING_CASH: Joi.number().default(1500),
 
+  // ─── Games Audit Configuration ──────────────────────────────────────────────
+  GAMES_AUDIT_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true)
+    .description('Enable/disable audit logging for game operations'),
+  GAMES_AUDIT_LOG_LEVEL: Joi.string()
+    .valid('debug', 'info', 'warn', 'error')
+    .default('info')
+    .description('Log level for audit operations'),
+  GAMES_AUDIT_REDACT_SENSITIVE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true)
+    .description('Enable sensitive data redaction in audit logs'),
+  GAMES_AUDIT_LOG_VIEWS: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false)
+    .description('Log read-only operations (views, searches)'),
+  GAMES_AUDIT_ASYNC_TIMEOUT_MS: Joi.number()
+    .default(5000)
+    .description('Timeout for async audit operations in milliseconds'),
+
   // ─── NEAR RPC Facade ────────────────────────────────────────────────────────
   NEAR_NETWORK: Joi.string()
     .valid('mainnet', 'testnet', 'localnet')
