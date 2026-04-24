@@ -73,7 +73,15 @@ impl Sim<'_> {
         // Pre-fund contract with TYC
         StellarAssetClient::new(&env, &tyc_id).mint(&contract_id, &CONTRACT_FUND);
 
-        Sim { env, client, admin, backend, tyc_id, usdc_id, contract_id }
+        Sim {
+            env,
+            client,
+            admin,
+            backend,
+            tyc_id,
+            usdc_id,
+            contract_id,
+        }
     }
 
     fn tyc_balance(&self, addr: &Address) -> i128 {
@@ -85,8 +93,7 @@ impl Sim<'_> {
     }
 
     fn fund_usdc(&self, amount: i128) {
-        StellarAssetClient::new(&self.env, &self.usdc_id)
-            .mint(&self.contract_id, &amount);
+        StellarAssetClient::new(&self.env, &self.usdc_id).mint(&self.contract_id, &amount);
     }
 }
 
@@ -176,7 +183,9 @@ fn sim_s03_voucher_gifting_transfer_then_redeem() {
     let player_a = Address::generate(&sim.env);
     let player_b = Address::generate(&sim.env);
 
-    let tid = sim.client.mint_voucher(&sim.backend, &player_a, &TIER_SILVER);
+    let tid = sim
+        .client
+        .mint_voucher(&sim.backend, &player_a, &TIER_SILVER);
 
     assert_eq!(sim.client.get_balance(&player_a, &tid), 1);
     assert_eq!(sim.client.owned_token_count(&player_a), 1);
@@ -217,13 +226,19 @@ fn sim_s04_pause_mid_season_then_resume() {
     let redeem_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         sim.client.redeem_voucher_from(&player, &tid);
     }));
-    assert!(redeem_result.is_err(), "redeem must be blocked while paused");
+    assert!(
+        redeem_result.is_err(),
+        "redeem must be blocked while paused"
+    );
 
     // Transfer blocked
     let transfer_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         sim.client.transfer(&player, &player2, &tid, &1);
     }));
-    assert!(transfer_result.is_err(), "transfer must be blocked while paused");
+    assert!(
+        transfer_result.is_err(),
+        "transfer must be blocked while paused"
+    );
 
     // Voucher still intact after failed attempts
     assert_eq!(sim.client.get_balance(&player, &tid), 1);
@@ -260,7 +275,10 @@ fn sim_s05_backend_minter_rotation() {
     let old_mint_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         sim.client.mint_voucher(&old_minter, &player, &TIER_BRONZE);
     }));
-    assert!(old_mint_result.is_err(), "old minter must be rejected after rotation");
+    assert!(
+        old_mint_result.is_err(),
+        "old minter must be rejected after rotation"
+    );
 
     // Set new minter
     sim.client.set_backend_minter(&new_minter);
@@ -327,7 +345,13 @@ fn sim_s07_multi_voucher_accrual_and_sequential_redeem() {
 
     let player = Address::generate(&sim.env);
 
-    let tiers = [TIER_BRONZE, TIER_SILVER, TIER_GOLD, TIER_BRONZE, TIER_SILVER];
+    let tiers = [
+        TIER_BRONZE,
+        TIER_SILVER,
+        TIER_GOLD,
+        TIER_BRONZE,
+        TIER_SILVER,
+    ];
     let expected_total: u128 = tiers.iter().sum();
 
     let token_ids: Vec<u128> = tiers
@@ -414,7 +438,10 @@ fn sim_s09_underfunded_contract_panics_on_redeem() {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.redeem_voucher_from(&player, &tid);
     }));
-    assert!(result.is_err(), "redeem must panic when contract is underfunded");
+    assert!(
+        result.is_err(),
+        "redeem must panic when contract is underfunded"
+    );
 
     // Voucher must still be intact (burn happens before transfer in CEI, but
     // the token transfer panic unwinds the whole invocation in the sandbox)

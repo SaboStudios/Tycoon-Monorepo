@@ -251,7 +251,7 @@ fn test_inv_09b_mint_balance_overflow_guard() {
 /// INV-10: mint then burn of the same amount is a no-op on total_supply.
 #[test]
 fn test_inv_10_mint_burn_round_trip_restores_supply() {
-    let (_, client, admin) = setup();
+    let (_, client, _admin) = setup();
     let user = Address::generate(&client.env);
     let amount: i128 = 42_000_000_000_000_000_000_000;
     let before = client.total_supply();
@@ -526,7 +526,7 @@ fn test_supply_invariant_mixed_operations_table() {
         },
     ];
 
-    let (_, client, admin) = setup();
+    let (_, client, _admin) = setup();
     let user = Address::generate(&client.env);
     // Give user enough balance for burns
     client.mint(&user, &10_000_000_000_000_000_000_000);
