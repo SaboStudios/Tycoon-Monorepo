@@ -701,3 +701,98 @@ fn test_migrate_is_idempotent_at_version_1() {
         "migrate must not change version when already at v1"
     );
 }
+
+#[test]
+fn test_migrate_from_v0_to_v1() {
+    // Simulate a legacy contract that was deployed before initialize set the
+    // version: register the contract without calling initialize so the stored
+    // version defaults to 0, then call migrate and confirm it advances to 1.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonContract, ());
+    let client = TycoonContractClient::new(&env, &contract_id);
+
+    let owner = Address::generate(&env);
+    let tyc_admin = Address::generate(&env);
+    let usdc_admin = Address::generate(&env);
+    let (tyc_token, _) = create_token_contract(&env, &tyc_admin);
+    let (usdc_token, _) = create_token_contract(&env, &usdc_admin);
+    let reward_system = Address::generate(&env);
+
+    // Manually bootstrap the minimum state that migrate requires (owner key)
+    // without going through initialize, so state_version stays at 0.
+    use crate::storage;
+    storage::set_owner(&env, &owner);
+    storage::set_tyc_token(&env, &tyc_token);
+    storage::set_usdc_token(&env, &usdc_token);
+    storage::set_reward_system(&env, &reward_system);
+    // state_version is intentionally NOT set → get_state_version returns 0
+
+    client.migrate();
+
+    // After migrate the version must be 1
+    assert_eq!(storage::get_state_version(&env), 1, "migrate must upgrade v0 to v1");
+}
+
+// ===== USERNAME BOUNDARY TESTS (SW-CT-008) =====
+
+#[test]
+fn test_register_player_username_exactly_3_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abc");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_register_player_username_exactly_20_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abcdefghij1234567890");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_get_user_unregistered_returns_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let unregistered = Address::generate(&env);
+    assert!(client.get_user(&unregistered).is_none());
+}
+
+#[test]
+fn test_set_collectible_info_overwrite() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let token_id = 42;
+    client.set_collectible_info(&token_id, &1, &10, &100, &50, &5);
+    assert_eq!(client.get_collectible_info(&token_id), (1, 10, 100, 50, 5));
+
+    client.set_collectible_info(&token_id, &2, &20, &200, &100, &10);
+    assert_eq!(client.get_collectible_info(&token_id), (2, 20, 200, 100, 10));
+}
