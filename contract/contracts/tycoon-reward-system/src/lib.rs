@@ -410,3 +410,6 @@ mod overflow_rounding_tests;
 
 #[cfg(test)]
 mod admin_access_control_tests;
+
+#[cfg(test)]
+mod simulation_scenarios;

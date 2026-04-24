@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -31,6 +32,8 @@ export interface PaginatedShopItems {
 
 @Injectable()
 export class ShopService {
+  private readonly logger = new Logger(ShopService.name);
+
   constructor(
     @InjectRepository(ShopItem)
     private readonly shopItemRepository: Repository<ShopItem>,
@@ -51,6 +54,7 @@ export class ShopService {
       price: String(createShopItemDto.price),
     });
     const saved = await this.shopItemRepository.save(item);
+    this.logger.log(`Created shop item: ${saved.id} (${saved.name})`);
     await this.invalidateCache();
     return saved;
   }
@@ -136,6 +140,7 @@ export class ShopService {
     const item = await this.findOne(id);
     Object.assign(item, updateShopItemDto);
     const saved = await this.shopItemRepository.save(item);
+    this.logger.log(`Updated shop item: ${id}`);
     await this.invalidateCache(id);
     return saved;
   }
@@ -148,6 +153,7 @@ export class ShopService {
     const item = await this.findOne(id);
     item.active = false;
     const saved = await this.shopItemRepository.save(item);
+    this.logger.log(`Deactivated shop item: ${id}`);
     await this.invalidateCache(id);
     return saved;
   }
@@ -166,6 +172,8 @@ export class ShopService {
       message,
       payment_method = 'balance',
     } = dto;
+
+    this.logger.log(`Initiating purchaseAndGift: sender ${senderId}, receiver ${receiver_id}, item ${shop_item_id}`);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -242,6 +250,7 @@ export class ShopService {
       await queryRunner.manager.save(savedPurchase);
 
       await queryRunner.commitTransaction();
+      this.logger.log(`purchaseAndGift successful: purchase ${savedPurchase.id}, gift ${savedGift.id}`);
 
       // 9. TODO: Notify receiver (implement notification service)
       // await this.notificationService.notifyGiftReceived(receiver_id, savedGift);
@@ -251,6 +260,7 @@ export class ShopService {
         gift: savedGift,
       };
     } catch (err) {
+      this.logger.error(`purchaseAndGift failed: ${err.message}`, err.stack);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -304,6 +314,7 @@ export class ShopService {
    * Invalidate shop caches
    */
   private async invalidateCache(id?: number): Promise<void> {
+    this.logger.debug(`Invalidating shop cache${id ? ` for item ${id}` : ''}`);
     // Invalidate the list cache
     await this.redisService.delByPattern('tycoon:shop:items:*');
 

@@ -54,6 +54,11 @@ export enum AuditAction {
     PLAYER_PROPERTY_BOUGHT = 'PLAYER_PROPERTY_BOUGHT',
     /** Emitted when a player's state is updated */
     PLAYER_UPDATED = 'PLAYER_UPDATED',
+    SHOP_ITEM_CREATED = 'SHOP_ITEM_CREATED',
+    SHOP_ITEM_UPDATED = 'SHOP_ITEM_UPDATED',
+    SHOP_ITEM_DELETED = 'SHOP_ITEM_DELETED',
+    PURCHASE_CREATED = 'PURCHASE_CREATED',
+    GIFT_SENT = 'GIFT_SENT',
 }
 
 @Entity({ name: 'audit_trails' })
