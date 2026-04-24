@@ -3,6 +3,7 @@
 //! Tests reward creation, management, and distribution across contracts.
 //! Verifies voucher management, multi-token support, and authorization.
 //!
+#![allow(unused_variables)]
 //! AC4.1 - AC4.4: Vouchers, reward distribution, multi-token support, and authorization
 
 use soroban_sdk::{

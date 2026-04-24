@@ -1,4 +1,3 @@
-#![cfg(test)]
 //! # Advanced Integration Tests for Boost System
 //!
 //! Additional unit and integration tests to improve coverage for the tycoon-boost-system

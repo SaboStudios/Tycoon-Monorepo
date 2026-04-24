@@ -3,6 +3,7 @@
 //! Tests the complete game lifecycle from player registration through game completion.
 //! Verifies player registration, game creation, state transitions, and reward distribution.
 //!
+#![allow(unused_variables)]
 //! AC3.1 - AC3.4: Player registration, game creation, completion, and collectibles
 
 use soroban_sdk::{

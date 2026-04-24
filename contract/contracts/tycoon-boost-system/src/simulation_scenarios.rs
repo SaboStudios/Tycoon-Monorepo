@@ -13,7 +13,6 @@
 //! | SIM-06 | Mixed boost types across a full game round produce correct total |
 //! | SIM-07 | Admin clears all boosts at end of season; all players reset to base |
 
-#![cfg(test)]
 extern crate std;
 use super::*;
 use soroban_sdk::{
@@ -44,11 +43,23 @@ fn set_ledger(env: &Env, seq: u32) {
 }
 
 fn nb(id: u128, boost_type: BoostType, value: u32) -> Boost {
-    Boost { id, boost_type, value, priority: 0, expires_at_ledger: 0 }
+    Boost {
+        id,
+        boost_type,
+        value,
+        priority: 0,
+        expires_at_ledger: 0,
+    }
 }
 
 fn eb(id: u128, boost_type: BoostType, value: u32, expires: u32) -> Boost {
-    Boost { id, boost_type, value, priority: 0, expires_at_ledger: expires }
+    Boost {
+        id,
+        boost_type,
+        value,
+        priority: 0,
+        expires_at_ledger: expires,
+    }
 }
 
 // ── SIM-01 ────────────────────────────────────────────────────────────────────
@@ -145,11 +156,11 @@ fn sim_05_multi_player_isolation() {
     client.admin_grant_boost(&bob, &nb(1, BoostType::Multiplicative, 20000));
 
     assert_eq!(client.calculate_total_boost(&alice), 15000); // base + 50%
-    assert_eq!(client.calculate_total_boost(&bob), 20000);   // 2x
+    assert_eq!(client.calculate_total_boost(&bob), 20000); // 2x
 
     client.admin_revoke_boost(&alice, &1u128);
     assert_eq!(client.calculate_total_boost(&alice), 10000); // reset
-    assert_eq!(client.calculate_total_boost(&bob), 20000);   // unchanged
+    assert_eq!(client.calculate_total_boost(&bob), 20000); // unchanged
 }
 
 // ── SIM-06 ────────────────────────────────────────────────────────────────────
