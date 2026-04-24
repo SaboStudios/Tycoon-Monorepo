@@ -44,8 +44,17 @@ export const ShopItem: React.FC<ShopItemData> = ({
   disabled = false,
 }) => {
   const itemId = String(id);
-  const displayPrice =
-    typeof price === "string" ? parseFloat(price).toFixed(2) : price;
+  
+  const displayPrice = React.useMemo(() => {
+    try {
+      const p = typeof price === "string" ? parseFloat(price) : price;
+      if (isNaN(p)) return "0.00";
+      return p.toFixed(2);
+    } catch (e) {
+      console.error(`Invalid price for item ${itemId}:`, price);
+      return "0.00";
+    }
+  }, [price, itemId]);
 
   return (
     <div
