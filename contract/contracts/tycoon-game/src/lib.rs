@@ -338,3 +338,6 @@ mod game_coverage_tests;
 
 #[cfg(test)]
 mod admin_access_control_tests;
+
+#[cfg(test)]
+mod deprecated_entrypoints_tests;

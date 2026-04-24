@@ -1,4 +1,5 @@
 #![cfg(test)]
+#![allow(deprecated)]
 
 use super::*;
 use soroban_sdk::{
@@ -703,6 +704,7 @@ fn test_migrate_is_idempotent_at_version_1() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_migrate_from_v0_to_v1() {
     // Simulate a legacy contract that was deployed before initialize set the
     // version: register the contract without calling initialize so the stored
@@ -722,17 +724,20 @@ fn test_migrate_from_v0_to_v1() {
 
     // Manually bootstrap the minimum state that migrate requires (owner key)
     // without going through initialize, so state_version stays at 0.
-    use crate::storage;
-    storage::set_owner(&env, &owner);
-    storage::set_tyc_token(&env, &tyc_token);
-    storage::set_usdc_token(&env, &usdc_token);
-    storage::set_reward_system(&env, &reward_system);
-    // state_version is intentionally NOT set → get_state_version returns 0
+    env.as_contract(&contract_id, || {
+        storage::set_owner(&env, &owner);
+        storage::set_tyc_token(&env, &tyc_token);
+        storage::set_usdc_token(&env, &usdc_token);
+        storage::set_reward_system(&env, &reward_system);
+        // state_version is intentionally NOT set → get_state_version returns 0
+    });
 
     client.migrate();
 
     // After migrate the version must be 1
-    assert_eq!(storage::get_state_version(&env), 1, "migrate must upgrade v0 to v1");
+    env.as_contract(&contract_id, || {
+        assert_eq!(storage::get_state_version(&env), 1, "migrate must upgrade v0 to v1");
+    });
 }
 
 // ===== USERNAME BOUNDARY TESTS (SW-CT-008) =====
