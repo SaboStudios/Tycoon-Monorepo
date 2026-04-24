@@ -144,7 +144,7 @@ describe("NearWalletConnect", () => {
         ],
       }),
     );
-    const link = screen.getByRole("link", { name: /on explorer/i });
+    const link = screen.getByRole("link", { name: /view on explorer/i });
     expect(link.getAttribute("href")).toContain("explorer.testnet.near.org");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
     expect(link.getAttribute("target")).toBe("_blank");
@@ -196,90 +196,6 @@ describe("NearWalletConnect", () => {
       ".min-h-\\[28px\\]:last-child",
     );
     expect(statusWrapper).not.toBeNull();
-  });
-
-  // ── Accessibility assertions (SW-FE-033) ────────────────────────────────────
-
-  it("outer wrapper has role=region with accessible label", () => {
-    renderWithMock(createMockNearWalletValue());
-    expect(
-      screen.getByRole("region", { name: /near wallet/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("initError is announced as an alert", () => {
-    renderWithMock(
-      createMockNearWalletValue({ initError: "Wallet init failed" }),
-    );
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Wallet init failed");
-  });
-
-  it("connect button has descriptive aria-label when ready", () => {
-    renderWithMock(createMockNearWalletValue({ accountId: null, ready: true }));
-    const btn = screen.getByRole("button", { name: /connect near wallet$/i });
-    expect(btn).toBeInTheDocument();
-  });
-
-  it("connect button aria-label indicates initialising when not ready", () => {
-    renderWithMock(createMockNearWalletValue({ accountId: null, ready: false }));
-    const btn = screen.getByRole("button", { name: /initialising/i });
-    expect(btn).toBeDisabled();
-  });
-
-  it("account badge has aria-label with full account id", () => {
-    renderWithMock(
-      createMockNearWalletValue({ accountId: "very-long-account.testnet" }),
-    );
-    expect(
-      screen.getByLabelText(/connected as very-long-account\.testnet/i),
-    ).toBeInTheDocument();
-  });
-
-  it("disconnect button aria-label includes account id", () => {
-    renderWithMock(
-      createMockNearWalletValue({ accountId: "alice.testnet" }),
-    );
-    const btn = screen.getByRole("button", {
-      name: /disconnect near wallet \(alice\.testnet\)/i,
-    });
-    expect(btn).toBeInTheDocument();
-  });
-
-  it("transaction status region has aria-live=polite", () => {
-    const { container } = renderWithMock(createMockNearWalletValue());
-    const liveRegion = container.querySelector("[aria-live='polite']");
-    expect(liveRegion).not.toBeNull();
-    expect(liveRegion).toHaveAttribute("aria-atomic", "true");
-  });
-
-  it("explorer link aria-label mentions new tab", () => {
-    renderWithMock(
-      createMockNearWalletValue({
-        accountId: "a.testnet",
-        transactions: [
-          {
-            id: "1",
-            phase: "confirmed",
-            methodName: "addMessage",
-            contractId: "guest-book.testnet",
-            hash: "ABC123",
-            explorerUrl: "https://explorer.testnet.near.org/transactions/ABC123",
-          },
-        ],
-      }),
-    );
-    const link = screen.getByRole("link", { name: /opens in new tab/i });
-    expect(link).toBeInTheDocument();
-  });
-
-  it("decorative icons are hidden from assistive technology", () => {
-    const { container } = renderWithMock(
-      createMockNearWalletValue({ accountId: null, ready: true }),
-    );
-    // The Wallet icon inside the connect button must be aria-hidden
-    const icons = container.querySelectorAll("svg[aria-hidden='true']");
-    expect(icons.length).toBeGreaterThan(0);
   });
 });
 

@@ -34,8 +34,6 @@ export function NearWalletConnect({
 
   return (
     <div
-      role="region"
-      aria-label="NEAR wallet"
       className={cn(
         "flex flex-col gap-1",
         panel ? "items-stretch text-left" : "items-end text-right",
@@ -43,10 +41,7 @@ export function NearWalletConnect({
       )}
     >
       {initError && (
-        <span
-          role="alert"
-          className="max-w-[220px] text-[10px] text-red-400 font-dm-sans"
-        >
+        <span className="max-w-[220px] text-[10px] text-red-400 font-dm-sans">
           {initError}
         </span>
       )}
@@ -64,15 +59,13 @@ export function NearWalletConnect({
             <span
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-card-bg)] px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]"
               title={accountId}
-              aria-label={`Connected as ${accountId}`}
             >
-              <Wallet className="h-3.5 w-3.5 text-[var(--tycoon-accent)]" aria-hidden="true" />
-              <span className="font-mono" aria-hidden="true">{truncateAccount(accountId)}</span>
+              <Wallet className="h-3.5 w-3.5 text-[var(--tycoon-accent)]" />
+              <span className="font-mono">{truncateAccount(accountId)}</span>
             </span>
             <button
               type="button"
               onClick={() => { void disconnect(); }}
-              aria-label={`Disconnect NEAR wallet (${accountId})`}
               className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 hover:text-[var(--tycoon-accent)] transition-colors"
             >
               Disconnect NEAR
@@ -83,24 +76,17 @@ export function NearWalletConnect({
             type="button"
             onClick={connect}
             disabled={!ready}
-            aria-label={ready ? "Connect NEAR wallet" : "Connect NEAR wallet (initialising…)"}
             className="inline-flex items-center gap-1.5 rounded-full bg-[var(--tycoon-card-bg)] border border-[var(--tycoon-border)] px-3 py-1.5 text-[11px] font-dm-sans font-medium text-[var(--tycoon-text)] hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] transition-colors disabled:opacity-50"
           >
-            <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
+            <Wallet className="h-3.5 w-3.5" />
             Connect NEAR
           </button>
         )}
       </div>
 
       {/* min-h reserves space for the transaction status row so content below
-          does not shift when a transaction appears or disappears (CLS).
-          aria-live="polite" announces status changes to screen readers.    */}
-      <div
-        aria-live="polite"
-        aria-atomic="true"
-        aria-label="Transaction status"
-        className={cn("min-h-[28px]", panel ? "items-start" : "items-end")}
-      >
+          does not shift when a transaction appears or disappears (CLS). */}
+      <div className={cn("min-h-[28px]", panel ? "items-start" : "items-end")}>
         {latest && (
           <div
             className={cn(
@@ -111,7 +97,7 @@ export function NearWalletConnect({
             <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-dm-sans text-[var(--tycoon-text)]/80">
               {latest.phase === "pending" && (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]" aria-hidden="true" />
+                  <Loader2 className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]" />
                   <span>Transaction pending…</span>
                 </>
               )}
@@ -133,12 +119,10 @@ export function NearWalletConnect({
                 href={latest.explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`View transaction ${latest.hash} on explorer (opens in new tab)`}
                 className="inline-flex items-center gap-1 text-[10px] text-[var(--tycoon-accent)] hover:underline"
               >
                 View on explorer
-                <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                <span className="sr-only">(opens in new tab)</span>
+                <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
