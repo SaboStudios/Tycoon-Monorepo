@@ -32,11 +32,10 @@ describe("ShopGrid", () => {
   ];
 
   describe("Loading State", () => {
-    test("renders loading spinner when isLoading is true", () => {
+    test("renders skeleton grid when isLoading is true", () => {
       render(<ShopGrid isLoading={true} />);
       expect(screen.getByTestId("shop-grid-loading")).toBeInTheDocument();
-      expect(screen.getByRole("status", { name: /loading/i })).toBeInTheDocument();
-      expect(screen.getByText("Loading shop items...")).toBeInTheDocument();
+      expect(screen.getAllByTestId("shop-grid-skeleton-card").length).toBeGreaterThan(0);
     });
 
     test("does not render items when loading", () => {
@@ -207,9 +206,11 @@ describe("ShopGrid", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
 
-    test("loading state has status role", () => {
+    test("loading state has aria-busy and aria-label", () => {
       render(<ShopGrid isLoading={true} />);
-      expect(screen.getByRole("status")).toBeInTheDocument();
+      const loading = screen.getByTestId("shop-grid-loading");
+      expect(loading).toHaveAttribute("aria-busy", "true");
+      expect(loading).toHaveAttribute("aria-label", "Loading shop items");
     });
   });
 
@@ -220,6 +221,53 @@ describe("ShopGrid", () => {
       );
       const grid = container.querySelector("[data-testid='shop-grid-items']");
       expect(grid).toHaveClass("custom-class");
+    });
+  });
+
+  describe("CLS / LCP regression (SW-FE-020)", () => {
+    test("skeleton grid uses same column classes as real grid to prevent layout shift", () => {
+      const { container: loadingContainer } = render(
+        <ShopGrid isLoading={true} columns={3} />
+      );
+      const { container: itemsContainer } = render(
+        <ShopGrid items={mockItems} columns={3} />
+      );
+
+      const skeletonGrid = loadingContainer.querySelector("[data-testid='shop-grid-loading']");
+      const itemsGrid = itemsContainer.querySelector("[data-testid='shop-grid-items']");
+
+      // Both grids must share the same responsive column classes so the
+      // transition from skeleton → real content causes zero layout shift.
+      expect(skeletonGrid).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
+      expect(itemsGrid).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
+    });
+
+    test("skeleton cards have min-h-[160px] to reserve vertical space", () => {
+      const { container } = render(<ShopGrid isLoading={true} columns={2} />);
+      const cards = container.querySelectorAll("[data-testid='shop-grid-skeleton-card']");
+      expect(cards.length).toBeGreaterThan(0);
+      cards.forEach((card) => {
+        expect(card).toHaveClass("min-h-[160px]");
+      });
+    });
+
+    test("skeleton card count matches columns × 2 rows", () => {
+      const { container: c2 } = render(<ShopGrid isLoading={true} columns={2} />);
+      const { container: c3 } = render(<ShopGrid isLoading={true} columns={3} />);
+      const { container: c4 } = render(<ShopGrid isLoading={true} columns={4} />);
+
+      expect(c2.querySelectorAll("[data-testid='shop-grid-skeleton-card']")).toHaveLength(4);
+      expect(c3.querySelectorAll("[data-testid='shop-grid-skeleton-card']")).toHaveLength(6);
+      expect(c4.querySelectorAll("[data-testid='shop-grid-skeleton-card']")).toHaveLength(8);
+    });
+
+    test("ShopItem card has min-h-[160px] to prevent CLS from image-less cards", () => {
+      const { container } = render(<ShopGrid items={mockItems} />);
+      const cards = container.querySelectorAll("[data-testid^='shop-item-']");
+      expect(cards.length).toBeGreaterThan(0);
+      cards.forEach((card) => {
+        expect(card).toHaveClass("min-h-[160px]");
+      });
     });
   });
 });

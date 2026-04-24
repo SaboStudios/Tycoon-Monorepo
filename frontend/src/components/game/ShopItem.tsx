@@ -43,7 +43,7 @@ export const ShopItem: React.FC<ShopItemData> = ({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-lg border-2 p-4 transition-all duration-200",
+        "flex flex-col rounded-lg border-2 p-4 transition-all duration-200 min-h-[160px]",
         rarityColors[rarity],
         disabled && "opacity-50 cursor-not-allowed"
       )}

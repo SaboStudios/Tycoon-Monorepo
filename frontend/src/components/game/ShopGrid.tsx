@@ -3,7 +3,7 @@
 import React, { useCallback } from "react";
 import { AlertCircle, Package } from "lucide-react";
 import { ShopItem, ShopItemData } from "./ShopItem";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -75,17 +75,34 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
     );
   }
 
-  // Loading state
+  // Loading state — skeleton grid reserves the same dimensions as real cards (prevents CLS)
   if (isLoading) {
     return (
       <div
-        className="flex flex-col items-center justify-center py-12 gap-4"
+        className={cn("grid gap-4", gridColsClass[columns], className)}
         data-testid="shop-grid-loading"
+        aria-busy="true"
+        aria-label="Loading shop items"
       >
-        <Spinner size="lg" />
-        <p className="text-gray-600 dark:text-gray-400 text-sm">
-          Loading shop items...
-        </p>
+        {Array.from({ length: columns * 2 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex flex-col rounded-lg border-2 border-gray-200 dark:border-gray-700 p-4 min-h-[160px] gap-3"
+            data-testid="shop-grid-skeleton-card"
+          >
+            <div className="flex items-start justify-between">
+              <Skeleton className="h-8 w-8 rounded" />
+              <Skeleton className="h-5 w-16 rounded" />
+            </div>
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6" />
+            <div className="mt-auto flex items-center justify-between">
+              <Skeleton className="h-6 w-12" />
+              <Skeleton className="h-8 w-16 rounded-md" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
