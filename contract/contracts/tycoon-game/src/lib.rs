@@ -1,7 +1,7 @@
 #![no_std]
 
 mod events;
-mod storage;
+pub(crate) mod storage;
 mod treasury;
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, String, Symbol};
@@ -234,3 +234,6 @@ mod test;
 
 #[cfg(test)]
 mod simulation_scenarios;
+
+#[cfg(test)]
+mod game_coverage_tests;
