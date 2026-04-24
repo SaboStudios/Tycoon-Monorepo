@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { NearWalletContext, useNearWallet } from "@/components/providers/near-wallet-provider";
+import {
+  NearWalletContext,
+  useNearWallet,
+} from "@/components/providers/near-wallet-provider";
 import { NearWalletConnect } from "@/components/wallet/NearWalletConnect";
 import { createMockNearWalletValue } from "@/test/near-wallet-mock";
 
@@ -54,7 +57,39 @@ describe("NearWalletConnect", () => {
     expect(screen.getByText("Wallet init failed")).toBeTruthy();
   });
 
-  // ── Accessibility ────────────────────────────────────────────────────────
+  it("shows an empty state when no account is connected", () => {
+    renderWithMock(createMockNearWalletValue({ accountId: null, ready: true }));
+
+    expect(
+      screen.getByText(/No NEAR wallet connected yet/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Connect to sign in and submit transactions/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a loading state while the wallet selector boots", () => {
+    renderWithMock(
+      createMockNearWalletValue({ accountId: null, ready: false }),
+    );
+
+    expect(
+      screen.getByText(/Preparing NEAR wallet support/i),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("near-wallet-empty-state")).toBeInTheDocument();
+  });
+
+  it("shows the init error state instead of the empty state", () => {
+    renderWithMock(
+      createMockNearWalletValue({
+        ready: false,
+        initError: "Wallet init failed",
+      }),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Wallet init failed");
+    expect(screen.queryByTestId("near-wallet-empty-state")).toBeNull();
+  });
 
   it("initError has role=alert so screen readers announce it immediately", () => {
     renderWithMock(
@@ -72,9 +107,7 @@ describe("NearWalletConnect", () => {
   });
 
   it("disconnect button aria-label includes the account id", () => {
-    renderWithMock(
-      createMockNearWalletValue({ accountId: "a.testnet" }),
-    );
+    renderWithMock(createMockNearWalletValue({ accountId: "a.testnet" }));
     expect(
       screen.getByRole("button", { name: /disconnect near wallet a\.testnet/i }),
     ).toBeTruthy();
@@ -218,7 +251,7 @@ describe("NearWalletConnect", () => {
   });
 
   it("transaction status wrapper always rendered to prevent CLS", () => {
-    // No transactions — wrapper must still be in the DOM (min-h reserved).
+    // No transactions: wrapper must still be in the DOM (min-h reserved).
     const { container } = renderWithMock(
       createMockNearWalletValue({ accountId: null, transactions: [] }),
     );
@@ -231,9 +264,9 @@ describe("NearWalletConnect", () => {
     const { container } = renderWithMock(
       createMockNearWalletValue({ transactions: [] }),
     );
-    // The inner transaction card should NOT be rendered...
+    // The inner transaction card should NOT be rendered.
     expect(screen.queryByText(/transaction pending/i)).toBeNull();
-    // ...but the reserved wrapper div must still exist in the DOM.
+    // But the reserved wrapper div must still exist in the DOM.
     const statusWrapper = container.querySelector(
       ".min-h-\\[28px\\]:last-child",
     );
@@ -247,8 +280,8 @@ describe("useNearWallet", () => {
       useNearWallet();
       return null;
     }
-    expect(() =>
-      render(<Bomb />),
-    ).toThrow("useNearWallet must be used within NearWalletProvider");
+    expect(() => render(<Bomb />)).toThrow(
+      "useNearWallet must be used within NearWalletProvider",
+    );
   });
 });
