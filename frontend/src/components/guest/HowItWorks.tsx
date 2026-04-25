@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination, Autoplay } from 'swiper/modules'
 import { Dice6, Pyramid, Tangent, Unplug } from 'lucide-react'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import 'swiper/css'
 import 'swiper/css/navigation'
 import 'swiper/css/pagination'
@@ -16,6 +17,7 @@ const slidesData = [
 
 const HowItWorks = () => {
     const [currentSlide, setCurrentSlide] = useState(0)
+    const prefersReducedMotion = useReducedMotion()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [swiperInstance, setSwiperInstance] = useState<any>(null)
 
@@ -24,19 +26,19 @@ const HowItWorks = () => {
         <section className="relative w-full h-[856px] overflow-hidden flex flex-col items-center justify-center border-y-[1px] border-[#0FF0FC]/20">
             {/* Background Layers (gradients per slide) */}
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                className={`absolute inset-0 z-0 ${!prefersReducedMotion ? 'transition-opacity duration-700 ease-in-out' : ''}`}
                 style={{ background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 100%)", opacity: currentSlide === 0 ? 1 : 0 }}
             />
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                className={`absolute inset-0 z-0 ${!prefersReducedMotion ? 'transition-opacity duration-700 ease-in-out' : ''}`}
                 style={{ background: "linear-gradient(225deg, #010F10 0%, #0d3538 100%)", opacity: currentSlide === 1 ? 1 : 0 }}
             />
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                className={`absolute inset-0 z-0 ${!prefersReducedMotion ? 'transition-opacity duration-700 ease-in-out' : ''}`}
                 style={{ background: "linear-gradient(315deg, #010F10 0%, #0a2a2d 100%)", opacity: currentSlide === 2 ? 1 : 0 }}
             />
             <div
-                className="absolute inset-0 z-0 transition-opacity duration-700 ease-in-out"
+                className={`absolute inset-0 z-0 ${!prefersReducedMotion ? 'transition-opacity duration-700 ease-in-out' : ''}`}
                 style={{ background: "linear-gradient(45deg, #010F10 0%, #0d3538 100%)", opacity: currentSlide === 3 ? 1 : 0 }}
             />
 
@@ -54,7 +56,7 @@ const HowItWorks = () => {
                     slidesPerView={'auto'}
                     centeredSlides={true}
                     onSlideChange={(swiper) => setCurrentSlide(swiper.realIndex)}
-                    autoplay={{ delay: 4000, disableOnInteraction: false }}
+                    autoplay={prefersReducedMotion ? false : { delay: 4000, disableOnInteraction: false }}
                     onSwiper={setSwiperInstance}
                     className="w-full max-w-[644px] h-[350px] mt-10 px-6"
                     modules={[Pagination, Autoplay]}
@@ -62,7 +64,7 @@ const HowItWorks = () => {
                 >
                     {
                         slidesData.map((item, index) => (
-                            <SwiperSlide key={index} className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center transition-all duration-500 ${currentSlide !== index ? 'blur-[1.5px] opacity-40 scale-[0.95]' : 'opacity-100 blur-0 scale-100'
+                            <SwiperSlide key={index} className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center ${!prefersReducedMotion ? 'transition-all duration-500' : ''} ${currentSlide !== index ? 'blur-[1.5px] opacity-40 scale-[0.95]' : 'opacity-100 blur-0 scale-100'
                                 }`}>
                                 <div className="w-full h-full bg-[#091F201F] border-[1px] border-[#55656D] rounded-[12px] custom-glow-blur p-6 md:p-10 flex flex-col justify-between items-center">
                                     <div className="w-full flex items-center justify-between">
@@ -94,7 +96,7 @@ const HowItWorks = () => {
                                     setCurrentSlide(i);
                                     swiperInstance?.slideTo(i)
                                 }}
-                                className={`h-[12px] cursor-pointer rounded-full ${currentSlide === i ? 'bg-cyan-400 w-[36px]' : 'bg-[#455A64] w-[12px]'} transition-all duration-300`}
+                                className={`h-[12px] cursor-pointer rounded-full ${currentSlide === i ? 'bg-cyan-400 w-[36px]' : 'bg-[#455A64] w-[12px]'} ${!prefersReducedMotion ? 'transition-all duration-300' : ''}`}
                             />
                         ))}
                     </div>

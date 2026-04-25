@@ -1,4 +1,9 @@
 #![allow(dead_code)]
+// NOTE (SW-FE-001): The blanket allow is intentional — storage helper functions
+// are the public API surface for the contract's persistence layer. Individual
+// getters/setters may appear unused to the compiler when called only through
+// the contractimpl macro expansion. Removing this attribute produces spurious
+// dead_code warnings on every storage accessor.
 use soroban_sdk::{contracttype, Address, Env, String};
 
 /// Storage keys for the contract
@@ -9,12 +14,13 @@ pub enum DataKey {
     TycToken,
     UsdcToken,
     IsInitialized,
-    Collectible(u128), // token_id -> CollectibleInfo
-    CashTier(u32),     // tier -> value
-    User(Address),     // address -> User
-    Registered(Address), // address -> bool
-    RewardSystem,      // reward system contract address
+    Collectible(u128),     // token_id -> CollectibleInfo
+    CashTier(u32),         // tier -> value
+    User(Address),         // address -> User
+    Registered(Address),   // address -> bool
+    RewardSystem,          // reward system contract address
     BackendGameController, // backend game controller address
+    StateVersion,          // u32 version of the state schema
 }
 
 /// Information about a collectible NFT
@@ -38,6 +44,19 @@ pub struct User {
     pub registered_at: u64,
     pub games_played: u32,
     pub games_won: u32,
+}
+
+/// A snapshot of the contract's critical state
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct ContractStateDump {
+    pub owner: Address,
+    pub tyc_token: Address,
+    pub usdc_token: Address,
+    pub reward_system: Address,
+    pub state_version: u32,
+    pub is_initialized: bool,
+    pub backend_controller: Option<Address>,
 }
 
 /// Get the owner address from storage
@@ -155,10 +174,29 @@ pub fn set_user(env: &Env, address: &Address, user: &User) {
 
 /// Get backend game controller address
 pub fn get_backend_game_controller(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::BackendGameController)
+    env.storage()
+        .instance()
+        .get(&DataKey::BackendGameController)
 }
 
 /// Set backend game controller address
 pub fn set_backend_game_controller(env: &Env, address: &Address) {
-    env.storage().instance().set(&DataKey::BackendGameController, address);
+    env.storage()
+        .instance()
+        .set(&DataKey::BackendGameController, address);
+}
+
+/// Get the current state version
+pub fn get_state_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::StateVersion)
+        .unwrap_or(0)
+}
+
+/// Set the current state version
+pub fn set_state_version(env: &Env, version: u32) {
+    env.storage()
+        .instance()
+        .set(&DataKey::StateVersion, &version);
 }

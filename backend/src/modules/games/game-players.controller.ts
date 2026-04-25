@@ -16,7 +16,7 @@ import { BuyPropertyDto } from './dto/buy-property.dto';
 
 @Controller('game-players')
 export class GamePlayersController {
-  constructor(private readonly gamePlayersService: GamePlayersService) { }
+  constructor(private readonly gamePlayersService: GamePlayersService) {}
 
   @Get(':id/available-balance')
   async getAvailableBalance(@Param('id', ParseIntPipe) id: number) {
@@ -59,7 +59,12 @@ export class GamePlayersController {
     @Param('gameId', ParseIntPipe) gameId: number,
     @Body() dto: PayRentDto,
   ) {
-    return this.gamePlayersService.payRent(gameId, id, dto.payeeId, dto.baseRent);
+    return this.gamePlayersService.payRent(
+      gameId,
+      id,
+      dto.payeeId,
+      dto.baseRent,
+    );
   }
 
   @Post(':id/pay-tax/:gameId')
@@ -77,6 +82,11 @@ export class GamePlayersController {
     @Param('gameId', ParseIntPipe) gameId: number,
     @Body() dto: BuyPropertyDto,
   ) {
-    return this.gamePlayersService.buyProperty(gameId, id, dto.propertyCost, dto.propertyId);
+    return this.gamePlayersService.buyProperty(
+      gameId,
+      id,
+      dto.propertyCost,
+      dto.propertyId,
+    );
   }
 }

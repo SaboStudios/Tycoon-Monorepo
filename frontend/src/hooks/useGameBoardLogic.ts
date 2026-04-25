@@ -115,8 +115,10 @@ export function useGameBoardLogic(): GameBoardState {
    * Replace with real transaction logic in production.
    */
   const rollDice = (): void => {
-    const die1 = Math.ceil(Math.random() * 6);
-    const die2 = Math.ceil(Math.random() * 6);
+    const buf = new Uint8Array(2);
+    crypto.getRandomValues(buf);
+    const die1 = (buf[0] % 6) + 1;
+    const die2 = (buf[1] % 6) + 1;
     console.log(
       `[useGameBoardLogic] ${currentPlayer.name} rolled ${die1} + ${die2} = ${die1 + die2}`,
     );

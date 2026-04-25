@@ -1,33 +1,43 @@
-use soroban_sdk::{contracttype, Address, Env, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
 
-/// Data payload for PlayerLeftPending event.
+/// Data payload for Pause event
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
-pub struct PlayerLeftPendingData {
-    pub game_id: u64,
-    pub player: Address,
-    pub stake_refunded: u128,
-    pub remaining_players: u32,
+pub struct PauseEventData {
+    /// Address that initiated the pause
+    pub paused_by: Address,
+    /// Ledger timestamp when paused
+    pub paused_at: u64,
+    /// Ledger sequence when pause expires (0 = no expiry)
+    pub expiry: u32,
+    /// Reason for pause
+    pub reason: Symbol,
 }
 
-/// Emits PlayerLeftPending when a player successfully leaves a pending game.
-pub fn emit_player_left_pending(env: &Env, data: &PlayerLeftPendingData) {
-    let topics = (Symbol::new(env, "PlayerLeftPending"), data.player.clone());
+/// Emits Pause event when contract is paused
+pub fn emit_paused(env: &Env, data: &PauseEventData) {
+    let topics = (symbol_short!("Paused"),);
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }
 
-/// Data payload for PendingGameEnded event — emitted when the last player
-/// leaves and the lobby is automatically closed.
+/// Data payload for Unpause event
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
-pub struct PendingGameEndedData {
-    pub game_id: u64,
+pub struct UnpauseEventData {
+    /// Address that initiated the unpause
+    pub unpaused_by: Address,
+    /// Ledger timestamp when unpaused
+    pub unpaused_at: u64,
+    /// Duration contract was paused (in seconds)
+    pub paused_duration: u64,
+    /// Address that originally paused
+    pub original_paused_by: Address,
 }
 
-/// Emits PendingGameEnded when the lobby becomes empty.
-pub fn emit_pending_game_ended(env: &Env, data: &PendingGameEndedData) {
-    let topics = (Symbol::new(env, "PendingGameEnded"), data.game_id);
+/// Emits Unpaused event when contract is unpaused
+pub fn emit_unpaused(env: &Env, data: &UnpauseEventData) {
+    let topics = (symbol_short!("Unpaused"),);
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }

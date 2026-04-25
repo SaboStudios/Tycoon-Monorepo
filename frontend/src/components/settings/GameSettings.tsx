@@ -4,6 +4,13 @@ import * as React from "react"
 import { ArrowLeft, Users, Lock, Unlock, Gavel, Coins, Clock, Rocket, Shield, Wallet } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
+import { LocaleSwitcher } from "./LocaleSwitcher"
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
+import { gameSettingsSchema } from "@/lib/validation/schemas"
+import {
+  mapServerErrors,
+  type FieldErrors,
+} from "@/lib/validation/serverErrorMap"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
+import { ThemeSettingsCard } from "@/components/settings/ThemeSettingsCard"
 
 // SW-2: Strict option types for all select fields
 interface SelectOption {
@@ -76,6 +84,7 @@ function labelFor(options: SelectOption[], value: string): string {
 export function GameSettings() {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState(false)
+    const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({})
 
     // Form State
     const [playerName, setPlayerName] = React.useState("Tycoon Player")
@@ -89,6 +98,9 @@ export function GameSettings() {
     // Economics
     const [stakePreset, setStakePreset] = React.useState("100")
     const [customStake, setCustomStake] = React.useState("")
+
+    const isDirty = playerName !== "Tycoon Player" || customStake !== ""
+    const { confirmLeave } = useUnsavedChanges(isDirty)
     const [startingCash, setStartingCash] = React.useState("1500")
 
     // Rules
@@ -98,6 +110,20 @@ export function GameSettings() {
     const [auctionsEnabled, setAuctionsEnabled] = React.useState(true)
 
     const handleCreateLobby = async () => {
+        // Client-side validation
+        const validation = gameSettingsSchema.safeParse({
+            playerName,
+            customStake: stakePreset === "custom" ? customStake : undefined,
+        })
+        if (!validation.success) {
+            const errs: FieldErrors = {}
+            for (const issue of validation.error.issues) {
+                errs[String(issue.path[0])] = issue.message
+            }
+            setFieldErrors(errs)
+            return
+        }
+        setFieldErrors({})
         setIsLoading(true)
 
         // Simulate API call
@@ -130,7 +156,7 @@ export function GameSettings() {
         <div className="mx-auto max-w-5xl space-y-8 p-6 md:p-8">
             {/* Header */}
             <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+                <Button variant="ghost" size="icon" onClick={() => { if (confirmLeave()) router.back() }} className="rounded-full">
                     <ArrowLeft className="h-5 w-5" />
                     <span className="sr-only">Back</span>
                 </Button>
@@ -160,9 +186,14 @@ export function GameSettings() {
                                     <Input
                                         id="player-name"
                                         value={playerName}
-                                        onChange={(e) => setPlayerName(e.target.value)}
+                                        onChange={(e) => { setPlayerName(e.target.value); setFieldErrors((p: FieldErrors) => ({ ...p, playerName: "" })) }}
                                         placeholder="Enter your Alias"
+                                        aria-describedby={fieldErrors.playerName ? "player-name-error" : undefined}
+                                        aria-invalid={!!fieldErrors.playerName}
                                     />
+                                    {fieldErrors.playerName && (
+                                        <p id="player-name-error" role="alert" className="text-xs text-red-500">{fieldErrors.playerName}</p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Select Token</Label>
@@ -196,6 +227,10 @@ export function GameSettings() {
                                         onCheckedChange={setIsPrivate}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-6">
+                                <LocaleSwitcher />
                             </div>
                         </CardContent>
                     </Card>
@@ -233,13 +268,19 @@ export function GameSettings() {
                                         </div>
                                         {stakePreset === 'custom' && (
                                             <div className="space-y-2">
-                                                <Label>Custom Amount (XLM)</Label>
+                                                <Label htmlFor="custom-stake">Custom Amount (XLM)</Label>
                                                 <Input
+                                                    id="custom-stake"
                                                     type="number"
                                                     value={customStake}
-                                                    onChange={(e) => setCustomStake(e.target.value)}
+                                                    onChange={(e) => { setCustomStake(e.target.value); setFieldErrors((p: FieldErrors) => ({ ...p, customStake: "" })) }}
                                                     placeholder="e.g. 250"
+                                                    aria-describedby={fieldErrors.customStake ? "custom-stake-error" : undefined}
+                                                    aria-invalid={!!fieldErrors.customStake}
                                                 />
+                                                {fieldErrors.customStake && (
+                                                    <p id="custom-stake-error" role="alert" className="text-xs text-red-500">{fieldErrors.customStake}</p>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -274,6 +315,7 @@ export function GameSettings() {
 
                 {/* House Rules Sidebar */}
                 <div className="space-y-6">
+                    <ThemeSettingsCard />
                     <Card className="h-full border-indigo-100 bg-gradient-to-b from-white to-indigo-50/20 dark:border-indigo-900/50 dark:from-neutral-950 dark:to-indigo-950/10">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -341,6 +383,7 @@ export function GameSettings() {
                     className="w-full bg-indigo-600 text-lg hover:bg-indigo-700 md:w-auto dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-700 hover:cursor-pointer"
                     onClick={handleCreateLobby}
                     disabled={isLoading}
+                    aria-busy={isLoading}
                 >
                     {isLoading ? (
                         <>Deploying Room...</>

@@ -2,6 +2,16 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Bot, ArrowLeft } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { generatePageMetadata } from "@/lib/metadata";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = generatePageMetadata({
+  title: "AI Game Room",
+  description:
+    "Join your AI-powered Tycoon game. Challenge intelligent opponents in strategic gameplay.",
+  canonicalPath: "/ai-play/game",
+  keywords: ["AI game", "game room", "tycoon game", "AI opponents", "strategy"],
+});
 
 interface PageProps {
   params: Promise<{ id: string }>;
