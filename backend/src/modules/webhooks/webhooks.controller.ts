@@ -12,13 +12,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
+import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { Request } from 'express';
 import { StripeWebhookDto } from './dto/webhook.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Controller('webhooks')
 export class WebhooksController {
-  constructor(private readonly webhooksService: WebhooksService) {}
+  constructor(
+    private readonly webhooksService: WebhooksService,
+    private readonly observability: WebhooksObservabilityService,
+  ) {}
 
   @Post('stripe')
   @HttpCode(HttpStatus.OK)
@@ -33,13 +37,14 @@ export class WebhooksController {
         signature,
         timestamp,
         req.rawBody,
+        'stripe',
       );
 
       if (!isValid) {
         throw new UnauthorizedException('Invalid webhook signature');
       }
 
-      return await this.webhooksService.processWebhook(body);
+      return await this.webhooksService.processWebhook(body, 'stripe');
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -55,5 +60,14 @@ export class WebhooksController {
   @Get('events')
   listEvents(@Query() query: PaginationDto) {
     return this.webhooksService.listEvents(query);
+  }
+
+  /**
+   * Prometheus metrics endpoint for webhook observability
+   * GET /webhooks/metrics
+   */
+  @Get('metrics')
+  async getMetrics() {
+    return this.observability.getMetricsText();
   }
 }
