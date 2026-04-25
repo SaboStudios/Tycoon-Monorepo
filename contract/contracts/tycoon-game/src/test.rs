@@ -653,7 +653,7 @@ fn test_backend_controller_integration() {
 fn test_export_state_reflects_initialized_values() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let (_contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
     let reward_system = Address::generate(&env);
     client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
@@ -736,7 +736,11 @@ fn test_migrate_from_v0_to_v1() {
 
     // After migrate the version must be 1
     env.as_contract(&contract_id, || {
-        assert_eq!(storage::get_state_version(&env), 1, "migrate must upgrade v0 to v1");
+        assert_eq!(
+            storage::get_state_version(&env),
+            1,
+            "migrate must upgrade v0 to v1"
+        );
     });
 }
 
@@ -799,5 +803,8 @@ fn test_set_collectible_info_overwrite() {
     assert_eq!(client.get_collectible_info(&token_id), (1, 10, 100, 50, 5));
 
     client.set_collectible_info(&token_id, &2, &20, &200, &100, &10);
-    assert_eq!(client.get_collectible_info(&token_id), (2, 20, 200, 100, 10));
+    assert_eq!(
+        client.get_collectible_info(&token_id),
+        (2, 20, 200, 100, 10)
+    );
 }

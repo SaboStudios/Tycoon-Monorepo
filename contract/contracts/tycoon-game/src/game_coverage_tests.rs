@@ -61,12 +61,18 @@ mod tests {
         client.withdraw_funds(&tyc_id, &recipient, &750);
 
         let events = env.events().all();
-        assert!(!events.is_empty(), "GCT-01: at least one event must be emitted");
+        assert!(
+            !events.is_empty(),
+            "GCT-01: at least one event must be emitted"
+        );
 
         // The last event is the FundsWithdrawn event; its data is the amount.
         let (_contract, _topics, data) = events.last().unwrap();
         let emitted_amount: u128 = soroban_sdk::FromVal::from_val(&env, &data);
-        assert_eq!(emitted_amount, 750, "GCT-01: event data must equal withdrawn amount");
+        assert_eq!(
+            emitted_amount, 750,
+            "GCT-01: event data must equal withdrawn amount"
+        );
     }
 
     // ── GCT-02 ───────────────────────────────────────────────────────────────
@@ -124,7 +130,10 @@ mod tests {
         client.remove_player_from_game(&owner, &99, &player, &7);
 
         let events = env.events().all();
-        assert!(!events.is_empty(), "GCT-03: PlayerRemovedFromGame event must be emitted");
+        assert!(
+            !events.is_empty(),
+            "GCT-03: PlayerRemovedFromGame event must be emitted"
+        );
     }
 
     // ── GCT-04 ───────────────────────────────────────────────────────────────
@@ -184,20 +193,32 @@ mod tests {
         });
 
         env.as_contract(&contract_id, || {
-            assert_eq!(storage::get_state_version(&env), 0, "GCT-05: pre-condition: version must be 0");
+            assert_eq!(
+                storage::get_state_version(&env),
+                0,
+                "GCT-05: pre-condition: version must be 0"
+            );
         });
 
         client.migrate();
 
         env.as_contract(&contract_id, || {
-            assert_eq!(storage::get_state_version(&env), 1, "GCT-05: version must be 1 after first migrate");
+            assert_eq!(
+                storage::get_state_version(&env),
+                1,
+                "GCT-05: version must be 1 after first migrate"
+            );
         });
 
         // Second migrate at v1 must be a no-op (no panic, version unchanged).
         client.migrate();
 
         env.as_contract(&contract_id, || {
-            assert_eq!(storage::get_state_version(&env), 1, "GCT-05: version must remain 1 after second migrate");
+            assert_eq!(
+                storage::get_state_version(&env),
+                1,
+                "GCT-05: version must remain 1 after second migrate"
+            );
         });
     }
 }

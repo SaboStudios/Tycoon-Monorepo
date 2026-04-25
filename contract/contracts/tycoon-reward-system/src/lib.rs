@@ -408,9 +408,9 @@ mod test;
 #[cfg(test)]
 mod overflow_rounding_tests;
 
+mod admin_access_control_tests;
 #[cfg(test)]
 mod transfer_tests;
-mod admin_access_control_tests;
 
 #[cfg(test)]
 mod simulation_scenarios;

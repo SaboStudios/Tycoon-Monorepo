@@ -3,6 +3,7 @@
 //! Tests the initialization and setup of all contracts working together.
 //! Verifies that contracts can be initialized with correct references and
 //! that cross-contract addresses are properly stored and validated.
+#![allow(unused_variables)]
 //!
 //! AC1.1 - AC1.4: Contract initialization and cross-contract references
 

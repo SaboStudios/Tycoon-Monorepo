@@ -214,9 +214,7 @@ impl TycoonContract {
         let backend_controller = get_backend_game_controller(&env);
 
         let is_owner = caller == owner;
-        let is_backend_controller = backend_controller
-            .as_ref()
-            .is_some_and(|c| caller == *c);
+        let is_backend_controller = backend_controller.as_ref().is_some_and(|c| caller == *c);
 
         if !is_owner && !is_backend_controller {
             panic!("Unauthorized: caller must be owner or backend game controller");
@@ -306,7 +304,9 @@ impl TycoonContract {
         usdc_price: u128,
         shop_stock: u64,
     ) {
-        Self::admin_set_collectible_info(env, token_id, perk, strength, tyc_price, usdc_price, shop_stock);
+        Self::admin_set_collectible_info(
+            env, token_id, perk, strength, tyc_price, usdc_price, shop_stock,
+        );
     }
 
     /// Deprecated — use `admin_set_cash_tier_value` instead.
