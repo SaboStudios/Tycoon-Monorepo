@@ -25,26 +25,28 @@ struct H<'a> {
     env: Env,
     client: TycoonRewardSystemClient<'a>,
     admin: Address,
+    #[allow(dead_code)]
     contract_id: Address,
 }
 
-impl<'a> H<'a> {
+impl H<'_> {
     fn new() -> Self {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
         let tyc_admin = Address::generate(&env);
-        let tyc_id = env
-            .register_stellar_asset_contract_v2(tyc_admin)
-            .address();
+        let tyc_id = env.register_stellar_asset_contract_v2(tyc_admin).address();
         let usdc_admin = Address::generate(&env);
-        let usdc_id = env
-            .register_stellar_asset_contract_v2(usdc_admin)
-            .address();
+        let usdc_id = env.register_stellar_asset_contract_v2(usdc_admin).address();
         let contract_id = env.register(TycoonRewardSystem, ());
         let client = TycoonRewardSystemClient::new(&env, &contract_id);
         client.initialize(&admin, &tyc_id, &usdc_id);
-        H { env, client, admin, contract_id }
+        H {
+            env,
+            client,
+            admin,
+            contract_id,
+        }
     }
 
     /// Mint a voucher directly via test_mint (bypasses admin check, token_id explicit).
@@ -179,9 +181,9 @@ fn get_backend_minter_none_when_unset() {
 fn get_backend_minter_none_after_clear() {
     let h = H::new();
     let minter = Address::generate(&h.env);
-    h.client.set_backend_minter(&h.admin, &minter);
+    h.client.set_backend_minter(&minter);
     assert_eq!(h.client.get_backend_minter(), Some(minter));
-    h.client.clear_backend_minter(&h.admin);
+    h.client.clear_backend_minter();
     assert_eq!(h.client.get_backend_minter(), None);
 }
 

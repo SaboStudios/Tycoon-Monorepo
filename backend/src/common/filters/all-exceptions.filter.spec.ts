@@ -1,8 +1,13 @@
+/**
+ * SW-BE-028 — AllExceptionsFilter: DTO validation and error mapping tests.
+ */
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpAdapterHost } from '@nestjs/core';
 import { HttpException, HttpStatus, ArgumentsHost } from '@nestjs/common';
 import { LoggerService } from '../logger/logger.service';
+
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 const mockHttpAdapterHost: {
   httpAdapter: {
@@ -25,6 +30,29 @@ const mockLoggerService = {
   logWithMeta: jest.fn(),
 };
 
+const createMockHost = (
+  overrides: { method?: string; url?: string } = {},
+): ArgumentsHost => {
+  const req = {
+    method: overrides.method ?? 'GET',
+    url: overrides.url ?? '/test-url',
+    ip: '127.0.0.1',
+    headers: { 'user-agent': 'jest' },
+  };
+  return {
+    switchToHttp: () => ({
+      getResponse: jest.fn(),
+      getRequest: () => req,
+    }),
+  } as unknown as ArgumentsHost;
+};
+
+function getReplyBody(calls: unknown[][]): Record<string, unknown> {
+  return calls[0][1] as Record<string, unknown>;
+}
+
+// ── suite ─────────────────────────────────────────────────────────────────────
+
 describe('AllExceptionsFilter', () => {
   let filter: AllExceptionsFilter;
 
@@ -32,119 +60,211 @@ describe('AllExceptionsFilter', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AllExceptionsFilter,
-        {
-          provide: HttpAdapterHost,
-          useValue: mockHttpAdapterHost,
-        },
-        {
-          provide: LoggerService,
-          useValue: mockLoggerService,
-        },
+        { provide: HttpAdapterHost, useValue: mockHttpAdapterHost },
+        { provide: LoggerService, useValue: mockLoggerService },
       ],
     }).compile();
 
     filter = module.get<AllExceptionsFilter>(AllExceptionsFilter);
     jest.clearAllMocks();
-  });
-
-  const createMockArgumentsHost = () => {
-    const mockGetResponse = jest.fn();
-    const mockRequest = {
-      method: 'GET',
-      url: '/test-url',
-      ip: '127.0.0.1',
-      headers: { 'user-agent': 'jest' },
-    };
-    return {
-      switchToHttp: () => ({
-        getResponse: mockGetResponse,
-        getRequest: () => mockRequest,
-      }),
-    } as unknown as ArgumentsHost;
-  };
-
-  it('should catch HttpException and format response', () => {
-    const mockHost = createMockArgumentsHost();
     mockHttpAdapterHost.httpAdapter.getRequestUrl.mockReturnValue('/test-url');
+  });
 
-    const exception = new HttpException('Bad Request', HttpStatus.BAD_REQUEST);
-    filter.catch(exception, mockHost);
+  // ── HttpException — string message ────────────────────────────────────────
 
-    const calls = mockHttpAdapterHost.httpAdapter.reply.mock
-      .calls as unknown[][];
-    const responseBody = calls[0][1] as Record<string, unknown>;
-    expect(responseBody).toMatchObject({
-      statusCode: 400,
-      path: '/test-url',
-      message: 'Bad Request',
+  describe('HttpException with string message', () => {
+    it('returns the string message and correct status', () => {
+      const host = createMockHost();
+      filter.catch(new HttpException('Bad Request', HttpStatus.BAD_REQUEST), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(400);
+      expect(body.message).toBe('Bad Request');
     });
   });
 
-  it('should catch unknown errors and return 500', () => {
-    const mockHost = createMockArgumentsHost();
-    mockHttpAdapterHost.httpAdapter.getRequestUrl.mockReturnValue('/test-url');
+  // ── HttpException — ValidationPipe array message ──────────────────────────
 
-    const exception = new Error('Random error');
-    filter.catch(exception, mockHost);
+  describe('HttpException with ValidationPipe message array', () => {
+    it('joins the array with "; " separator', () => {
+      const host = createMockHost();
+      const ex = new HttpException(
+        {
+          statusCode: 400,
+          message: ['name must not be empty', 'email must be an email'],
+          error: 'Bad Request',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+      filter.catch(ex, host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.message).toBe('name must not be empty; email must be an email');
+    });
 
-    const calls = mockHttpAdapterHost.httpAdapter.reply.mock
-      .calls as unknown[][];
-    const responseBody = calls[0][1] as Record<string, unknown>;
-    expect(responseBody).toMatchObject({
-      statusCode: 500,
-      path: '/test-url',
-      message: 'Random error',
+    it('includes the error field when present', () => {
+      const host = createMockHost();
+      const ex = new HttpException(
+        { statusCode: 400, message: ['field required'], error: 'Bad Request' },
+        HttpStatus.BAD_REQUEST,
+      );
+      filter.catch(ex, host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.error).toBe('Bad Request');
+    });
+
+    it('handles a single-element message array', () => {
+      const host = createMockHost();
+      const ex = new HttpException(
+        { statusCode: 400, message: ['limit must be a positive number'], error: 'Bad Request' },
+        HttpStatus.BAD_REQUEST,
+      );
+      filter.catch(ex, host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.message).toBe('limit must be a positive number');
     });
   });
 
-  it('should map Postgres duplicate entry (23505) to 409 Conflict', () => {
-    const mockHost = createMockArgumentsHost();
-    const exception = Object.assign(new Error('duplicate key'), {
-      code: '23505',
-    });
+  // ── HttpException — object message (no array) ─────────────────────────────
 
-    filter.catch(exception, mockHost);
-
-    const calls = mockHttpAdapterHost.httpAdapter.reply.mock
-      .calls as unknown[][];
-    const responseBody = calls[0][1] as Record<string, unknown>;
-    expect(responseBody).toMatchObject({
-      statusCode: HttpStatus.CONFLICT,
-      message: 'Duplicate entry',
-    });
-  });
-
-  it('should map Postgres foreign key violation (23503) to 400 Bad Request', () => {
-    const mockHost = createMockArgumentsHost();
-    const exception = Object.assign(new Error('foreign key'), {
-      code: '23503',
-    });
-
-    filter.catch(exception, mockHost);
-
-    const calls = mockHttpAdapterHost.httpAdapter.reply.mock
-      .calls as unknown[][];
-    const responseBody = calls[0][1] as Record<string, unknown>;
-    expect(responseBody).toMatchObject({
-      statusCode: HttpStatus.BAD_REQUEST,
-      message: 'Referenced record does not exist',
+  describe('HttpException with object response (string message)', () => {
+    it('passes a string message through unchanged', () => {
+      const host = createMockHost();
+      const ex = new HttpException(
+        { statusCode: 409, message: 'Duplicate entry', error: 'Conflict' },
+        HttpStatus.CONFLICT,
+      );
+      filter.catch(ex, host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.message).toBe('Duplicate entry');
+      expect(body.statusCode).toBe(409);
     });
   });
 
-  it('should map Postgres not null violation (23502) to 400 Bad Request', () => {
-    const mockHost = createMockArgumentsHost();
-    const exception = Object.assign(new Error('not null'), {
-      code: '23502',
+  // ── plain Error ───────────────────────────────────────────────────────────
+
+  describe('plain Error', () => {
+    it('returns 500 and the error message', () => {
+      const host = createMockHost();
+      filter.catch(new Error('Random error'), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(500);
+      expect(body.message).toBe('Random error');
     });
 
-    filter.catch(exception, mockHost);
+    it('does not include stack in the response body', () => {
+      const host = createMockHost();
+      filter.catch(new Error('oops'), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body).not.toHaveProperty('stack');
+    });
+  });
 
-    const calls = mockHttpAdapterHost.httpAdapter.reply.mock
-      .calls as unknown[][];
-    const responseBody = calls[0][1] as Record<string, unknown>;
-    expect(responseBody).toMatchObject({
-      statusCode: HttpStatus.BAD_REQUEST,
-      message: 'Required field is missing',
+  // ── Postgres error codes ──────────────────────────────────────────────────
+
+  describe('Postgres error code mapping', () => {
+    it('maps 23505 (duplicate key) to 409 Conflict', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('duplicate key'), { code: '23505' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.CONFLICT);
+      expect(body.message).toBe('Duplicate entry');
+    });
+
+    it('maps 23503 (foreign key violation) to 400 Bad Request', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('foreign key'), { code: '23503' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(body.message).toBe('Referenced record does not exist');
+    });
+
+    it('maps 23502 (not null violation) to 400 Bad Request', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('not null'), { code: '23502' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(body.message).toBe('Required field is missing');
+    });
+
+    it('returns 500 for an unrecognised DB error code', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('unknown db error'), { code: '99999' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(500);
+    });
+  });
+
+  // ── unknown exception ─────────────────────────────────────────────────────
+
+  describe('unknown exception (non-Error throw)', () => {
+    it('returns 500 for a plain object throw', () => {
+      const host = createMockHost();
+      filter.catch({ weird: true }, host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(500);
+    });
+
+    it('returns 500 for a string throw', () => {
+      const host = createMockHost();
+      filter.catch('something went wrong', host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(500);
+    });
+  });
+
+  // ── response shape ────────────────────────────────────────────────────────
+
+  describe('response shape', () => {
+    it('always includes statusCode, timestamp, path, and message', () => {
+      const host = createMockHost();
+      filter.catch(new HttpException('Not Found', HttpStatus.NOT_FOUND), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body).toHaveProperty('statusCode');
+      expect(body).toHaveProperty('timestamp');
+      expect(body).toHaveProperty('path');
+      expect(body).toHaveProperty('message');
+    });
+
+    it('does not include stack in the response body', () => {
+      const host = createMockHost();
+      filter.catch(new HttpException('Error', HttpStatus.INTERNAL_SERVER_ERROR), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body).not.toHaveProperty('stack');
+    });
+  });
+
+  // ── logging routing ───────────────────────────────────────────────────────
+
+  describe('logging routing', () => {
+    it('calls logWithMeta at error level for 5xx', () => {
+      const host = createMockHost();
+      filter.catch(new Error('server crash'), host);
+      expect(mockLoggerService.logWithMeta).toHaveBeenCalledWith(
+        'error',
+        expect.any(String),
+        expect.any(Object),
+      );
+    });
+
+    it('calls logWithMeta at warn level for 4xx', () => {
+      const host = createMockHost();
+      filter.catch(new HttpException('Bad Request', HttpStatus.BAD_REQUEST), host);
+      expect(mockLoggerService.logWithMeta).toHaveBeenCalledWith(
+        'warn',
+        expect.any(String),
+        expect.any(Object),
+      );
+    });
+
+    it('does not emit secrets in logWithMeta context', () => {
+      const host = createMockHost();
+      filter.catch(new HttpException('Bad Request', HttpStatus.BAD_REQUEST), host);
+      const calls = mockLoggerService.logWithMeta.mock.calls as [string, string, Record<string, unknown>][];
+      for (const [, , ctx] of calls) {
+        const serialised = JSON.stringify(ctx);
+        expect(serialised).not.toMatch(/password/i);
+        expect(serialised).not.toMatch(/token/i);
+        expect(serialised).not.toMatch(/secret/i);
+      }
     });
   });
 });
