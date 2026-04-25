@@ -4,6 +4,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
 import { RedisService } from '../modules/redis/redis.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { HealthController } from './health.controller';
+import { RedisService } from '../modules/redis/redis.service';
+import { DataSource } from 'typeorm';
 import { getDataSourceToken } from '@nestjs/typeorm';
 
 const mockRedis = {
@@ -58,11 +62,21 @@ describe('HealthController', () => {
 
   // ── readiness ─────────────────────────────────────────────────────────────
 
+  describe('liveness()', () => {
+    it('always returns healthy', () => {
+      const result = controller.liveness();
+      expect(result.status).toBe('healthy');
+      expect(result.timestamp).toBeDefined();
+      expect(typeof result.uptime).toBe('number');
+    });
+  });
+
   describe('readiness()', () => {
     it('returns healthy when both Redis and DB are up', async () => {
       mockRedis.set.mockResolvedValue(undefined);
       mockRedis.get.mockResolvedValue('ok');
       mockDataSource.query.mockResolvedValue([]);
+      mockDataSource.query.mockResolvedValue([{ '?column?': 1 }]);
 
       const result = await controller.readiness();
       expect(result.status).toBe('healthy');
@@ -121,6 +135,8 @@ describe('HealthController', () => {
 
   // ── aggregate ─────────────────────────────────────────────────────────────
 
+  });
+
   describe('aggregate()', () => {
     it('returns healthy when all dependencies are up', async () => {
       mockRedis.set.mockResolvedValue(undefined);
@@ -132,6 +148,10 @@ describe('HealthController', () => {
     });
 
     it('returns degraded when only Redis is down', async () => {
+      expect(result.memory⁹).toBeDefined();
+    });
+
+    it('returns degraded when only one dependency is up', async () => {
       mockRedis.set.mockRejectedValue(new Error('Redis down'));
       mockDataSource.query.mockResolvedValue([]);
 
@@ -196,6 +216,8 @@ describe('HealthController', () => {
   });
 
   // ── checkRedis — backward compat ──────────────────────────────────────────
+
+  });
 
   describe('checkRedis() — backward compat', () => {
     it('returns healthy when Redis is up', async () => {

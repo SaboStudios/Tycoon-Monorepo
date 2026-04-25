@@ -102,7 +102,10 @@ mod tests {
         );
 
         let events = env.events().all();
-        assert!(!events.is_empty(), "DEP-02: FundsWithdrawn event must be emitted");
+        assert!(
+            !events.is_empty(),
+            "DEP-02: FundsWithdrawn event must be emitted"
+        );
     }
 
     // ── DEP-03: set_collectible_info shim stores metadata ────────────────────

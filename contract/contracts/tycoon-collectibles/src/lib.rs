@@ -724,6 +724,7 @@ impl TycoonCollectibles {
 
     /// Set metadata for a specific token (admin only)
     /// Creates marketplace-compliant JSON metadata
+    #[allow(clippy::too_many_arguments)]
     pub fn set_token_metadata(
         env: Env,
         token_id: u128,
@@ -799,8 +800,8 @@ impl TycoonCollectibles {
 }
 
 #[cfg(test)]
-mod test;
-#[cfg(test)]
 mod coverage_tests;
 #[cfg(test)]
 mod entrypoint_auth_tests;
+#[cfg(test)]
+mod test;

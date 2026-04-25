@@ -19,16 +19,10 @@ import { Gift } from '../gifts/entities/gift.entity';
 import { GiftStatus } from '../gifts/enums/gift-status.enum';
 import { RedisService } from '../redis/redis.service';
 import { secureRandomHex } from '../../common/crypto-secure-random';
+import { PaginationService, PaginatedResponse } from '../../common';
 
-export interface PaginatedShopItems {
-  data: ShopItem[];
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
+/** @deprecated Use PaginatedResponse<ShopItem> from common instead. */
+export type PaginatedShopItems = PaginatedResponse<ShopItem>;
 
 @Injectable()
 export class ShopService {
@@ -43,6 +37,7 @@ export class ShopService {
     private readonly giftsService: GiftsService,
     private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
+    private readonly paginationService: PaginationService,
   ) {}
 
   /**
@@ -60,17 +55,16 @@ export class ShopService {
   }
 
   /**
-   * List shop items with optional filters and pagination
+   * List shop items with optional filters, sorting, and pagination.
+   * Uses PaginationService for stable, consistent page results.
    */
   async findAll(
     filterDto: FilterShopItemsDto,
     userId?: number,
   ): Promise<PaginatedShopItems> {
-    const { type, rarity, active = true, page = 1, limit = 20 } = filterDto;
+    const { type, rarity, active = true } = filterDto;
 
-    const qb = this.shopItemRepository
-      .createQueryBuilder('item')
-      .orderBy('item.created_at', 'DESC');
+    const qb = this.shopItemRepository.createQueryBuilder('item');
 
     if (type !== undefined) {
       qb.andWhere('item.type = :type', { type });
@@ -84,39 +78,22 @@ export class ShopService {
       qb.andWhere('item.active = :active', { active });
     }
 
-    const total = await qb.getCount();
-    const data = await qb
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
+    const paginated = await this.paginationService.paginate(qb, filterDto);
 
-    // If userId is provided, check ownership
-    let itemsWithOwnership = data as (ShopItem & { is_owned?: boolean })[];
+    // If userId is provided, annotate each item with ownership flag.
     if (userId) {
       const userInventory = await this.dataSource
         .getRepository(UserInventory)
-        .find({
-          where: { user_id: userId },
-        });
+        .find({ where: { user_id: userId } });
 
-      const ownedItemIds = new Set(
-        userInventory.map((inv) => inv.shop_item_id),
-      );
-      itemsWithOwnership = data.map((item) => ({
+      const ownedItemIds = new Set(userInventory.map((inv) => inv.shop_item_id));
+      paginated.data = paginated.data.map((item) => ({
         ...item,
         is_owned: ownedItemIds.has(item.id),
-      }));
+      })) as ShopItem[];
     }
 
-    return {
-      data: itemsWithOwnership,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    return paginated;
   }
 
   /**
@@ -277,37 +254,19 @@ export class ShopService {
   }
 
   /**
-   * Get purchase history for a user
+   * Get purchase history for a user with stable pagination.
    */
   async getPurchaseHistory(
     userId: number,
     page: number = 1,
     limit: number = 20,
-  ): Promise<{
-    data: Purchase[];
-    meta: { page: number; limit: number; total: number; totalPages: number };
-  }> {
+  ): Promise<PaginatedResponse<Purchase>> {
     const qb = this.purchaseRepository
       .createQueryBuilder('purchase')
       .leftJoinAndSelect('purchase.shop_item', 'shop_item')
-      .where('purchase.user_id = :userId', { userId })
-      .orderBy('purchase.created_at', 'DESC');
+      .where('purchase.user_id = :userId', { userId });
 
-    const total = await qb.getCount();
-    const data = await qb
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
-
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    return this.paginationService.paginate(qb, { page, limit });
   }
 
   /**
