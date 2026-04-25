@@ -6,6 +6,7 @@ import {
   Req,
   Body,
   Query,
+  Param,
   HttpCode,
   HttpStatus,
   UnauthorizedException,
@@ -13,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
+import { WebhooksAuditService } from './webhooks-audit.service';
 import { Request } from 'express';
 import { StripeWebhookDto } from './dto/webhook.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -22,6 +24,7 @@ export class WebhooksController {
   constructor(
     private readonly webhooksService: WebhooksService,
     private readonly observability: WebhooksObservabilityService,
+    private readonly auditService: WebhooksAuditService,
   ) {}
 
   @Post('stripe')
@@ -29,22 +32,31 @@ export class WebhooksController {
   async handleStripeWebhook(
     @Headers('x-stripe-signature') signature: string,
     @Headers('x-stripe-timestamp') timestamp: string,
-    @Req() req: Request & { rawBody: Buffer },
+    @Req() req: Request & { rawBody: Buffer; ip: string },
     @Body() body: StripeWebhookDto,
   ) {
     try {
-      const isValid = this.webhooksService.verifySignature(
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const isValid = await this.webhooksService.verifySignature(
         signature,
         timestamp,
         req.rawBody,
         'stripe',
+        ipAddress,
       );
 
       if (!isValid) {
         throw new UnauthorizedException('Invalid webhook signature');
       }
 
-      return await this.webhooksService.processWebhook(body, 'stripe');
+      return await this.webhooksService.processWebhook(
+        body,
+        'stripe',
+        ipAddress,
+        userAgent,
+      );
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -69,5 +81,46 @@ export class WebhooksController {
   @Get('metrics')
   async getMetrics() {
     return this.observability.getMetricsText();
+  }
+
+  /**
+   * Get audit logs for a specific webhook
+   * GET /webhooks/audit/:webhookId
+   */
+  @Get('audit/:webhookId')
+  async getAuditLogs(@Param('webhookId') webhookId: string) {
+    return this.auditService.getAuditLogsForWebhook(webhookId);
+  }
+
+  /**
+   * Get failed webhook operations for investigation
+   * GET /webhooks/audit/failed?source=stripe&limit=100
+   */
+  @Get('audit-failed')
+  async getFailedOperations(
+    @Query('source') source?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.auditService.getFailedOperations(source, limit);
+  }
+
+  /**
+   * Get audit statistics for a time period
+   * GET /webhooks/audit-stats?startDate=2024-01-01&endDate=2024-01-31&source=stripe
+   */
+  @Get('audit-stats')
+  async getAuditStatistics(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('source') source?: string,
+  ) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format');
+    }
+
+    return this.auditService.getAuditStatistics(start, end, source);
   }
 }
