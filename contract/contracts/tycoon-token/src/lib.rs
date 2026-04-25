@@ -420,8 +420,8 @@ impl TycoonToken {
 }
 
 #[cfg(test)]
-mod deprecation_tests;
-#[cfg(test)]
 mod access_control_tests;
+#[cfg(test)]
+mod deprecation_tests;
 #[cfg(test)]
 mod security_review_tests;

@@ -1,4 +1,3 @@
-#![cfg(test)]
 //! Access-control tests for the TycoonBoostSystem contract.
 //!
 //! Verifies that:
