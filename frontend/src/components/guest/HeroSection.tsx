@@ -2,9 +2,17 @@
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
+  const { fire } = useHeroTelemetry();
+
+  // SW-3: fire hero_view once on mount
+  useEffect(() => {
+    fire("hero_view");
+  }, [fire]);
 
   return (
     <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
@@ -123,7 +131,7 @@ const HeroSection: React.FC = () => {
 
           {/* Multiplayer */}
           <button
-            onClick={() => router.push("/game-settings")}
+            onClick={() => { fire("hero_multiplayer_click"); router.push("/game-settings"); }}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -150,7 +158,7 @@ const HeroSection: React.FC = () => {
 
           {/* Join Room */}
           <button
-            onClick={() => router.push("/join-room")}
+            onClick={() => { fire("hero_join_room_click"); router.push("/join-room"); }}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -177,7 +185,7 @@ const HeroSection: React.FC = () => {
 
           {/* Challenge AI */}
           <button
-            onClick={() => router.push("/play-ai")}
+            onClick={() => { fire("hero_challenge_ai_click"); router.push("/play-ai"); }}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
