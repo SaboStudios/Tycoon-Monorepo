@@ -9,6 +9,9 @@ import { VirusScanService } from './virus-scan.service';
 import { MulterExceptionFilter } from './multer-exception.filter';
 import { UploadsObservabilityService } from './uploads-observability.service';
 import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
+import { UploadsErrorMapperService } from './uploads-error-mapper.service';
+import { UploadValidationPipe } from './pipes/upload-validation.pipe';
+import { UploadExceptionFilter } from './filters/upload-exception.filter';
 import { AuthModule } from '../auth/auth.module';
 import { Upload } from './entities/upload.entity';
 import { AuditTrailModule } from '../audit-trail/audit-trail.module';
@@ -31,13 +34,20 @@ import { AuditTrailModule } from '../audit-trail/audit-trail.module';
   providers: [
     UploadsObservabilityService,
     UploadsObservabilityInterceptor,
+    UploadsErrorMapperService,
+    UploadValidationPipe,
     UploadsService,
     VirusScanService,
     {
       provide: APP_FILTER,
       useClass: MulterExceptionFilter,
     },
+    {
+      provide: APP_FILTER,
+      useClass: UploadExceptionFilter,
+    },
   ],
-  exports: [UploadsService, UploadsObservabilityService],
+  exports: [UploadsService, UploadsObservabilityService, UploadsErrorMapperService],
 })
 export class UploadsModule { }
+
