@@ -10,10 +10,9 @@ import {
   repositoryMockFactory,
   MockType,
 } from '../../../test/mocks/database.mock';
-import {
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { RedisService } from '../redis/redis.service';
+import { PaginationService } from '../../common/services/pagination.service';
 
 describe('ShopService', () => {
   let service: ShopService;
@@ -45,6 +44,13 @@ describe('ShopService', () => {
     createQueryRunner: jest.fn(() => mockQueryRunner),
   };
 
+  const mockRedisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    delByPattern: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -69,6 +75,11 @@ describe('ShopService', () => {
           provide: DataSource,
           useValue: mockDataSource,
         },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
+        },
+        PaginationService,
       ],
     }).compile();
 
@@ -163,13 +174,16 @@ describe('ShopService', () => {
       shopItemRepositoryMock.findOne!.mockResolvedValue(mockShopItem);
 
       // Mock query runner operations
-      mockQueryRunner.manager.create.mockImplementation((entity: unknown, data: unknown) => {
-        if (entity === Purchase) return { ...mockPurchase, ...data };
-        return { ...mockGift, ...data };
-      });
+      mockQueryRunner.manager.create.mockImplementation(
+        (entity: unknown, data: any) => {
+          if (entity === Purchase) return { ...mockPurchase, ...data };
+          return { ...mockGift, ...data };
+        },
+      );
 
       mockQueryRunner.manager.save.mockImplementation((entity: unknown) => {
-        if ((entity as { user_id?: number }).user_id) return Promise.resolve(mockPurchase);
+        if ((entity as { user_id?: number }).user_id)
+          return Promise.resolve(mockPurchase);
         return Promise.resolve(mockGift);
       });
 
@@ -228,9 +242,11 @@ describe('ShopService', () => {
 
       shopItemRepositoryMock.findOne!.mockResolvedValue(mockShopItem);
 
-      mockQueryRunner.manager.create.mockImplementation((entity: unknown, data: unknown) => {
-        return { ...data };
-      });
+      mockQueryRunner.manager.create.mockImplementation(
+        (entity: unknown, data: any) => {
+          return { ...data };
+        },
+      );
 
       mockQueryRunner.manager.save.mockImplementation((entity: unknown) => {
         return Promise.resolve(entity);
@@ -261,13 +277,15 @@ describe('ShopService', () => {
       ];
 
       const mockQueryBuilder = {
+        alias: 'purchase',
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(1),
-        getMany: jest.fn().mockResolvedValue(mockPurchases),
+        getManyAndCount: jest.fn().mockResolvedValue([mockPurchases, 1]),
       };
 
       purchaseRepositoryMock.createQueryBuilder = jest
@@ -277,12 +295,9 @@ describe('ShopService', () => {
       const result = await service.getPurchaseHistory(1, 1, 20);
 
       expect(result.data).toEqual(mockPurchases);
-      expect(result.meta).toEqual({
-        page: 1,
-        limit: 20,
-        total: 1,
-        totalPages: 1,
-      });
+      expect(result.meta.totalItems).toBe(1);
+      expect(result.meta.page).toBe(1);
+      expect(result.meta.limit).toBe(20);
     });
   });
 });

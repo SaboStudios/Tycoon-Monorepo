@@ -20,7 +20,8 @@ describe('PaymentWebhook', () => {
 
   const secret = 'test-secret';
 
-  const sign = (payload: string) => createHmac('sha256', secret).update(payload).digest('hex');
+  const sign = (payload: string) =>
+    createHmac('sha256', secret).update(payload).digest('hex');
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,12 +57,20 @@ describe('PaymentWebhook', () => {
       },
     };
 
-    purchaseRepository.findOne.mockResolvedValue({ id: 1, final_price: '50.00', status: 'pending' });
+    purchaseRepository.findOne.mockResolvedValue({
+      id: 1,
+      final_price: '50.00',
+      status: 'pending',
+    });
     purchaseRepository.save.mockResolvedValue({});
     rewardEngine.earnPerk.mockResolvedValue({ granted: true });
 
     const payload = JSON.stringify(event);
-    const result = await service.handlePaymentWebhook(payload, sign(payload), event);
+    const result = await service.handlePaymentWebhook(
+      payload,
+      sign(payload),
+      event,
+    );
 
     expect(result).toEqual({ ok: true, status: 'processed' });
     expect(rewardEngine.earnPerk).toHaveBeenCalledWith({
@@ -84,7 +93,11 @@ describe('PaymentWebhook', () => {
       },
     };
 
-    purchaseRepository.findOne.mockResolvedValue({ id: 1, final_price: '50.00', status: 'pending' });
+    purchaseRepository.findOne.mockResolvedValue({
+      id: 1,
+      final_price: '50.00',
+      status: 'pending',
+    });
 
     const payload = JSON.stringify(event);
 

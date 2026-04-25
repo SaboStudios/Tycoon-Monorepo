@@ -12,7 +12,13 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import type { Request } from 'express';
 import { GiftsService, PaginatedGifts } from './gifts.service';
 import { CreateGiftDto } from './dto/create-gift.dto';

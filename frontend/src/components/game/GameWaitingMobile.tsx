@@ -118,7 +118,7 @@ export function GameWaitingMobile({
 
     return (
         <section className="w-full min-h-dvh bg-settings bg-cover bg-fixed bg-center">
-            <main className="w-full min-h-full flex flex-col bg-[#010F10]/95 px-4 py-6">
+            <div className="flex min-h-full w-full flex-col bg-[#010F10]/95 px-4 py-6">
 
                 {/* Header - Game Code Stacked */}
                 <div className="flex flex-col items-center mb-6 pt-4">
@@ -315,7 +315,7 @@ export function GameWaitingMobile({
                     </button>
                 </div>
 
-            </main>
+            </div>
         </section>
     );
 }

@@ -1,4 +1,9 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,7 +11,10 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { Purchase } from '../../shop/entities/purchase.entity';
 import { RewardEngine } from '../rewards/rewardEngine';
 
-export type PaymentWebhookEventType = 'payment.success' | 'payment.failed' | 'refund.issued';
+export type PaymentWebhookEventType =
+  | 'payment.success'
+  | 'payment.failed'
+  | 'refund.issued';
 
 export interface PaymentWebhookEvent {
   id?: string;
@@ -33,7 +41,11 @@ export class PaymentWebhook {
     private readonly configService: ConfigService,
   ) {}
 
-  handlePaymentWebhook(payload: string, signature: string | undefined, event: PaymentWebhookEvent) {
+  handlePaymentWebhook(
+    payload: string,
+    signature: string | undefined,
+    event: PaymentWebhookEvent,
+  ) {
     this.verifySignature(payload, signature);
 
     switch (event.type) {
@@ -49,10 +61,14 @@ export class PaymentWebhook {
   }
 
   private verifySignature(payload: string, signature?: string): void {
-    const secret = this.configService.get<string>('PAYMENT_WEBHOOK_SECRET') || process.env.PAYMENT_WEBHOOK_SECRET;
+    const secret =
+      this.configService.get<string>('PAYMENT_WEBHOOK_SECRET') ||
+      process.env.PAYMENT_WEBHOOK_SECRET;
 
     if (!secret) {
-      this.logger.warn('PAYMENT_WEBHOOK_SECRET is not configured; rejecting webhook');
+      this.logger.warn(
+        'PAYMENT_WEBHOOK_SECRET is not configured; rejecting webhook',
+      );
       throw new UnauthorizedException('Webhook verification unavailable');
     }
 
@@ -74,20 +90,34 @@ export class PaymentWebhook {
   }
 
   private async handlePaymentSuccess(event: PaymentWebhookEvent) {
-    const { purchase_id, user_id, perk_id, quantity = 1, amount, transaction_id } = event.data;
+    const {
+      purchase_id,
+      user_id,
+      perk_id,
+      quantity = 1,
+      amount,
+      transaction_id,
+    } = event.data;
 
     if (!purchase_id || !user_id || !perk_id) {
-      throw new BadRequestException('payment.success requires purchase_id, user_id, and perk_id');
+      throw new BadRequestException(
+        'payment.success requires purchase_id, user_id, and perk_id',
+      );
     }
 
-    const purchase = await this.purchaseRepository.findOne({ where: { id: purchase_id } });
+    const purchase = await this.purchaseRepository.findOne({
+      where: { id: purchase_id },
+    });
     if (!purchase) {
       this.logger.warn(`Suspicious webhook: purchase ${purchase_id} not found`);
       throw new BadRequestException('Purchase not found');
     }
 
     const expectedAmount = Number(purchase.final_price);
-    if (typeof amount === 'number' && Math.abs(amount - expectedAmount) > 0.01) {
+    if (
+      typeof amount === 'number' &&
+      Math.abs(amount - expectedAmount) > 0.01
+    ) {
       this.logger.warn(
         `Suspicious payment amount for purchase ${purchase_id}. Expected=${expectedAmount} Received=${amount}`,
       );
@@ -115,7 +145,9 @@ export class PaymentWebhook {
       throw new BadRequestException('payment.failed requires purchase_id');
     }
 
-    const purchase = await this.purchaseRepository.findOne({ where: { id: purchase_id } });
+    const purchase = await this.purchaseRepository.findOne({
+      where: { id: purchase_id },
+    });
     if (!purchase) {
       this.logger.warn(`payment.failed for unknown purchase ${purchase_id}`);
       return { ok: true, status: 'ignored' as const };
@@ -138,7 +170,9 @@ export class PaymentWebhook {
       throw new BadRequestException('refund.issued requires purchase_id');
     }
 
-    const purchase = await this.purchaseRepository.findOne({ where: { id: purchase_id } });
+    const purchase = await this.purchaseRepository.findOne({
+      where: { id: purchase_id },
+    });
     if (!purchase) {
       this.logger.warn(`refund.issued for unknown purchase ${purchase_id}`);
       return { ok: true, status: 'ignored' as const };

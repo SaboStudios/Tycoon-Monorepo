@@ -118,8 +118,12 @@ describe('GiftsService', () => {
 
       expect(result).toEqual(mockGift);
       expect(mockUsersService.findOne).toHaveBeenCalledWith(senderId);
-      expect(mockUsersService.findOne).toHaveBeenCalledWith(createGiftDto.receiver_id);
-      expect(mockShopService.findOne).toHaveBeenCalledWith(createGiftDto.shop_item_id);
+      expect(mockUsersService.findOne).toHaveBeenCalledWith(
+        createGiftDto.receiver_id,
+      );
+      expect(mockShopService.findOne).toHaveBeenCalledWith(
+        createGiftDto.shop_item_id,
+      );
       expect(repositoryMock.save).toHaveBeenCalled();
     });
 

@@ -1,10 +1,18 @@
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
-// -----------------------------------------------------------------------
-// DataKey
-// -----------------------------------------------------------------------
+// ============================================================
+// Pause-related types (re-exported from tycoon-lib concept)
+// ============================================================
 
 /// Storage keys for the tycoon-main-game contract.
+///
+/// Packing notes:
+/// - Singleton keys (Owner, RewardSystem, UsdcToken, IsInitialized,
+///   NextGameId) live in `instance()` storage — one ledger entry for the
+///   whole contract, cheaper to read/write than separate `persistent()`
+///   entries.
+/// - Per-entity keys (Registered, Game, GameSettings) stay in
+///   `persistent()` storage so they can be individually expired/archived.
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
@@ -16,14 +24,16 @@ pub enum DataKey {
     UsdcToken,
     /// Tracks whether the contract has been initialized.
     IsInitialized,
+    /// The current version of the state schema
+    StateVersion,
+    /// Auto-incrementing game ID counter.
+    NextGameId,
     /// Marks whether a given address has registered as a player.
     Registered(Address),
     /// Maps game_id -> Game.
     Game(u64),
     /// Maps game_id -> GameSettings.
     GameSettings(u64),
-    /// Auto-incrementing game ID counter.
-    NextGameId,
 }
 
 // -----------------------------------------------------------------------
@@ -31,31 +41,19 @@ pub enum DataKey {
 // -----------------------------------------------------------------------
 
 /// Lifecycle state of a Tycoon game.
-///
-/// - `Pending`  — Game created, waiting for players.
-/// - `Ongoing`  — Game is actively being played.
-/// - `Ended`    — Game has concluded.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GameStatus {
-    /// Game created, accepting players.
     Pending,
-    /// Game is actively being played.
     Ongoing,
-    /// Game has concluded.
     Ended,
 }
 
 /// Who can join a Tycoon game.
-///
-/// - `Public`  — Open to any registered player.
-/// - `Private` — Requires a matching room code.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GameMode {
-    /// Open lobby — any registered player can join.
     Public,
-    /// Private lobby — only players with the room code can join.
     Private,
 }
 
@@ -65,19 +63,14 @@ pub enum GameMode {
 
 /// Configuration parameters for a Tycoon game lobby.
 ///
-/// Mirrors `TycoonLib.sol` GameSettings struct.
 /// Stored separately from `Game` so settings can be read without loading
-/// the full game state.
+/// the full game state (avoids deserialising the joined_players Vec).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GameSettings {
-    /// Maximum number of players allowed in this game (2–8).
     pub max_players: u32,
-    /// Whether auction mode is enabled for property purchases.
     pub auction: bool,
-    /// Starting cash balance for each player in the game.
     pub starting_cash: u128,
-    /// Room code required to join a private game. Empty string for public games.
     pub private_room_code: String,
 }
 
@@ -87,42 +80,29 @@ pub struct GameSettings {
 
 /// Full state of a Tycoon game instance.
 ///
-/// Mirrors `TycoonLib.sol` Game struct.
-/// `joined_players` is stored inline as a `Vec<Address>` — serialized as
-/// part of the struct's XDR representation, acceptable for up to 8 players.
+/// `joined_players` is stored inline as a `Vec<Address>` — acceptable for
+/// up to 8 players.  Fields are ordered largest → smallest to minimise
+/// XDR padding.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Game {
-    /// Unique auto-incremented game identifier.
     pub id: u64,
-    /// Short alphanumeric join code for sharing the lobby.
     pub code: String,
-    /// Address of the player who created the game.
     pub creator: Address,
-    /// Current lifecycle status of the game.
     pub status: GameStatus,
-    /// Address of the winning player. `None` until the game ends.
     pub winner: Option<Address>,
-    /// Total player slots for this game (mirrors `GameSettings.max_players`).
     pub number_of_players: u32,
-    /// Ordered list of players who have joined (creator is first).
     pub joined_players: Vec<Address>,
-    /// Whether this is a public or private lobby.
     pub mode: GameMode,
-    /// Whether this is an AI-controlled game.
     pub ai: bool,
-    /// Amount each player stakes to enter (in token units). Zero for free games.
     pub stake_per_player: u128,
-    /// Total staked amount across all joined players.
     pub total_staked: u128,
-    /// Ledger timestamp when the game was created.
     pub created_at: u64,
-    /// Ledger timestamp when the game ended. Zero until the game concludes.
     pub ended_at: u64,
 }
 
 // -----------------------------------------------------------------------
-// Initialization helpers
+// Initialization helpers  (instance storage)
 // -----------------------------------------------------------------------
 
 pub fn is_initialized(env: &Env) -> bool {
@@ -136,43 +116,57 @@ pub fn set_initialized(env: &Env) {
     env.storage().instance().set(&DataKey::IsInitialized, &true);
 }
 
-// -----------------------------------------------------------------------
-// Owner helpers
-// -----------------------------------------------------------------------
+// ============================================================
+// State Version helpers
+// ============================================================
 
-pub fn get_owner(env: &Env) -> Address {
+pub fn get_state_version(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&DataKey::Owner)
-        .expect("Owner not set")
+        .get(&DataKey::StateVersion)
+        .unwrap_or(0)
 }
 
-pub fn set_owner(env: &Env, owner: &Address) {
-    env.storage().instance().set(&DataKey::Owner, owner);
+pub fn set_state_version(env: &Env, version: u32) {
+    env.storage().instance().set(&DataKey::StateVersion, &version);
 }
 
+// ============================================================
+// Admin helpers
+// ============================================================
 // -----------------------------------------------------------------------
-// Reward system helpers
+// Owner helpers  (instance storage)
 // -----------------------------------------------------------------------
 
-pub fn get_reward_system(env: &Env) -> Address {
+pub fn get_admin(env: &Env) -> Address {
     env.storage()
         .instance()
-        .get(&DataKey::RewardSystem)
-        .expect("Reward system not set")
+        .get(&DataKey::Admin)
+        .expect("Admin not set")
+}
+
+pub fn set_admin(env: &Env, admin: &Address) {
+    env.storage().instance().set(&DataKey::Admin, admin);
+}
+
+// -----------------------------------------------------------------------
+// Reward system helpers  (instance storage)
+// -----------------------------------------------------------------------
+
+pub fn set_pause_config(env: &Env, config: &PauseConfig) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PauseConfig, config);
 }
 
 pub fn set_reward_system(env: &Env, address: &Address) {
-    env.storage()
-        .instance()
-        .set(&DataKey::RewardSystem, address);
+    env.storage().instance().set(&DataKey::RewardSystem, address);
 }
 
 // -----------------------------------------------------------------------
-// USDC token helpers
+// USDC token helpers  (instance storage)
 // -----------------------------------------------------------------------
 
-/// Retrieves the USDC token address used for stake refunds. Panics if not set.
 pub fn get_usdc_token(env: &Env) -> Address {
     env.storage()
         .instance()
@@ -180,30 +174,46 @@ pub fn get_usdc_token(env: &Env) -> Address {
         .expect("USDC token not set")
 }
 
-/// Stores the USDC token address.
 pub fn set_usdc_token(env: &Env, address: &Address) {
     env.storage().instance().set(&DataKey::UsdcToken, address);
 }
 
 // -----------------------------------------------------------------------
-// Player registration helpers
+// Player registration helpers  (persistent storage)
 // -----------------------------------------------------------------------
 
-pub fn is_registered(env: &Env, address: &Address) -> bool {
-    env.storage()
+    let paused_by: Address = env
+        .storage()
         .persistent()
-        .get(&DataKey::Registered(address.clone()))
-        .unwrap_or(false)
+        .get(&DataKey::PausedBy)
+        .unwrap_or_else(|| Address::from_str(env, ""));
+
+    panic!(
+        "Operation {:?} blocked: contract paused by {:?} (reason: {:?})",
+        operation, paused_by, reason
+    );
 }
 
-pub fn set_registered(env: &Env, address: &Address) {
+/// Pause with expiry
+pub fn pause_with_expiry(env: &Env, caller: &Address, reason: &Symbol, duration_ledgers: u32) {
+    let current_ledger = env.ledger().sequence();
+    let expiry = current_ledger + duration_ledgers;
+
+    env.storage().persistent().set(&DataKey::Paused, &true);
+    env.storage().persistent().set(&DataKey::PausedBy, caller);
     env.storage()
         .persistent()
-        .set(&DataKey::Registered(address.clone()), &true);
+        .set(&DataKey::PausedAt, &env.ledger().timestamp());
+    env.storage()
+        .persistent()
+        .set(&DataKey::PauseExpiry, &expiry);
+    env.storage()
+        .persistent()
+        .set(&DataKey::PauseReason, reason);
 }
 
 // -----------------------------------------------------------------------
-// Game ID counter
+// Game ID counter  (instance storage)
 // -----------------------------------------------------------------------
 
 /// Increments and returns the next game ID, starting at 1.
@@ -219,15 +229,13 @@ pub fn next_game_id(env: &Env) -> u64 {
 }
 
 // -----------------------------------------------------------------------
-// Game storage helpers
+// Game storage helpers  (persistent storage)
 // -----------------------------------------------------------------------
 
-/// Retrieves a game by its ID. Returns `None` if not found.
 pub fn get_game(env: &Env, game_id: u64) -> Option<Game> {
     env.storage().persistent().get(&DataKey::Game(game_id))
 }
 
-/// Persists a game, keyed by `game.id`.
 pub fn set_game(env: &Env, game: &Game) {
     env.storage()
         .persistent()
@@ -235,17 +243,15 @@ pub fn set_game(env: &Env, game: &Game) {
 }
 
 // -----------------------------------------------------------------------
-// GameSettings storage helpers
+// GameSettings storage helpers  (persistent storage)
 // -----------------------------------------------------------------------
 
-/// Retrieves settings for a game by game ID. Returns `None` if not found.
 pub fn get_game_settings(env: &Env, game_id: u64) -> Option<GameSettings> {
     env.storage()
         .persistent()
         .get(&DataKey::GameSettings(game_id))
 }
 
-/// Persists settings for a game by game ID.
 pub fn set_game_settings(env: &Env, game_id: u64, settings: &GameSettings) {
     env.storage()
         .persistent()
