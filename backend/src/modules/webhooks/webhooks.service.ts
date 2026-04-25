@@ -8,6 +8,7 @@ import { WebhookEvent } from './entities/webhook-event.entity';
 import { PaginationDto, SortOrder } from '../../common/dto/pagination.dto';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
+import { WebhooksAuditService } from './webhooks-audit.service';
 
 const ALLOWED_SORT_FIELDS = new Set(['id', 'eventType', 'source', 'createdAt']);
 
@@ -20,6 +21,7 @@ export class WebhooksService {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly observability: WebhooksObservabilityService,
+    private readonly auditService: WebhooksAuditService,
     @InjectRepository(WebhookEvent)
     private readonly webhookEventRepo: Repository<WebhookEvent>,
   ) {
@@ -31,13 +33,15 @@ export class WebhooksService {
   /**
    * Verify HMAC signature of a webhook request
    * Includes observability: logs and metrics for verification attempts
+   * Includes audit trail: immutable audit logs for compliance
    */
-  verifySignature(
+  async verifySignature(
     signature: string,
     timestamp: string,
     rawBody: Buffer,
     source = 'stripe',
-  ): boolean {
+    ipAddress?: string,
+  ): Promise<boolean> {
     const startTime = Date.now();
     let failureReason: string | undefined;
 
@@ -49,6 +53,14 @@ export class WebhooksService {
           false,
           Date.now() - startTime,
           failureReason,
+        );
+        await this.auditService.auditSignatureVerification(
+          undefined,
+          source,
+          false,
+          Date.now() - startTime,
+          failureReason,
+          ipAddress,
         );
         throw new UnauthorizedException('Missing webhook signature or timestamp');
       }
@@ -63,6 +75,14 @@ export class WebhooksService {
           false,
           Date.now() - startTime,
           failureReason,
+        );
+        await this.auditService.auditSignatureVerification(
+          undefined,
+          source,
+          false,
+          Date.now() - startTime,
+          failureReason,
+          ipAddress,
         );
         throw new UnauthorizedException('Webhook timestamp outside of tolerance');
       }
@@ -94,12 +114,22 @@ export class WebhooksService {
         isValid = false;
       }
 
-      // Log verification result
+      // Log verification result (observability)
       this.observability.logSignatureVerification(
         source,
         isValid,
         Date.now() - startTime,
         failureReason,
+      );
+
+      // Audit verification result (audit trail)
+      await this.auditService.auditSignatureVerification(
+        undefined,
+        source,
+        isValid,
+        Date.now() - startTime,
+        failureReason,
+        ipAddress,
       );
 
       return isValid;
@@ -112,22 +142,44 @@ export class WebhooksService {
           Date.now() - startTime,
           'unexpected_error',
         );
+        await this.auditService.auditSignatureVerification(
+          undefined,
+          source,
+          false,
+          Date.now() - startTime,
+          'unexpected_error',
+          ipAddress,
+        );
       }
       throw error;
     }
   }
 
-  async processWebhook(payload: any, source = 'stripe') {
+  async processWebhook(
+    payload: any,
+    source = 'stripe',
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const startTime = Date.now();
     const webhookId = payload.id;
     const eventType = payload.type ?? 'unknown';
 
-    // Log webhook received
+    // Log webhook received (observability)
     this.observability.logWebhookReceived({
       webhookId,
       eventType,
       source,
     });
+
+    // Audit webhook received (audit trail)
+    await this.auditService.auditWebhookReceived(
+      webhookId,
+      eventType,
+      source,
+      ipAddress,
+      userAgent,
+    );
 
     try {
       // Idempotency check: Use the webhook ID to prevent duplicate processing
@@ -138,8 +190,16 @@ export class WebhooksService {
       const idempotencyKey = `webhook:${webhookId}`;
       const isProcessed = await this.redisService.get<boolean>(idempotencyKey);
 
+      // Audit idempotency check
+      await this.auditService.auditIdempotencyCheck(
+        webhookId,
+        eventType,
+        source,
+        !!isProcessed,
+      );
+
       if (isProcessed) {
-        // Log idempotency hit
+        // Log idempotency hit (observability)
         this.observability.logIdempotencyHit({
           webhookId,
           eventType,
@@ -161,7 +221,10 @@ export class WebhooksService {
         }),
       );
 
-      // Log successful processing
+      // Audit persistence
+      await this.auditService.auditWebhookPersisted(webhookId, eventType, source);
+
+      // Log successful processing (observability)
       this.observability.logWebhookProcessed(
         {
           webhookId,
@@ -171,9 +234,17 @@ export class WebhooksService {
         Date.now() - startTime,
       );
 
+      // Audit successful processing
+      await this.auditService.auditProcessingCompleted(
+        webhookId,
+        eventType,
+        source,
+        Date.now() - startTime,
+      );
+
       return { received: true, processed: true };
     } catch (error) {
-      // Log processing failure
+      // Log processing failure (observability)
       this.observability.logWebhookProcessingFailed(
         {
           webhookId,
@@ -183,6 +254,16 @@ export class WebhooksService {
         error as Error,
         Date.now() - startTime,
       );
+
+      // Audit processing failure
+      await this.auditService.auditProcessingFailed(
+        webhookId,
+        eventType,
+        source,
+        error as Error,
+        Date.now() - startTime,
+      );
+
       throw error;
     }
   }

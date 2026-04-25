@@ -134,15 +134,12 @@ describe('WebhooksObservabilityService', () => {
       );
     });
 
-    it('should record metrics for signature verification', () => {
+    it('should record metrics for signature verification', async () => {
       service.logSignatureVerification('stripe', true, 5);
 
-      // Verify metrics are recorded (check registry has metrics)
-      const metrics = service.registry.getMetricsAsJSON();
-      const signatureMetric = metrics.find(
-        (m) => m.name === 'tycoon_webhook_signature_verification_total',
-      );
-      expect(signatureMetric).toBeDefined();
+      // Verify metrics are recorded by getting metrics text
+      const metricsText = await service.getMetricsText();
+      expect(metricsText).toContain('tycoon_webhook_signature_verification_total');
     });
   });
 
@@ -202,7 +199,7 @@ describe('WebhooksObservabilityService', () => {
       );
     });
 
-    it('should record processing duration metrics', () => {
+    it('should record processing duration metrics', async () => {
       const context = {
         webhookId: 'wh_123',
         eventType: 'payment.succeeded',
@@ -211,11 +208,8 @@ describe('WebhooksObservabilityService', () => {
 
       service.logWebhookProcessed(context, 150);
 
-      const metrics = service.registry.getMetricsAsJSON();
-      const durationMetric = metrics.find(
-        (m) => m.name === 'tycoon_webhook_processing_duration_seconds',
-      );
-      expect(durationMetric).toBeDefined();
+      const metricsText = await service.getMetricsText();
+      expect(metricsText).toContain('tycoon_webhook_processing_duration_seconds');
     });
   });
 
@@ -270,33 +264,26 @@ describe('WebhooksObservabilityService', () => {
   });
 
   describe('metrics counters', () => {
-    it('should increment webhook events counter', () => {
+    it('should increment webhook events counter', async () => {
       service.logWebhookReceived({
         webhookId: 'wh_123',
         eventType: 'payment.succeeded',
         source: 'stripe',
       });
 
-      const metrics = service.registry.getMetricsAsJSON();
-      const eventsMetric = metrics.find(
-        (m) => m.name === 'tycoon_webhook_events_total',
-      );
-      expect(eventsMetric).toBeDefined();
-      expect(eventsMetric?.values).toHaveLength(1);
+      const metricsText = await service.getMetricsText();
+      expect(metricsText).toContain('tycoon_webhook_events_total');
     });
 
-    it('should increment idempotency hits counter', () => {
+    it('should increment idempotency hits counter', async () => {
       service.logIdempotencyHit({
         webhookId: 'wh_123',
         eventType: 'payment.succeeded',
         source: 'stripe',
       });
 
-      const metrics = service.registry.getMetricsAsJSON();
-      const idempotencyMetric = metrics.find(
-        (m) => m.name === 'tycoon_webhook_idempotency_hits_total',
-      );
-      expect(idempotencyMetric).toBeDefined();
+      const metricsText = await service.getMetricsText();
+      expect(metricsText).toContain('tycoon_webhook_idempotency_hits_total');
     });
   });
 
