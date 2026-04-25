@@ -23,6 +23,7 @@ import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
+import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
@@ -129,6 +130,10 @@ import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledg
     {
       provide: APP_GUARD,
       useClass: AppThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestLoggerInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,
