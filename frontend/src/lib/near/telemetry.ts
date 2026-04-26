@@ -8,7 +8,7 @@
  *    so any accidental PII field is stripped automatically.
  */
 
-import { track } from "./client";
+import { track } from "@/lib/analytics/client";
 import type { NetworkId } from "@near-wallet-selector/core";
 
 /** Fired once when a NEAR account becomes active in the selector. */

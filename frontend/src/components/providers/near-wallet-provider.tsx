@@ -23,6 +23,7 @@ import {
   DEFAULT_FUNCTION_CALL_GAS,
   getNearContractId,
   getNearNetworkId,
+  isValidNearAccountId,
 } from "@/lib/near/config";
 import {
   isLikelyUserRejectedError,
@@ -42,6 +43,7 @@ import {
   trackNearTxConfirmed,
   trackNearTxFailed,
 } from "@/lib/near/telemetry";
+import { isDepositSafe, sanitizeErrorMessage, MAX_DEPOSIT_YOCTO } from "@/lib/near/security";
 
 export interface CallContractMethodParams {
   contractId: string;
@@ -140,7 +142,9 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
 
         setReady(true);
       } catch (e) {
-        console.error(e);
+        if (process.env.NODE_ENV !== "production") {
+          console.error(e);
+        }
         setInitError(nearErrorMessage(e));
       }
     })();
@@ -178,6 +182,21 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         throw new Error("NEAR wallet is not ready");
       }
 
+      // Validate contractId and methodName before use to prevent injection.
+      if (!isValidNearAccountId(params.contractId)) {
+        throw new Error(`Invalid NEAR contract ID: "${params.contractId}"`);
+      }
+      if (!/^[a-zA-Z0-9_]{1,64}$/.test(params.methodName)) {
+        throw new Error(`Invalid NEAR method name: "${params.methodName}"`);
+      }
+
+      const deposit = params.deposit ?? BigInt(0);
+      if (!isDepositSafe(deposit)) {
+        throw new Error(
+          `Deposit ${deposit.toString()} yoctoNEAR exceeds the safe limit of ${MAX_DEPOSIT_YOCTO.toString()} (1 NEAR). Pass a smaller deposit.`,
+        );
+      }
+
       const id = crypto.randomUUID();
       const pending: NearTxRecord = {
         id,
@@ -197,7 +216,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         }
 
         const gas = params.gas ?? DEFAULT_FUNCTION_CALL_GAS;
-        const deposit = params.deposit ?? BigInt(0);
 
         const actions: Action[] = [
           {
@@ -264,7 +282,7 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
 
         return outcome;
       } catch (e) {
-        const msg = nearErrorMessage(e);
+        const msg = sanitizeErrorMessage(nearErrorMessage(e));
         if (isLikelyUserRejectedError(e)) {
           trackNearTxFailed(networkId, params.methodName, "rejected");
           toast.error(NEAR_SIGNATURE_REJECTED_MESSAGE);
