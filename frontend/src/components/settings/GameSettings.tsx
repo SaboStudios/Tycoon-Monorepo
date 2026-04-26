@@ -20,15 +20,20 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { ThemeSettingsCard } from "@/components/settings/ThemeSettingsCard"
 
-// Mock Data
-const PIECES = [
+// SW-2: Strict option types for all select fields
+interface SelectOption {
+    value: string
+    label: string
+}
+
+const PIECES: SelectOption[] = [
     { value: "rocket", label: "🚀 Stellar Rocket" },
     { value: "bull", label: "🐂 Market Bull" },
     { value: "racecar", label: "🏎️ Classic Racecar" },
     { value: "tophat", label: "🎩 Top Hat" },
 ]
 
-const PLAYER_COUNTS = [
+const PLAYER_COUNTS: SelectOption[] = [
     { value: "2", label: "2 Players" },
     { value: "3", label: "3 Players" },
     { value: "4", label: "4 Players" },
@@ -37,7 +42,7 @@ const PLAYER_COUNTS = [
     { value: "8", label: "8 Players (Max)" },
 ]
 
-const ENTRY_STAKES = [
+const ENTRY_STAKES: SelectOption[] = [
     { value: "100", label: "100 XLM" },
     { value: "500", label: "500 XLM" },
     { value: "1000", label: "1,000 XLM" },
@@ -45,18 +50,36 @@ const ENTRY_STAKES = [
     { value: "custom", label: "Custom Amount" },
 ]
 
-const DURATIONS = [
+const DURATIONS: SelectOption[] = [
     { value: "30", label: "30 Minutes" },
     { value: "60", label: "1 Hour" },
     { value: "90", label: "1.5 Hours" },
     { value: "0", label: "Untimed (Until Bankruptcy)" },
 ]
 
-const STARTING_CASH = [
+const STARTING_CASH: SelectOption[] = [
     { value: "1500", label: "1,500 XLM" },
     { value: "2500", label: "2,500 XLM" },
     { value: "5000", label: "5,000 XLM" },
 ]
+
+// SW-2: Typed lobby settings shape used in handleCreateLobby
+interface LobbySettings {
+    host: { name: string; piece: string }
+    lobby: { maxPlayers: string; isPrivate: boolean; entryFee: string | number }
+    rules: {
+        startingCash: string
+        duration: string
+        freeParkingBonus: boolean
+        doubleGoCash: boolean
+        auctionsEnabled: boolean
+    }
+}
+
+// SW-2: Null-safe helper — returns label for a value or empty string
+function labelFor(options: SelectOption[], value: string): string {
+    return options.find((o) => o.value === value)?.label ?? ""
+}
 
 export function GameSettings() {
     const router = useRouter()
@@ -103,25 +126,30 @@ export function GameSettings() {
         setFieldErrors({})
         setIsLoading(true)
 
-        try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 2000))
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 2000))
 
-            const entryFee = isFreeGame ? 0 : (stakePreset === "custom" ? customStake : stakePreset)
-            const settings = {
-                host: { name: playerName, piece },
-                lobby: { maxPlayers, isPrivate, entryFee },
-                rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled }
-            }
-            console.log("Creating lobby with settings:", settings)
-            const mockGameCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()
-            toast.success("Deployed Smart Contract! Lobby Created.")
-            router.push(`/game-waiting?gameCode=${mockGameCode}`)
-        } catch (err: unknown) {
-            setFieldErrors(mapServerErrors(err))
-        } finally {
-            setIsLoading(false)
+        // SW-2: null-guard — fall back to "0" if customStake is empty
+        const entryFee: string | number = isFreeGame
+            ? 0
+            : stakePreset === "custom"
+            ? (customStake.trim() !== "" ? customStake : "0")
+            : stakePreset
+
+        const settings: LobbySettings = {
+            host: { name: playerName, piece },
+            lobby: { maxPlayers, isPrivate, entryFee },
+            rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled },
         }
+
+        console.log("Creating lobby with settings:", settings)
+        const mockGameCode = Math.random().toString(36).substring(7).toUpperCase()
+
+        toast.success("Deployed Smart Contract! Lobby Created.")
+
+        router.push(`/game-waiting?gameCode=${mockGameCode}`)
+
+        setIsLoading(false)
     }
 
     return (
@@ -337,8 +365,8 @@ export function GameSettings() {
                                     <div className="space-y-1">
                                         <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Host Contract</p>
                                         <p className="text-xs text-blue-700 dark:text-blue-300">
-                                            You are deploying a room for up to {maxPlayers} players.
-                                            {!isFreeGame && ` Entry fee set to ${stakePreset === 'custom' ? customStake : stakePreset} XLM.`}
+                                            You are deploying a room for up to {maxPlayers} players ({labelFor(PLAYER_COUNTS, maxPlayers)}).
+                                            {!isFreeGame && ` Entry fee set to ${stakePreset === 'custom' ? (customStake.trim() !== '' ? customStake : '0') : labelFor(ENTRY_STAKES, stakePreset)} XLM.`}
                                         </p>
                                     </div>
                                 </div>
