@@ -14,6 +14,13 @@ export default function JoinRoomForm(): React.JSX.Element {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Move focus to the input on mount so keyboard users land directly in the form
+  React.useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setCode(e.target.value.toUpperCase().slice(0, 6));
     setErrors({});
@@ -60,12 +67,14 @@ export default function JoinRoomForm(): React.JSX.Element {
         required
       >
         <Input
+          ref={inputRef}
           type="text"
           value={code}
           onChange={handleChange}
           placeholder="e.g. TYCOON"
           maxLength={6}
           autoComplete="off"
+          aria-required="true"
           className="bg-[var(--tycoon-bg)] border-[var(--tycoon-border)] text-[var(--tycoon-text)] placeholder:text-[var(--tycoon-text)]/40 focus-visible:ring-[var(--tycoon-accent)] font-orbitron tracking-widest uppercase"
         />
       </FormField>
@@ -74,7 +83,8 @@ export default function JoinRoomForm(): React.JSX.Element {
         type="submit"
         disabled={!isValid || isLoading}
         aria-busy={isLoading}
-        className="w-full bg-[var(--tycoon-accent)] text-[var(--tycoon-bg)] font-orbitron font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-disabled={!isValid || isLoading}
+        className="w-full bg-[var(--tycoon-accent)] text-[var(--tycoon-bg)] font-orbitron font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-[var(--tycoon-accent)] focus-visible:ring-offset-2"
       >
         {isLoading ? "Joining…" : "Join"}
       </Button>
