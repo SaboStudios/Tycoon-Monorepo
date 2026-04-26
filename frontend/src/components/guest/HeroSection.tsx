@@ -3,7 +3,8 @@ import React, { useEffect, useState } from "react";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { track } from "@/lib/analytics";
+import { useEffect } from "react";
+import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 
 interface HeroSectionProps {
   className?: string;
@@ -28,21 +29,12 @@ function usePrefersReducedMotion(): boolean {
 
 const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const router = useRouter();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const typeSpeed = prefersReducedMotion ? 99 : 40;
-  const subSpeed = prefersReducedMotion ? 99 : 50;
+  const { fire } = useHeroTelemetry();
 
-  function handleTrackedNavigation(
-    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
-    destination: string,
-  ) {
-    track(event, {
-      route: "/",
-      destination,
-    });
-
-    router.push(destination);
-  }
+  // SW-3: fire hero_view once on mount
+  useEffect(() => {
+    fire("hero_view");
+  }, [fire]);
 
   return (
     <section
@@ -176,8 +168,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Multiplayer */}
           <button
-            aria-label="Multiplayer"
-            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
+            onClick={() => { fire("hero_multiplayer_click"); router.push("/game-settings"); }}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -205,8 +196,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Join Room */}
           <button
-            aria-label="Join room"
-            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
+            onClick={() => { fire("hero_join_room_click"); router.push("/join-room"); }}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -234,8 +224,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Challenge AI */}
           <button
-            aria-label="Challenge AI"
-            onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
+            onClick={() => { fire("hero_challenge_ai_click"); router.push("/play-ai"); }}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
