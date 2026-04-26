@@ -148,6 +148,55 @@ describe("JoinRoomForm", () => {
   });
 });
 
+// ── CLS / LCP regression tests (SW-FE-036) ──────────────────────────────────
+describe("JoinRoomForm CLS / LCP regression (SW-FE-036)", () => {
+  it("error slot is always present in the DOM before any error", () => {
+    const { container } = render(<JoinRoomForm />);
+    // The min-h wrapper div is rendered even with no error
+    const errorSlot = container.querySelector(".min-h-\\[1\\.25rem\\]");
+    expect(errorSlot).toBeInTheDocument();
+  });
+
+  it("error slot is present after an error is shown", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<JoinRoomForm />);
+
+    const form = screen.getByRole("button", { name: /join/i }).closest("form")!;
+    await user.type(screen.getByLabelText(/room code/i), "AB");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => screen.getByRole("alert"));
+
+    const errorSlot = container.querySelector(".min-h-\\[1\\.25rem\\]");
+    expect(errorSlot).toBeInTheDocument();
+  });
+
+  it("error slot is present after error is cleared", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<JoinRoomForm />);
+
+    const form = screen.getByRole("button", { name: /join/i }).closest("form")!;
+    await user.type(screen.getByLabelText(/room code/i), "AB");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await waitFor(() => screen.getByRole("alert"));
+
+    // Clear the input — error is cleared by handleChange
+    await user.clear(screen.getByLabelText(/room code/i));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Slot still in DOM
+    const errorSlot = container.querySelector(".min-h-\\[1\\.25rem\\]");
+    expect(errorSlot).toBeInTheDocument();
+  });
+
+  it("submit button label span has min-w class to prevent width shift", () => {
+    render(<JoinRoomForm />);
+    const btn = screen.getByRole("button", { name: /join/i });
+    const labelSpan = btn.querySelector("span.min-w-\\[4\\.5rem\\]");
+    expect(labelSpan).toBeInTheDocument();
+  });
+});
+
 // ── serverErrorMap unit tests ─────────────────────────────────────────────────
 import { mapServerErrors } from "@/lib/validation/serverErrorMap";
 
