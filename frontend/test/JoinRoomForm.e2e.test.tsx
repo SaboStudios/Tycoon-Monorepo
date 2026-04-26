@@ -147,3 +147,40 @@ describe("JoinRoomForm", () => {
     });
   });
 });
+
+// ── serverErrorMap unit tests ─────────────────────────────────────────────────
+import { mapServerErrors } from "@/lib/validation/serverErrorMap";
+
+describe("mapServerErrors", () => {
+  it("returns _form fallback for null", () => {
+    expect(mapServerErrors(null)).toEqual({ _form: "An unexpected error occurred" });
+  });
+
+  it("returns _form fallback for a plain string", () => {
+    expect(mapServerErrors("oops")).toEqual({ _form: "An unexpected error occurred" });
+  });
+
+  it("returns _form fallback for undefined", () => {
+    expect(mapServerErrors(undefined)).toEqual({ _form: "An unexpected error occurred" });
+  });
+
+  it("maps explicit errors array to fields", () => {
+    const err = { errors: [{ field: "roomCode", message: "invalid" }] };
+    expect(mapServerErrors(err)).toEqual({ roomCode: "invalid" });
+  });
+
+  it("maps NestJS string[] message to field via keyword", () => {
+    const err = { message: ["roomCode must be valid"], statusCode: 400 };
+    expect(mapServerErrors(err)).toEqual({ roomCode: "roomCode must be valid" });
+  });
+
+  it("filters non-string entries in message array", () => {
+    const err = { message: [42, "roomCode is bad"] as unknown as string[] };
+    expect(mapServerErrors(err)).toEqual({ roomCode: "roomCode is bad" });
+  });
+
+  it("maps plain string message to _form when no keyword matches", () => {
+    const err = { message: "something went wrong" };
+    expect(mapServerErrors(err)).toEqual({ _form: "something went wrong" });
+  });
+});
