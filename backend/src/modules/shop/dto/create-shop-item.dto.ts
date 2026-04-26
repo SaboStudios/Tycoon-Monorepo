@@ -7,11 +7,12 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ShopItemType } from '../enums/shop-item-type.enum';
+import { ShopItemType, ShopItemRarity } from '../enums/shop-item-type.enum';
 import { Transform, Type } from 'class-transformer';
 
 export class CreateShopItemDto {
@@ -33,20 +34,21 @@ export class CreateShopItemDto {
   @IsEnum(ShopItemType)
   type: ShopItemType;
 
-  @ApiProperty({ description: 'Price of the item', example: 9.99 })
+  @ApiProperty({ description: 'Price of the item (min 0.01)', example: 9.99 })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive()
+  @Min(0.01)
   price: number;
 
   @ApiPropertyOptional({
-    description: 'Currency code',
+    description: 'ISO 4217 currency code (e.g. USD, EUR)',
     default: 'USD',
-    maxLength: 10,
+    maxLength: 3,
+    pattern: '^[A-Z]{3}$',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10)
+  @Matches(/^[A-Z]{3}$/, { message: 'currency must be a 3-letter ISO 4217 code (e.g. USD)' })
   currency?: string;
 
   @ApiPropertyOptional({
@@ -57,14 +59,13 @@ export class CreateShopItemDto {
   metadata?: Record<string, unknown>;
 
   @ApiPropertyOptional({
-    description: 'Rarity tier (common, rare, epic, legendary)',
-    default: 'common',
-    maxLength: 50,
+    enum: ShopItemRarity,
+    description: 'Rarity tier',
+    default: ShopItemRarity.COMMON,
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  rarity?: string;
+  @IsEnum(ShopItemRarity)
+  rarity?: ShopItemRarity;
 
   @ApiPropertyOptional({
     description: 'Whether the item is available in the shop',

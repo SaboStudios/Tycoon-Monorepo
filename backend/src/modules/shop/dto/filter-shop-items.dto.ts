@@ -2,11 +2,9 @@ import {
   IsBoolean,
   IsEnum,
   IsOptional,
-  IsString,
-  MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ShopItemType } from '../enums/shop-item-type.enum';
+import { ShopItemType, ShopItemRarity } from '../enums/shop-item-type.enum';
 import { Transform } from 'class-transformer';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
@@ -20,13 +18,12 @@ export class FilterShopItemsDto extends PaginationDto {
   type?: ShopItemType;
 
   @ApiPropertyOptional({
-    description: 'Filter by rarity (e.g. common, rare, epic)',
-    maxLength: 50,
+    enum: ShopItemRarity,
+    description: 'Filter by rarity tier',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  rarity?: string;
+  @IsEnum(ShopItemRarity)
+  rarity?: ShopItemRarity;
 
   @ApiPropertyOptional({
     description: 'Filter by active status',
