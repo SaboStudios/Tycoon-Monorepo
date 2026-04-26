@@ -44,11 +44,16 @@ export function FormField({ id, label, hint, error, required, children, classNam
           })
         : children}
 
-      {error && (
-        <p id={errorId} role="alert" className="text-xs text-red-500 animate-in fade-in-50 duration-200">
-          {error}
-        </p>
-      )}
+      {/* Error slot: always rendered so its height is reserved in the layout.
+          This prevents a CLS shift when the error message appears or disappears.
+          min-h matches text-xs line-height (1.25rem / 20px). */}
+      <div className="min-h-[1.25rem]">
+        {error && (
+          <p id={errorId} role="alert" className="text-xs text-red-500 animate-in fade-in-50 duration-200">
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

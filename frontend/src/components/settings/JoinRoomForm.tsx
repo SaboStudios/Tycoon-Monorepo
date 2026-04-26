@@ -92,7 +92,11 @@ export default function JoinRoomForm(): React.JSX.Element {
         aria-disabled={!isValid || isLoading}
         className="w-full bg-[var(--tycoon-accent)] text-[var(--tycoon-bg)] font-orbitron font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-[var(--tycoon-accent)] focus-visible:ring-offset-2"
       >
-        {isLoading ? "Joining…" : "Join"}
+        {/* min-w reserves the wider "Joining…" width so the button never
+            resizes when the label swaps — eliminates a micro CLS contribution. */}
+        <span className="inline-block min-w-[4.5rem] text-center">
+          {isLoading ? "Joining\u2026" : "Join"}
+        </span>
       </Button>
     </form>
   );
