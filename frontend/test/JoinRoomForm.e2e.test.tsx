@@ -25,6 +25,28 @@ describe("JoinRoomForm", () => {
     expect(screen.getByRole("button", { name: /join/i })).toBeDisabled();
   });
 
+  it("focuses the room-code input on mount", () => {
+    render(<JoinRoomForm />);
+    expect(document.activeElement).toBe(screen.getByLabelText(/room code/i));
+  });
+
+  it("input has aria-required=true", () => {
+    render(<JoinRoomForm />);
+    expect(screen.getByLabelText(/room code/i)).toHaveAttribute("aria-required", "true");
+  });
+
+  it("submit button has aria-disabled when form is invalid", () => {
+    render(<JoinRoomForm />);
+    expect(screen.getByRole("button", { name: /join/i })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("submit button aria-disabled is false when code is valid", async () => {
+    const user = userEvent.setup();
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    expect(screen.getByRole("button", { name: /join/i })).toHaveAttribute("aria-disabled", "false");
+  });
+
   it("shows validation error for empty submission", async () => {
     const user = userEvent.setup();
     render(<JoinRoomForm />);
