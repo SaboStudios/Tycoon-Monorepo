@@ -2,11 +2,22 @@
 
 import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import type { ZodError } from "zod";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { joinRoomSchema } from "@/lib/validation/schemas";
 import { mapServerErrors, type FieldErrors } from "@/lib/validation/serverErrorMap";
+
+/** Converts a Zod error into a flat field-keyed error map. */
+function parseZodErrors(error: ZodError): FieldErrors {
+  const out: FieldErrors = {};
+  for (const issue of error.issues) {
+    const field = String(issue.path[0] ?? "_form");
+    if (!out[field]) out[field] = issue.message;
+  }
+  return out;
+}
 
 export default function JoinRoomForm(): React.JSX.Element {
   const router = useRouter();
@@ -27,17 +38,12 @@ export default function JoinRoomForm(): React.JSX.Element {
   }, []);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
 
       const result = joinRoomSchema.safeParse({ roomCode: code.trim() });
       if (!result.success) {
-        const fieldErrors: FieldErrors = {};
-        for (const issue of result.error.issues) {
-          const field = String(issue.path[0] ?? "_form");
-          fieldErrors[field] = issue.message;
-        }
-        setErrors(fieldErrors);
+        setErrors(parseZodErrors(result.error));
         return;
       }
 
@@ -47,7 +53,7 @@ export default function JoinRoomForm(): React.JSX.Element {
         await new Promise<void>((resolve) => setTimeout(resolve, 800));
         router.push(`/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`);
       } catch (err: unknown) {
-        setErrors(mapServerErrors(err));
+        setErrors(mapServerErrors(err instanceof Error ? { message: err.message } : err));
       } finally {
         setIsLoading(false);
       }
