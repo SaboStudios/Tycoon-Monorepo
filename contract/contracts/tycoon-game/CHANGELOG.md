@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - SW-CT-007
+
+### Added
+- `SECURITY_REVIEW_CHECKLIST.md` — full security review covering access control,
+  CEI pattern, input validation, integer arithmetic, storage consistency, event
+  emission, privileged roles, DoS/gas, and Soroban best practices for the
+  tycoon-game contract. Includes six open items to resolve before mainnet.
+
 ## [0.2.0] - 2026-04-24 — SW-CT-012
 
 ### Added
