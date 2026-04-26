@@ -12,6 +12,17 @@ import {
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { GameMode, GameStatus } from '../entities/game.entity';
 
+/** Allowlist of columns that callers may sort games by. */
+export enum GameSortField {
+  ID = 'id',
+  CREATED_AT = 'created_at',
+  UPDATED_AT = 'updated_at',
+  STATUS = 'status',
+  MODE = 'mode',
+  NUMBER_OF_PLAYERS = 'number_of_players',
+  STARTED_AT = 'started_at',
+}
+
 function toOptionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
@@ -35,6 +46,15 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
 }
 
 export class GetGamesDto extends PaginationDto {
+  @ApiPropertyOptional({
+    enum: GameSortField,
+    description: 'Field to sort games by',
+    default: GameSortField.CREATED_AT,
+  })
+  @IsOptional()
+  @IsEnum(GameSortField)
+  override sortBy?: GameSortField = GameSortField.CREATED_AT;
+
   @ApiPropertyOptional({ description: 'Filter by creator/user ID' })
   @IsOptional()
   @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
