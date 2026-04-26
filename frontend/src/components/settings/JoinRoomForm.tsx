@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { ZodError } from "zod";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -26,6 +27,7 @@ export default function JoinRoomForm(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(false);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const formRef = React.useRef<HTMLFormElement>(null);
 
   // Move focus to the input on mount so keyboard users land directly in the form
   React.useEffect(() => {
@@ -34,7 +36,15 @@ export default function JoinRoomForm(): React.JSX.Element {
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setCode(e.target.value.toUpperCase().slice(0, 6));
+    // Only clear field-level errors on change; _form errors persist until retry
+    setErrors(({ roomCode: _dropped, ...rest }) => rest as FieldErrors);
+  }, []);
+
+  /** Re-run the submit flow without clearing the code — used by the retry button. */
+  const handleRetry = useCallback(() => {
     setErrors({});
+    // Trigger submit programmatically via the form ref
+    formRef.current?.requestSubmit();
   }, []);
 
   const handleSubmit = useCallback(
@@ -64,12 +74,36 @@ export default function JoinRoomForm(): React.JSX.Element {
   const isValid = joinRoomSchema.safeParse({ roomCode: code.trim() }).success;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-5">
+      {/* Form-level error banner — shown for server/network errors that are not
+          tied to a specific field (e.g. room not found, room full, 5xx). */}
+      {errors._form && (
+        <div
+          role="alert"
+          data-testid="form-error-banner"
+          className="flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2.5 text-sm text-red-300"
+        >
+          <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1 leading-snug">{errors._form}</span>
+          {isValid && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              aria-label="Retry joining the room"
+              className="ml-1 inline-flex items-center gap-1 text-xs text-red-300 underline-offset-2 hover:underline"
+            >
+              <RefreshCw aria-hidden="true" className="h-3 w-3" />
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
       <FormField
         id="room-code"
         label="Room Code"
         hint="6-character alphanumeric code (e.g. TYCOON)"
-        error={errors.roomCode ?? errors._form}
+        error={errors.roomCode}
         required
       >
         <Input

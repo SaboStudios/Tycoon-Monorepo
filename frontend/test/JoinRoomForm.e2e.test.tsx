@@ -148,6 +148,99 @@ describe("JoinRoomForm", () => {
   });
 });
 
+// ── Error & empty state regression tests (SW-FE-037) ────────────────────────
+describe("JoinRoomForm error and empty states (SW-FE-037)", () => {
+  it("no form-level banner on initial render", () => {
+    render(<JoinRoomForm />);
+    expect(screen.queryByTestId("form-error-banner")).not.toBeInTheDocument();
+  });
+
+  it("shows form-level banner with _form error message", async () => {
+    const user = userEvent.setup();
+    // Simulate a server 404 by making push throw a shaped error
+    mockPush.mockImplementationOnce(() => {
+      throw { statusCode: 404 };
+    });
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    await user.click(screen.getByRole("button", { name: /join/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("form-error-banner")).toBeInTheDocument();
+      expect(screen.getByTestId("form-error-banner")).toHaveTextContent(
+        /room not found/i
+      );
+    });
+  });
+
+  it("shows room-full message for 409", async () => {
+    const user = userEvent.setup();
+    mockPush.mockImplementationOnce(() => {
+      throw { statusCode: 409 };
+    });
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    await user.click(screen.getByRole("button", { name: /join/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("form-error-banner")).toHaveTextContent(
+        /room is full/i
+      );
+    });
+  });
+
+  it("shows retry button inside banner when code is valid", async () => {
+    const user = userEvent.setup();
+    mockPush.mockImplementationOnce(() => {
+      throw { statusCode: 404 };
+    });
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    await user.click(screen.getByRole("button", { name: /join/i }));
+
+    await waitFor(() => screen.getByTestId("form-error-banner"));
+    expect(
+      screen.getByRole("button", { name: /retry joining/i })
+    ).toBeInTheDocument();
+  });
+
+  it("_form error persists when user edits the input (field error clears, banner stays)", async () => {
+    const user = userEvent.setup();
+    mockPush.mockImplementationOnce(() => {
+      throw { statusCode: 404 };
+    });
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    await user.click(screen.getByRole("button", { name: /join/i }));
+    await waitFor(() => screen.getByTestId("form-error-banner"));
+
+    // Editing the input should NOT clear the _form banner
+    await user.type(screen.getByLabelText(/room code/i), "X");
+    expect(screen.getByTestId("form-error-banner")).toBeInTheDocument();
+  });
+
+  it("banner is dismissed after retry clears errors", async () => {
+    const user = userEvent.setup();
+    // First call throws 404, second call succeeds
+    mockPush
+      .mockImplementationOnce(() => { throw { statusCode: 404 }; })
+      .mockImplementationOnce(() => undefined);
+
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    await user.click(screen.getByRole("button", { name: /join/i }));
+    await waitFor(() => screen.getByTestId("form-error-banner"));
+
+    const retryBtn = screen.getByRole("button", { name: /retry joining/i });
+    await user.click(retryBtn);
+
+    // Banner should be gone while loading (errors cleared by handleRetry)
+    await waitFor(() => {
+      expect(screen.queryByTestId("form-error-banner")).not.toBeInTheDocument();
+    });
+  });
+});
+
 // ── CLS / LCP regression tests (SW-FE-036) ──────────────────────────────────
 describe("JoinRoomForm CLS / LCP regression (SW-FE-036)", () => {
   it("error slot is always present in the DOM before any error", () => {
@@ -231,5 +324,23 @@ describe("mapServerErrors", () => {
   it("maps plain string message to _form when no keyword matches", () => {
     const err = { message: "something went wrong" };
     expect(mapServerErrors(err)).toEqual({ _form: "something went wrong" });
+  });
+
+  it("maps 404 statusCode to room-not-found message", () => {
+    expect(mapServerErrors({ statusCode: 404 })).toEqual({
+      _form: "Room not found. Check the code and try again.",
+    });
+  });
+
+  it("maps 409 statusCode to room-full message", () => {
+    expect(mapServerErrors({ statusCode: 409 })).toEqual({
+      _form: "Room is full. Try a different room.",
+    });
+  });
+
+  it("maps 500 statusCode to server-error message", () => {
+    expect(mapServerErrors({ statusCode: 500 })).toEqual({
+      _form: "Server error. Please try again in a moment.",
+    });
   });
 });
