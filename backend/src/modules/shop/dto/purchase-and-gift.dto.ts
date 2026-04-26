@@ -4,11 +4,13 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { MAX_PURCHASE_QUANTITY } from './create-purchase.dto';
 
 export class PurchaseAndGiftDto {
   @ApiProperty({ description: 'ID of the shop item to purchase and gift' })
@@ -26,14 +28,16 @@ export class PurchaseAndGiftDto {
   receiver_id: number;
 
   @ApiPropertyOptional({
-    description: 'Quantity of items to purchase and gift',
+    description: `Quantity of items to purchase and gift (max ${MAX_PURCHASE_QUANTITY})`,
     default: 1,
     minimum: 1,
+    maximum: MAX_PURCHASE_QUANTITY,
   })
   @Type(() => Number)
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(MAX_PURCHASE_QUANTITY)
   quantity?: number;
 
   @ApiPropertyOptional({

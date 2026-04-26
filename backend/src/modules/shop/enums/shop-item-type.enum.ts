@@ -5,3 +5,11 @@ export enum ShopItemType {
   THEME = 'theme',
   CARD = 'card',
 }
+
+/** Allowlist of valid rarity tiers. */
+export enum ShopItemRarity {
+  COMMON = 'common',
+  RARE = 'rare',
+  EPIC = 'epic',
+  LEGENDARY = 'legendary',
+}
