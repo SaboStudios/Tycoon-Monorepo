@@ -7,35 +7,43 @@
  *  - All payloads pass through sanitizeAnalyticsPayload automatically via track().
  */
 
-"use client";
+'use client';
 
-import { useCallback } from "react";
-import { track } from "@/lib/analytics";
+import { useCallback } from 'react';
+import { track } from '@/lib/analytics';
 
 export interface PurchaseModalTelemetryData {
-  itemName?: string;
-  currency?: string;
-  value?: string | number;
+  readonly itemName?: string;
+  readonly currency?: string;
+  readonly value?: string | number;
 }
 
-export function usePurchaseModalTelemetry(route = "/shop") {
-  const trackModalViewed = useCallback(
-    ({ itemName, currency, value }: PurchaseModalTelemetryData) => {
-      track("purchase_modal_viewed", { route, item_name: itemName, currency, value });
+export type TrackPurchaseModalFn = (data: PurchaseModalTelemetryData) => void;
+
+export interface PurchaseModalTelemetry {
+  readonly trackModalViewed: TrackPurchaseModalFn;
+  readonly trackModalCanceled: TrackPurchaseModalFn;
+  readonly trackModalConfirmed: TrackPurchaseModalFn;
+}
+
+export function usePurchaseModalTelemetry(route = '/shop'): PurchaseModalTelemetry {
+  const trackModalViewed = useCallback<TrackPurchaseModalFn>(
+    ({ itemName, currency, value }) => {
+      track('purchase_modal_viewed', { route, item_name: itemName, currency, value });
     },
     [route],
   );
 
-  const trackModalCanceled = useCallback(
-    ({ itemName, currency, value }: PurchaseModalTelemetryData) => {
-      track("purchase_modal_canceled", { route, item_name: itemName, currency, value });
+  const trackModalCanceled = useCallback<TrackPurchaseModalFn>(
+    ({ itemName, currency, value }) => {
+      track('purchase_modal_canceled', { route, item_name: itemName, currency, value });
     },
     [route],
   );
 
-  const trackModalConfirmed = useCallback(
-    ({ itemName, currency, value }: PurchaseModalTelemetryData) => {
-      track("purchase_modal_confirmed", { route, item_name: itemName, currency, value });
+  const trackModalConfirmed = useCallback<TrackPurchaseModalFn>(
+    ({ itemName, currency, value }) => {
+      track('purchase_modal_confirmed', { route, item_name: itemName, currency, value });
     },
     [route],
   );
