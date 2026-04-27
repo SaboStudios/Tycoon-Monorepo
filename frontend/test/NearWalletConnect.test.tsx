@@ -1,3 +1,7 @@
+// Mock the analytics client so telemetry.ts (imported transitively via
+// near-wallet-provider) does not fail on its missing ./client import.
+vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
+
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -208,5 +212,98 @@ describe("useNearWallet", () => {
     expect(() =>
       render(<Bomb />),
     ).toThrow("useNearWallet must be used within NearWalletProvider");
+  });
+});
+
+describe("NearWalletConnect — accessibility", () => {
+  it("connect button has aria-label", () => {
+    renderWithMock(createMockNearWalletValue({ accountId: null, ready: true }));
+    const btn = screen.getByRole("button", { name: /connect near wallet/i });
+    expect(btn).toBeTruthy();
+  });
+
+  it("disconnect button aria-label includes account id", () => {
+    renderWithMock(
+      createMockNearWalletValue({ accountId: "alice.testnet" }),
+    );
+    const btn = screen.getByRole("button", {
+      name: /disconnect near wallet \(alice\.testnet\)/i,
+    });
+    expect(btn).toBeTruthy();
+  });
+
+  it("initError is rendered with role=alert", () => {
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed" }),
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Wallet init failed");
+  });
+
+  it("no role=alert when there is no initError", () => {
+    renderWithMock(createMockNearWalletValue({ initError: null }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("transaction status region has aria-live=polite", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ transactions: [] }),
+    );
+    const live = container.querySelector("[aria-live='polite']");
+    expect(live).not.toBeNull();
+    expect(live?.getAttribute("aria-atomic")).toBe("true");
+  });
+
+  it("decorative Wallet icon inside connect button is aria-hidden", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({ accountId: null, ready: true }),
+    );
+    // The SVG inside the connect button should be aria-hidden
+    const btn = screen.getByRole("button", { name: /connect near wallet/i });
+    const svg = btn.querySelector("svg");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("decorative Loader2 icon is aria-hidden during pending tx", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({
+        accountId: "a.testnet",
+        transactions: [
+          {
+            id: "1",
+            phase: "pending",
+            methodName: "addMessage",
+            contractId: "guest-book.testnet",
+          },
+        ],
+      }),
+    );
+    // All SVGs inside the live region should be aria-hidden
+    const liveRegion = container.querySelector("[aria-live='polite']");
+    const svgs = liveRegion?.querySelectorAll("svg") ?? [];
+    for (const svg of svgs) {
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+    }
+  });
+
+  it("explorer link ExternalLink icon is aria-hidden", () => {
+    renderWithMock(
+      createMockNearWalletValue({
+        accountId: "a.testnet",
+        transactions: [
+          {
+            id: "1",
+            phase: "confirmed",
+            methodName: "addMessage",
+            contractId: "guest-book.testnet",
+            hash: "ABC123",
+            explorerUrl: "https://explorer.testnet.near.org/transactions/ABC123",
+          },
+        ],
+      }),
+    );
+    const link = screen.getByRole("link", { name: /view on explorer/i });
+    const svg = link.querySelector("svg");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
   });
 });
