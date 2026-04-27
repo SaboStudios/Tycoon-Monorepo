@@ -9,6 +9,12 @@ export const analyticsEventSchema = {
   multiplayer_click: ["route", "destination"],
   join_room_click: ["route", "destination"],
   play_ai_click: ["route", "destination"],
+  // Join room telemetry — SW-FE-039
+  // Intentionally omits room_code, user_id, and session tokens (PII / linkable).
+  join_room_form_viewed: ["route", "source"],
+  join_room_attempted: ["route", "source"],
+  join_room_succeeded: ["route"],
+  join_room_failed: ["route", "error_type"],
   // NEAR wallet telemetry — SW-FE-005
   // Intentionally omits account_id, wallet_address, and tx hashes (PII / linkable).
   near_wallet_connected: ["network_id"],
