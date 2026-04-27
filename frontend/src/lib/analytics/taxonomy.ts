@@ -9,6 +9,11 @@ export const analyticsEventSchema = {
   multiplayer_click: ["route", "destination"],
   join_room_click: ["route", "destination"],
   play_ai_click: ["route", "destination"],
+  // Purchase modal telemetry — SW-FE-030
+  // Intentionally omits user_id, wallet_address, session_id (PII / linkable).
+  purchase_modal_viewed: ["route", "item_name", "currency", "value"],
+  purchase_modal_canceled: ["route", "item_name", "currency", "value"],
+  purchase_modal_confirmed: ["route", "item_name", "currency", "value"],
   // NEAR wallet telemetry — SW-FE-005
   // Intentionally omits account_id, wallet_address, and tx hashes (PII / linkable).
   near_wallet_connected: ["network_id"],
