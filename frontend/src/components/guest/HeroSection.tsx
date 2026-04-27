@@ -1,13 +1,18 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
+import { sanitizeError } from "@/lib/errors";
 
 interface HeroSectionProps {
   className?: string;
+}
+
+interface HeroErrorState {
+  hasError: boolean;
+  message: string;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -27,14 +32,63 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+const typeSpeed = 40;
+const subSpeed = 30;
+
 const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const router = useRouter();
   const { fire } = useHeroTelemetry();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
   // SW-3: fire hero_view once on mount
   useEffect(() => {
     fire("hero_view");
   }, [fire]);
+
+  // SW-FE-005: Error boundary for navigation failures
+  const handleTrackedNavigation = useCallback(
+    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
+      try {
+        fire(event as Parameters<typeof fire>[0]);
+        router.push(destination);
+      } catch (err) {
+        const sanitized = sanitizeError(err);
+        setError({ hasError: true, message: sanitized.userMessage });
+      }
+    },
+    [fire, router],
+  );
+
+  // SW-FE-005: Empty state — show a friendly message when there's no content to display
+  if (error.hasError) {
+    return (
+      <section
+        aria-label="Hero"
+        role="alert"
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className || ""}`}
+      >
+        <div className="text-center px-4">
+          <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
+            Something went wrong
+          </p>
+          <p className="font-dmSans text-[#F0F7F7] text-[14px] md:text-[16px] mb-6">
+            {error.message}
+          </p>
+          <button
+            onClick={() => {
+              setError({ hasError: false, message: "" });
+              fire("hero_view");
+            }}
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
+            aria-label="Try again"
+          >
+            Try Again
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -168,7 +222,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Multiplayer */}
           <button
-            onClick={() => { fire("hero_multiplayer_click"); router.push("/game-settings"); }}
+            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -196,7 +250,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Join Room */}
           <button
-            onClick={() => { fire("hero_join_room_click"); router.push("/join-room"); }}
+            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -224,7 +278,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Challenge AI */}
           <button
-            onClick={() => { fire("hero_challenge_ai_click"); router.push("/play-ai"); }}
+            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
