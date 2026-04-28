@@ -1,6 +1,7 @@
 import { PaginationService } from './pagination.service';
 import { SortOrder, PAGINATION_MAX_LIMIT } from '../dto/pagination.dto';
 import { SelectQueryBuilder } from 'typeorm';
+import { BadRequestException } from '@nestjs/common';
 
 /** Minimal stub that records the calls made by PaginationService. */
 function buildQb(rows: object[] = [], total = 0) {
@@ -117,5 +118,49 @@ describe('PaginationService', () => {
 
     expect(stub._skip).toBe(20);
     expect(stub._take).toBe(10);
+  });
+
+  describe('sortBy allowlist', () => {
+    it('allows a sortBy field that is in the allowlist', async () => {
+      const qb = buildQb([], 0);
+      await expect(
+        service.paginate(qb, { page: 1, sortBy: 'email' }, [], ['id', 'email', 'created_at']),
+      ).resolves.toBeDefined();
+    });
+
+    it('throws BadRequestException for a sortBy field not in the allowlist', async () => {
+      const qb = buildQb([], 0);
+      await expect(
+        service.paginate(qb, { page: 1, sortBy: 'password' }, [], ['id', 'email']),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException for SQL-injection-style sortBy', async () => {
+      const qb = buildQb([], 0);
+      await expect(
+        service.paginate(
+          qb,
+          { page: 1, sortBy: '1; DROP TABLE users; --' },
+          [],
+          ['id', 'email'],
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('falls back to id sort when sortBy is absent even with an allowlist', async () => {
+      const qb = buildQb([], 0);
+      const stub = qb as unknown as { _orderBy: { expr: string }[] };
+      await service.paginate(qb, { page: 1 }, [], ['id', 'email']);
+
+      expect(stub._orderBy[0].expr).toBe('entity.id');
+    });
+
+    it('skips allowlist check when allowedSortFields is undefined', async () => {
+      const qb = buildQb([], 0);
+      // No allowedSortFields — any sortBy should be accepted (caller's responsibility)
+      await expect(
+        service.paginate(qb, { page: 1, sortBy: 'arbitrary_field' }),
+      ).resolves.toBeDefined();
+    });
   });
 });

@@ -12,6 +12,7 @@ import { AdminLoginDto } from './dto/admin-login.dto';
 import { Throttle } from '@nestjs/throttler';
 
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { AuthAuditService } from './audit/auth-audit.service';
 import * as express from 'express';
 import { Req } from '@nestjs/common';
 
@@ -31,44 +32,54 @@ export class AdminAuthController {
     @Body() adminLoginDto: AdminLoginDto,
     @Req() req: express.Request,
   ) {
-    this.logger.log(`Admin login attempt for email: ${adminLoginDto.email}`);
+    const redactedEmail = AuthAuditService.redactEmail(adminLoginDto.email);
+    this.logger.log(`Admin login attempt for email: ${redactedEmail}`);
+
+    const ipAddress = req.ip;
+    const userAgent = req.headers?.['user-agent'];
 
     const user = await this.authService.validateAdmin(
       adminLoginDto.email,
       adminLoginDto.password,
+      ipAddress,
+      userAgent,
     );
 
     if (!user) {
       this.logger.warn(
-        `Failed admin login attempt for email: ${adminLoginDto.email}`,
+        `Failed admin login attempt for email: ${redactedEmail}`,
       );
 
       await this.adminLogsService.createLog(
         undefined,
         'ADMIN_LOGIN_FAILED',
         undefined,
-        { email: adminLoginDto.email },
+        { email: redactedEmail },
         req,
       );
 
       throw new UnauthorizedException('Invalid admin credentials');
     }
 
-    this.logger.log(`Successful admin login for email: ${adminLoginDto.email}`);
+    this.logger.log(`Successful admin login for email: ${redactedEmail}`);
 
     await this.adminLogsService.createLog(
       user.id,
       'ADMIN_LOGIN_SUCCESS',
       user.id,
-      { email: user.email },
+      { email: redactedEmail },
       req,
     );
 
-    return this.authService.login({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      is_admin: user.is_admin,
-    });
+    return this.authService.login(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        is_admin: user.is_admin,
+      },
+      ipAddress,
+      userAgent,
+    );
   }
 }
