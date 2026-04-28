@@ -28,8 +28,15 @@ export const walletLoginSchema = z.object({
 export const joinRoomSchema = z.object({
   roomCode: z
     .string()
-    .length(6, "Room code must be exactly 6 characters")
-    .regex(/^[A-Za-z0-9]+$/, "Room code must be letters and numbers only"),
+    // Normalise before validation: trim whitespace and uppercase so the server
+    // always receives a clean, canonical code regardless of how the user typed it.
+    .transform((v) => v.trim().toUpperCase())
+    .pipe(
+      z
+        .string()
+        .length(6, "Room code must be exactly 6 characters")
+        .regex(/^[A-Z0-9]+$/, "Room code must be letters and numbers only")
+    ),
 });
 
 export const gameSettingsSchema = z.object({
