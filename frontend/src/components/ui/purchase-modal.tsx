@@ -15,20 +15,25 @@ import {
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { usePurchaseModalTelemetry } from '@/hooks/usePurchaseModalTelemetry';
 
-interface PurchaseModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  itemName?: string | null;
-  itemPrice?: string | null;
-  itemCurrency?: string | null
-  isLoading?: boolean;
-  error?: string | null;
+export interface PurchaseModalProps {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly itemName?: string | null;
+  readonly itemPrice?: string | null;
+  readonly itemCurrency?: string | null;
+  readonly isLoading?: boolean;
+  readonly error?: string | null;
 }
 
 /** Strip HTML tags and trim to prevent XSS via prop injection. */
 function sanitizeText(value: string): string {
-  return value.replace(/<[^>]*>/g, "").trim();
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
+/** Coerce a nullable string prop to a sanitized string. */
+function toSafeString(value: string | null | undefined): string {
+  return sanitizeText(value ?? '');
 }
 
 export function PurchaseModal({
@@ -40,8 +45,8 @@ export function PurchaseModal({
   itemCurrency,
   isLoading = false,
   error = null,
-}: PurchaseModalProps) {
-  const { t } = useTranslation("common");
+}: PurchaseModalProps): React.ReactElement | null {
+  const { t } = useTranslation('common');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(containerRef, isOpen, onClose);
@@ -50,19 +55,20 @@ export function PurchaseModal({
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previous;
     };
   }, [isOpen]);
 
   // Sanitize user-supplied strings before rendering
-  const safeName = sanitizeText(itemName || "");
-  const safePrice = sanitizeText(itemPrice || "");
-  const safeCurrency = sanitizeText(itemCurrency || "");
+  const safeName = toSafeString(itemName);
+  const safePrice = toSafeString(itemPrice);
+  const safeCurrency = toSafeString(itemCurrency);
 
   // All hooks must be called before any conditional return (Rules of Hooks)
-  const { trackModalViewed, trackModalCanceled, trackModalConfirmed } = usePurchaseModalTelemetry();
+  const { trackModalViewed, trackModalCanceled, trackModalConfirmed } =
+    usePurchaseModalTelemetry();
 
   // Track modal viewed when opened
   useEffect(() => {
@@ -73,48 +79,57 @@ export function PurchaseModal({
 
   if (!isOpen) return null;
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     trackModalCanceled({ itemName: safeName, currency: safeCurrency, value: safePrice });
     onClose();
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = (): void => {
     trackModalConfirmed({ itemName: safeName, currency: safeCurrency, value: safePrice });
     onConfirm();
   };
 
-  const renderContent = () => {
+  const renderContent = (): React.ReactElement => {
     if (isLoading) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 gap-4" data-testid="purchase-modal-loading">
+        <div
+          className="flex flex-col items-center justify-center py-12 gap-4"
+          data-testid="purchase-modal-loading"
+        >
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
           <p className="text-neutral-400 text-sm">
-            {t("shop.loading_details", { defaultValue: "Loading item details..." })}
+            {t('shop.loading_details', { defaultValue: 'Loading item details...' })}
           </p>
         </div>
       );
     }
 
-    if (error) {
+    if (error != null) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-4" data-testid="purchase-modal-error">
+        <div
+          className="flex flex-col items-center justify-center py-12 gap-4 text-center px-4"
+          data-testid="purchase-modal-error"
+        >
           <div className="text-red-500 text-sm font-medium">{error}</div>
           <Button
             onClick={handleClose}
             variant="outline"
             className="mt-2 border-neutral-700 text-neutral-300 hover:bg-neutral-800"
           >
-            {t("common.close", { defaultValue: "Close" })}
+            {t('common.close', { defaultValue: 'Close' })}
           </Button>
         </div>
       );
     }
 
-    if (!itemName) {
+    if (itemName == null || itemName === '') {
       return (
-        <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-4" data-testid="purchase-modal-empty">
+        <div
+          className="flex flex-col items-center justify-center py-12 gap-4 text-center px-4"
+          data-testid="purchase-modal-empty"
+        >
           <p className="text-neutral-400 text-sm">
-            {t("shop.item_not_found", { defaultValue: "Item details not found." })}
+            {t('shop.item_not_found', { defaultValue: 'Item details not found.' })}
           </p>
         </div>
       );
@@ -143,7 +158,7 @@ export function PurchaseModal({
             onClick={handleClose}
             className="border-neutral-700 text-neutral-300 hover:bg-neutral-800"
           >
-            {t("shop.cancel", { defaultValue: "Cancel" })}
+            {t('shop.cancel', { defaultValue: 'Cancel' })}
           </Button>
           <Button
             data-testid="purchase-modal-confirm"
@@ -151,7 +166,7 @@ export function PurchaseModal({
             onClick={handleConfirm}
             className="bg-cyan-500 text-black hover:bg-cyan-400"
           >
-            {t("shop.purchase", { defaultValue: "Purchase" })}
+            {t('shop.purchase', { defaultValue: 'Purchase' })}
           </Button>
         </CardFooter>
       </>
@@ -181,7 +196,7 @@ export function PurchaseModal({
             <button
               type="button"
               onClick={handleClose}
-              aria-label={t("shop.close_modal", { defaultValue: "Close" })}
+              aria-label={t('shop.close_modal', { defaultValue: 'Close' })}
               className="absolute right-4 top-4 rounded-sm text-neutral-400 opacity-70 ring-offset-neutral-900 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
               data-testid="purchase-modal-close"
             >
@@ -189,11 +204,14 @@ export function PurchaseModal({
             </button>
 
             <CardTitle id="purchase-modal-title" className="text-xl text-white">
-              {t("shop.confirm_purchase", { defaultValue: "Confirm Purchase" })}
+              {t('shop.confirm_purchase', { defaultValue: 'Confirm Purchase' })}
             </CardTitle>
-            {!isLoading && !error && itemName && (
-              <CardDescription id="purchase-modal-description" className="text-neutral-400 mt-2">
-                {t("shop.purchase_confirmation_msg", {
+            {!isLoading && error == null && itemName != null && itemName !== '' && (
+              <CardDescription
+                id="purchase-modal-description"
+                className="text-neutral-400 mt-2"
+              >
+                {t('shop.purchase_confirmation_msg', {
                   name: safeName,
                   defaultValue: `Are you sure you want to purchase ${safeName}?`,
                 })}
