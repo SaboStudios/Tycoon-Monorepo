@@ -33,7 +33,14 @@ const rarityBadgeColors: Record<string, string> = {
   legendary: "bg-yellow-200 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100",
 };
 
-export const ShopItem: React.FC<ShopItemData> = ({
+export interface ShopItemProps extends ShopItemData {
+  /** tabIndex forwarded from ShopGrid for roving-tabindex keyboard navigation */
+  tabIndex?: number;
+  /** Ref forwarded from ShopGrid so it can manage focus */
+  itemRef?: React.Ref<HTMLDivElement>;
+}
+
+export const ShopItem: React.FC<ShopItemProps> = ({
   id,
   name,
   description,
@@ -42,6 +49,8 @@ export const ShopItem: React.FC<ShopItemData> = ({
   rarity = "common",
   onPurchase,
   disabled = false,
+  tabIndex,
+  itemRef,
 }) => {
   const itemId = String(id);
   
@@ -56,14 +65,19 @@ export const ShopItem: React.FC<ShopItemData> = ({
     }
   }, [price, itemId]);
 
+  const cardLabel = `${name}, ${rarity} rarity, $${displayPrice}`;
+
   return (
     <div
+      ref={itemRef}
       className={cn(
         "flex flex-col rounded-lg border-2 p-4 transition-all duration-200",
         rarityColors[rarity] ?? rarityColors.common,
         disabled && "opacity-50 cursor-not-allowed"
       )}
       data-testid={`shop-item-${itemId}`}
+      aria-label={cardLabel}
+      tabIndex={tabIndex ?? 0}
     >
       {/* Icon and Rarity Badge */}
       <div className="flex items-start justify-between mb-3">
@@ -76,6 +90,7 @@ export const ShopItem: React.FC<ShopItemData> = ({
               "text-xs font-semibold px-2 py-1 rounded capitalize",
               rarityBadgeColors[rarity] ?? ""
             )}
+            aria-hidden
           >
             {rarity}
           </span>
@@ -92,7 +107,7 @@ export const ShopItem: React.FC<ShopItemData> = ({
 
       {/* Price and Button */}
       <div className="mt-auto flex items-center justify-between gap-2">
-        <span className="font-bold text-lg text-gray-900 dark:text-white">
+        <span className="font-bold text-lg text-gray-900 dark:text-white" aria-hidden>
           ${displayPrice}
         </span>
         <Button
@@ -102,9 +117,10 @@ export const ShopItem: React.FC<ShopItemData> = ({
           disabled={disabled}
           className="gap-1"
           data-testid={`shop-item-buy-${itemId}`}
+          aria-label={`Buy ${name}`}
         >
-          <ShoppingCart className="w-3 h-3" />
-          <span className="hidden sm:inline">Buy</span>
+          <ShoppingCart className="w-3 h-3" aria-hidden />
+          <span className="hidden sm:inline" aria-hidden>Buy</span>
         </Button>
       </div>
     </div>
