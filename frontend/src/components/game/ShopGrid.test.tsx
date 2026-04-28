@@ -211,10 +211,34 @@ describe("ShopGrid", () => {
   });
 
   describe("Accessibility", () => {
-    test("has proper ARIA labels and roles", () => {
+    test("grid has list role and accessible label", () => {
       render(<ShopGrid items={mockItems} />);
-      const grid = screen.getByRole("region", { name: /shop items/i });
-      expect(grid).toBeInTheDocument();
+      const list = screen.getByRole("list", { name: /shop items/i });
+      expect(list).toBeInTheDocument();
+    });
+
+    test("each item is wrapped in a listitem", () => {
+      render(<ShopGrid items={mockItems} />);
+      const listitems = screen.getAllByRole("listitem");
+      expect(listitems).toHaveLength(mockItems.length);
+    });
+
+    test("each shop item card has an accessible label including name, rarity, and price", () => {
+      render(<ShopGrid items={mockItems} />);
+      // Golden House — rare — $100.00
+      expect(
+        screen.getByLabelText(/golden house.*rare.*100\.00/i)
+      ).toBeInTheDocument();
+      // Lucky Dice — common — $50.00
+      expect(
+        screen.getByLabelText(/lucky dice.*common.*50\.00/i)
+      ).toBeInTheDocument();
+    });
+
+    test("buy button has accessible label including item name", () => {
+      render(<ShopGrid items={mockItems} />);
+      expect(screen.getByRole("button", { name: /buy golden house/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /buy lucky dice/i })).toBeInTheDocument();
     });
 
     test("error state has alert role", () => {
@@ -227,6 +251,171 @@ describe("ShopGrid", () => {
       const loading = screen.getByTestId("shop-grid-loading");
       expect(loading).toHaveAttribute("aria-busy", "true");
       expect(loading).toHaveAttribute("aria-label", "Loading shop items");
+    });
+
+    test("live region is present in all states", () => {
+      const { rerender } = render(<ShopGrid isLoading={true} />);
+      expect(screen.getByTestId("shop-grid-live-region")).toBeInTheDocument();
+
+      rerender(<ShopGrid error="oops" />);
+      expect(screen.getByTestId("shop-grid-live-region")).toBeInTheDocument();
+
+      rerender(<ShopGrid items={[]} />);
+      expect(screen.getByTestId("shop-grid-live-region")).toBeInTheDocument();
+
+      rerender(<ShopGrid items={mockItems} />);
+      expect(screen.getByTestId("shop-grid-live-region")).toBeInTheDocument();
+    });
+
+    test("live region announces loading state", () => {
+      render(<ShopGrid isLoading={true} />);
+      expect(screen.getByTestId("shop-grid-live-region")).toHaveTextContent(
+        "Loading shop items…"
+      );
+    });
+
+    test("live region announces error state", () => {
+      render(<ShopGrid error="Network failure" />);
+      expect(screen.getByTestId("shop-grid-live-region")).toHaveTextContent(
+        /error loading shop.*network failure/i
+      );
+    });
+
+    test("live region announces empty state", () => {
+      render(<ShopGrid items={[]} />);
+      expect(screen.getByTestId("shop-grid-live-region")).toHaveTextContent(
+        "No shop items available."
+      );
+    });
+
+    test("live region announces item count when items load", () => {
+      render(<ShopGrid items={mockItems} />);
+      expect(screen.getByTestId("shop-grid-live-region")).toHaveTextContent(
+        `${mockItems.length} shop items loaded.`
+      );
+    });
+
+    test("live region has role=status and aria-live=polite", () => {
+      render(<ShopGrid items={mockItems} />);
+      const region = screen.getByTestId("shop-grid-live-region");
+      expect(region).toHaveAttribute("role", "status");
+      expect(region).toHaveAttribute("aria-live", "polite");
+      expect(region).toHaveAttribute("aria-atomic", "true");
+    });
+  });
+
+  describe("Keyboard Navigation", () => {
+    test("first item has tabIndex=0, others have tabIndex=-1", () => {
+      render(<ShopGrid items={mockItems} />);
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+      expect(cards[1]).toHaveAttribute("tabindex", "-1");
+      expect(cards[2]).toHaveAttribute("tabindex", "-1");
+    });
+
+    test("ArrowRight moves focus to next item", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      // Focus the first card so the event target is meaningful
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "ArrowRight" });
+
+      expect(cards[1]).toHaveAttribute("tabindex", "0");
+      expect(cards[0]).toHaveAttribute("tabindex", "-1");
+    });
+
+    test("ArrowLeft moves focus to previous item", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      // Move to index 1 first
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "ArrowRight" });
+      // Now move back
+      fireEvent.keyDown(list, { key: "ArrowLeft" });
+
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("ArrowDown moves focus down by column count", () => {
+      // 3 items in a 3-column grid: ArrowDown from index 0 would go to index 3 (clamped to 2)
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "ArrowDown" });
+
+      // 0 + 3 = 3, clamped to 2 (last item)
+      expect(cards[2]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("ArrowUp moves focus up by column count", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      // Move to last item first
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "End" });
+      // Now move up
+      fireEvent.keyDown(list, { key: "ArrowUp" });
+
+      // 2 - 3 = -1, clamped to 0
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("Home key moves focus to first item", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "ArrowRight" });
+      fireEvent.keyDown(list, { key: "Home" });
+
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("End key moves focus to last item", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "End" });
+
+      expect(cards[cards.length - 1]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("ArrowRight does not go past last item", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      cards[0].focus();
+      // Press ArrowRight many times
+      for (let i = 0; i < 10; i++) {
+        fireEvent.keyDown(list, { key: "ArrowRight" });
+      }
+
+      expect(cards[cards.length - 1]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("ArrowLeft does not go before first item", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      cards[0].focus();
+      for (let i = 0; i < 10; i++) {
+        fireEvent.keyDown(list, { key: "ArrowLeft" });
+      }
+
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
     });
   });
 
