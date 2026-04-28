@@ -61,10 +61,12 @@ export class UsersService {
   ): Promise<PaginatedResponse<User>> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
     const searchableFields = ['email', 'firstName', 'lastName'];
+    const allowedSortFields = ['id', 'email', 'firstName', 'lastName', 'created_at', 'updated_at'];
     return await this.paginationService.paginate(
       queryBuilder,
       paginationDto,
       searchableFields,
+      allowedSortFields,
     );
   }
 
@@ -337,8 +339,9 @@ export class UsersService {
       .orderBy('user.game_won', 'DESC')
       .addOrderBy('user.total_earned', 'DESC');
 
+    const allowedSortFields = ['id', 'username', 'game_won', 'games_played', 'total_earned'];
     return await this.paginationService.paginate(queryBuilder, paginationDto, [
       'username',
-    ]);
+    ], allowedSortFields);
   }
 }

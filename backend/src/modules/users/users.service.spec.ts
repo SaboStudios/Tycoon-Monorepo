@@ -103,6 +103,18 @@ describe('UsersService', () => {
       expect(result).toEqual(paginatedResponse);
       expect(mockPaginationService.paginate).toHaveBeenCalled();
     });
+
+    it('passes an allowedSortFields array to PaginationService', async () => {
+      mockPaginationService.paginate.mockResolvedValue({ data: [], meta: {} });
+      repositoryMock.createQueryBuilder = jest.fn().mockReturnValue({});
+
+      await service.findAll({ page: 1, sortBy: 'email' });
+
+      const [, , , allowedSortFields] = mockPaginationService.paginate.mock.calls[0];
+      expect(Array.isArray(allowedSortFields)).toBe(true);
+      expect(allowedSortFields).toContain('email');
+      expect(allowedSortFields).toContain('id');
+    });
   });
 
   describe('findOne', () => {
