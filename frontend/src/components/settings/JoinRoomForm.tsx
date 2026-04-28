@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { ZodError } from "zod";
 import { AlertCircle, RefreshCw } from "lucide-react";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { joinRoomSchema } from "@/lib/validation/schemas";
 import { mapServerErrors, type FieldErrors } from "@/lib/validation/serverErrorMap";
+import { apiClient } from "@/lib/api/client";
+import type { GameResponse } from "@/lib/api/types/dto";
 
 /** Converts a Zod error into a flat field-keyed error map. */
 function parseZodErrors(error: ZodError): FieldErrors {
@@ -20,14 +22,30 @@ function parseZodErrors(error: ZodError): FieldErrors {
   return out;
 }
 
+/**
+ * Strip any character that is not alphanumeric, then uppercase and cap at 6.
+ * Applied on every keystroke so the user never sees invalid characters in the
+ * input — this is the primary client-side input sanitisation gate.
+ */
+function sanitiseRoomCode(raw: string): string {
+  return raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 6);
+}
+
+/** Minimum milliseconds between successive join attempts (rate-limit guard). */
+const SUBMIT_COOLDOWN_MS = 2_000;
+
 export default function JoinRoomForm(): React.JSX.Element {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const formRef = React.useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  /** Timestamp of the last submission attempt — used for client-side rate limiting. */
+  const lastSubmitRef = useRef<number>(0);
+
+  const errorId = "room-code-error";
 
   // Move focus to the input on mount so keyboard users land directly in the form
   React.useEffect(() => {
@@ -35,7 +53,8 @@ export default function JoinRoomForm(): React.JSX.Element {
   }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setCode(e.target.value.toUpperCase().slice(0, 6));
+    // Sanitise on every change: strip non-alphanumeric chars, uppercase, cap at 6.
+    setCode(sanitiseRoomCode(e.target.value));
     // Only clear field-level errors on change; _form errors persist until retry
     setErrors(({ roomCode: _dropped, ...rest }) => rest as FieldErrors);
   }, []);
@@ -43,7 +62,8 @@ export default function JoinRoomForm(): React.JSX.Element {
   /** Re-run the submit flow without clearing the code — used by the retry button. */
   const handleRetry = useCallback(() => {
     setErrors({});
-    // Trigger submit programmatically via the form ref
+    // Reset the rate-limit clock so the retry is never blocked by the cooldown.
+    lastSubmitRef.current = 0;
     formRef.current?.requestSubmit();
   }, []);
 
@@ -51,16 +71,27 @@ export default function JoinRoomForm(): React.JSX.Element {
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
 
-      const result = joinRoomSchema.safeParse({ roomCode: code.trim() });
+      // Client-side rate limiting: reject submissions that arrive too quickly.
+      const now = Date.now();
+      if (now - lastSubmitRef.current < SUBMIT_COOLDOWN_MS) {
+        setErrors({ _form: "Please wait a moment before trying again." });
+        return;
+      }
+      lastSubmitRef.current = now;
+
+      const result = joinRoomSchema.safeParse({ roomCode: code });
       if (!result.success) {
         setErrors(parseZodErrors(result.error));
         return;
       }
 
       setIsLoading(true);
+      setErrors({});
       try {
-        // Replace with real API call when available
-        await new Promise<void>((resolve) => setTimeout(resolve, 800));
+        await apiClient.post<GameResponse>(
+          `/games/${encodeURIComponent(result.data.roomCode)}/join`,
+          {}
+        );
         router.push(`/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`);
       } catch (err: unknown) {
         setErrors(mapServerErrors(err instanceof Error ? { message: err.message } : err));
@@ -71,7 +102,7 @@ export default function JoinRoomForm(): React.JSX.Element {
     [code, router]
   );
 
-  const isValid = joinRoomSchema.safeParse({ roomCode: code.trim() }).success;
+  const isValid = joinRoomSchema.safeParse({ roomCode: code }).success;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -108,13 +139,17 @@ export default function JoinRoomForm(): React.JSX.Element {
       >
         <Input
           ref={inputRef}
+          id="room-code"
           type="text"
           value={code}
           onChange={handleChange}
           placeholder="e.g. TYCOON"
           maxLength={6}
           autoComplete="off"
+          spellCheck={false}
           aria-required="true"
+          aria-describedby={errors.roomCode ? errorId : undefined}
+          aria-invalid={!!errors.roomCode}
           className="bg-[var(--tycoon-bg)] border-[var(--tycoon-border)] text-[var(--tycoon-text)] placeholder:text-[var(--tycoon-text)]/40 focus-visible:ring-[var(--tycoon-accent)] font-orbitron tracking-widest uppercase"
         />
       </FormField>

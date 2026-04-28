@@ -2,13 +2,27 @@
 // These handlers mirror the real backend API contract so tests stay in parity
 // with what the server actually returns (shapes match backend DTOs in
 // frontend/src/lib/api/types/dto.ts).
+//
+// IMPORTANT: Specific handlers (NOTFND, FULL00) MUST be listed before the
+// generic wildcard handler, otherwise MSW will match the generic first and
+// the specific fixtures will never be reached.
 
 import { http, HttpResponse } from "msw";
 
 const BASE = "http://localhost:3000/api/v1";
 
 export const joinRoomHandlers = [
-  // Success: valid 6-char code
+  // 404: room not found — must come before the generic handler
+  http.post(`${BASE}/games/NOTFND/join`, () =>
+    HttpResponse.json({ message: "Game not found" }, { status: 404 })
+  ),
+
+  // 409: room full — must come before the generic handler
+  http.post(`${BASE}/games/FULL00/join`, () =>
+    HttpResponse.json({ message: "Game is full" }, { status: 409 })
+  ),
+
+  // Success: valid 6-char code (generic — must come last)
   http.post(`${BASE}/games/:code/join`, ({ params }) => {
     const { code } = params as { code: string };
     if (typeof code !== "string" || code.length !== 6) {
@@ -55,14 +69,4 @@ export const joinRoomHandlers = [
       { status: 200 }
     );
   }),
-
-  // 404: room not found
-  http.post(`${BASE}/games/NOTFND/join`, () =>
-    HttpResponse.json({ message: "Game not found" }, { status: 404 })
-  ),
-
-  // 409: room full
-  http.post(`${BASE}/games/FULL00/join`, () =>
-    HttpResponse.json({ message: "Game is full" }, { status: 409 })
-  ),
 ];
