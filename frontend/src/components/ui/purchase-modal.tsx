@@ -13,6 +13,7 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { usePurchaseModalTelemetry } from '@/hooks/usePurchaseModalTelemetry';
 
 interface PurchaseModalProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ interface PurchaseModalProps {
   onConfirm: () => void;
   itemName?: string | null;
   itemPrice?: string | null;
-  itemCurrency?: string | null;
+  itemCurrency?: string | null
   isLoading?: boolean;
   error?: string | null;
 }
@@ -55,12 +56,32 @@ export function PurchaseModal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   // Sanitize user-supplied strings before rendering
   const safeName = sanitizeText(itemName || "");
   const safePrice = sanitizeText(itemPrice || "");
   const safeCurrency = sanitizeText(itemCurrency || "");
+
+  // All hooks must be called before any conditional return (Rules of Hooks)
+  const { trackModalViewed, trackModalCanceled, trackModalConfirmed } = usePurchaseModalTelemetry();
+
+  // Track modal viewed when opened
+  useEffect(() => {
+    if (isOpen) {
+      trackModalViewed({ itemName: safeName, currency: safeCurrency, value: safePrice });
+    }
+  }, [isOpen, safeName, safeCurrency, safePrice, trackModalViewed]);
+
+  if (!isOpen) return null;
+
+  const handleClose = () => {
+    trackModalCanceled({ itemName: safeName, currency: safeCurrency, value: safePrice });
+    onClose();
+  };
+
+  const handleConfirm = () => {
+    trackModalConfirmed({ itemName: safeName, currency: safeCurrency, value: safePrice });
+    onConfirm();
+  };
 
   const renderContent = () => {
     if (isLoading) {
@@ -79,7 +100,7 @@ export function PurchaseModal({
         <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-4" data-testid="purchase-modal-error">
           <div className="text-red-500 text-sm font-medium">{error}</div>
           <Button
-            onClick={onClose}
+            onClick={handleClose}
             variant="outline"
             className="mt-2 border-neutral-700 text-neutral-300 hover:bg-neutral-800"
           >
@@ -108,7 +129,9 @@ export function PurchaseModal({
             aria-atomic="true"
             data-testid="purchase-modal-price"
           >
-            {safePrice} {safeCurrency}
+            <div className="h-10 flex items-center justify-center">
+              {safePrice} {safeCurrency}
+            </div>
           </div>
         </CardContent>
 
@@ -117,7 +140,7 @@ export function PurchaseModal({
             data-testid="purchase-modal-cancel"
             type="button"
             variant="outline"
-            onClick={onClose}
+            onClick={handleClose}
             className="border-neutral-700 text-neutral-300 hover:bg-neutral-800"
           >
             {t("shop.cancel", { defaultValue: "Cancel" })}
@@ -125,7 +148,7 @@ export function PurchaseModal({
           <Button
             data-testid="purchase-modal-confirm"
             type="button"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className="bg-cyan-500 text-black hover:bg-cyan-400"
           >
             {t("shop.purchase", { defaultValue: "Purchase" })}
@@ -147,7 +170,7 @@ export function PurchaseModal({
       {/* Backdrop — click closes modal */}
       <div
         className="absolute inset-0"
-        onClick={onClose}
+        onClick={handleClose}
         aria-hidden="true"
         data-testid="purchase-modal-backdrop"
       />
@@ -157,7 +180,7 @@ export function PurchaseModal({
           <CardHeader className="relative">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               aria-label={t("shop.close_modal", { defaultValue: "Close" })}
               className="absolute right-4 top-4 rounded-sm text-neutral-400 opacity-70 ring-offset-neutral-900 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
               data-testid="purchase-modal-close"
