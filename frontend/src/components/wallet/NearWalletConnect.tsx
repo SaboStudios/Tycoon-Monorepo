@@ -89,6 +89,7 @@ export function NearWalletConnect({
         ) : (
           <button
             type="button"
+            aria-label="Connect NEAR wallet"
             onClick={connect}
             disabled={!ready}
             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-card-bg)] px-3 py-1.5 text-[11px] font-dm-sans font-medium text-[var(--tycoon-text)] transition-colors hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] disabled:opacity-50"
