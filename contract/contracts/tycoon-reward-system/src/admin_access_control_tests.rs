@@ -149,10 +149,7 @@ fn test_withdraw_funds_admin_succeeds() {
     let recipient = Address::generate(&env);
     // Re-create client pointing at the funded contract
     let (client2, _admin2, tyc2, _usdc2) = setup(&env);
-    StellarAssetClient::new(&env, &tyc2).mint(
-        &env.register(TycoonRewardSystem, ()),
-        &1000,
-    );
+    StellarAssetClient::new(&env, &tyc2).mint(&env.register(TycoonRewardSystem, ()), &1000);
 
     // Use the original client which has funds
     let _ = client;
@@ -191,10 +188,7 @@ fn test_redeem_voucher_from_user_succeeds() {
     let token_id = client.mint_voucher(&admin, &user, &500);
     client.redeem_voucher_from(&user, &token_id);
 
-    assert_eq!(
-        token::Client::new(&env, &tyc_token).balance(&user),
-        500
-    );
+    assert_eq!(token::Client::new(&env, &tyc_token).balance(&user), 500);
     assert_eq!(client.get_balance(&user, &token_id), 0);
 }
 

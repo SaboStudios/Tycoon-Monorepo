@@ -267,7 +267,7 @@ describe('GamesObservabilityService', () => {
 
       const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
 
-      service.logGameView(gameId, userId, found);
+      service.logGameView(gameId, found, userId);
 
       expect(debugSpy).toHaveBeenCalledWith('Game view requested', {
         event: 'game_view',
@@ -280,7 +280,7 @@ describe('GamesObservabilityService', () => {
     it('should log game view without game ID', () => {
       const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
 
-      service.logGameView(undefined, undefined, false);
+      service.logGameView(undefined, false);
 
       expect(debugSpy).toHaveBeenCalledWith('Game view requested', {
         event: 'game_view',

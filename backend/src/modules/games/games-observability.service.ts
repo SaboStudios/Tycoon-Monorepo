@@ -19,6 +19,12 @@ export class GamesObservabilityService {
   private readonly gameCodeGenerationAttempts: Counter;
   private readonly gameCodeGenerationFailures: Counter;
 
+  // Audit-specific metrics
+  private readonly auditLogsTotal: Counter;
+  private readonly auditLogFailures: Counter;
+  private readonly auditLogDuration: Histogram;
+  private readonly auditLogQueueSize: Gauge;
+
   constructor(private readonly configService: ConfigService) {
     // Initialize game-specific metrics
     this.gamesCreatedTotal = new Counter({
@@ -66,6 +72,31 @@ export class GamesObservabilityService {
       name: 'tycoon_game_code_generation_failures_total',
       help: 'Total failures to generate unique game codes',
     });
+
+    // Initialize audit-specific metrics
+    this.auditLogsTotal = new Counter({
+      name: 'tycoon_games_audit_logs_total',
+      help: 'Total number of game audit logs by action',
+      labelNames: ['action', 'result'],
+    });
+
+    this.auditLogFailures = new Counter({
+      name: 'tycoon_games_audit_log_failures_total',
+      help: 'Total number of failed audit log operations',
+      labelNames: ['action', 'error_type'],
+    });
+
+    this.auditLogDuration = new Histogram({
+      name: 'tycoon_games_audit_log_duration_seconds',
+      help: 'Duration of audit log operations',
+      labelNames: ['action'],
+      buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
+    });
+
+    this.auditLogQueueSize = new Gauge({
+      name: 'tycoon_games_audit_log_queue_size',
+      help: 'Number of pending audit log operations',
+    });
   }
 
   /**
@@ -100,7 +131,8 @@ export class GamesObservabilityService {
    * Log game join attempts and results
    */
   logGameJoin(gameId: number, userId: number, result: 'success' | 'error', reason?: string, duration?: number) {
-    const labels = { result, reason: reason || 'none' };
+    const normalizedReason = reason || 'none';
+    const labels = { result, reason: normalizedReason };
     this.gamesJoinedTotal.inc(labels);
 
     if (duration !== undefined) {
@@ -113,7 +145,7 @@ export class GamesObservabilityService {
       game_id: gameId,
       user_id: userId,
       result,
-      reason,
+      reason: normalizedReason,
       duration_ms: duration ? duration * 1000 : undefined,
     });
   }
@@ -209,7 +241,7 @@ export class GamesObservabilityService {
   /**
    * Log game view operations
    */
-  logGameView(gameId: number | undefined, userId?: number, found: boolean) {
+  logGameView(gameId: number | undefined, found: boolean, userId?: number) {
     this.logger.debug('Game view requested', {
       event: 'game_view',
       game_id: gameId,
@@ -262,5 +294,45 @@ export class GamesObservabilityService {
 
   private generateTraceId(): string {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  }
+}
+
+  /**
+   * Increment audit log total counter.
+   * 
+   * @param action - Audit action type
+   * @param result - Result of the audit operation (success/failure)
+   */
+  incrementAuditLogTotal(action: string, result: 'success' | 'failure') {
+    this.auditLogsTotal.inc({ action, result });
+  }
+
+  /**
+   * Increment audit log failure counter.
+   * 
+   * @param action - Audit action type
+   * @param errorType - Type of error that occurred
+   */
+  incrementAuditLogFailure(action: string, errorType: string) {
+    this.auditLogFailures.inc({ action, error_type: errorType });
+  }
+
+  /**
+   * Observe audit log duration.
+   * 
+   * @param action - Audit action type
+   * @param duration - Duration in seconds
+   */
+  observeAuditLogDuration(action: string, duration: number) {
+    this.auditLogDuration.observe({ action }, duration);
+  }
+
+  /**
+   * Set audit log queue size.
+   * 
+   * @param size - Number of pending audit operations
+   */
+  setAuditLogQueueSize(size: number) {
+    this.auditLogQueueSize.set(size);
   }
 }

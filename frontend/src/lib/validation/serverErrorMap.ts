@@ -23,23 +23,37 @@ const FIELD_KEYWORDS: Record<string, string> = {
   customStake: "customStake",
 };
 
+function isServerErrorResponse(v: unknown): v is ServerErrorResponse {
+  return typeof v === "object" && v !== null;
+}
+
 export function mapServerErrors(error: unknown): FieldErrors {
-  const body = error as ServerErrorResponse;
+  if (!isServerErrorResponse(error)) return { _form: "An unexpected error occurred" };
+  const body: ServerErrorResponse = error;
   const result: FieldErrors = {};
 
   // Explicit field errors array
-  if (Array.isArray(body?.errors)) {
+  if (Array.isArray(body.errors)) {
     for (const e of body.errors) {
       result[e.field] = e.message;
     }
     return result;
   }
 
+  // Status-code shortcut: map well-known codes to actionable messages before
+  // attempting keyword extraction, so users never see a raw server string.
+  if (body.statusCode === 404) return { _form: "Room not found. Check the code and try again." };
+  if (body.statusCode === 409) return { _form: "Room is full. Try a different room." };
+  if (typeof body.statusCode === "number" && body.statusCode >= 500) {
+    return { _form: "Server error. Please try again in a moment." };
+  }
+
   // NestJS class-validator messages array — infer field from message text
-  const messages = Array.isArray(body?.message)
-    ? body.message
-    : typeof body?.message === "string"
-    ? [body.message]
+  const raw = body.message;
+  const messages: string[] = Array.isArray(raw)
+    ? raw.filter((m): m is string => typeof m === "string")
+    : typeof raw === "string"
+    ? [raw]
     : [];
 
   for (const msg of messages) {

@@ -19,6 +19,15 @@ const config: Config = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/$1',
+    '^@nestjs/config$': '<rootDir>/../test/mocks/nestjs-config.mock.ts',
+    '^@nestjs/cache-manager$': '<rootDir>/../test/mocks/nestjs-cache-manager.mock.ts',
+    '^@nestjs/swagger$': '<rootDir>/../test/mocks/nestjs-swagger.mock.ts',
+    '^@nestjs/throttler$': '<rootDir>/../test/mocks/nestjs-throttler.mock.ts',
+    '^fast-csv$': '<rootDir>/../test/mocks/fast-csv.mock.ts',
+    '^prom-client$': '<rootDir>/../test/mocks/prom-client.mock.ts',
+    '^ioredis$': '<rootDir>/../test/mocks/ioredis.mock.ts',
+    '^nest-winston$': '<rootDir>/../test/mocks/nest-winston.mock.ts',
+    '^winston-daily-rotate-file$': '<rootDir>/../test/mocks/winston-daily-rotate-file.mock.ts',
   },
   coverageThreshold: {
     global: {

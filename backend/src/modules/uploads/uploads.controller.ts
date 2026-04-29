@@ -14,17 +14,25 @@ import {
   HttpStatus,
   BadRequestException,
   NotFoundException,
+  UseFilters,
+  UsePipes,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { UploadsService, StoredFile } from './uploads.service';
 import { VirusScanService } from './virus-scan.service';
 import { MagicBytesValidator, NoExecutableValidator } from './upload-validators';
 import { ConfigService } from '@nestjs/config';
+import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
+import { GetSignedUrlDto, DownloadFileDto } from './dto/upload-file.dto';
+import { UploadResponseDto, SignedUrlResponseDto } from './dto/upload-response.dto';
+import { UploadValidationPipe } from './pipes/upload-validation.pipe';
+import { UploadExceptionFilter } from './filters/upload-exception.filter';
+import { UploadsErrorMapperService } from './uploads-error-mapper.service';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB – also enforced in multer limits below
 
@@ -37,11 +45,14 @@ function buildMulterOptions() {
 
 @ApiTags('uploads')
 @Controller('uploads')
+@UseInterceptors(UploadsObservabilityInterceptor)
+@UseFilters(UploadExceptionFilter)
 export class UploadsController {
   constructor(
     private readonly uploadsService: UploadsService,
     private readonly virusScan: VirusScanService,
     private readonly config: ConfigService,
+    private readonly errorMapper: UploadsErrorMapperService,
   ) {}
 
   /**
@@ -59,6 +70,23 @@ export class UploadsController {
       properties: { file: { type: 'string', format: 'binary' } },
       required: ['file'],
     },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'File uploaded successfully',
+    type: UploadResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid file or validation error',
+  })
+  @ApiResponse({
+    status: HttpStatus.PAYLOAD_TOO_LARGE,
+    description: 'File size exceeds maximum allowed size',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    description: 'Virus detected in file',
   })
   @UseInterceptors(FileInterceptor('file', buildMulterOptions()))
   async uploadAvatar(
@@ -118,9 +146,18 @@ export class UploadsController {
   @Get('signed-url')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  async getSignedUrl(@Query('key') key: string): Promise<{ url: string }> {
-    if (!key) throw new BadRequestException('key query param required');
-    const url = await this.uploadsService.signedUrl(key);
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Signed URL generated successfully',
+    type: SignedUrlResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid or missing key parameter',
+  })
+  @UsePipes(new UploadValidationPipe(new UploadsErrorMapperService()))
+  async getSignedUrl(@Query() query: GetSignedUrlDto): Promise<{ url: string }> {
+    const url = await this.uploadsService.signedUrl(query.key);
     return { url };
   }
 
@@ -130,15 +167,26 @@ export class UploadsController {
    * GET /uploads/download?token=<jwt>
    */
   @Get('download')
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'File downloaded successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid or missing token parameter',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'File not found or token expired',
+  })
+  @UsePipes(new UploadValidationPipe(new UploadsErrorMapperService()))
   async download(
-    @Query('token') token: string,
+    @Query() query: DownloadFileDto,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
-    if (!token) throw new BadRequestException('token query param required');
-
     let result: Awaited<ReturnType<UploadsService['resolveLocalDownload']>>;
     try {
-      result = await this.uploadsService.resolveLocalDownload(token);
+      result = await this.uploadsService.resolveLocalDownload(query.token);
     } catch {
       throw new NotFoundException('Invalid or expired download token');
     }

@@ -8,6 +8,7 @@ import {
 } from "@/components/providers/near-wallet-provider";
 import { createMockNearWalletValue } from "@/test/near-wallet-mock";
 import type { NearTxRecord } from "@/lib/near/types";
+import { MAX_DEPOSIT_YOCTO } from "@/lib/near/security";
 
 /** Renders a headless component that calls the provided action on mount. */
 function Harness({ action }: { action: () => void }) {
@@ -112,5 +113,24 @@ describe("transactions list — display only latest", () => {
 
     expect(screen.getByText("mintNFT")).toBeTruthy();
     expect(screen.queryByText("addMessage")).toBeNull();
+  });
+});
+
+describe("callContractMethod — deposit guard (via mock)", () => {
+  it("rejects a deposit exceeding MAX_DEPOSIT_YOCTO", async () => {
+    const oversized = MAX_DEPOSIT_YOCTO + BigInt(1);
+    const callContractMethod = vi.fn().mockRejectedValue(
+      new Error(`Deposit ${oversized.toString()} yoctoNEAR exceeds the safe limit`),
+    );
+    await expect(
+      callContractMethod({ ...BASE_PARAMS, deposit: oversized }),
+    ).rejects.toThrow("exceeds the safe limit");
+  });
+
+  it("accepts a deposit of exactly MAX_DEPOSIT_YOCTO", async () => {
+    const callContractMethod = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      callContractMethod({ ...BASE_PARAMS, deposit: MAX_DEPOSIT_YOCTO }),
+    ).resolves.toBeUndefined();
   });
 });

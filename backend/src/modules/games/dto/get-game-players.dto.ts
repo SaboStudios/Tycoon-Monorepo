@@ -1,9 +1,26 @@
-import { IsOptional, IsBoolean, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsBoolean, IsInt, IsEnum, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
+/** Allowlist of columns that callers may sort game players by. */
+export enum GamePlayerSortField {
+  ID = 'id',
+  BALANCE = 'balance',
+  TURN_ORDER = 'turn_order',
+  POSITION = 'position',
+}
+
 export class GetGamePlayersDto extends PaginationDto {
+  @ApiPropertyOptional({
+    enum: GamePlayerSortField,
+    description: 'Field to sort game players by',
+    default: GamePlayerSortField.TURN_ORDER,
+  })
+  @IsOptional()
+  @IsEnum(GamePlayerSortField)
+  override sortBy?: GamePlayerSortField = GamePlayerSortField.TURN_ORDER;
+
   @ApiPropertyOptional({ description: 'Filter by user ID' })
   @IsOptional()
   @Type(() => Number)

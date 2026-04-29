@@ -66,12 +66,22 @@ export const validationSchema = Joi.object({
   REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
   REDIS_TTL: Joi.number().default(300),
+  CACHE_AUDIT_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+
+  // ─── Uploads observability (SW-BE-009) ───────────────────────────────────────
+  UPLOADS_OBSERVABILITY_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
 
   // ─── Logging ────────────────────────────────────────────────────────────────
   LOG_LEVEL: Joi.string()
     .valid('error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly')
     .optional(),
   LOG_CONSOLE: Joi.boolean().truthy('true').falsy('false').default(false),
+
+  // ─── Observability (SW-BE-025) ───────────────────────────────────────────────
+  // METRICS_ENABLED: expose /metrics Prometheus scrape endpoint
+  METRICS_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+  // REQUEST_LOGGING_ENABLED: emit structured http-level logs per request
+  REQUEST_LOGGING_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
 
   // ─── Payment / Webhooks ─────────────────────────────────────────────────────
   PAYMENT_WEBHOOK_SECRET: Joi.when('NODE_ENV', {
@@ -107,6 +117,30 @@ export const validationSchema = Joi.object({
     .falsy('false')
     .default(true),
   DEFAULT_STARTING_CASH: Joi.number().default(1500),
+
+  // ─── Games Audit Configuration ──────────────────────────────────────────────
+  GAMES_AUDIT_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true)
+    .description('Enable/disable audit logging for game operations'),
+  GAMES_AUDIT_LOG_LEVEL: Joi.string()
+    .valid('debug', 'info', 'warn', 'error')
+    .default('info')
+    .description('Log level for audit operations'),
+  GAMES_AUDIT_REDACT_SENSITIVE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true)
+    .description('Enable sensitive data redaction in audit logs'),
+  GAMES_AUDIT_LOG_VIEWS: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false)
+    .description('Log read-only operations (views, searches)'),
+  GAMES_AUDIT_ASYNC_TIMEOUT_MS: Joi.number()
+    .default(5000)
+    .description('Timeout for async audit operations in milliseconds'),
 
   // ─── NEAR RPC Facade ────────────────────────────────────────────────────────
   NEAR_NETWORK: Joi.string()

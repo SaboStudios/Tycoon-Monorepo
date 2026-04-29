@@ -1,55 +1,114 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { track } from "@/lib/analytics";
+import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
+import { sanitizeError } from "@/lib/errors";
+
+interface HeroSectionProps {
+  className?: string;
+}
+
+interface HeroErrorState {
+  hasError: boolean;
+  message: string;
+}
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
+
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mq.matches);
+
     const onChange = () => setReduced(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
   return reduced;
 }
 
-const HeroSection: React.FC = () => {
+const typeSpeed = 40;
+const subSpeed = 30;
+
+const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const router = useRouter();
+  const { fire } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const typeSpeed = prefersReducedMotion ? 99 : 40;
-  const subSpeed = prefersReducedMotion ? 99 : 50;
+  const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
-  function handleTrackedNavigation(
-    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
-    destination: string,
-  ) {
-    track(event, {
-      route: "/",
-      destination,
-    });
+  // SW-3: fire hero_view once on mount
+  useEffect(() => {
+    fire("hero_view");
+  }, [fire]);
 
-    router.push(destination);
+  // SW-FE-005: Error boundary for navigation failures
+  const handleTrackedNavigation = useCallback(
+    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
+      try {
+        fire(event as Parameters<typeof fire>[0]);
+        router.push(destination);
+      } catch (err) {
+        const sanitized = sanitizeError(err);
+        setError({ hasError: true, message: sanitized.userMessage });
+      }
+    },
+    [fire, router],
+  );
+
+  // SW-FE-005: Empty state — show a friendly message when there's no content to display
+  if (error.hasError) {
+    return (
+      <section
+        aria-label="Hero"
+        role="alert"
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className || ""}`}
+      >
+        <div className="text-center px-4">
+          <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
+            Something went wrong
+          </p>
+          <p className="font-dmSans text-[#F0F7F7] text-[14px] md:text-[16px] mb-6">
+            {error.message}
+          </p>
+          <button
+            onClick={() => {
+              setError({ hasError: false, message: "" });
+              fire("hero_view");
+            }}
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
+            aria-label="Try again"
+          >
+            Try Again
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
+    <section
+      aria-label="Hero"
+      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className || ""}`}
+    >
       {/* Background gradient */}
       <div
+        aria-hidden="true"
         className="w-full h-full overflow-hidden bg-cover bg-center"
         style={{
           background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 50%, #010F10 100%)",
         }}
       />
 
-      {/* Large Background TYCOON Text */}
-      <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
-        <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
+      {/* Large Background TYCOON Text — decorative only */}
+      <div aria-hidden="true" className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
+        <p className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
           TYCOON
-        </h1>
+        </p>
       </div>
 
       <div className="absolute left-0 top-0 z-2 flex h-full w-full flex-col items-center gap-1 bg-transparent lg:justify-center">
@@ -85,13 +144,16 @@ const HeroSection: React.FC = () => {
           />
         </div>
 
-        {/* Main Title */}
+        {/* Main Title — single h1 on this page */}
         <h1
           data-testid="hero-main-title"
           className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative"
         >
           TYCOON
-          <span className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}>
+          <span
+            aria-hidden="true"
+            className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+          >
             ?
           </span>
         </h1>
@@ -132,10 +194,12 @@ const HeroSection: React.FC = () => {
           {/* Continue Game */}
           <button
             data-testid="hero-primary-cta"
+            aria-label="Continue game"
             onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
             className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
             <svg
+              aria-hidden="true"
               width="300"
               height="56"
               viewBox="0 0 300 56"
@@ -150,7 +214,7 @@ const HeroSection: React.FC = () => {
                 strokeWidth={2}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
               <Gamepad2 className="mr-2 w-7 h-7" />
               Continue Game
             </span>
@@ -162,6 +226,7 @@ const HeroSection: React.FC = () => {
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
+              aria-hidden="true"
               width="227"
               height="40"
               viewBox="0 0 227 40"
@@ -177,7 +242,7 @@ const HeroSection: React.FC = () => {
                 className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
               <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
               Multiplayer
             </span>
@@ -189,6 +254,7 @@ const HeroSection: React.FC = () => {
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
+              aria-hidden="true"
               width="140"
               height="40"
               viewBox="0 0 140 40"
@@ -204,7 +270,7 @@ const HeroSection: React.FC = () => {
                 className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
               <Dices className="mr-1.5 w-[16px] h-[16px]" />
               Join Room
             </span>
@@ -212,10 +278,11 @@ const HeroSection: React.FC = () => {
 
           {/* Challenge AI */}
           <button
-            onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
+            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
+              aria-hidden="true"
               width="260"
               height="52"
               viewBox="0 0 260 52"
@@ -230,7 +297,7 @@ const HeroSection: React.FC = () => {
                 strokeWidth={1}
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
               Challenge AI!
             </span>
           </button>

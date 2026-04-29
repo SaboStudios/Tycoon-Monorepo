@@ -170,7 +170,7 @@ export class IsValidGamePlacementConstraint implements ValidatorConstraintInterf
     const ranks = Object.values(placements);
     
     // Check that all ranks are positive integers
-    if (!ranks.every(rank => Number.isInteger(rank) && rank > 0)) {
+    if (!ranks.every((rank) => typeof rank === 'number' && Number.isInteger(rank) && rank > 0)) {
       return false;
     }
 
