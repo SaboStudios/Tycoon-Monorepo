@@ -65,32 +65,16 @@ describe('UploadValidationPipe', () => {
       expect(result).toBe(value);
     });
 
-    it('should validate nested properties', async () => {
-      const invalidDto = {
-        key: 'valid-key',
-        nested: {
-          invalid: 'x'.repeat(600), // Exceeds max length
-        },
-      };
-      const metadata = { metatype: GetSignedUrlDto, type: 'query' as const };
-
-      // This test assumes nested validation is configured
-      // Adjust based on actual DTO structure
-      const result = await pipe.transform(invalidDto, metadata);
-      expect(result).toBeDefined();
-    });
-
-    it('should strip non-whitelisted properties', async () => {
+    it('should reject unknown DTO properties', async () => {
       const dtoWithExtra = {
         key: 'avatars/user-123/profile.jpg',
         extraField: 'should-be-removed',
       };
       const metadata = { metatype: GetSignedUrlDto, type: 'query' as const };
 
-      const result = await pipe.transform(dtoWithExtra, metadata);
-
-      expect(result.key).toBe(dtoWithExtra.key);
-      expect(result).not.toHaveProperty('extraField');
+      await expect(pipe.transform(dtoWithExtra, metadata)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

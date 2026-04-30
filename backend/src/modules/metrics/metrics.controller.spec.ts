@@ -2,8 +2,10 @@
  * SW-BE-028 — MetricsController: DTO validation and error mapping tests.
  */
 import { Test, TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { MetricsController } from './metrics.controller';
 import { HttpMetricsService } from './http-metrics.service';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
 
 const PROMETHEUS_SAMPLE = `# HELP tycoon_http_requests_total Total HTTP requests
 # TYPE tycoon_http_requests_total counter
@@ -22,6 +24,8 @@ describe('MetricsController', () => {
       controllers: [MetricsController],
       providers: [
         { provide: HttpMetricsService, useValue: mockHttpMetricsService },
+        { provide: AuditTrailService, useValue: { log: jest.fn() } },
+        { provide: Reflector, useValue: { get: jest.fn() } },
       ],
     }).compile();
 

@@ -12,6 +12,7 @@ import { RedisService } from './redis.service';
 import { AuditTrailService } from '../audit-trail/audit-trail.service';
 import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 import { LoggerService } from '../../common/logger/logger.service';
+import { register } from 'prom-client';
 
 // Minimal ioredis stub — only the methods RedisService actually calls
 jest.mock('ioredis', () => {
@@ -71,6 +72,10 @@ async function buildService(
 }
 
 describe('RedisService — audit hooks (SW-CACHE-001)', () => {
+  beforeEach(() => {
+    register.clear();
+  });
+
   describe('when CACHE_AUDIT_ENABLED=true', () => {
     let service: RedisService;
     let audit: AuditTrailService;

@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
+import { WebhooksAuditService } from './webhooks-audit.service';
 import { RedisService } from '../redis/redis.service';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { SortOrder } from '../../common/dto/pagination.dto';
@@ -21,10 +22,20 @@ const mockObservability = () => ({
   logWebhookProcessingFailed: jest.fn(),
 });
 
+const mockAudit = () => ({
+  auditSignatureVerification: jest.fn(),
+  auditWebhookReceived: jest.fn(),
+  auditIdempotencyCheck: jest.fn(),
+  auditWebhookPersisted: jest.fn(),
+  auditProcessingCompleted: jest.fn(),
+  auditProcessingFailed: jest.fn(),
+});
+
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let redisService: jest.Mocked<RedisService>;
   let observability: ReturnType<typeof mockObservability>;
+  let auditService: ReturnType<typeof mockAudit>;
   let repo: ReturnType<typeof mockRepo>;
 
   beforeEach(async () => {
@@ -35,12 +46,14 @@ describe('WebhooksService', () => {
 
     repo = mockRepo();
     observability = mockObservability();
+    auditService = mockAudit();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebhooksService,
         { provide: RedisService, useValue: mockRedisService },
         { provide: WebhooksObservabilityService, useValue: observability },
+        { provide: WebhooksAuditService, useValue: auditService },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },
         { provide: ConfigService, useValue: new ConfigService({ WEBHOOK_SECRET: 'test_secret' }) },
       ],
@@ -66,7 +79,7 @@ describe('WebhooksService', () => {
       (service as any).webhookSecret = secret;
     });
 
-    it('should verify valid signature and log success', () => {
+    it('should verify valid signature and log success', async () => {
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const body = JSON.stringify({ test: 'data' });
       const signedPayload = `${timestamp}.${body}`;
@@ -75,7 +88,12 @@ describe('WebhooksService', () => {
         .update(signedPayload)
         .digest('hex');
 
-      const result = service.verifySignature(signature, timestamp, Buffer.from(body), 'stripe');
+      const result = await service.verifySignature(
+        signature,
+        timestamp,
+        Buffer.from(body),
+        'stripe',
+      );
       
       expect(result).toBe(true);
       expect(observability.logSignatureVerification).toHaveBeenCalledWith(
@@ -86,12 +104,17 @@ describe('WebhooksService', () => {
       );
     });
 
-    it('should reject invalid signature and log failure', () => {
+    it('should reject invalid signature and log failure', async () => {
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const body = JSON.stringify({ test: 'data' });
 
       // Invalid hex signature of wrong length returns false (no throw)
-      const result = service.verifySignature('aabbcc', timestamp, Buffer.from(body), 'stripe');
+      const result = await service.verifySignature(
+        'aabbcc',
+        timestamp,
+        Buffer.from(body),
+        'stripe',
+      );
       
       expect(result).toBe(false);
       expect(observability.logSignatureVerification).toHaveBeenCalledWith(
@@ -102,13 +125,13 @@ describe('WebhooksService', () => {
       );
     });
 
-    it('should reject timestamp outside tolerance and log failure', () => {
+    it('should reject timestamp outside tolerance and log failure', async () => {
       const oldTimestamp = (Math.floor(Date.now() / 1000) - 400).toString();
       const body = JSON.stringify({ test: 'data' });
 
-      expect(() => {
-        service.verifySignature('signature', oldTimestamp, Buffer.from(body), 'stripe');
-      }).toThrow('Webhook timestamp outside of tolerance');
+      await expect(
+        service.verifySignature('signature', oldTimestamp, Buffer.from(body), 'stripe'),
+      ).rejects.toThrow('Webhook timestamp outside of tolerance');
 
       expect(observability.logSignatureVerification).toHaveBeenCalledWith(
         'stripe',
@@ -118,13 +141,13 @@ describe('WebhooksService', () => {
       );
     });
 
-    it('should log failure for missing signature', () => {
+    it('should log failure for missing signature', async () => {
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const body = JSON.stringify({ test: 'data' });
 
-      expect(() => {
-        service.verifySignature('', timestamp, Buffer.from(body), 'stripe');
-      }).toThrow('Missing webhook signature or timestamp');
+      await expect(
+        service.verifySignature('', timestamp, Buffer.from(body), 'stripe'),
+      ).rejects.toThrow('Missing webhook signature or timestamp');
 
       expect(observability.logSignatureVerification).toHaveBeenCalledWith(
         'stripe',

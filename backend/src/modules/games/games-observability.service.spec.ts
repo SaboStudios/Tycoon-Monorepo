@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { register } from 'prom-client';
 import { GamesObservabilityService } from './games-observability.service';
 import { GameStatus } from './entities/game.entity';
 
@@ -8,6 +9,7 @@ describe('GamesObservabilityService', () => {
   let configService: ConfigService;
 
   beforeEach(async () => {
+    register.clear();
     const mockConfigService = {
       get: jest.fn(),
     };

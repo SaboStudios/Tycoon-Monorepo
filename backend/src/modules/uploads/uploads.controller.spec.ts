@@ -7,6 +7,7 @@ import { VirusScanService } from './virus-scan.service';
 import { MulterExceptionFilter } from './multer-exception.filter';
 import { UploadsObservabilityService } from './uploads-observability.service';
 import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
+import { UploadsErrorMapperService } from './uploads-error-mapper.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { ConfigService } from '@nestjs/config';
@@ -67,6 +68,7 @@ describe('UploadsController – integration', () => {
         { provide: VirusScanService, useValue: mockVirusScan },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: UploadsObservabilityService, useValue: mockUploadsObservability },
+        { provide: UploadsErrorMapperService, useValue: { mapMulterError: jest.fn() } },
         UploadsObservabilityInterceptor,
       ],
     })
