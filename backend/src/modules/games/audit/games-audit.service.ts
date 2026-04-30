@@ -662,7 +662,6 @@ export class GamesAuditService {
       }
     }
   }
-}
 
   /**
    * Log generic player action audit trail.

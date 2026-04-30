@@ -295,7 +295,6 @@ export class GamesObservabilityService {
   private generateTraceId(): string {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }
-}
 
   /**
    * Increment audit log total counter.
