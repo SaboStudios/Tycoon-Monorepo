@@ -2,9 +2,6 @@ name: Contract CI
 
 on:
   pull_request:
-    paths:
-      - "contract/**"
-      - ".github/workflows/contract-ci.yml"
   push:
     branches:
       - main
