@@ -222,6 +222,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Multiplayer */}
           <button
+            aria-label="Multiplayer"
             onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
@@ -250,6 +251,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Join Room */}
           <button
+            aria-label="Join room"
             onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
@@ -278,6 +280,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
           {/* Challenge AI */}
           <button
+            aria-label="Challenge AI"
             onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >

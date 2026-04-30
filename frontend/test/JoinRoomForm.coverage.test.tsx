@@ -15,11 +15,20 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import JoinRoomForm from "@/components/settings/JoinRoomForm";
+import { apiClient } from "@/lib/api/client";
 
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+vi.mock("@/lib/api/client", () => ({
+  apiClient: {
+    post: vi.fn(),
+  },
+}));
 
-beforeEach(() => pushMock.mockClear());
+beforeEach(() => {
+  pushMock.mockClear();
+  vi.mocked(apiClient.post).mockReset();
+});
 
 describe("JoinRoomForm — coverage (SW-FE-038)", () => {
   it("strips non-alphanumeric characters from input", async () => {
@@ -44,6 +53,9 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("aria-busy is true while submitting", async () => {
     const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockImplementationOnce(
+      () => new Promise(() => {}) as Promise<never>
+    );
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "TYC001");
     await user.click(screen.getByRole("button", { name: /join/i }));
@@ -76,6 +88,9 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("button label switches to 'Joining…' during loading", async () => {
     const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockImplementationOnce(
+      () => new Promise(() => {}) as Promise<never>
+    );
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "TYC001");
     await user.click(screen.getByRole("button", { name: /join/i }));
@@ -84,6 +99,7 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("navigates after successful submit resolves", async () => {
     const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValueOnce({} as never);
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "ABC123");
     await user.click(screen.getByRole("button", { name: /join/i }));
@@ -94,7 +110,7 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("shows 404 banner when server returns room-not-found", async () => {
     const user = userEvent.setup();
-    pushMock.mockImplementationOnce(() => { throw { statusCode: 404 }; });
+    vi.mocked(apiClient.post).mockRejectedValueOnce({ statusCode: 404 });
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "TYC001");
     await user.click(screen.getByRole("button", { name: /join/i }));
@@ -105,7 +121,7 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("shows 409 banner when room is full", async () => {
     const user = userEvent.setup();
-    pushMock.mockImplementationOnce(() => { throw { statusCode: 409 }; });
+    vi.mocked(apiClient.post).mockRejectedValueOnce({ statusCode: 409 });
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "TYC001");
     await user.click(screen.getByRole("button", { name: /join/i }));
@@ -116,7 +132,7 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("shows generic banner for 500 error", async () => {
     const user = userEvent.setup();
-    pushMock.mockImplementationOnce(() => { throw { statusCode: 500 }; });
+    vi.mocked(apiClient.post).mockRejectedValueOnce({ statusCode: 500 });
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "TYC001");
     await user.click(screen.getByRole("button", { name: /join/i }));
@@ -127,7 +143,7 @@ describe("JoinRoomForm — coverage (SW-FE-038)", () => {
 
   it("retry button is present in banner when code is still valid", async () => {
     const user = userEvent.setup();
-    pushMock.mockImplementationOnce(() => { throw { statusCode: 404 }; });
+    vi.mocked(apiClient.post).mockRejectedValueOnce({ statusCode: 404 });
     render(<JoinRoomForm />);
     await user.type(screen.getByLabelText(/room code/i), "TYC001");
     await user.click(screen.getByRole("button", { name: /join/i }));

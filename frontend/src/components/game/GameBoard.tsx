@@ -123,10 +123,13 @@ export default function GameBoard(): React.JSX.Element {
     onHelp: () => toggleOverlay('help'),
   });
 
-  const closeOverlay = () => setActiveOverlay(null);
+  const closeOverlay = () => {
+    setActiveOverlay(null);
+    setTimeout(() => boardRef.current?.focus(), 0);
+  };
 
   const handleBoardKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!focusedPosition) return;
+    if (focusedPosition === null) return;
 
     let newPosition = focusedPosition;
     switch (e.key) {

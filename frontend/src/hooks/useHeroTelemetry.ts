@@ -23,9 +23,12 @@ export interface HeroTelemetryEvent {
   elapsed: number;
 }
 
-const ENABLED =
-  typeof window !== "undefined" &&
-  process.env.NEXT_PUBLIC_TELEMETRY_ENABLED === "true";
+function isTelemetryEnabled(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    process.env.NEXT_PUBLIC_TELEMETRY_ENABLED === "true"
+  );
+}
 
 let pageLoadTime: number | null = null;
 
@@ -36,7 +39,7 @@ function getElapsed(): number {
 }
 
 export function trackHeroEvent(name: HeroEventName): void {
-  if (!ENABLED) return;
+  if (!isTelemetryEnabled()) return;
   const payload: HeroTelemetryEvent = { name, elapsed: getElapsed() };
   window.dispatchEvent(new CustomEvent("tycoon:telemetry", { detail: payload }));
 }

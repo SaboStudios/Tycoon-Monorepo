@@ -334,7 +334,9 @@ mod tests {
         let player = Address::generate(&env);
         client.register_player(&String::from_str(&env, "tycoon_pro"), &player);
 
-        let user = client.get_user(&player).expect("SIM-12: user must exist after registration");
+        let user = client
+            .get_user(&player)
+            .expect("SIM-12: user must exist after registration");
         assert_eq!(user.username, String::from_str(&env, "tycoon_pro"));
         assert_eq!(user.games_played, 0);
 
@@ -342,8 +344,13 @@ mod tests {
         client.remove_player_from_game(&owner, &1, &player, &7);
 
         // Profile is still intact after removal
-        let user_after = client.get_user(&player).expect("SIM-12: user must still exist after removal");
-        assert_eq!(user_after.address, player, "SIM-12: address must be unchanged");
+        let user_after = client
+            .get_user(&player)
+            .expect("SIM-12: user must still exist after removal");
+        assert_eq!(
+            user_after.address, player,
+            "SIM-12: address must be unchanged"
+        );
     }
 
     // ── SIM-13 ────────────────────────────────────────────────────────────────
@@ -362,22 +369,34 @@ mod tests {
         for i in 1_u128..=10 {
             client.admin_set_collectible_info(
                 &i,
-                &(i as u32),       // perk
-                &(i as u32 * 10),  // strength
-                &(i * 1_000),      // tyc_price
-                &(i * 500),        // usdc_price
-                &(i as u64 * 5),   // shop_stock
+                &(i as u32),      // perk
+                &(i as u32 * 10), // strength
+                &(i * 1_000),     // tyc_price
+                &(i * 500),       // usdc_price
+                &(i as u64 * 5),  // shop_stock
             );
         }
 
         // Verify each entry is independently correct
         for i in 1_u128..=10 {
             let info = client.get_collectible_info(&i);
-            assert_eq!(info.0, i as u32,           "SIM-13: perk mismatch for token {i}");
-            assert_eq!(info.1, i as u32 * 10,      "SIM-13: strength mismatch for token {i}");
-            assert_eq!(info.2, i * 1_000,          "SIM-13: tyc_price mismatch for token {i}");
-            assert_eq!(info.3, i * 500,            "SIM-13: usdc_price mismatch for token {i}");
-            assert_eq!(info.4, i as u64 * 5,       "SIM-13: shop_stock mismatch for token {i}");
+            assert_eq!(info.0, i as u32, "SIM-13: perk mismatch for token {i}");
+            assert_eq!(
+                info.1,
+                i as u32 * 10,
+                "SIM-13: strength mismatch for token {i}"
+            );
+            assert_eq!(
+                info.2,
+                i * 1_000,
+                "SIM-13: tyc_price mismatch for token {i}"
+            );
+            assert_eq!(info.3, i * 500, "SIM-13: usdc_price mismatch for token {i}");
+            assert_eq!(
+                info.4,
+                i as u64 * 5,
+                "SIM-13: shop_stock mismatch for token {i}"
+            );
         }
     }
 
@@ -393,13 +412,7 @@ mod tests {
         env.mock_all_auths();
         let (_, client, _, _, _) = setup(&env);
 
-        let tiers: [(u32, u128); 5] = [
-            (1, 100),
-            (2, 500),
-            (3, 1_000),
-            (4, 5_000),
-            (5, 10_000),
-        ];
+        let tiers: [(u32, u128); 5] = [(1, 100), (2, 500), (3, 1_000), (4, 5_000), (5, 10_000)];
 
         for (tier, value) in tiers {
             client.admin_set_cash_tier_value(&tier, &value);

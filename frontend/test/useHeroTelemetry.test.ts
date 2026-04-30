@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { trackHeroEvent } from "../../src/hooks/useHeroTelemetry";
+import { trackHeroEvent } from "../src/hooks/useHeroTelemetry";
 
 describe("useHeroTelemetry (SW-3)", () => {
   beforeEach(() => {

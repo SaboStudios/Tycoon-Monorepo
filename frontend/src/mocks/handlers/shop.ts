@@ -23,4 +23,14 @@ export const shopHandlers = [
   http.post(/\/api\/shop\/purchase/, () => {
     return HttpResponse.json(mockPurchase, { status: 201 });
   }),
+
+  // GET /api/shop/purchases — purchase history
+  http.get(/\/api\/shop\/purchases/, () => {
+    return HttpResponse.json([mockPurchase]);
+  }),
+
+  // POST /api/shop/gift — gift purchase (201)
+  http.post(/\/api\/shop\/gift/, () => {
+    return HttpResponse.json({ ...mockPurchase, is_gift: true }, { status: 201 });
+  }),
 ];

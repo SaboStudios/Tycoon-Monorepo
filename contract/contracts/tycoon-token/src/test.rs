@@ -338,10 +338,7 @@ fn sim_multi_player_distribution() {
     assert_eq!(client.total_supply(), INITIAL_SUPPLY);
 
     let total_distributed: i128 = starting_cash * 4;
-    assert_eq!(
-        client.balance(&admin),
-        INITIAL_SUPPLY - total_distributed
-    );
+    assert_eq!(client.balance(&admin), INITIAL_SUPPLY - total_distributed);
 
     // Players trade among themselves
     client.transfer(&players[0], &players[1], &500_000_000_000_000_000_000);
@@ -400,7 +397,10 @@ fn sim_burn_from_fee_collection() {
 
     assert_eq!(client.balance(&holder), grant - burn_amount);
     assert_eq!(client.total_supply(), INITIAL_SUPPLY - burn_amount);
-    assert_eq!(client.allowance(&holder, &protocol), burn_allowance - burn_amount);
+    assert_eq!(
+        client.allowance(&holder, &protocol),
+        burn_allowance - burn_amount
+    );
 }
 
 #[test]
