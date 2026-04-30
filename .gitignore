@@ -5,3 +5,15 @@ coverage
 *.log
 .DS_Store
 frontend_truth/
+
+# Generated artifacts and caches
+**/node_modules/
+**/.next/
+**/dist/
+**/target/
+**/coverage/
+**/*.tsbuildinfo
+
+# Generated reports
+backend/lint_results.json
+contract/deploy/wasm-size-report.md
