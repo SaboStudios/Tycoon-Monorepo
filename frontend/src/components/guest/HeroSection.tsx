@@ -50,11 +50,13 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const handleTrackedNavigation = useCallback(
     (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
       try {
-        fire(event as Parameters<typeof fire>[0]);
+        fire(event);
         router.push(destination);
       } catch (err) {
         const sanitized = sanitizeError(err);
-        setError({ hasError: true, message: sanitized.userMessage });
+        if (sanitized) {
+          setError({ hasError: true, message: sanitized.userMessage || "An unexpected error occurred" });
+        }
       }
     },
     [fire, router],
@@ -120,7 +122,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
         </div>
 
         {/* Animated Tagline */}
-        <div className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4">
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4"
+        >
           <TypeAnimation
             sequence={[
               "Conquer",
@@ -160,7 +166,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
         {/* Description + Animated Sub-text */}
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
-          <div className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]">
+          <div
+            aria-live="polite"
+            aria-atomic="true"
+            className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]"
+          >
             <TypeAnimation
               sequence={[
                 "Roll the dice",

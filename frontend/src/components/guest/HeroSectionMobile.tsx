@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { track } from "@/lib/analytics";
 
 interface HeroSectionMobileProps {
-  className?: string;
+  className?: string | undefined;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -46,17 +46,17 @@ function usePrefersReducedMotion(): boolean {
  * <div className="hidden md:block"><HeroSection /></div>
  * ```
  */
-export default function HeroSectionMobile({ className }: HeroSectionMobileProps) {
+export default function HeroSectionMobile({ className }: HeroSectionMobileProps): React.ReactElement {
   const router = useRouter();
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
 
-  function handleTrackedNavigation(
+  const handleTrackedNavigation = (
     event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
     destination: string,
-  ) {
+  ): void => {
     track(event, {
       route: "/",
       destination,
@@ -87,6 +87,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
         <h1 className="min-h-[42px] font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
           TYCOON
           <span
+            aria-hidden="true"
             className={`ml-1 text-[16px] text-[#0FF0FC] rotate-12 inline-block ${!prefersReducedMotion ? "animate-pulse" : ""}`}
           >
             ?
