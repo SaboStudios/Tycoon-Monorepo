@@ -34,6 +34,8 @@ import { UpdateUserPreferenceDto } from './dto/update-user-preference.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { UnsuspendUserDto } from './dto/unsuspend-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { GetUserGamesDto } from '../games/dto/get-user-games.dto';
 import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
@@ -213,6 +215,27 @@ export class UsersController {
   ): Promise<{ message: string }> {
     await this.usersService.unsuspendUser(dto, req.user.id, req);
     return { message: 'User unsuspended successfully' };
+  }
+
+  /**
+   * Reset a user's password (admin only)
+   * POST /users/:id/reset-password
+   */
+  @Post(':id/reset-password')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Idempotent()
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() resetPasswordDto: ResetPasswordDto,
+    @Request() req: RequestWithUser,
+  ): Promise<{ message: string }> {
+    return this.usersService.adminResetPassword(
+      id,
+      resetPasswordDto.newPassword,
+      req.user.id,
+      req,
+    );
   }
 
   /**

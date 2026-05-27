@@ -320,6 +320,31 @@ export class UsersService {
   }
 
   /**
+   * Admin-initiated password reset with audit logging.
+   */
+  async adminResetPassword(
+    id: number,
+    newPassword: string,
+    adminId: number,
+    req?: Request,
+  ): Promise<{ message: string }> {
+    const user = await this.findOne(id);
+    user.password = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.save(user);
+
+    await this.adminLogsService.createLog(
+      adminId,
+      'USER_PASSWORD_RESET',
+      id,
+      { resetBy: 'admin' },
+      req,
+    );
+
+    await this.invalidateUserCache(id);
+    return { message: 'Password reset successfully' };
+  }
+
+  /**
    * Get leaderboard of users sorted by wins
    */
   async getLeaderboard(

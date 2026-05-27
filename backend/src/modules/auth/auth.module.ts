@@ -37,6 +37,6 @@ import { AuthAuditService } from './audit/auth-audit.service';
   ],
   controllers: [AuthController, AdminAuthController],
   providers: [AuthService, JwtStrategy, LocalStrategy, AuthAuditService],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, JwtModule, JwtStrategy],
 })
 export class AuthModule {}

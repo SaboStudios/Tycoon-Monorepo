@@ -221,4 +221,24 @@ describe('UsersService', () => {
       expect(setCall.game_lost()).toBe('game_lost + 1');
     });
   });
+
+  describe('adminResetPassword', () => {
+    it('should reset password and create an admin audit log', async () => {
+      const user = { id: 1, email: 'test@example.com', password: 'old' };
+      repositoryMock.findOne!.mockResolvedValue(user);
+      repositoryMock.save!.mockResolvedValue({ ...user, password: 'hashed' });
+
+      const result = await service.adminResetPassword(1, 'new-password', 99);
+
+      expect(result).toEqual({ message: 'Password reset successfully' });
+      expect(repositoryMock.save).toHaveBeenCalled();
+      expect(mockAdminLogsService.createLog).toHaveBeenCalledWith(
+        99,
+        'USER_PASSWORD_RESET',
+        1,
+        { resetBy: 'admin' },
+        undefined,
+      );
+    });
+  });
 });
