@@ -20,5 +20,11 @@
     "name": "Total build output (JS)",
     "limit": "1500 kB",
     "notes": "Aggregate of all JS chunks across all routes (gzip). Tracks overall growth trend."
+  },
+  {
+    "name": "Shop Grid route JS",
+    "path": [".next/static/chunks/app/shop/**/*.js", ".next/static/chunks/**/ShopGrid-*.js", ".next/static/chunks/**/ShopItem-*.js"],
+    "limit": "40 kB",
+    "notes": "Shop page + ShopGrid + ShopItem components. Skeleton cards (min-h-[160px]) prevent CLS by reserving card dimensions during loading."
   }
 ]
