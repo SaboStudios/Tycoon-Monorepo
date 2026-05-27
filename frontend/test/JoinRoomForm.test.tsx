@@ -179,54 +179,64 @@ describe("joinRoomHandlers — MSW fixture parity (SW-FE-015)", () => {
   afterEach(() => server.resetHandlers());
   afterAll(() => server.close());
 
-  it("returns a GameResponse-shaped payload for a valid 6-char code", async () => {
+  it("returns a GamePlayer-shaped payload with 201 for a valid 6-char code", async () => {
     const res = await fetch("http://localhost:3000/api/v1/games/ABC123/join", {
       method: "POST",
+      headers: { Authorization: "Bearer test-token" },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     const body = await res.json();
 
     expect(typeof body.id).toBe("number");
-    expect(body.code).toBe("ABC123");
-    expect(["PUBLIC", "PRIVATE"]).toContain(body.mode);
-    expect(["PENDING", "RUNNING", "FINISHED", "CANCELLED"]).toContain(body.status);
-    expect(typeof body.number_of_players).toBe("number");
-    expect(Array.isArray(body.players)).toBe(true);
-    expect(typeof body.settings.starting_cash).toBe("number");
-    expect(typeof body.settings.max_players).toBe("number");
-    expect(typeof body.settings.allow_spectators).toBe("boolean");
+    expect(typeof body.game_id).toBe("number");
+    expect(typeof body.user_id).toBe("number");
+    expect(typeof body.balance).toBe("number");
+    expect(typeof body.position).toBe("number");
+    expect(typeof body.in_jail).toBe("boolean");
+    expect(typeof body.trade_locked_balance).toBe("string");
+    expect(typeof body.created_at).toBe("string");
+    expect(typeof body.updated_at).toBe("string");
   });
 
-  it("returns 404 for the NOTFND fixture", async () => {
+  it("returns GameException-shaped 404 for the NOTFND fixture", async () => {
     const res = await fetch("http://localhost:3000/api/v1/games/NOTFND/join", {
       method: "POST",
+      headers: { Authorization: "Bearer test-token" },
     });
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe("Game not found");
+    expect(body.error).toBe("GAME_NOT_FOUND");
+    expect(body.message).toContain("not found");
+    expect(typeof body.timestamp).toBe("string");
   });
 
-  it("returns 409 for the FULL00 fixture", async () => {
+  it("returns GameException-shaped 409 for the FULL00 fixture", async () => {
     const res = await fetch("http://localhost:3000/api/v1/games/FULL00/join", {
       method: "POST",
+      headers: { Authorization: "Bearer test-token" },
     });
     expect(res.status).toBe(409);
     const body = await res.json();
-    expect(body.message).toBe("Game is full");
+    expect(body.error).toBe("GAME_FULL");
+    expect(body.message).toContain("full");
   });
 
-  it("NOTFND handler takes precedence over generic handler", async () => {
-    // Verifies handler ordering is correct — specific before generic
-    const res = await fetch("http://localhost:3000/api/v1/games/NOTFND/join", {
+  it("returns 410 for the EXPIRD invite-expired fixture", async () => {
+    const res = await fetch("http://localhost:3000/api/v1/games/EXPIRD/join", {
       method: "POST",
+      headers: { Authorization: "Bearer test-token" },
     });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(410);
+    const body = await res.json();
+    expect(body.error).toBe("INVITE_EXPIRED");
   });
 
-  it("FULL00 handler takes precedence over generic handler", async () => {
-    const res = await fetch("http://localhost:3000/api/v1/games/FULL00/join", {
+  it("returns 401 when Authorization header is missing", async () => {
+    const res = await fetch("http://localhost:3000/api/v1/games/ABC123/join", {
       method: "POST",
     });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("UNAUTHORIZED");
   });
 });
