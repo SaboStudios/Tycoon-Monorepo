@@ -9,4 +9,6 @@ export * from './logger/logger.module';
 export * from './logger/logger.service';
 export * from './logger/logger.config';
 export * from './middleware/http-logger.middleware';
+export * from './middleware/health-check.middleware';
+export * from './middleware/jwt-verification.middleware';
 export * from './guards/app-throttler.guard';

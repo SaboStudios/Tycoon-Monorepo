@@ -8,6 +8,6 @@ import { CommunityChest } from './entities/community-chest.entity';
   imports: [TypeOrmModule.forFeature([CommunityChest])],
   controllers: [CommunityChestController],
   providers: [CommunityChestService],
-  exports: [CommunityChestService],
+  exports: [CommunityChestService, TypeOrmModule],
 })
 export class CommunityChestModule {}

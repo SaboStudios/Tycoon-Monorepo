@@ -42,6 +42,10 @@ const createMockQueryBuilder = (
 const mockRepository = {
   createQueryBuilder: jest.fn(),
   count: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  findOne: jest.fn(),
+  update: jest.fn(),
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -243,6 +247,127 @@ describe('NotificationsService', () => {
 
       expect(mockRepository.count).toHaveBeenCalledWith({
         where: { userId: 'different-user-id', isRead: false },
+      });
+    });
+
+    it('should return 0 when the notification source is unavailable', async () => {
+      mockRepository.count.mockRejectedValue(new Error('connection refused'));
+
+      const result = await service.getUnreadCount(userId);
+
+      expect(result).toBe(0);
+    });
+  });
+
+  // ── markAsRead ──────────────────────────────────────────────────────────────
+
+  describe('markAsRead', () => {
+    const userId = 'user-uuid-1';
+
+    it('should mark and return the notification', async () => {
+      const notification = makeNotification();
+      const updated = { ...notification, isRead: true };
+      mockRepository.findOne.mockResolvedValue(notification);
+      mockRepository.save.mockResolvedValue(updated);
+
+      const result = await service.markAsRead(notification.id, userId);
+
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { id: notification.id, userId },
+      });
+      expect(result?.isRead).toBe(true);
+    });
+
+    it('should return null when notification is not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.markAsRead('missing-id', userId);
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when the notification source is unavailable', async () => {
+      mockRepository.findOne.mockRejectedValue(new Error('connection refused'));
+
+      const result = await service.markAsRead('notif-uuid-1', userId);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── markAllAsRead ───────────────────────────────────────────────────────────
+
+  describe('markAllAsRead', () => {
+    const userId = 'user-uuid-1';
+
+    it('should return modifiedCount from update', async () => {
+      mockRepository.update.mockResolvedValue({ affected: 5 });
+
+      const result = await service.markAllAsRead(userId);
+
+      expect(mockRepository.update).toHaveBeenCalledWith(
+        { userId, isRead: false },
+        { isRead: true },
+      );
+      expect(result).toEqual({ modifiedCount: 5 });
+    });
+
+    it('should return modifiedCount of 0 when nothing was unread', async () => {
+      mockRepository.update.mockResolvedValue({ affected: 0 });
+
+      const result = await service.markAllAsRead(userId);
+
+      expect(result).toEqual({ modifiedCount: 0 });
+    });
+
+    it('should return modifiedCount 0 when the notification source is unavailable', async () => {
+      mockRepository.update.mockRejectedValue(new Error('connection refused'));
+
+      const result = await service.markAllAsRead(userId);
+
+      expect(result).toEqual({ modifiedCount: 0 });
+    });
+  });
+
+  // ── create ──────────────────────────────────────────────────────────────────
+
+  describe('create', () => {
+    it('should return null when the notification source is unavailable', async () => {
+      mockRepository.create.mockReturnValue(makeNotification());
+      mockRepository.save.mockRejectedValue(new Error('connection refused'));
+
+      const result = await service.create({
+        userId: 'user-uuid-1',
+        type: NotificationType.SYSTEM,
+        title: 'Test',
+        content: 'Body',
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── findAllForUser (graceful degradation) ───────────────────────────────────
+
+  describe('findAllForUser graceful degradation', () => {
+    it('should return empty paginated result when the notification source is unavailable', async () => {
+      mockRepository.createQueryBuilder.mockImplementation(() => {
+        throw new Error('connection refused');
+      });
+
+      const result = await service.findAllForUser('user-uuid-1', {
+        page: 2,
+        limit: 10,
+      });
+
+      expect(result.data).toEqual([]);
+      expect(result.meta).toEqual({
+        page: 2,
+        limit: 10,
+        total: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
       });
     });
   });

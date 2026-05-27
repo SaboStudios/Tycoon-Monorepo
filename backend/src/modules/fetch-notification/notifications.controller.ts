@@ -2,10 +2,14 @@
 import {
   Controller,
   Get,
+  Post,
+  Patch,
+  Param,
   Query,
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,7 +24,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaginatedNotificationsResponseDto } from './dto/paginated-notifications-response.dto';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
 import { UnreadCountResponseDto } from './dto/unread-count-response.dto';
+import { NotificationResponseDto } from './dto/notification-response.dto';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+
+function resolveUserId(user: JwtPayload): string {
+  return String(user.sub ?? user.id);
+}
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -64,10 +73,7 @@ export class NotificationsController {
     @CurrentUser() user: JwtPayload,
     @Query() query: GetNotificationsQueryDto,
   ): Promise<PaginatedNotificationsResponseDto> {
-    return this.notificationsService.findAllForUser(
-      String(user.sub ?? user.id),
-      query,
-    );
+    return this.notificationsService.findAllForUser(resolveUserId(user), query);
   }
 
   /**
@@ -91,8 +97,69 @@ export class NotificationsController {
     @CurrentUser() user: JwtPayload,
   ): Promise<UnreadCountResponseDto> {
     const count = await this.notificationsService.getUnreadCount(
-      String(user.sub ?? user.id),
+      resolveUserId(user),
     );
     return { count };
+  }
+
+  /**
+   * PATCH /api/notifications/:id
+   */
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark a notification as read',
+    description:
+      'Marks a specific notification as read. User can only update their own notifications.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Updated notification',
+    type: NotificationResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Notification not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async markAsRead(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<NotificationResponseDto> {
+    const updated = await this.notificationsService.markAsRead(
+      id,
+      resolveUserId(user),
+    );
+
+    if (!updated) {
+      throw new NotFoundException(
+        'Notification not found or not owned by user',
+      );
+    }
+
+    return updated;
+  }
+
+  /**
+   * POST /api/notifications/read-all
+   */
+  @Post('read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark all notifications as read',
+    description:
+      'Marks all unread notifications for the authenticated user as read.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Number of notifications marked as read',
+    schema: {
+      properties: {
+        modifiedCount: { type: 'number', example: 5 },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async markAllAsRead(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<{ modifiedCount: number }> {
+    return this.notificationsService.markAllAsRead(resolveUserId(user));
   }
 }

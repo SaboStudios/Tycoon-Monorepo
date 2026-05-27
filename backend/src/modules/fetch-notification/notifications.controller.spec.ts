@@ -1,5 +1,6 @@
 // src/notifications/tests/notifications.controller.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -44,6 +45,8 @@ const makePaginatedResponse = (
 const mockNotificationsService = {
   findAllForUser: jest.fn(),
   getUnreadCount: jest.fn(),
+  markAsRead: jest.fn(),
+  markAllAsRead: jest.fn(),
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -172,6 +175,51 @@ describe('NotificationsController', () => {
       expect(result).toHaveProperty('count');
       expect(typeof result.count).toBe('number');
       expect(result.count).toBe(99);
+    });
+  });
+
+  // ── PATCH /api/notifications/:id ────────────────────────────────────────────
+
+  describe('markAsRead', () => {
+    it('should call service.markAsRead with id and user id', async () => {
+      const updated = makePaginatedResponse().data[0];
+      mockNotificationsService.markAsRead.mockResolvedValue(updated);
+
+      const result = await controller.markAsRead(
+        mockUser as any,
+        'notif-uuid-1',
+      );
+
+      expect(mockNotificationsService.markAsRead).toHaveBeenCalledWith(
+        'notif-uuid-1',
+        mockUser.sub,
+      );
+      expect(result).toBe(updated);
+    });
+
+    it('should throw NotFoundException when service returns null', async () => {
+      mockNotificationsService.markAsRead.mockResolvedValue(null);
+
+      await expect(
+        controller.markAsRead(mockUser as any, 'missing-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── POST /api/notifications/read-all ────────────────────────────────────────
+
+  describe('markAllAsRead', () => {
+    it('should call service.markAllAsRead with user id', async () => {
+      mockNotificationsService.markAllAsRead.mockResolvedValue({
+        modifiedCount: 3,
+      });
+
+      const result = await controller.markAllAsRead(mockUser as any);
+
+      expect(mockNotificationsService.markAllAsRead).toHaveBeenCalledWith(
+        mockUser.sub,
+      );
+      expect(result).toEqual({ modifiedCount: 3 });
     });
   });
 });

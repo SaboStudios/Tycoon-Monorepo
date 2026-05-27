@@ -7,11 +7,17 @@ import { LoggerService } from '../logger/logger.service';
  * Logs all incoming HTTP requests and their responses
  * Includes request method, URL, status code, response time, and user agent
  */
+const DEFAULT_EXCLUDE_PATHS = ['/health', '/metrics'];
+
 @Injectable()
 export class HttpLoggerMiddleware implements NestMiddleware {
   constructor(private readonly logger: LoggerService) {}
 
   use(req: Request, res: Response, next: NextFunction) {
+    if (this.shouldSkip(req.path)) {
+      return next();
+    }
+
     const { method, originalUrl, ip, headers } = req;
     const userAgent = headers['user-agent'] || 'Unknown';
     const startTime = Date.now();
@@ -43,5 +49,12 @@ export class HttpLoggerMiddleware implements NestMiddleware {
     });
 
     next();
+  }
+
+  private shouldSkip(path: string): boolean {
+    const excludePaths =
+      process.env.LOG_EXCLUDE_PATHS?.split(',').map((p) => p.trim()) ??
+      DEFAULT_EXCLUDE_PATHS;
+    return excludePaths.some((prefix) => path.startsWith(prefix));
   }
 }
