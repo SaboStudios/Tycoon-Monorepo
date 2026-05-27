@@ -42,8 +42,14 @@ export function mapServerErrors(error: unknown): FieldErrors {
 
   // Status-code shortcut: map well-known codes to actionable messages before
   // attempting keyword extraction, so users never see a raw server string.
+  if (body.statusCode === 401 || body.statusCode === 403) {
+    return { _form: "Please sign in to join a room." };
+  }
   if (body.statusCode === 404) return { _form: "Room not found. Check the code and try again." };
   if (body.statusCode === 409) return { _form: "Room is full. Try a different room." };
+  if (body.statusCode === 410) {
+    return { _form: "This invite link has expired. Ask the host for a new one." };
+  }
   if (typeof body.statusCode === "number" && body.statusCode >= 500) {
     return { _form: "Server error. Please try again in a moment." };
   }
@@ -58,6 +64,21 @@ export function mapServerErrors(error: unknown): FieldErrors {
 
   for (const msg of messages) {
     const lower = msg.toLowerCase();
+    if (lower.includes("already joined") || lower.includes("already in this")) {
+      return { _form: "You're already in this room." };
+    }
+    if (lower.includes("expired") && lower.includes("invite")) {
+      return { _form: "This invite link has expired. Ask the host for a new one." };
+    }
+    if (lower.includes("not found") || lower.includes("game not found")) {
+      return { _form: "Room not found. Check the code and try again." };
+    }
+    if (lower.includes("full")) {
+      return { _form: "Room is full. Try a different room." };
+    }
+    if (lower.includes("unauthorized") || lower.includes("not authenticated")) {
+      return { _form: "Please sign in to join a room." };
+    }
     for (const [field, keyword] of Object.entries(FIELD_KEYWORDS)) {
       if (lower.includes(keyword)) {
         result[field] = msg;

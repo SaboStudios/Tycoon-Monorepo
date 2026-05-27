@@ -1,72 +1,117 @@
-// SW-4: MSW fixtures for the join-room flow.
-// These handlers mirror the real backend API contract so tests stay in parity
-// with what the server actually returns (shapes match backend DTOs in
-// frontend/src/lib/api/types/dto.ts).
+// SW-FE-015 / #842: MSW fixtures for the join-room flow.
+// These handlers mirror the real backend API contract (GameException errors,
+// GamePlayer on join success with 201 Created).
 //
-// IMPORTANT: Specific handlers (NOTFND, FULL00) MUST be listed before the
-// generic wildcard handler, otherwise MSW will match the generic first and
-// the specific fixtures will never be reached.
+// CORRECTED (was out of date):
+//  - Success status was 200 with a full GameResponse; API returns 201 + GamePlayer.
+//  - Error payloads were `{ message }` only; API returns GameException shape with
+//    `error`, `message`, `details`, `timestamp`, `path`, and `method`.
+//
+// IMPORTANT: Specific handlers (NOTFND, FULL00, …) MUST be listed before the
+// generic wildcard handler, otherwise MSW will match the generic first.
 
 import { http, HttpResponse } from "msw";
+import {
+  JOIN_ROOM_FIXTURE_CODES,
+  buildJoinRoomApiError,
+  buildJoinRoomSuccessPlayer,
+} from "@/mocks/fixtures/joinRoom";
 
 const BASE = "http://localhost:3000/api/v1";
 
+function joinPath(code: string): string {
+  return `${BASE}/games/${code}/join`;
+}
+
 export const joinRoomHandlers = [
-  // 404: room not found — must come before the generic handler
-  http.post(`${BASE}/games/NOTFND/join`, () =>
-    HttpResponse.json({ message: "Game not found" }, { status: 404 })
+  http.post(joinPath(JOIN_ROOM_FIXTURE_CODES.notFound), () =>
+    HttpResponse.json(
+      buildJoinRoomApiError(
+        "GAME_NOT_FOUND",
+        "Game with code NOTFND not found",
+        joinPath(JOIN_ROOM_FIXTURE_CODES.notFound),
+        { gameId: "NOTFND" }
+      ),
+      { status: 404 }
+    )
   ),
 
-  // 409: room full — must come before the generic handler
-  http.post(`${BASE}/games/FULL00/join`, () =>
-    HttpResponse.json({ message: "Game is full" }, { status: 409 })
+  http.post(joinPath(JOIN_ROOM_FIXTURE_CODES.full), () =>
+    HttpResponse.json(
+      buildJoinRoomApiError(
+        "GAME_FULL",
+        "Game 1 is full (4/4 players)",
+        joinPath(JOIN_ROOM_FIXTURE_CODES.full),
+        { gameId: 1, currentPlayers: 4, maxPlayers: 4 }
+      ),
+      { status: 409 }
+    )
   ),
 
-  // Success: valid 6-char code (generic — must come last)
-  http.post(`${BASE}/games/:code/join`, ({ params }) => {
+  http.post(joinPath(JOIN_ROOM_FIXTURE_CODES.alreadyJoined), () =>
+    HttpResponse.json(
+      buildJoinRoomApiError(
+        "GAME_ALREADY_JOINED",
+        "User 42 has already joined game 1",
+        joinPath(JOIN_ROOM_FIXTURE_CODES.alreadyJoined),
+        { gameId: 1, userId: 42 }
+      ),
+      { status: 409 }
+    )
+  ),
+
+  http.post(joinPath(JOIN_ROOM_FIXTURE_CODES.expiredInvite), () =>
+    HttpResponse.json(
+      buildJoinRoomApiError(
+        "INVITE_EXPIRED",
+        "Invite token expired for this room",
+        joinPath(JOIN_ROOM_FIXTURE_CODES.expiredInvite),
+        { reason: "expired" }
+      ),
+      { status: 410 }
+    )
+  ),
+
+  http.post(joinPath(JOIN_ROOM_FIXTURE_CODES.unauthorized), () =>
+    HttpResponse.json(
+      buildJoinRoomApiError(
+        "UNAUTHORIZED",
+        "Unauthorized",
+        joinPath(JOIN_ROOM_FIXTURE_CODES.unauthorized)
+      ),
+      { status: 401 }
+    )
+  ),
+
+  http.post(`${BASE}/games/:code/join`, ({ params, request }) => {
     const { code } = params as { code: string };
-    if (typeof code !== "string" || code.length !== 6) {
+
+    if (!request.headers.get("Authorization")) {
       return HttpResponse.json(
-        { message: "Invalid room code" },
+        buildJoinRoomApiError(
+          "UNAUTHORIZED",
+          "Unauthorized",
+          `${BASE}/games/${code}/join`
+        ),
+        { status: 401 }
+      );
+    }
+
+    if (typeof code !== "string" || code.length !== 6 || !/^[A-Z0-9]+$/.test(code)) {
+      return HttpResponse.json(
+        buildJoinRoomApiError(
+          "GAME_VALIDATION_ERROR",
+          "Invalid roomCode: Invalid game code format",
+          `${BASE}/games/${code}/join`,
+          { field: "roomCode", constraint: "Invalid game code format" }
+        ),
         { status: 400 }
       );
     }
+
     return HttpResponse.json(
-      {
-        id: 1,
-        code,
-        mode: "PUBLIC" as const,
-        status: "PENDING" as const,
-        number_of_players: 4,
-        creator_id: 99,
-        winner_id: null,
-        next_player_id: null,
-        is_ai: false,
-        is_minipay: false,
-        chain: null,
-        duration: null,
-        started_at: null,
-        contract_game_id: null,
-        placements: null,
-        settings: {
-          id: 1,
-          game_id: 1,
-          allow_spectators: true,
-          enable_powerups: false,
-          ranked: false,
-          auction: true,
-          rent_in_prison: false,
-          mortgage: true,
-          even_build: true,
-          randomize_play_order: true,
-          starting_cash: 1500,
-          max_players: 4,
-        },
-        players: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { status: 200 }
+      buildJoinRoomSuccessPlayer(1, 42, code),
+      { status: 201 }
     );
   }),
 ];

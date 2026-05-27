@@ -2,8 +2,10 @@
  * E2E: JoinRoomForm — happy path + validation errors + security hardening
  * SW-FE-015: Join room flow security hardening review
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+
 import userEvent from "@testing-library/user-event";
+import "./mocks/join-room-i18n";
 import JoinRoomForm from "@/components/settings/JoinRoomForm";
 
 // Mock next/navigation
@@ -21,8 +23,12 @@ vi.mock("@/lib/api/client", () => ({
 beforeEach(() => {
   mockPush.mockClear();
   mockPost.mockClear();
-  // Default: successful join
   mockPost.mockResolvedValue({ id: 1, code: "TYC001" });
+  localStorage.setItem("access_token", "test-token");
+});
+
+afterEach(() => {
+  localStorage.removeItem("access_token");
 });
 
 describe("JoinRoomForm", () => {
@@ -79,6 +85,18 @@ describe("JoinRoomForm", () => {
       );
       expect(mockPush).toHaveBeenCalledWith("/game-waiting?gameCode=TYC001");
     });
+  });
+
+  it("blocks join when user is not authenticated", async () => {
+    const user = userEvent.setup();
+    localStorage.removeItem("access_token");
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    await user.click(screen.getByRole("button", { name: /join/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId("form-error-banner")).toHaveTextContent(/sign in/i);
+    });
+    expect(mockPost).not.toHaveBeenCalled();
   });
 
   it("shows loading state while API call is in flight", async () => {
@@ -180,7 +198,68 @@ describe("JoinRoomForm CLS / LCP regression (SW-FE-036)", () => {
   });
 });
 
+// ── Keyboard shortcuts (SW-FE-845) ────────────────────────────────────────────
+
+describe("JoinRoomForm — keyboard shortcuts (SW-FE-845)", () => {
+  beforeEach(() => {
+    mockPush.mockClear();
+    mockPost.mockClear();
+    mockPost.mockResolvedValue({ id: 1, code: "TYC001" });
+  });
+
+  it("Escape clears the input when focused", async () => {
+    const user = userEvent.setup();
+    render(<JoinRoomForm />);
+    const input = screen.getByLabelText(/room code/i);
+    await user.type(input, "TYC001");
+    expect(input).toHaveValue("TYC001");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toHaveValue("");
+  });
+
+  it("Escape does not clear when input is not focused", () => {
+    render(<JoinRoomForm />);
+    const input = screen.getByLabelText(/room code/i) as HTMLInputElement;
+    // Type into input
+    fireEvent.change(input, { target: { value: "TYC001" } });
+    expect(input.value).toBe("TYC001");
+    // Blur the input
+    input.blur();
+    // Press Escape on document
+    fireEvent.keyDown(document, { key: "Escape" });
+    // Input should still have the value
+    expect(input.value).toBe("TYC001");
+  });
+
+  it("Ctrl+Enter submits the form", async () => {
+    const user = userEvent.setup();
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    fireEvent.keyDown(document, { key: "Enter", ctrlKey: true });
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalledWith("/games/TYC001/join", {});
+    });
+  });
+
+  it("Cmd+Enter submits the form (macOS)", async () => {
+    const user = userEvent.setup();
+    render(<JoinRoomForm />);
+    await user.type(screen.getByLabelText(/room code/i), "TYC001");
+    fireEvent.keyDown(document, { key: "Enter", metaKey: true });
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalledWith("/games/TYC001/join", {});
+    });
+  });
+
+  it("form has aria-keyshortcuts attribute", () => {
+    render(<JoinRoomForm />);
+    const form = screen.getByRole("button", { name: /join/i }).closest("form");
+    expect(form).toHaveAttribute("aria-keyshortcuts");
+  });
+});
+
 // ── serverErrorMap unit tests ─────────────────────────────────────────────────
+
 import { mapServerErrors } from "@/lib/validation/serverErrorMap";
 
 describe("mapServerErrors", () => {
@@ -219,6 +298,18 @@ describe("mapServerErrors", () => {
   it("maps 409 statusCode to room-full message", () => {
     expect(mapServerErrors({ statusCode: 409 })).toEqual({
       _form: "Room is full. Try a different room.",
+    });
+  });
+
+  it("maps 401 statusCode to sign-in message", () => {
+    expect(mapServerErrors({ statusCode: 401 })).toEqual({
+      _form: "Please sign in to join a room.",
+    });
+  });
+
+  it("maps 410 statusCode to expired invite message", () => {
+    expect(mapServerErrors({ statusCode: 410 })).toEqual({
+      _form: "This invite link has expired. Ask the host for a new one.",
     });
   });
 

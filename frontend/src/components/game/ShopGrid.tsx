@@ -71,20 +71,23 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
   const handlePurchase = useCallback(
     (itemId: string) => {
       const item = items.find((i) => String(i.id) === itemId);
-      if (item) {
-        trackPurchaseInitiated({
-          itemId,
-          itemName: item.name,
-          itemCategory: item.type,
-          itemRarity: item.rarity,
-          currency: item.currency,
-          value: item.price,
-        });
+      if (!item) {
+        onPurchase?.(itemId);
+        return;
       }
+      trackPurchaseInitiated({
+        itemId,
+        itemName: item.name,
+        itemCategory: item.type,
+        itemRarity: item.rarity,
+        currency: item.currency,
+        value: item.price,
+      });
       onPurchase?.(itemId);
     },
     [items, onPurchase, trackPurchaseInitiated],
   );
+
 
   // ── Roving tabindex for arrow-key navigation ──────────────────────────────
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -284,11 +287,13 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
       <ul
         className={cn("grid gap-4 list-none p-0 m-0", gridColsClass[columns], className)}
         data-testid="shop-grid-items"
-        aria-label="Shop items"
+        aria-label="Shop items grid"
         onKeyDown={handleGridKeyDown}
       >
         {items.map((item, index) => (
           <li key={item.id} role="listitem">
+
+
             <ShopItem
               {...item}
               onPurchase={handlePurchase}

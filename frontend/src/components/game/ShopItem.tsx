@@ -88,7 +88,8 @@ export const ShopItem: React.FC<ShopItemProps> = ({
           <span
             className={cn(
               "text-xs font-semibold px-2 py-1 rounded capitalize",
-              rarityBadgeColors[rarity] ?? ""
+              rarityBadgeColors[rarity] ?? rarityBadgeColors.common
+
             )}
             aria-hidden
           >

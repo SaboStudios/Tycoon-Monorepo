@@ -14,6 +14,7 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import "./mocks/join-room-i18n";
 import JoinRoomForm from "@/components/settings/JoinRoomForm";
 import { apiClient } from "@/lib/api/client";
 
@@ -28,6 +29,11 @@ vi.mock("@/lib/api/client", () => ({
 beforeEach(() => {
   pushMock.mockClear();
   vi.mocked(apiClient.post).mockReset();
+  localStorage.setItem("access_token", "test-token");
+});
+
+afterEach(() => {
+  localStorage.removeItem("access_token");
 });
 
 describe("JoinRoomForm — coverage (SW-FE-038)", () => {

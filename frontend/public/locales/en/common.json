@@ -23,5 +23,37 @@
   "settings": {
     "title": "Settings",
     "language": "Language"
+  },
+  "join_room": {
+    "title": "Join Room",
+    "loading_aria": "Loading join room form",
+    "form": {
+      "label": "Room Code",
+      "hint": "6-character alphanumeric code (e.g. TYCOON)",
+      "placeholder": "e.g. TYCOON",
+      "submit": "Join",
+      "submitting": "Joining…",
+      "retry": "Retry",
+      "retry_aria": "Retry joining the room"
+    },
+    "success": {
+      "title": "Join successful",
+      "redirect": "Redirecting to the waiting room for code {{code}}…",
+      "redirect_generic": "Redirecting to the waiting room…"
+    },
+    "validation": {
+      "code_length": "Room code must be exactly 6 characters",
+      "code_format": "Room code must be letters and numbers only"
+    },
+    "errors": {
+      "rate_limit": "Please wait a moment before trying again.",
+      "unauthorized": "Please sign in to join a room.",
+      "not_found": "Room not found. Check the code and try again.",
+      "room_full": "Room is full. Try a different room.",
+      "invite_expired": "This invite link has expired. Ask the host for a new one.",
+      "already_joined": "You're already in this room.",
+      "server_error": "Server error. Please try again in a moment.",
+      "unexpected": "An unexpected error occurred"
+    }
   }
 }

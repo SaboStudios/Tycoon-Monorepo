@@ -17,3 +17,6 @@ frontend_truth/
 # Generated reports
 backend/lint_results.json
 contract/deploy/wasm-size-report.md
+
+# Issue tracking / scratch notes
+vrickish.md

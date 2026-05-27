@@ -9,6 +9,7 @@
  *  - GameSettings    : playerName non-empty, customStake positive number when applicable
  */
 import { z } from "zod";
+import { JOIN_ROOM_I18N } from "@/lib/join-room/i18n-keys";
 
 export const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
@@ -34,10 +35,37 @@ export const joinRoomSchema = z.object({
     .pipe(
       z
         .string()
-        .length(6, "Room code must be exactly 6 characters")
-        .regex(/^[A-Z0-9]+$/, "Room code must be letters and numbers only")
+        .length(6, JOIN_ROOM_I18N.validation.codeLength)
+        .regex(/^[A-Z0-9]+$/, JOIN_ROOM_I18N.validation.codeFormat)
     ),
 });
+
+/** Optional invite token from deep links — URL-safe alphanumeric. */
+export const inviteTokenSchema = z
+  .string()
+  .transform((v) => v.trim())
+  .pipe(
+    z
+      .string()
+      .min(8, "Invite token must be at least 8 characters")
+      .max(64, "Invite token is too long")
+      .regex(/^[A-Za-z0-9_-]+$/, "Invite token contains invalid characters")
+  );
+
+/** Optional display name shown in the waiting room lobby. */
+export const displayNameSchema = z
+  .string()
+  .transform((v) => v.trim())
+  .pipe(
+    z
+      .string()
+      .min(1, "Display name is required")
+      .max(32, "Display name must be 32 characters or fewer")
+      .regex(
+        /^[\p{L}\p{N}\s'.-]+$/u,
+        "Display name contains invalid characters"
+      )
+  );
 
 export const gameSettingsSchema = z.object({
   playerName: z.string().min(1, "Host name is required").max(32, "Max 32 characters"),
