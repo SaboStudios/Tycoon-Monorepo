@@ -454,6 +454,28 @@ describe("ShopGrid", () => {
       expect(mockTrack).not.toHaveBeenCalledWith("shop_grid_viewed", expect.anything());
     });
 
+    test("does not fire telemetry for empty grid", () => {
+      render(<ShopGrid items={[]} />);
+      expect(mockTrack).not.toHaveBeenCalledWith("shop_grid_viewed", expect.anything());
+    });
+
+    test("fires shop_grid_viewed only once per item count (no double fire)", () => {
+      const { rerender } = render(<ShopGrid items={mockItems} />);
+      expect(mockTrack).toHaveBeenCalledTimes(1);
+      mockTrack.mockClear();
+      rerender(<ShopGrid items={mockItems} />);
+      expect(mockTrack).not.toHaveBeenCalledWith("shop_grid_viewed", expect.anything());
+    });
+
+    test("fires shop_grid_viewed again when item count changes", () => {
+      const { rerender } = render(<ShopGrid items={mockItems.slice(0, 1)} />);
+      expect(mockTrack).toHaveBeenCalledTimes(1);
+      mockTrack.mockClear();
+
+      rerender(<ShopGrid items={mockItems} />);
+      expect(mockTrack).toHaveBeenCalledWith("shop_grid_viewed", expect.objectContaining({ item_count: 3 }));
+    });
+
     test("fires shop_purchase_initiated with item data on buy click", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
@@ -475,6 +497,150 @@ describe("ShopGrid", () => {
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
       fireEvent.click(screen.getByTestId("shop-item-buy-1"));
       expect(onPurchase).toHaveBeenCalledWith("1");
+    });
+  });
+
+  describe("Edge Cases — Stale / Disconnected", () => {
+    test("handles transition from loading to error gracefully", () => {
+      const { rerender } = render(<ShopGrid isLoading={true} />);
+      expect(screen.getByTestId("shop-grid-loading")).toBeInTheDocument();
+
+      rerender(<ShopGrid error="Connection lost" />);
+      expect(screen.getByTestId("shop-grid-error")).toBeInTheDocument();
+      expect(screen.queryByTestId("shop-grid-loading")).not.toBeInTheDocument();
+    });
+
+    test("handles transition from error to data gracefully", () => {
+      const { rerender } = render(<ShopGrid error="Network error" />);
+      expect(screen.getByTestId("shop-grid-error")).toBeInTheDocument();
+
+      rerender(<ShopGrid items={mockItems} />);
+      expect(screen.getByTestId("shop-grid-items")).toBeInTheDocument();
+      expect(screen.queryByTestId("shop-grid-error")).not.toBeInTheDocument();
+    });
+
+    test("handles transition from empty to data gracefully", () => {
+      const { rerender } = render(<ShopGrid items={[]} />);
+      expect(screen.getByTestId("shop-grid-empty")).toBeInTheDocument();
+
+      rerender(<ShopGrid items={mockItems} />);
+      expect(screen.getByTestId("shop-grid-items")).toBeInTheDocument();
+      expect(screen.queryByTestId("shop-grid-empty")).not.toBeInTheDocument();
+    });
+
+    test("handles reconnection after network failure via retry", () => {
+      const onRetry = vi.fn();
+      const { rerender } = render(<ShopGrid error="Disconnected" onRetry={onRetry} />);
+      expect(screen.getByTestId("shop-grid-retry-button")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("shop-grid-retry-button"));
+      expect(onRetry).toHaveBeenCalledOnce();
+
+      rerender(<ShopGrid items={mockItems} />);
+      expect(screen.getByTestId("shop-grid-items")).toBeInTheDocument();
+    });
+  });
+
+  describe("Edge Cases — Item Data", () => {
+    test("renders items with numeric price", () => {
+      const itemsWithNumPrice: ShopItemData[] = [
+        { id: 10, name: "Test Item", description: "desc", price: 99.99, type: "skin", currency: "USD" },
+      ];
+      render(<ShopGrid items={itemsWithNumPrice} />);
+      expect(screen.getByTestId("shop-item-10")).toBeInTheDocument();
+      expect(screen.getByText("Test Item")).toBeInTheDocument();
+    });
+
+    test("renders items with null description", () => {
+      const itemsWithNullDesc: ShopItemData[] = [
+        { id: 11, name: "No Desc Item", description: null, price: "10", type: "dice" },
+      ];
+      render(<ShopGrid items={itemsWithNullDesc} />);
+      expect(screen.getByTestId("shop-item-11")).toBeInTheDocument();
+      expect(screen.getByText("No Desc Item")).toBeInTheDocument();
+    });
+
+    test("renders single item", () => {
+      render(<ShopGrid items={mockItems.slice(0, 1)} />);
+      expect(screen.getAllByTestId(/^shop-item-\d+$/)).toHaveLength(1);
+      expect(screen.getByTestId("shop-grid-live-region")).toHaveTextContent("1 shop item loaded.");
+    });
+
+    test("handles item ids as strings", () => {
+      const stringIdItems: ShopItemData[] = [
+        { id: "abc-123", name: "String ID Item", description: "desc", price: "25", type: "card" },
+      ];
+      render(<ShopGrid items={stringIdItems} />);
+      expect(screen.getByTestId("shop-item-abc-123")).toBeInTheDocument();
+    });
+
+    test("does not crash with disabled items", () => {
+      const disabledItems: ShopItemData[] = [
+        { id: 99, name: "Disabled Item", description: "desc", price: "100", disabled: true },
+      ];
+      render(<ShopGrid items={disabledItems} />);
+      expect(screen.getByTestId("shop-item-99")).toBeInTheDocument();
+      const buyButton = screen.getByTestId("shop-item-buy-99");
+      expect(buyButton).toBeDisabled();
+    });
+  });
+
+  describe("Edge Cases — Keyboard Navigation Boundaries", () => {
+    test("single item: ArrowRight stays on same item", () => {
+      render(<ShopGrid items={mockItems.slice(0, 1)} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "ArrowRight" });
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("single item: ArrowLeft stays on same item", () => {
+      render(<ShopGrid items={mockItems.slice(0, 1)} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "ArrowLeft" });
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+    });
+
+    test("non-navigation keys do not change focus", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+      cards[0].focus();
+      fireEvent.keyDown(list, { key: "Enter" });
+      fireEvent.keyDown(list, { key: " " });
+      fireEvent.keyDown(list, { key: "Tab" });
+      expect(cards[0]).toHaveAttribute("tabindex", "0");
+      expect(cards[1]).toHaveAttribute("tabindex", "-1");
+    });
+
+    test("empty items: keyboard events are no-ops", () => {
+      render(<ShopGrid items={[]} />);
+      expect(screen.getByTestId("shop-grid-empty")).toBeInTheDocument();
+    });
+  });
+
+  describe("Edge Cases — Skeleton Dimensions (CLS prevention)", () => {
+    test("skeleton cards have min-height to prevent layout shift", () => {
+      render(<ShopGrid isLoading={true} columns={3} />);
+      const skeletons = screen.getAllByTestId("shop-grid-skeleton-card");
+      skeletons.forEach((skel) => {
+        expect(skel.className).toContain("min-h-[160px]");
+      });
+    });
+
+    test("skeleton count matches columns * 2", () => {
+      render(<ShopGrid isLoading={true} columns={4} />);
+      const skeletons = screen.getAllByTestId("shop-grid-skeleton-card");
+      expect(skeletons).toHaveLength(8);
+    });
+
+    test("skeleton grid has same gap as items grid", () => {
+      const { container } = render(<ShopGrid isLoading={true} />);
+      const skeletonGrid = container.querySelector("[data-testid='shop-grid-loading']");
+      expect(skeletonGrid).toHaveClass("gap-4");
     });
   });
 });

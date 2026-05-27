@@ -8,6 +8,13 @@ export default {
   title: 'Visual Regression/Baseline',
 };
 
+const sampleItems: ShopItemData[] = [
+  { id: 1, name: "Golden House", description: "Upgrade your property.", price: "100.00", type: "skin", currency: "USD", icon: "🏠", rarity: "rare" },
+  { id: 2, name: "Lucky Dice", description: "Increase luck.", price: "50.00", type: "dice", currency: "USD", icon: "🎲", rarity: "common" },
+  { id: 3, name: "Legendary Card", description: "Rare collectible.", price: "500.00", type: "card", currency: "USD", icon: "🎴", rarity: "legendary" },
+  { id: 4, name: "Speed Boost", description: "Move 2 spaces.", price: "75.00", type: "dice", currency: "USD", icon: "⚡", rarity: "epic" },
+];
+
 export const MarketingLanding = () => (
   <div className="min-h-screen bg-[#010F10] p-8 text-white">
     <WhatIsTycoon />
