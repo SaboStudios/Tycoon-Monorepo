@@ -1,6 +1,6 @@
 # Validation Library
 
-A tree-shake optimized validation library providing Zod schemas and error mapping utilities.
+A tree-shake optimized validation library providing Zod schemas and error mapping utilities with strict exports.
 
 ## Overview
 
@@ -9,7 +9,51 @@ The validation library provides:
 - **Zod Schemas**: Type-safe form validation schemas that mirror backend DTO rules
 - **Error Mapping**: Converts server error responses to field-level error messages
 - **Tree-Shake Optimized**: Only unused schemas are removed from the bundle
+- **Strict Exports**: Only the public API is exposed, preventing accidental internal usage
 - **Type Safety**: Full TypeScript support with strict exports
+
+## Strict Exports
+
+This library uses strict exports to maintain a clear public API boundary:
+
+### Public API
+
+Only these items are exported from `@/lib/validation`:
+
+**Schemas:**
+- `loginSchema`
+- `adminLoginSchema`
+- `walletLoginSchema`
+- `joinRoomSchema`
+- `inviteTokenSchema`
+- `displayNameSchema`
+- `gameSettingsSchema`
+
+**Types:**
+- `LoginFormValues`
+- `AdminLoginFormValues`
+- `WalletLoginFormValues`
+- `JoinRoomFormValues`
+- `GameSettingsFormValues`
+- `FieldErrors`
+
+**Functions:**
+- `mapServerErrors`
+
+### Internal Implementation (Not Exported)
+
+These are internal implementation details and should not be used directly:
+- `FIELD_KEYWORDS` (internal constant)
+- `isServerErrorResponse` (internal type guard)
+- `ServerErrorResponse` (internal interface)
+
+### Benefits
+
+1. **Clear API Boundary**: Developers know exactly what's safe to use
+2. **Prevents Misuse**: Internal implementation details are hidden
+3. **Easier Refactoring**: Internal changes don't break external code
+4. **Better Tree-Shaking**: Bundlers can optimize more effectively
+5. **Type Safety**: Only intended types are exposed
 
 ## Tree-Shake Optimization
 
@@ -153,6 +197,7 @@ import type {
   WalletLoginFormValues,
   JoinRoomFormValues,
   GameSettingsFormValues,
+  FieldErrors,
 } from '@/lib/validation';
 ```
 
@@ -162,12 +207,16 @@ import type {
 2. **Import only what you need**: Unused schemas are tree-shaken automatically
 3. **Use named imports**: Enables better tree-shaking analysis
 4. **Avoid dynamic imports**: Bundlers can't tree-shake dynamic imports
+5. **Don't import internal details**: Only use the public API
 
 ### Good ✓
 
 ```typescript
 // Only joinRoomSchema is bundled
 import { joinRoomSchema } from '@/lib/validation';
+
+// Type-safe imports
+import type { JoinRoomFormValues } from '@/lib/validation';
 ```
 
 ### Avoid ✗
@@ -175,6 +224,9 @@ import { joinRoomSchema } from '@/lib/validation';
 ```typescript
 // All schemas might be bundled
 import * as validation from '@/lib/validation';
+
+// Don't import internal details
+import { FIELD_KEYWORDS } from '@/lib/validation'; // Not exported
 ```
 
 ## Performance
@@ -186,10 +238,27 @@ import * as validation from '@/lib/validation';
 
 ## Files
 
-- `index.ts` - Centralized entry point (tree-shake optimized)
+- `index.ts` - Centralized entry point with strict exports (tree-shake optimized)
 - `schemas.ts` - Zod validation schemas with `@__PURE__` annotations
 - `serverErrorMap.ts` - Error mapping with `@__PURE__` annotations
+- `index.test.ts` - Comprehensive test suite for strict exports
 - `README.md` - This documentation
+
+## Testing
+
+The validation library includes comprehensive tests:
+
+```bash
+npm test src/lib/validation/index.test.ts
+```
+
+Test coverage includes:
+- All schema exports
+- All type exports
+- Error mapping functionality
+- Public API boundary verification
+- Graceful state handling
+- No regressions
 
 ## Bundler Support
 
@@ -202,16 +271,16 @@ Tree-shaking works with:
 
 ## Verification
 
-To verify tree-shaking is working:
+To verify strict exports are working:
 
-1. **Build Analysis**: Use `npm run build` and check bundle size
-2. **Source Map**: Inspect `.map` files to confirm unused code is removed
-3. **Bundle Analyzer**: Use `webpack-bundle-analyzer` or similar tools
+1. **Check Exports**: Verify only intended items are exported
+   ```bash
+   npm test src/lib/validation/index.test.ts
+   ```
 
-Example with Next.js:
-```bash
-ANALYZE=true npm run build
-```
+2. **Build Analysis**: Use `npm run build` and check bundle size
+3. **Source Map**: Inspect `.map` files to confirm unused code is removed
+4. **Bundle Analyzer**: Use `webpack-bundle-analyzer` or similar tools
 
 ## Related Documentation
 
@@ -221,7 +290,13 @@ ANALYZE=true npm run build
 
 ## Changelog
 
-### v1.0.0 (Current)
+### v1.1.0 (Current)
+- Added strict exports via centralized index.ts
+- Added comprehensive test suite for public API
+- Enhanced documentation for strict exports
+- Verified no internal details are exposed
+
+### v1.0.0
 - Initial tree-shake optimized implementation
 - Added `@__PURE__` annotations to all schemas
 - Centralized exports via `index.ts`
