@@ -24,8 +24,8 @@ export default function GameSettingsClient() {
     if (isChecking) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-white dark:bg-neutral-950">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent dark:border-indigo-400"></div>
+                <div className="flex flex-col items-center gap-4" role="status" aria-label="Connecting to Stellar Network">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent dark:border-indigo-400" aria-hidden="true"></div>
                     <p className="animate-pulse text-sm font-medium text-neutral-500 dark:text-neutral-400">Connecting to Stellar Network...</p>
                 </div>
             </div>
@@ -44,8 +44,6 @@ export default function GameSettingsClient() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50/50 dark:bg-neutral-950">
-            <GameSettings />
-        </div>
+        <GameSettings />
     )
 }

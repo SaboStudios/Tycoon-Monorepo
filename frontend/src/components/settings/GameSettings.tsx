@@ -196,33 +196,36 @@ export function GameSettings() {
                                     )}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Select Token</Label>
+                                    <Label id="select-token-label">Select Token</Label>
                                     <Select
                                         value={piece}
                                         onChange={setPiece}
                                         options={PIECES}
                                         placeholder="Choose your token"
+                                        aria-labelledby="select-token-label"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid gap-6 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label>Max Players</Label>
+                                    <Label id="max-players-label">Max Players</Label>
                                     <Select
                                         value={maxPlayers}
                                         onChange={setMaxPlayers}
                                         options={PLAYER_COUNTS}
+                                        aria-labelledby="max-players-label"
                                     />
                                 </div>
                                 <div className="flex items-center justify-between rounded-lg border border-neutral-200 p-3 shadow-sm dark:border-neutral-800">
                                     <div className="space-y-0.5">
-                                        <Label className="text-base">Private Room</Label>
+                                        <Label htmlFor="private-room" className="text-base">Private Room</Label>
                                         <div className="text-xs text-neutral-500">
-                                            {isPrivate ? <span className="flex items-center gap-1 text-amber-600"><Lock className="h-3 w-3" /> Invite Only</span> : <span className="flex items-center gap-1 text-green-600"><Unlock className="h-3 w-3" /> Public Listing</span>}
+                                            {isPrivate ? <span className="flex items-center gap-1 text-amber-600"><Lock className="h-3 w-3" aria-hidden="true" /> Invite Only</span> : <span className="flex items-center gap-1 text-green-600"><Unlock className="h-3 w-3" aria-hidden="true" /> Public Listing</span>}
                                         </div>
                                     </div>
                                     <Switch
+                                        id="private-room"
                                         checked={isPrivate}
                                         onCheckedChange={setIsPrivate}
                                     />
@@ -259,11 +262,12 @@ export function GameSettings() {
                                 {!isFreeGame && (
                                     <div className="grid gap-4 sm:grid-cols-2 animate-in fade-in slide-in-from-top-2">
                                         <div className="space-y-2">
-                                            <Label>Stake Amount</Label>
+                                            <Label id="stake-amount-label">Stake Amount</Label>
                                             <Select
                                                 value={stakePreset}
                                                 onChange={setStakePreset}
                                                 options={ENTRY_STAKES}
+                                                aria-labelledby="stake-amount-label"
                                             />
                                         </div>
                                         {stakePreset === 'custom' && (
@@ -289,23 +293,25 @@ export function GameSettings() {
 
                             <div className="grid gap-6 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                        <Coins className="h-4 w-4" /> Starting Liquidity (XLM)
+                                    <Label id="starting-liquidity-label" className="flex items-center gap-2">
+                                        <Coins className="h-4 w-4" aria-hidden="true" /> Starting Liquidity (XLM)
                                     </Label>
                                     <Select
                                         value={startingCash}
                                         onChange={setStartingCash}
                                         options={STARTING_CASH}
+                                        aria-labelledby="starting-liquidity-label"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                        <Clock className="h-4 w-4" /> Session Limit
+                                    <Label id="session-limit-label" className="flex items-center gap-2">
+                                        <Clock className="h-4 w-4" aria-hidden="true" /> Session Limit
                                     </Label>
                                     <Select
                                         value={duration}
                                         onChange={setDuration}
                                         options={DURATIONS}
+                                        aria-labelledby="session-limit-label"
                                     />
                                 </div>
                             </div>

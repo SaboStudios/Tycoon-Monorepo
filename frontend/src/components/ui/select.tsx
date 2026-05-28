@@ -16,12 +16,18 @@ interface SelectProps {
     options: SelectOption[]
     className?: string
     disabled?: boolean
+    id?: string
+    "aria-labelledby"?: string
+    "aria-label"?: string
 }
 
 const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-    ({ value, onChange, placeholder = "Select...", options, className, disabled }, ref) => {
+    ({ value, onChange, placeholder = "Select...", options, className, disabled, id, "aria-labelledby": ariaLabelledby, "aria-label": ariaLabel }, ref) => {
         const [isOpen, setIsOpen] = React.useState(false)
+        const [activeIndex, setActiveIndex] = React.useState<number>(-1)
         const containerRef = React.useRef<HTMLDivElement>(null)
+        const listboxId = React.useId()
+        const triggerId = id ?? React.useId()
 
         React.useEffect(() => {
             const handleClickOutside = (event: MouseEvent) => {
@@ -33,6 +39,14 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
             return () => document.removeEventListener("mousedown", handleClickOutside)
         }, [])
 
+        // Reset active index when opening
+        React.useEffect(() => {
+            if (isOpen) {
+                const selectedIndex = options.findIndex((o) => o.value === value)
+                setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+            }
+        }, [isOpen, options, value])
+
         const selectedOption = options.find((opt) => opt.value === value)
 
         const handleSelect = (optionValue: string) => {
@@ -40,40 +54,105 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
             setIsOpen(false)
         }
 
+        const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+            if (disabled) return
+            switch (e.key) {
+                case "Enter":
+                case " ":
+                    e.preventDefault()
+                    if (isOpen && activeIndex >= 0) {
+                        handleSelect(options[activeIndex].value)
+                    } else {
+                        setIsOpen(true)
+                    }
+                    break
+                case "ArrowDown":
+                    e.preventDefault()
+                    if (!isOpen) {
+                        setIsOpen(true)
+                    } else {
+                        setActiveIndex((i) => Math.min(i + 1, options.length - 1))
+                    }
+                    break
+                case "ArrowUp":
+                    e.preventDefault()
+                    if (!isOpen) {
+                        setIsOpen(true)
+                    } else {
+                        setActiveIndex((i) => Math.max(i - 1, 0))
+                    }
+                    break
+                case "Home":
+                    e.preventDefault()
+                    setActiveIndex(0)
+                    break
+                case "End":
+                    e.preventDefault()
+                    setActiveIndex(options.length - 1)
+                    break
+                case "Escape":
+                    e.preventDefault()
+                    setIsOpen(false)
+                    break
+                case "Tab":
+                    setIsOpen(false)
+                    break
+            }
+        }
+
         return (
             <div className={cn("relative", className)} ref={containerRef}>
                 <button
                     type="button"
+                    id={triggerId}
+                    role="combobox"
+                    aria-haspopup="listbox"
+                    aria-expanded={isOpen}
+                    aria-controls={listboxId}
+                    aria-labelledby={ariaLabelledby}
+                    aria-label={ariaLabel}
+                    aria-activedescendant={isOpen && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
                     onClick={() => !disabled && setIsOpen(!isOpen)}
+                    onKeyDown={handleKeyDown}
                     className={cn(
                         "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-neutral-200 bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-tycoon-accent disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 dark:border-neutral-800 dark:placeholder:text-neutral-400",
-                        className
                     )}
                     disabled={disabled}
                 >
                     <span className={cn(!selectedOption && "text-neutral-500 dark:text-neutral-400")}>
                         {selectedOption ? selectedOption.label : placeholder}
                     </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
+                    <ChevronDown className="h-4 w-4 opacity-50" aria-hidden="true" />
                 </button>
                 {isOpen && (
-                    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-neutral-200 bg-white p-1 text-neutral-950 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50">
-                        {options.map((option) => (
-                            <div
+                    <ul
+                        id={listboxId}
+                        role="listbox"
+                        aria-labelledby={ariaLabelledby}
+                        aria-label={ariaLabel}
+                        className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-neutral-200 bg-white p-1 text-neutral-950 shadow-md dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                    >
+                        {options.map((option, index) => (
+                            <li
                                 key={option.value}
+                                id={`${listboxId}-option-${index}`}
+                                role="option"
+                                aria-selected={value === option.value}
                                 onClick={() => handleSelect(option.value)}
+                                onMouseEnter={() => setActiveIndex(index)}
                                 className={cn(
-                                    "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-neutral-100 focus:text-neutral-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-neutral-800 dark:focus:text-neutral-50",
-                                    value === option.value && "bg-neutral-100 dark:bg-neutral-800"
+                                    "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none",
+                                    value === option.value && "bg-neutral-100 dark:bg-neutral-800",
+                                    activeIndex === index && "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-50"
                                 )}
                             >
                                 <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
-                                    {value === option.value && <Check className="h-4 w-4" />}
+                                    {value === option.value && <Check className="h-4 w-4" aria-hidden="true" />}
                                 </span>
                                 <span className="truncate">{option.label}</span>
-                            </div>
+                            </li>
                         ))}
-                    </div>
+                    </ul>
                 )}
             </div>
         )
