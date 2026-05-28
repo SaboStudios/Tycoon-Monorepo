@@ -8,8 +8,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
-import { joinRoomSchema } from "@/lib/validation/schemas";
-import type { FieldErrors } from "@/lib/validation/serverErrorMap";
+import { joinRoomSchema, type FieldErrors } from "@/lib/validation";
 import {
   JOIN_ROOM_I18N,
   translateJoinRoomMessage,
