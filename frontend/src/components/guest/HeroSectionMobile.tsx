@@ -3,7 +3,7 @@
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { track } from "@/lib/analytics";
+import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 
 interface HeroSectionMobileProps {
   className?: string | undefined;
@@ -48,20 +48,22 @@ function usePrefersReducedMotion(): boolean {
  */
 export default function HeroSectionMobile({ className }: HeroSectionMobileProps): React.ReactElement {
   const router = useRouter();
+  const { trackHeroViewed, trackCtaClicked } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
+
+  // #828: track hero section view once on mount
+  useEffect(() => {
+    trackHeroViewed();
+  }, [trackHeroViewed]);
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
 
   const handleTrackedNavigation = (
-    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
+    cta: "continue_game" | "multiplayer" | "join_room" | "challenge_ai",
     destination: string,
   ): void => {
-    track(event, {
-      route: "/",
-      destination,
-    });
-
+    trackCtaClicked(cta, destination);
     router.push(destination);
   }
 
@@ -108,7 +110,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
         {/* Stacked CTAs - touch-friendly (min 48px) */}
         <div className="w-full flex flex-col gap-3 mt-2">
           <button
-            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
+            onClick={() => handleTrackedNavigation("continue_game", "/game-settings")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[16px] py-4`}
             aria-label="Continue game"
           >
@@ -117,7 +119,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           </button>
 
           <button
-            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
+            onClick={() => handleTrackedNavigation("multiplayer", "/game-settings")}
             className={`w-full ${ctaBase} border-2 border-[#00F0FF] text-[#00F0FF] text-[14px] py-3`}
             aria-label="Multiplayer"
           >
@@ -126,7 +128,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           </button>
 
           <button
-            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
+            onClick={() => handleTrackedNavigation("join_room", "/join-room")}
             className={`w-full ${ctaBase} border-2 border-[#003B3E] text-[#0FF0FC] text-[14px] py-3`}
             aria-label="Join room"
           >
@@ -135,7 +137,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           </button>
 
           <button
-            onClick={() => handleTrackedNavigation("play_ai_click", "/play-ai")}
+            onClick={() => handleTrackedNavigation("challenge_ai", "/play-ai")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[14px] py-4 uppercase tracking-wide`}
             aria-label="Challenge AI"
           >

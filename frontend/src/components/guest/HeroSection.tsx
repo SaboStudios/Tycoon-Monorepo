@@ -37,20 +37,20 @@ const subSpeed = 30;
 
 const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const router = useRouter();
-  const { fire } = useHeroTelemetry();
+  const { trackHeroViewed, trackCtaClicked } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
-  // SW-3: fire hero_view once on mount
+  // #828: track hero section view once on mount
   useEffect(() => {
-    fire("hero_view");
-  }, [fire]);
+    trackHeroViewed();
+  }, [trackHeroViewed]);
 
   // SW-FE-005: Error boundary for navigation failures
   const handleTrackedNavigation = useCallback(
-    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
+    (cta: "continue_game" | "multiplayer" | "join_room" | "challenge_ai", destination: string) => {
       try {
-        fire(event);
+        trackCtaClicked(cta, destination);
         router.push(destination);
       } catch (err) {
         const sanitized = sanitizeError(err);
@@ -59,7 +59,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
         }
       }
     },
-    [fire, router],
+    [trackCtaClicked, router],
   );
 
   // SW-FE-005: Empty state — show a friendly message when there's no content to display
@@ -80,7 +80,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             onClick={() => {
               setError({ hasError: false, message: "" });
-              fire("hero_view");
+              trackHeroViewed();
             }}
             className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
             aria-label="Try again"
@@ -205,7 +205,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             data-testid="hero-primary-cta"
             aria-label="Continue game"
-            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
+            onClick={() => handleTrackedNavigation("continue_game", "/game-settings")}
             className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
             <svg
@@ -233,7 +233,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           {/* Multiplayer */}
           <button
             aria-label="Multiplayer"
-            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
+            onClick={() => handleTrackedNavigation("multiplayer", "/game-settings")}
             className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -262,7 +262,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           {/* Join Room */}
           <button
             aria-label="Join room"
-            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
+            onClick={() => handleTrackedNavigation("join_room", "/join-room")}
             className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
@@ -291,7 +291,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           {/* Challenge AI */}
           <button
             aria-label="Challenge AI"
-            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
+            onClick={() => handleTrackedNavigation("challenge_ai", "/play-ai")}
             className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
