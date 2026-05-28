@@ -24,6 +24,41 @@
     "title": "Settings",
     "language": "Language"
   },
+  "hero": {
+    "aria": {
+      "hero_section": "Hero"
+    },
+    "welcome": "Welcome back, Player!",
+    "title": {
+      "main": "TYCOON",
+      "decorative": "?"
+    },
+    "tagline": {
+      "conquer": "Conquer",
+      "conquer_build": "Conquer • Build",
+      "conquer_build_trade_on": "Conquer • Build • Trade On",
+      "play_solo_vs_ai": "Play Solo vs AI"
+    },
+    "subtitle": {
+      "roll_the_dice": "Roll the dice",
+      "buy_properties": "Buy properties",
+      "collect_rent": "Collect rent",
+      "play_against_ai": "Play against AI opponents",
+      "become_top_tycoon": "Become the top tycoon"
+    },
+    "description": "Step into Tycoon — the Web3 twist on the classic game of strategy, ownership, and fortune. Play solo against AI, compete in multiplayer rooms, collect tokens, complete quests, and become the ultimate blockchain tycoon.",
+    "buttons": {
+      "continue_game": "Continue Game",
+      "multiplayer": "Multiplayer",
+      "join_room": "Join Room",
+      "challenge_ai": "Challenge AI!"
+    },
+    "error": {
+      "heading": "Something went wrong",
+      "generic": "An unexpected error occurred",
+      "try_again": "Try Again"
+    }
+  },
   "join_room": {
     "title": "Join Room",
     "loading_aria": "Loading join room form",

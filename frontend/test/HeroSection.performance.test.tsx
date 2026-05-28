@@ -13,6 +13,10 @@ vi.mock("@/lib/analytics", () => ({
   track: (...args: unknown[]) => mockTrack(...args),
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 vi.mock("react-type-animation", () => ({
   TypeAnimation: (props: {
     preRenderFirstString?: boolean;
