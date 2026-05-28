@@ -54,6 +54,9 @@ export default function JoinRoomForm({
   const [errors, setErrors] = useState<FieldErrors>(previewState?.errors ?? {});
   const [isLoading, setIsLoading] = useState(previewState?.isLoading ?? false);
 
+  const { trackJoinAttempted, trackJoinSucceeded, trackJoinFailed } = useJoinRoomTelemetry();
+  const { reportError } = useErrorReporting();
+
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const lastSubmitRef = useRef<number>(0);
@@ -137,9 +140,8 @@ export default function JoinRoomForm({
         trackJoinSucceeded();
 
         // Report performance metrics (non-blocking)
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => {
-            // Report join time to analytics if needed
+        if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+          (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(() => {
             console.debug(`[Join Room] Join completed in ${duration.toFixed(2)}ms`);
           });
         }
@@ -151,7 +153,7 @@ export default function JoinRoomForm({
         setIsLoading(false);
       }
     },
-    [code, router, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed, reportError, submitAttempts]
+    [code, router, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed, reportError]
   );
 
   const isValid = joinRoomSchema.safeParse({ roomCode: code }).success;

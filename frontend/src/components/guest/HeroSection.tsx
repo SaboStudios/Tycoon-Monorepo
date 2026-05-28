@@ -9,6 +9,11 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { sanitizeError } from "@/lib/errors";
 import { HERO_I18N } from "@/lib/hero/i18n-keys";
 
+// #834: Lazy-load TypeAnimation to reduce initial bundle size
+const TypeAnimation = lazy(() =>
+  import("react-type-animation").then((m) => ({ default: m.TypeAnimation }))
+);
+
 interface HeroSectionProps {
   className?: string;
   router?: {
