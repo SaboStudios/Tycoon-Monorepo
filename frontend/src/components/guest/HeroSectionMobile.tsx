@@ -1,12 +1,19 @@
 "use client";
 
 import { Dices, Gamepad2, Bot } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
+import { track } from "@/lib/analytics";
+import { HERO_I18N } from "@/lib/hero/i18n-keys";
 
 interface HeroSectionMobileProps {
   className?: string | undefined;
+}
+
+interface HeroErrorState {
+  hasError: boolean;
+  message: string;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -48,8 +55,9 @@ function usePrefersReducedMotion(): boolean {
  */
 export default function HeroSectionMobile({ className }: HeroSectionMobileProps): React.ReactElement {
   const router = useRouter();
-  const { trackHeroViewed, trackCtaClicked } = useHeroTelemetry();
+  const { t } = useTranslation("common");
   const prefersReducedMotion = usePrefersReducedMotion();
+  const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
   // #828: track hero section view once on mount
   useEffect(() => {
@@ -60,11 +68,34 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
 
   const handleTrackedNavigation = (
-    cta: "continue_game" | "multiplayer" | "join_room" | "challenge_ai",
+    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click",
     destination: string,
   ): void => {
-    trackCtaClicked(cta, destination);
-    router.push(destination);
+    track(event, {
+      route: "/",
+      destination,
+    });
+
+  if (error.hasError) {
+    return (
+      <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className || ""}`} role="alert" aria-label={t(HERO_I18N.aria.heroSection)}>
+        <div className="relative z-10 mx-auto max-w-md text-center px-4">
+          <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
+            {t(HERO_I18N.error.heading)}
+          </p>
+          <p className="font-dmSans text-[#F0F7F7] text-[14px] md:text-[16px] mb-6">
+            {error.message}
+          </p>
+          <button
+            onClick={() => setError({ hasError: false, message: "" })}
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
+            aria-label={t(HERO_I18N.error.tryAgain)}
+          >
+            {t(HERO_I18N.error.tryAgain)}
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -82,29 +113,28 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
       <div className="relative z-10 mx-auto flex max-w-md flex-col items-center gap-6 text-center">
         {/* Welcome */}
         <p className="text-[14px] font-orbitron font-[700] text-[#00F0FF]">
-          Welcome back, Player!
+          {t(HERO_I18N.welcome)}
         </p>
 
         {/* Title - stacked, smaller */}
         <h1 className="min-h-[42px] font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
-          TYCOON
+          {t(HERO_I18N.title.main)}
           <span
             aria-hidden="true"
             className={`ml-1 text-[16px] text-[#0FF0FC] rotate-12 inline-block ${!prefersReducedMotion ? "animate-pulse" : ""}`}
           >
-            ?
+            {t(HERO_I18N.title.decorative)}
           </span>
         </h1>
 
         {/* Tagline - condensed */}
         <p className="min-h-[24px] font-orbitron text-[16px] font-[700] text-[#F0F7F7]">
-          Conquer • Build • Trade On
+          {t(HERO_I18N.tagline.conquerBuildTradeOn)}
         </p>
 
         {/* Description */}
         <p className="font-dmSans text-[14px] text-[#F0F7F7]/90 leading-relaxed">
-          Step into Tycoon — the Web3 twist on the classic game. Play solo vs
-          AI, compete in multiplayer, and become the ultimate tycoon.
+          {t(HERO_I18N.description)}
         </p>
 
         {/* Stacked CTAs - touch-friendly (min 48px) */}
@@ -112,37 +142,37 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           <button
             onClick={() => handleTrackedNavigation("continue_game", "/game-settings")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[16px] py-4`}
-            aria-label="Continue game"
+            aria-label={t(HERO_I18N.buttons.continueGame)}
           >
             <Gamepad2 className="w-6 h-6 shrink-0" />
-            Continue Game
+            {t(HERO_I18N.buttons.continueGame)}
           </button>
 
           <button
             onClick={() => handleTrackedNavigation("multiplayer", "/game-settings")}
             className={`w-full ${ctaBase} border-2 border-[#00F0FF] text-[#00F0FF] text-[14px] py-3`}
-            aria-label="Multiplayer"
+            aria-label={t(HERO_I18N.buttons.multiplayer)}
           >
             <Gamepad2 className="w-5 h-5 shrink-0" />
-            Multiplayer
+            {t(HERO_I18N.buttons.multiplayer)}
           </button>
 
           <button
             onClick={() => handleTrackedNavigation("join_room", "/join-room")}
             className={`w-full ${ctaBase} border-2 border-[#003B3E] text-[#0FF0FC] text-[14px] py-3`}
-            aria-label="Join room"
+            aria-label={t(HERO_I18N.buttons.joinRoom)}
           >
             <Dices className="w-5 h-5 shrink-0" />
-            Join Room
+            {t(HERO_I18N.buttons.joinRoom)}
           </button>
 
           <button
-            onClick={() => handleTrackedNavigation("challenge_ai", "/play-ai")}
+            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[14px] py-4 uppercase tracking-wide`}
-            aria-label="Challenge AI"
+            aria-label={t(HERO_I18N.buttons.challengeAI)}
           >
             <Bot className="w-5 h-5 shrink-0" />
-            Challenge AI!
+            {t(HERO_I18N.buttons.challengeAI)}
           </button>
         </div>
       </div>

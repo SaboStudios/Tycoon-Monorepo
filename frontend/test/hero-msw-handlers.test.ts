@@ -56,6 +56,24 @@ describe("SW-FE-008: Hero MSW handlers — parity with API", () => {
     expect(feature).toHaveProperty("order");
   });
 
+  it("GET /api/hero/content?empty=true returns empty hero content", async () => {
+    const res = await fetch("/api/hero/content?empty=true");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.announcements).toHaveLength(0);
+    expect(body.features).toHaveLength(0);
+    expect(body.welcomeMessage).toBe(mockHeroContentEmpty.welcomeMessage);
+  });
+
+  it("GET /api/hero/content?error=true returns 500 and hero error payload", async () => {
+    const res = await fetch("/api/hero/content?error=true");
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty("code", mockHeroApiError.code);
+    expect(body).toHaveProperty("message", mockHeroApiError.message);
+    expect(body).toHaveProperty("statusCode", mockHeroApiError.statusCode);
+  });
+
   it("GET /api/hero/announcements returns paginated announcements", async () => {
     const res = await fetch("/api/hero/announcements");
     expect(res.status).toBe(200);
