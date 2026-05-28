@@ -3,7 +3,7 @@
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { HERO_I18N } from "@/lib/hero/i18n-keys";
 

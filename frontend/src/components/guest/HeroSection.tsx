@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useTranslation } from "react-i18next";
@@ -31,6 +31,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className, router: routerProp
   const { fire } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
+  const tryAgainRef = useRef<HTMLButtonElement>(null);
 
   // #826: observe CLS / LCP against the "Good" Web Vitals budget
   useHeroPerformanceBudget();
@@ -39,6 +40,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className, router: routerProp
   useEffect(() => {
     trackHeroViewed();
   }, [trackHeroViewed]);
+
+  // Move focus to Try Again when error state activates so keyboard/screen-reader
+  // users are immediately directed to the recovery action.
+  useEffect(() => {
+    if (error.hasError) {
+      tryAgainRef.current?.focus();
+    }
+  }, [error.hasError]);
 
   // SW-FE-005: Error boundary for navigation failures
   const handleTrackedNavigation = useCallback(
@@ -70,6 +79,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className, router: routerProp
             {error.message}
           </p>
           <button
+            ref={tryAgainRef}
             onClick={() => {
               setError({ hasError: false, message: "" });
               trackHeroViewed();
