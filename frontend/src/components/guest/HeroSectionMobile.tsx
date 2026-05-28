@@ -11,6 +11,11 @@ interface HeroSectionMobileProps {
   className?: string | undefined;
 }
 
+interface HeroErrorState {
+  hasError: boolean;
+  message: string;
+}
+
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
 
@@ -52,6 +57,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
   const router = useRouter();
   const { t } = useTranslation("common");
   const prefersReducedMotion = usePrefersReducedMotion();
+  const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
@@ -65,7 +71,26 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
       destination,
     });
 
-    router.push(destination);
+  if (error.hasError) {
+    return (
+      <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className || ""}`} role="alert" aria-label={t(HERO_I18N.aria.heroSection)}>
+        <div className="relative z-10 mx-auto max-w-md text-center px-4">
+          <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
+            {t(HERO_I18N.error.heading)}
+          </p>
+          <p className="font-dmSans text-[#F0F7F7] text-[14px] md:text-[16px] mb-6">
+            {error.message}
+          </p>
+          <button
+            onClick={() => setError({ hasError: false, message: "" })}
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
+            aria-label={t(HERO_I18N.error.tryAgain)}
+          >
+            {t(HERO_I18N.error.tryAgain)}
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
