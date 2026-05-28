@@ -1,50 +1,38 @@
+/**
+ * Privacy-safe telemetry hook for the landing hero (#828).
+ *
+ * Privacy guarantees:
+ *  - No user IDs, wallet addresses, or session tokens are ever sent.
+ *  - Only non-linkable fields: route, source, cta, destination.
+ *  - All payloads pass through sanitizeAnalyticsPayload automatically via track().
+ *  - Disabled server-side (track() is a no-op in SSR via analytics client guard).
+ */
+
 "use client";
 
-// SW-3: Privacy-safe telemetry hook for the landing hero.
-//
-// Design principles:
-//   - No PII collected (no IP, no user ID, no fingerprinting).
-//   - No external analytics SDK — events are dispatched on `window` so any
-//     first-party collector (e.g. a future /api/telemetry endpoint) can listen.
-//   - Disabled server-side (SSR-safe).
-//   - Feature-flagged via NEXT_PUBLIC_TELEMETRY_ENABLED env var.
-//   - All event names are string-literal typed to prevent typos.
+import { useCallback } from "react";
+import { track } from "@/lib/analytics";
 
-export type HeroEventName =
-  | "hero_view"
-  | "hero_cta_click"
-  | "hero_join_room_click"
-  | "hero_challenge_ai_click"
-  | "hero_multiplayer_click";
+export type HeroCta =
+  | "continue_game"
+  | "multiplayer"
+  | "join_room"
+  | "challenge_ai";
 
-export interface HeroTelemetryEvent {
-  name: HeroEventName;
-  /** Milliseconds since page load — no wall-clock timestamp to avoid PII */
-  elapsed: number;
-}
-
-function isTelemetryEnabled(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    process.env.NEXT_PUBLIC_TELEMETRY_ENABLED === "true"
+export function useHeroTelemetry(route = "/") {
+  const trackHeroViewed = useCallback(
+    (source = "page_load") => {
+      track("hero_viewed", { route, source });
+    },
+    [route],
   );
-}
 
-let pageLoadTime: number | null = null;
+  const trackCtaClicked = useCallback(
+    (cta: HeroCta, destination: string) => {
+      track("hero_cta_clicked", { route, cta, destination });
+    },
+    [route],
+  );
 
-function getElapsed(): number {
-  if (typeof window === "undefined") return 0;
-  if (pageLoadTime === null) pageLoadTime = performance.now();
-  return Math.round(performance.now() - pageLoadTime);
-}
-
-export function trackHeroEvent(name: HeroEventName): void {
-  if (!isTelemetryEnabled()) return;
-  const payload: HeroTelemetryEvent = { name, elapsed: getElapsed() };
-  window.dispatchEvent(new CustomEvent("tycoon:telemetry", { detail: payload }));
-}
-
-/** React hook — returns a stable fire() callback. */
-export function useHeroTelemetry() {
-  return { fire: trackHeroEvent };
+  return { trackHeroViewed, trackCtaClicked };
 }

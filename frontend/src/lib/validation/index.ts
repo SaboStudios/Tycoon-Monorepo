@@ -1,16 +1,20 @@
 /**
  * Validation Module
  *
- * Provides Zod schemas for form validation and error mapping utilities.
- * Optimized for tree-shaking: only export what's needed.
+ * Provides Zod schemas for form validation and error mapping utilities
+ * for converting server responses to field-level error messages.
  *
  * @example
  * ```ts
  * import { joinRoomSchema, mapServerErrors } from '@/lib/validation';
+ *
+ * const result = joinRoomSchema.safeParse({ roomCode: 'ABC123' });
+ * if (!result.success) {
+ *   const errors = mapServerErrors(result.error);
+ * }
  * ```
  */
 
-// Re-export schemas
 export {
   loginSchema,
   adminLoginSchema,
@@ -19,17 +23,15 @@ export {
   inviteTokenSchema,
   displayNameSchema,
   gameSettingsSchema,
-} from './schemas';
+} from "./schemas";
 
-// Re-export schema types
 export type {
   LoginFormValues,
   AdminLoginFormValues,
   WalletLoginFormValues,
   JoinRoomFormValues,
   GameSettingsFormValues,
-} from './schemas';
+} from "./schemas";
 
-// Re-export error mapping
-export { mapServerErrors } from './serverErrorMap';
-export type { FieldErrors } from './serverErrorMap';
+export { mapServerErrors } from "./serverErrorMap";
+export type { FieldErrors } from "./serverErrorMap";
