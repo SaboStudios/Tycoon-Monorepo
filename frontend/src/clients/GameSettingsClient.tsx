@@ -3,25 +3,27 @@
 import * as React from "react"
 import { GameSettings } from "@/components/settings/GameSettings"
 
-export default function GameSettingsClient() {
-    const [isChecking, setIsChecking] = React.useState(true)
-    const [isRegistered, setIsRegistered] = React.useState(false)
+type WalletCheckState = "checking" | "registered" | "unregistered" | "error"
+
+export default function GameSettingsClient(): React.JSX.Element {
+    const [walletState, setWalletState] = React.useState<WalletCheckState>("checking")
 
     React.useEffect(() => {
-        // Mock wallet/reg check
-        const checkWallet = async () => {
-            // Simulate network delay
-            await new Promise(resolve => setTimeout(resolve, 800))
-
-            // Assume user is connected for demo
-            setIsRegistered(true)
-            setIsChecking(false)
+        const checkWallet = async (): Promise<void> => {
+            try {
+                // Simulate network delay
+                await new Promise<void>(resolve => setTimeout(resolve, 800))
+                // Assume user is connected for demo
+                setWalletState("registered")
+            } catch {
+                setWalletState("error")
+            }
         }
 
-        checkWallet()
+        void checkWallet()
     }, [])
 
-    if (isChecking) {
+    if (walletState === "checking") {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-white dark:bg-neutral-950">
                 <div className="flex flex-col items-center gap-4">
@@ -32,7 +34,18 @@ export default function GameSettingsClient() {
         )
     }
 
-    if (!isRegistered) {
+    if (walletState === "error") {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-white p-4 dark:bg-neutral-950">
+                <div className="text-center">
+                    <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Connection Failed</h2>
+                    <p className="mt-2 text-neutral-500 dark:text-neutral-400">Unable to reach the Stellar Network. Please try again.</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (walletState === "unregistered") {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-white p-4 dark:bg-neutral-950">
                 <div className="text-center">

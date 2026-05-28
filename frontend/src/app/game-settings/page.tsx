@@ -1,6 +1,7 @@
 import GameSettingsClient from "@/clients/GameSettingsClient";
 import { generatePageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
+import * as React from "react";
 
 export const metadata: Metadata = generatePageMetadata({
   title: "Game Settings",
@@ -10,6 +11,6 @@ export const metadata: Metadata = generatePageMetadata({
   keywords: ["game settings", "game configuration", "setup game", "game rules"],
 });
 
-export default function GameSettingsPage() {
+export default function GameSettingsPage(): React.JSX.Element {
   return <GameSettingsClient />;
 }
