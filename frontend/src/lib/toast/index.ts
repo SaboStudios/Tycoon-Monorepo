@@ -1,15 +1,17 @@
 /**
- * Toast Module
+ * Toast Notification Module
  *
- * Strict public surface for all toast notification utilities.
- * Consumers must import from "@/lib/toast" — never from internal paths.
+ * Provides a centralized toast notification system with deduplication,
+ * state management, and graceful error handling.
+ *
+ * @example
+ * ```ts
+ * import { toastManager } from '@/lib/toast';
+ *
+ * toastManager.success('Operation completed');
+ * toastManager.error('Something went wrong');
+ * ```
  */
 
-export { toastManager, ToastManager } from './toast-manager';
-export type { ToastType } from './toast-manager';
-
-export {
-  toastApiError,
-  getApiErrorMessage,
-  API_ERROR_TOAST_MESSAGES,
-} from './api-error-map';
+export { toastManager } from "./toast-manager";
+export type { ToastType, ToastConfig } from "./toast-manager";

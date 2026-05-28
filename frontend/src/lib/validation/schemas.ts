@@ -7,25 +7,31 @@
  *  - WalletLoginDto  : address (IsString, IsNotEmpty), chain (IsString, IsNotEmpty)
  *  - JoinRoom        : roomCode 6-char alphanumeric (enforced in JoinRoomForm)
  *  - GameSettings    : playerName non-empty, customStake positive number when applicable
+ *
+ * Tree-shake optimized: each schema is a pure function, only included if imported.
  */
 import { z } from "zod";
 import { JOIN_ROOM_I18N } from "@/lib/join-room/i18n-keys";
 
+/* @__PURE__ */
 export const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 
+/* @__PURE__ */
 export const adminLoginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+/* @__PURE__ */
 export const walletLoginSchema = z.object({
   address: z.string().min(1, "Wallet address is required"),
   chain: z.string().min(1, "Chain is required"),
 });
 
+/* @__PURE__ */
 export const joinRoomSchema = z.object({
   roomCode: z
     .string()
@@ -41,6 +47,7 @@ export const joinRoomSchema = z.object({
 });
 
 /** Optional invite token from deep links — URL-safe alphanumeric. */
+/* @__PURE__ */
 export const inviteTokenSchema = z
   .string()
   .transform((v) => v.trim())
@@ -53,6 +60,7 @@ export const inviteTokenSchema = z
   );
 
 /** Optional display name shown in the waiting room lobby. */
+/* @__PURE__ */
 export const displayNameSchema = z
   .string()
   .transform((v) => v.trim())
@@ -67,6 +75,7 @@ export const displayNameSchema = z
       )
   );
 
+/* @__PURE__ */
 export const gameSettingsSchema = z.object({
   playerName: z.string().min(1, "Host name is required").max(32, "Max 32 characters"),
   customStake: z

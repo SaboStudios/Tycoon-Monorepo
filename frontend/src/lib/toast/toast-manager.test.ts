@@ -1,147 +1,363 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { toastManager } from './toast-manager';
 
-// ---------------------------------------------------------------------------
-// Mock react-toastify before importing the module under test.
-// Use vi.hoisted so mockToast is initialised before the vi.mock factory runs.
-// ---------------------------------------------------------------------------
-
-const { mockToast } = vi.hoisted(() => ({
-  mockToast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-    dismiss: vi.fn(),
-  },
-}));
-
+// Mock react-toastify
 vi.mock('react-toastify', () => ({
-  toast: mockToast,
+    toast: {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        dismiss: vi.fn(),
+    },
+    ToastOptions: {},
 }));
 
-import { ToastManager } from './toast-manager';
+import { toast } from 'react-toastify';
 
-let toastManager: ToastManager;
+describe('ToastManager', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        toastManager.resetQueue();
+        vi.useFakeTimers();
+    });
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  vi.useFakeTimers();
-  // Fresh instance per test — prevents dedup queue bleed between tests
-  toastManager = new ToastManager();
-});
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
-afterEach(() => {
-  vi.useRealTimers();
-});
+    describe('show', () => {
+        it('should show a success toast', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Success message',
+            });
 
-// ---------------------------------------------------------------------------
-// Convenience methods
-// ---------------------------------------------------------------------------
+            expect(toast.success).toHaveBeenCalledWith(
+                'Success message',
+                expect.objectContaining({
+                    autoClose: 5000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                })
+            );
+        });
 
-describe('ToastManager convenience methods', () => {
-  it('success() calls toast.success with the message', () => {
-    toastManager.success('Saved');
-    expect(mockToast.success).toHaveBeenCalledOnce();
-    expect(mockToast.success).toHaveBeenCalledWith('Saved', expect.any(Object));
-  });
+        it('should show an error toast', () => {
+            toastManager.show({
+                type: 'error',
+                message: 'Error message',
+            });
 
-  it('error() calls toast.error with the message', () => {
-    toastManager.error('Something broke');
-    expect(mockToast.error).toHaveBeenCalledOnce();
-    expect(mockToast.error).toHaveBeenCalledWith(
-      'Something broke',
-      expect.any(Object),
-    );
-  });
+            expect(toast.error).toHaveBeenCalledWith(
+                'Error message',
+                expect.any(Object)
+            );
+        });
 
-  it('info() calls toast.info with the message', () => {
-    toastManager.info('FYI');
-    expect(mockToast.info).toHaveBeenCalledOnce();
-  });
+        it('should show an info toast', () => {
+            toastManager.show({
+                type: 'info',
+                message: 'Info message',
+            });
 
-  it('warning() calls toast.warning with the message', () => {
-    toastManager.warning('Watch out');
-    expect(mockToast.warning).toHaveBeenCalledOnce();
-  });
-});
+            expect(toast.info).toHaveBeenCalledWith(
+                'Info message',
+                expect.any(Object)
+            );
+        });
 
-// ---------------------------------------------------------------------------
-// Deduplication
-// ---------------------------------------------------------------------------
+        it('should show a warning toast', () => {
+            toastManager.show({
+                type: 'warning',
+                message: 'Warning message',
+            });
 
-describe('ToastManager deduplication', () => {
-  it('shows the first toast immediately', () => {
-    toastManager.error('Oops');
-    expect(mockToast.error).toHaveBeenCalledOnce();
-  });
+            expect(toast.warning).toHaveBeenCalledWith(
+                'Warning message',
+                expect.any(Object)
+            );
+        });
 
-  it('suppresses an identical toast within the dedup window', () => {
-    toastManager.error('Oops');
-    toastManager.error('Oops'); // duplicate within 3 s
-    expect(mockToast.error).toHaveBeenCalledOnce();
-  });
+        it('should respect custom autoClose option', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Custom timeout',
+                autoClose: 10000,
+            });
 
-  it('allows the same message after the dedup window expires', () => {
-    toastManager.error('Oops');
-    vi.advanceTimersByTime(3001);
-    toastManager.error('Oops');
-    expect(mockToast.error).toHaveBeenCalledTimes(2);
-  });
+            expect(toast.success).toHaveBeenCalledWith(
+                'Custom timeout',
+                expect.objectContaining({
+                    autoClose: 10000,
+                })
+            );
+        });
 
-  it('treats different messages as distinct (no suppression)', () => {
-    toastManager.error('Error A');
-    toastManager.error('Error B');
-    expect(mockToast.error).toHaveBeenCalledTimes(2);
-  });
+        it('should allow autoClose to be false', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'No auto close',
+                autoClose: false,
+            });
 
-  it('treats same message with different types as distinct', () => {
-    toastManager.error('msg');
-    toastManager.info('msg');
-    expect(mockToast.error).toHaveBeenCalledOnce();
-    expect(mockToast.info).toHaveBeenCalledOnce();
-  });
-});
+            expect(toast.success).toHaveBeenCalledWith(
+                'No auto close',
+                expect.objectContaining({
+                    autoClose: false,
+                })
+            );
+        });
 
-// ---------------------------------------------------------------------------
-// Options passthrough
-// ---------------------------------------------------------------------------
+        it('should deduplicate identical toasts within timeout', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Duplicate message',
+            });
 
-describe('ToastManager options passthrough', () => {
-  it('defaults autoClose to 5000ms', () => {
-    toastManager.success('ok');
-    const [, options] = mockToast.success.mock.calls[0] as [
-      string,
-      Record<string, unknown>,
-    ];
-    expect(options.autoClose).toBe(5000);
-  });
+            toastManager.show({
+                type: 'success',
+                message: 'Duplicate message',
+            });
 
-  it('respects a caller-supplied autoClose', () => {
-    toastManager.error('err', { autoClose: 1000 });
-    const [, options] = mockToast.error.mock.calls[0] as [
-      string,
-      Record<string, unknown>,
-    ];
-    expect(options.autoClose).toBe(1000);
-  });
+            expect(toast.success).toHaveBeenCalledTimes(1);
+        });
 
-  it('respects autoClose: false (persistent toast)', () => {
-    toastManager.error('persistent', { autoClose: false });
-    const [, options] = mockToast.error.mock.calls[0] as [
-      string,
-      Record<string, unknown>,
-    ];
-    expect(options.autoClose).toBe(false);
-  });
-});
+        it('should allow duplicate toasts after timeout', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Message',
+            });
 
-// ---------------------------------------------------------------------------
-// clear()
-// ---------------------------------------------------------------------------
+            expect(toast.success).toHaveBeenCalledTimes(1);
 
-describe('ToastManager.clear()', () => {
-  it('calls toast.dismiss', () => {
-    toastManager.clear();
-    expect(mockToast.dismiss).toHaveBeenCalledOnce();
-  });
+            // Advance time past dedup timeout (3000ms)
+            vi.advanceTimersByTime(3100);
+
+            toastManager.show({
+                type: 'success',
+                message: 'Message',
+            });
+
+            expect(toast.success).toHaveBeenCalledTimes(2);
+        });
+
+        it('should allow different toast types with same message', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Same message',
+            });
+
+            toastManager.show({
+                type: 'error',
+                message: 'Same message',
+            });
+
+            expect(toast.success).toHaveBeenCalledTimes(1);
+            expect(toast.error).toHaveBeenCalledTimes(1);
+        });
+
+        it('should handle invalid config gracefully', () => {
+            const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+            toastManager.show({
+                type: 'success',
+                message: '',
+            } as any);
+
+            expect(consoleSpy).toHaveBeenCalled();
+            expect(toast.success).not.toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+
+        it('should handle null config gracefully', () => {
+            const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+            toastManager.show(null as any);
+
+            expect(consoleSpy).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+
+        it('should clean up queue after dedup timeout', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Message',
+            });
+
+            expect(toastManager.getQueueSize()).toBe(1);
+
+            vi.advanceTimersByTime(3100);
+
+            expect(toastManager.getQueueSize()).toBe(0);
+        });
+    });
+
+    describe('convenience methods', () => {
+        it('should call show with success type', () => {
+            toastManager.success('Success');
+
+            expect(toast.success).toHaveBeenCalledWith(
+                'Success',
+                expect.any(Object)
+            );
+        });
+
+        it('should call show with error type', () => {
+            toastManager.error('Error');
+
+            expect(toast.error).toHaveBeenCalledWith(
+                'Error',
+                expect.any(Object)
+            );
+        });
+
+        it('should call show with info type', () => {
+            toastManager.info('Info');
+
+            expect(toast.info).toHaveBeenCalledWith(
+                'Info',
+                expect.any(Object)
+            );
+        });
+
+        it('should call show with warning type', () => {
+            toastManager.warning('Warning');
+
+            expect(toast.warning).toHaveBeenCalledWith(
+                'Warning',
+                expect.any(Object)
+            );
+        });
+
+        it('should pass options to show method', () => {
+            toastManager.success('Message', { autoClose: 2000 });
+
+            expect(toast.success).toHaveBeenCalledWith(
+                'Message',
+                expect.objectContaining({
+                    autoClose: 2000,
+                })
+            );
+        });
+    });
+
+    describe('clear', () => {
+        it('should dismiss all toasts', () => {
+            toastManager.clear();
+
+            expect(toast.dismiss).toHaveBeenCalled();
+        });
+
+        it('should handle errors gracefully', () => {
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            vi.mocked(toast.dismiss).mockImplementation(() => {
+                throw new Error('Dismiss failed');
+            });
+
+            expect(() => toastManager.clear()).not.toThrow();
+            expect(consoleSpy).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+    });
+
+    describe('state management', () => {
+        it('should reset queue', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Message 1',
+            });
+
+            toastManager.show({
+                type: 'error',
+                message: 'Message 2',
+            });
+
+            expect(toastManager.getQueueSize()).toBe(2);
+
+            toastManager.resetQueue();
+
+            expect(toastManager.getQueueSize()).toBe(0);
+        });
+
+        it('should allow duplicate after queue reset', () => {
+            toastManager.show({
+                type: 'success',
+                message: 'Message',
+            });
+
+            expect(toast.success).toHaveBeenCalledTimes(1);
+
+            toastManager.resetQueue();
+
+            toastManager.show({
+                type: 'success',
+                message: 'Message',
+            });
+
+            expect(toast.success).toHaveBeenCalledTimes(2);
+        });
+
+        it('should report correct queue size', () => {
+            expect(toastManager.getQueueSize()).toBe(0);
+
+            toastManager.show({
+                type: 'success',
+                message: 'Message 1',
+            });
+
+            expect(toastManager.getQueueSize()).toBe(1);
+
+            toastManager.show({
+                type: 'error',
+                message: 'Message 2',
+            });
+
+            expect(toastManager.getQueueSize()).toBe(2);
+
+            toastManager.resetQueue();
+
+            expect(toastManager.getQueueSize()).toBe(0);
+        });
+    });
+
+    describe('error handling', () => {
+        it('should handle show errors gracefully', () => {
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            vi.mocked(toast.success).mockImplementation(() => {
+                throw new Error('Toast failed');
+            });
+
+            expect(() => {
+                toastManager.show({
+                    type: 'success',
+                    message: 'Message',
+                });
+            }).not.toThrow();
+
+            expect(consoleSpy).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+
+        it('should handle convenience method errors gracefully', () => {
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            vi.mocked(toast.error).mockImplementation(() => {
+                throw new Error('Toast failed');
+            });
+
+            expect(() => {
+                toastManager.error('Message');
+            }).not.toThrow();
+
+            expect(consoleSpy).toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+    });
 });

@@ -3,7 +3,7 @@
  */
 
 import { isApiError } from "@/lib/api/errors";
-import type { FieldErrors } from "@/lib/validation/serverErrorMap";
+import type { FieldErrors } from "@/lib/validation";
 import { JOIN_ROOM_I18N } from "@/lib/join-room/i18n-keys";
 
 /** JWT-shaped bearer tokens and long opaque secrets. */

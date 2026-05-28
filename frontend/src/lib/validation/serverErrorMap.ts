@@ -1,9 +1,13 @@
 /**
- * Maps a server error response to a Record<fieldName, errorMessage>.
- * Handles NestJS class-validator 400 format:
- *   { message: string[] | string, statusCode: number }
- * and custom field-level errors:
- *   { errors: { field: string; message: string }[] }
+ * Maps server error responses to field-level error messages.
+ *
+ * Handles multiple error formats:
+ * - TycoonApiError with details field (field-level validation errors)
+ * - NestJS class-validator 400 format: { message: string[] | string, statusCode: number }
+ * - Custom field-level errors: { errors: { field: string; message: string }[] }
+ * - Plain error objects with statusCode and message
+ *
+ * Returns a Record<fieldName, errorMessage> where "_form" is used for form-level errors.
  */
 export type FieldErrors = Record<string, string>;
 
@@ -11,8 +15,11 @@ interface ServerErrorResponse {
   message?: string | string[];
   errors?: { field: string; message: string }[];
   statusCode?: number;
+  details?: Record<string, string[]>;
+  code?: string;
 }
 
+/* @__PURE__ */
 const FIELD_KEYWORDS: Record<string, string> = {
   email: "email",
   password: "password",
@@ -27,12 +34,43 @@ function isServerErrorResponse(v: unknown): v is ServerErrorResponse {
   return typeof v === "object" && v !== null;
 }
 
+/**
+ * Extract field-level errors from TycoonApiError details field.
+ * Details is a Record<fieldName, string[]> where each field maps to an array of error messages.
+ * We take the first message for each field.
+ */
+function extractDetailsErrors(details: Record<string, string[]> | undefined): FieldErrors | null {
+  if (!details || typeof details !== "object") return null;
+
+  const result: FieldErrors = {};
+  let hasErrors = false;
+
+  for (const [field, messages] of Object.entries(details)) {
+    if (Array.isArray(messages) && messages.length > 0) {
+      const firstMessage = messages.find((m): m is string => typeof m === "string");
+      if (firstMessage) {
+        result[field] = firstMessage;
+        hasErrors = true;
+      }
+    }
+  }
+
+  return hasErrors ? result : null;
+}
+
 export function mapServerErrors(error: unknown): FieldErrors {
   if (!isServerErrorResponse(error)) return { _form: "An unexpected error occurred" };
   const body: ServerErrorResponse = error;
   const result: FieldErrors = {};
 
-  // Explicit field errors array
+  // Priority 1: Extract field-level errors from TycoonApiError details field
+  // This handles VALIDATION_ERROR responses with structured field errors
+  const detailsErrors = extractDetailsErrors(body.details);
+  if (detailsErrors) {
+    return detailsErrors;
+  }
+
+  // Priority 2: Explicit field errors array (custom format)
   if (Array.isArray(body.errors)) {
     for (const e of body.errors) {
       result[e.field] = e.message;
@@ -40,8 +78,9 @@ export function mapServerErrors(error: unknown): FieldErrors {
     return result;
   }
 
-  // Status-code shortcut: map well-known codes to actionable messages before
-  // attempting keyword extraction, so users never see a raw server string.
+  // Priority 3: Status-code shortcuts for well-known HTTP errors
+  // Map status codes to actionable messages before attempting keyword extraction,
+  // so users never see raw server strings.
   if (body.statusCode === 401 || body.statusCode === 403) {
     return { _form: "Please sign in to join a room." };
   }
@@ -54,7 +93,8 @@ export function mapServerErrors(error: unknown): FieldErrors {
     return { _form: "Server error. Please try again in a moment." };
   }
 
-  // NestJS class-validator messages array — infer field from message text
+  // Priority 4: NestJS class-validator messages array
+  // Infer field from message text using keyword matching
   const raw = body.message;
   const messages: string[] = Array.isArray(raw)
     ? raw.filter((m): m is string => typeof m === "string")

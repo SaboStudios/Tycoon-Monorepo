@@ -8,10 +8,10 @@ export const analyticsEventSchema = {
   shop_grid_viewed: ["route", "item_count", "source"],
   shop_item_impression: ["route", "item_id", "item_name", "item_category", "item_rarity"],
   shop_purchase_initiated: ["route", "item_id", "item_name", "item_category", "item_rarity", "currency", "value"],
-  continue_game_click: ["route", "destination"],
-  multiplayer_click: ["route", "destination"],
-  join_room_click: ["route", "destination"],
-  play_ai_click: ["route", "destination"],
+  // Landing hero telemetry — #828
+  // Intentionally omits user_id, wallet_address, and session tokens (PII / linkable).
+  hero_viewed: ["route", "source"],
+  hero_cta_clicked: ["route", "cta", "destination"],
   // Join room telemetry — SW-FE-039
   // Intentionally omits room_code, user_id, and session tokens (PII / linkable).
   join_room_form_viewed: ["route", "source"],
