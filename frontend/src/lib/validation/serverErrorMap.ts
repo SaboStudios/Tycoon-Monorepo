@@ -19,6 +19,7 @@ interface ServerErrorResponse {
   code?: string;
 }
 
+/* @__PURE__ */
 const FIELD_KEYWORDS: Record<string, string> = {
   email: "email",
   password: "password",
