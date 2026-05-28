@@ -1,5 +1,6 @@
 import React from 'react';
 import WhatIsTycoon from '@/components/guest/WhatIsTycoon';
+import HeroSection from '@/components/guest/HeroSection';
 import { BoardSquare } from '@/components/game/BoardSquare';
 import JoinRoomForm from '@/components/settings/JoinRoomForm';
 import { JOIN_ROOM_I18N } from '@/lib/join-room/i18n-keys';
@@ -22,6 +23,14 @@ export const MarketingLanding = () => (
 );
 
 MarketingLanding.storyName = 'Marketing Landing (stable state)';
+
+export const LandingHero = () => (
+  <div className="min-h-screen bg-[#010F10] p-8 text-white">
+    <HeroSection />
+  </div>
+);
+
+LandingHero.storyName = 'Landing hero — stable visual regression';
 
 export const HUDBoardSquares = () => (
   <div className="min-h-screen bg-[#010F10] p-8 text-white">
