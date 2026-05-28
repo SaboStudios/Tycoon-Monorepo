@@ -3,9 +3,8 @@
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
-import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
-import { sanitizeError } from "@/lib/errors";
+import { useEffect, useState } from "react";
+import { track } from "@/lib/analytics";
 import { HERO_I18N } from "@/lib/hero/i18n-keys";
 
 interface HeroSectionMobileProps {
@@ -57,31 +56,20 @@ function usePrefersReducedMotion(): boolean {
 export default function HeroSectionMobile({ className }: HeroSectionMobileProps): React.ReactElement {
   const router = useRouter();
   const { t } = useTranslation("common");
-  const { fire } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
 
-  const handleTrackedNavigation = useCallback(
-    (
-      event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click",
-      destination: string,
-    ): void => {
-      try {
-        fire(event);
-        router.push(destination);
-      } catch (err) {
-        const sanitized = sanitizeError(err);
-        setError({
-          hasError: true,
-          message: sanitized.userMessage || t(HERO_I18N.error.generic),
-        });
-      }
-    },
-    [fire, router, t],
-  );
+  const handleTrackedNavigation = (
+    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click",
+    destination: string,
+  ): void => {
+    track(event, {
+      route: "/",
+      destination,
+    });
 
   if (error.hasError) {
     return (
