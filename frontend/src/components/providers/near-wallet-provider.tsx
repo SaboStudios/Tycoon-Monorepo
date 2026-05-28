@@ -24,26 +24,22 @@ import {
   getNearContractId,
   getNearNetworkId,
   isValidNearAccountId,
-} from "@/lib/near/config";
-import {
   isLikelyUserRejectedError,
   nearErrorMessage,
   NEAR_SIGNATURE_REJECTED_MESSAGE,
-} from "@/lib/near/errors";
-import {
   getTransactionHashFromOutcome,
   isFinalExecutionSuccess,
-} from "@/lib/near/execution";
-import { getExplorerTransactionUrl } from "@/lib/near/explorer";
-import type { NearTxRecord } from "@/lib/near/types";
-import {
+  getExplorerTransactionUrl,
+  isDepositSafe,
+  sanitizeErrorMessage,
+  MAX_DEPOSIT_YOCTO,
   trackNearWalletConnected,
   trackNearWalletDisconnected,
   trackNearTxSubmitted,
   trackNearTxConfirmed,
   trackNearTxFailed,
-} from "@/lib/near/telemetry";
-import { isDepositSafe, sanitizeErrorMessage, MAX_DEPOSIT_YOCTO } from "@/lib/near/security";
+} from "@/lib/near";
+import type { NearTxRecord } from "@/lib/near";
 
 export interface CallContractMethodParams {
   contractId: string;
