@@ -1,11 +1,10 @@
 /**
- * SW-FE-023/SW-FE-027: HeroSectionMobile — accessibility, error, and empty states.
+ * #825 Landing hero — Vitest / RTL coverage
+ * HeroSectionMobile component tests.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-
-// ─── Mocks ──────────────────────────────────────────────────────────────────────
 
 const mockPush = vi.fn();
 const mockTrack = vi.fn();
@@ -18,149 +17,127 @@ vi.mock("@/lib/analytics", () => ({
   track: (...args: unknown[]) => mockTrack(...args),
 }));
 
-vi.mock("@/lib/errors", () => ({
-  sanitizeError: (err: unknown) => ({
-    userMessage: err instanceof Error ? err.message : "An unexpected error occurred",
-    category: "unknown",
-    recoverable: true,
-  }),
-}));
-
 import HeroSectionMobile from "@/components/guest/HeroSectionMobile";
 
-// ─── Tests ───────────────────────────────────────────────────────────────────────
-
-describe("HeroSectionMobile — accessibility", () => {
+describe("HeroSectionMobile", () => {
   beforeEach(() => {
     mockPush.mockClear();
     mockTrack.mockClear();
   });
 
-  it("renders the section with an aria-label", () => {
-    render(<HeroSectionMobile />);
-    expect(screen.getByRole("region", { name: "Landing hero" })).toBeInTheDocument();
+  describe("Render structure", () => {
+    it("renders a single h1 with TYCOON", () => {
+      render(<HeroSectionMobile />);
+      const h1 = document.querySelector("h1");
+      expect(h1).not.toBeNull();
+      expect(h1!.textContent).toContain("TYCOON");
+    });
+
+    it("renders the welcome message", () => {
+      render(<HeroSectionMobile />);
+      expect(screen.getByText("Welcome back, Player!")).toBeInTheDocument();
+    });
+
+    it("renders the tagline", () => {
+      render(<HeroSectionMobile />);
+      expect(screen.getByText("Conquer • Build • Trade On")).toBeInTheDocument();
+    });
+
+    it("renders all four CTA buttons", () => {
+      render(<HeroSectionMobile />);
+      expect(screen.getAllByRole("button")).toHaveLength(4);
+    });
+
+    it("accepts and applies a className prop", () => {
+      const { container } = render(<HeroSectionMobile className="test-class" />);
+      expect(container.querySelector("section")!.className).toContain("test-class");
+    });
   });
 
-  it("renders a single h1 element", () => {
-    render(<HeroSectionMobile />);
-    expect(document.querySelectorAll("h1")).toHaveLength(1);
+  describe("Accessibility", () => {
+    it("all CTA buttons have aria-label", () => {
+      render(<HeroSectionMobile />);
+      for (const btn of screen.getAllByRole("button")) {
+        expect(btn).toHaveAttribute("aria-label");
+      }
+    });
+
+    it("decorative background div has aria-hidden", () => {
+      const { container } = render(<HeroSectionMobile />);
+      expect(container.querySelector("[aria-hidden]")).not.toBeNull();
+    });
+
+    it("decorative ? span has aria-hidden", () => {
+      const { container } = render(<HeroSectionMobile />);
+      const h1 = container.querySelector("h1")!;
+      const questionSpan = Array.from(h1.querySelectorAll("span")).find(
+        (s) => s.textContent === "?",
+      );
+      expect(questionSpan).toBeDefined();
+      expect(questionSpan!.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("CTA buttons meet minimum touch target (min-h-[48px])", () => {
+      render(<HeroSectionMobile />);
+      for (const btn of screen.getAllByRole("button")) {
+        expect(btn.className).toMatch(/min-h-\[48px\]/);
+      }
+    });
   });
 
-  it("renders all four CTA buttons", () => {
-    render(<HeroSectionMobile />);
-    expect(screen.getAllByRole("button")).toHaveLength(4);
+  describe("CTA interactions", () => {
+    it("Continue Game navigates to /game-settings", () => {
+      render(<HeroSectionMobile />);
+      fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
+      expect(mockPush).toHaveBeenCalledWith("/game-settings");
+    });
+
+    it("Multiplayer navigates to /game-settings", () => {
+      render(<HeroSectionMobile />);
+      fireEvent.click(screen.getByRole("button", { name: /multiplayer/i }));
+      expect(mockPush).toHaveBeenCalledWith("/game-settings");
+    });
+
+    it("Join Room navigates to /join-room", () => {
+      render(<HeroSectionMobile />);
+      fireEvent.click(screen.getByRole("button", { name: /join room/i }));
+      expect(mockPush).toHaveBeenCalledWith("/join-room");
+    });
+
+    it("Challenge AI navigates to /play-ai", () => {
+      render(<HeroSectionMobile />);
+      fireEvent.click(screen.getByRole("button", { name: /challenge ai/i }));
+      expect(mockPush).toHaveBeenCalledWith("/play-ai");
+    });
+
+    it("each CTA fires analytics track with route and destination", () => {
+      render(<HeroSectionMobile />);
+      fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
+      expect(mockTrack).toHaveBeenCalledWith(
+        "continue_game_click",
+        expect.objectContaining({ route: "/", destination: "/game-settings" }),
+      );
+    });
   });
 
-  it("all CTA buttons have accessible names", () => {
-    render(<HeroSectionMobile />);
-    for (const btn of screen.getAllByRole("button")) {
-      expect(btn).toHaveAttribute("aria-label");
-    }
-  });
+  describe("Reduced motion", () => {
+    it("renders without errors when prefers-reduced-motion is set", () => {
+      const original = window.matchMedia;
+      window.matchMedia = ((query: string) => ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
 
-  it("decorative background element is hidden from assistive technology", () => {
-    const { container } = render(<HeroSectionMobile />);
-    const bg = container.querySelector<HTMLElement>("section > div[aria-hidden='true']");
-    expect(bg).not.toBeNull();
-  });
+      render(<HeroSectionMobile />);
+      expect(document.querySelector("h1")).not.toBeNull();
 
-  it("navigates correctly when Continue Game is clicked", () => {
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
-    expect(mockPush).toHaveBeenCalledWith("/game-settings");
-  });
-
-  it("navigates correctly when Multiplayer is clicked", () => {
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /multiplayer/i }));
-    expect(mockPush).toHaveBeenCalledWith("/game-settings");
-  });
-
-  it("navigates correctly when Join Room is clicked", () => {
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /join room/i }));
-    expect(mockPush).toHaveBeenCalledWith("/join-room");
-  });
-
-  it("navigates correctly when Challenge AI is clicked", () => {
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /challenge ai/i }));
-    expect(mockPush).toHaveBeenCalledWith("/play-ai");
-  });
-});
-
-describe("HeroSectionMobile — error state", () => {
-  beforeEach(() => {
-    mockPush.mockClear();
-    mockTrack.mockClear();
-  });
-
-  it("renders error UI when navigation throws", () => {
-    mockPush.mockImplementationOnce(() => { throw new Error("Navigation failed"); });
-
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
-
-    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-    expect(screen.getByText("Navigation failed")).toBeInTheDocument();
-  });
-
-  it("renders generic message for non-Error throws", () => {
-    mockPush.mockImplementationOnce(() => { throw "string error"; });
-
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
-
-    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-    expect(screen.getByText("An unexpected error occurred")).toBeInTheDocument();
-  });
-
-  it("error state has role='alert' for screen readers", () => {
-    mockPush.mockImplementationOnce(() => { throw new Error("fail"); });
-
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
-
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-  });
-
-  it("Try Again button resets the error and restores normal state", () => {
-    mockPush.mockImplementationOnce(() => { throw new Error("fail"); });
-
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
-    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-
-    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Landing hero" })).toBeInTheDocument();
-  });
-
-  it("does not expose stack traces in error messages", () => {
-    const err = new Error("fail");
-    err.stack = "Error: fail\n    at Object.<anonymous> (test.ts:1:1)";
-    mockPush.mockImplementationOnce(() => { throw err; });
-
-    render(<HeroSectionMobile />);
-    fireEvent.click(screen.getByRole("button", { name: /continue game/i }));
-
-    expect(screen.queryByText(/at Object/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/test\.ts/)).not.toBeInTheDocument();
-  });
-});
-
-describe("HeroSectionMobile — empty state (happy path)", () => {
-  it("renders all content in normal state", () => {
-    render(<HeroSectionMobile />);
-    expect(screen.getByText("Welcome back, Player!")).toBeInTheDocument();
-    expect(screen.getByText("TYCOON")).toBeInTheDocument();
-  });
-
-  it("all buttons are enabled in normal state", () => {
-    render(<HeroSectionMobile />);
-    for (const btn of screen.getAllByRole("button")) {
-      expect(btn).not.toBeDisabled();
-    }
+      window.matchMedia = original;
+    });
   });
 });

@@ -24,6 +24,41 @@
     "title": "Ajustes",
     "language": "Idioma"
   },
+  "hero": {
+    "aria": {
+      "hero_section": "Hero"
+    },
+    "welcome": "¡Bienvenido de nuevo, jugador!",
+    "title": {
+      "main": "TYCOON",
+      "decorative": "?"
+    },
+    "tagline": {
+      "conquer": "Conquista",
+      "conquer_build": "Conquista • Construye",
+      "conquer_build_trade_on": "Conquista • Construye • Comercio",
+      "play_solo_vs_ai": "Juega solo contra IA"
+    },
+    "subtitle": {
+      "roll_the_dice": "Lanza los dados",
+      "buy_properties": "Compra propiedades",
+      "collect_rent": "Recoge el alquiler",
+      "play_against_ai": "Juega contra oponentes IA",
+      "become_top_tycoon": "Conviértete en el mayor magnate"
+    },
+    "description": "Entra en Tycoon — el giro Web3 del juego clásico de estrategia, propiedad y fortuna. Juega solo contra IA, compite en salas multijugador, recoge tokens, completa misiones y conviértete en el mayor magnate de la cadena de bloques.",
+    "buttons": {
+      "continue_game": "Continuar juego",
+      "multiplayer": "Multijugador",
+      "join_room": "Unirse",
+      "challenge_ai": "¡Desafía a la IA!"
+    },
+    "error": {
+      "heading": "Algo salió mal",
+      "generic": "Ocurrió un error inesperado",
+      "try_again": "Intentar de nuevo"
+    }
+  },
   "join_room": {
     "title": "Join Room",
     "loading_aria": "Loading join room form",
