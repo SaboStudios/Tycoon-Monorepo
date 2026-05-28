@@ -13,7 +13,7 @@ import {
   displayNameSchema,
   inviteTokenSchema,
   joinRoomSchema,
-} from "@/lib/validation/schemas";
+} from "@/lib/validation";
 
 describe("sanitiseRoomCode", () => {
   it("strips non-alphanumeric characters and uppercases", () => {

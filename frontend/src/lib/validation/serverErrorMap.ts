@@ -4,6 +4,8 @@
  *   { message: string[] | string, statusCode: number }
  * and custom field-level errors:
  *   { errors: { field: string; message: string }[] }
+ *
+ * Tree-shake optimized: only included if mapServerErrors is imported.
  */
 export type FieldErrors = Record<string, string>;
 
@@ -13,6 +15,7 @@ interface ServerErrorResponse {
   statusCode?: number;
 }
 
+/* @__PURE__ */
 const FIELD_KEYWORDS: Record<string, string> = {
   email: "email",
   password: "password",
@@ -27,6 +30,10 @@ function isServerErrorResponse(v: unknown): v is ServerErrorResponse {
   return typeof v === "object" && v !== null;
 }
 
+/**
+ * Maps server errors to field-level error messages.
+ * Pure function: no side effects, safe for tree-shaking.
+ */
 export function mapServerErrors(error: unknown): FieldErrors {
   if (!isServerErrorResponse(error)) return { _form: "An unexpected error occurred" };
   const body: ServerErrorResponse = error;

@@ -6,11 +6,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 import { LocaleSwitcher } from "./LocaleSwitcher"
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
-import { gameSettingsSchema } from "@/lib/validation/schemas"
-import {
-  mapServerErrors,
-  type FieldErrors,
-} from "@/lib/validation/serverErrorMap"
+import { gameSettingsSchema, mapServerErrors, type FieldErrors } from "@/lib/validation";
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"

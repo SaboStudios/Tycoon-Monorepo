@@ -260,7 +260,7 @@ describe("JoinRoomForm — keyboard shortcuts (SW-FE-845)", () => {
 
 // ── serverErrorMap unit tests ─────────────────────────────────────────────────
 
-import { mapServerErrors } from "@/lib/validation/serverErrorMap";
+import { mapServerErrors } from "@/lib/validation";
 
 describe("mapServerErrors", () => {
   it("returns _form fallback for null", () => {
