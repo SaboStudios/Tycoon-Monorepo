@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -40,18 +40,6 @@ function usePrefersReducedMotion(): boolean {
  * - Use with useMediaQuery: render HeroSectionMobile when (window.innerWidth < 768)
  * - Or use conditional render in parent: {isMobile ? <HeroSectionMobile /> : <HeroSection />}
  * - Or rely on CSS: show/hide with md:hidden / hidden md:block on wrapper divs
- *
- * @example
- * ```tsx
- * const isMobile = useMediaQuery('(max-width: 767px)');
- * return isMobile ? <HeroSectionMobile /> : <HeroSection />;
- * ```
- *
- * @example
- * ```tsx
- * <div className="md:hidden"><HeroSectionMobile /></div>
- * <div className="hidden md:block"><HeroSection /></div>
- * ```
  */
 export default function HeroSectionMobile({ className }: HeroSectionMobileProps): React.ReactElement {
   const router = useRouter();
@@ -99,14 +87,11 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
   }
 
   return (
-    <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className || ""}`}>
+    <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className ?? ""}`}>
       {/* Simplified background: flat gradient */}
       <div
         className="absolute inset-0 opacity-60"
-        style={{
-          background:
-            "linear-gradient(180deg, #010F10 0%, #0a1f21 40%, #010F10 100%)",
-        }}
+        style={{ background: "linear-gradient(180deg, #010F10 0%, #0a1f21 40%, #010F10 100%)" }}
         aria-hidden
       />
 
@@ -116,7 +101,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           {t(HERO_I18N.welcome)}
         </p>
 
-        {/* Title - stacked, smaller */}
+        {/* Title */}
         <h1 className="min-h-[42px] font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
           {t(HERO_I18N.title.main)}
           <span
@@ -127,7 +112,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           </span>
         </h1>
 
-        {/* Tagline - condensed */}
+        {/* Tagline */}
         <p className="min-h-[24px] font-orbitron text-[16px] font-[700] text-[#F0F7F7]">
           {t(HERO_I18N.tagline.conquerBuildTradeOn)}
         </p>

@@ -5,6 +5,7 @@ import { TypeAnimation } from "react-type-animation";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { sanitizeError } from "@/lib/errors";
 import { HERO_I18N } from "@/lib/hero/i18n-keys";
 
@@ -15,26 +16,10 @@ interface HeroSectionProps {
   };
 }
 
+/** Non-empty message string — guarantees the error UI always has copy to show. */
 interface HeroErrorState {
   hasError: boolean;
   message: string;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  return reduced;
 }
 
 const typeSpeed = 40;
@@ -63,21 +48,19 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className, router: routerProp
         router.push(destination);
       } catch (err) {
         const sanitized = sanitizeError(err);
-        if (sanitized) {
-          setError({ hasError: true, message: sanitized.userMessage || "An unexpected error occurred" });
-        }
+        setError({ hasError: true, message: sanitized.userMessage });
       }
     },
     [trackCtaClicked, router],
   );
 
-  // SW-FE-005: Empty state — show a friendly message when there's no content to display
+  // SW-FE-005: Show a friendly message when navigation fails
   if (error.hasError) {
     return (
       <section
         aria-label={t(HERO_I18N.aria.heroSection)}
         role="alert"
-        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className || ""}`}
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className ?? ""}`}
       >
         <div className="text-center px-4">
           <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
