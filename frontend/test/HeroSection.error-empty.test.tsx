@@ -21,6 +21,10 @@ vi.mock("@/lib/analytics", () => ({
   track: (...args: unknown[]) => mockTrack(...args),
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 vi.mock("@/lib/errors", () => ({
   sanitizeError: (err: unknown) => ({
     userMessage: err instanceof Error ? err.message : "An unexpected error occurred",
