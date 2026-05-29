@@ -1,29 +1,16 @@
+import {
+  ErrorCategory,
+  getApiErrorCategoryFromUnknown,
+  getHttpStatusErrorCategory,
+} from "./api-error-map";
+export { ErrorCategory } from "./api-error-map";
+
 /**
  * Error Types and Utilities
- * 
+ *
  * Defines error types and helper functions for consistent error handling
  * across the Tycoon application.
  */
-
-/**
- * Error categories for user-friendly messaging
- */
-export enum ErrorCategory {
-  /** Network-related errors (offline, timeout, server unreachable) */
-  NETWORK = 'network',
-  /** Authentication/authorization errors */
-  AUTH = 'auth',
-  /** Client-side validation errors */
-  VALIDATION = 'validation',
-  /** Server errors (5xx) */
-  SERVER = 'server',
-  /** Not found errors (404) */
-  NOT_FOUND = 'not_found',
-  /** Rate limiting errors */
-  RATE_LIMIT = 'rate_limit',
-  /** Unknown/unexpected errors */
-  UNKNOWN = 'unknown',
-}
 
 /**
  * Sanitized error object safe for client-side display
@@ -106,6 +93,11 @@ export const ERROR_MESSAGES: Record<ErrorCategory, {
  * @returns The error category
  */
 export function categorizeError(error: unknown): ErrorCategory {
+  const apiCategory = getApiErrorCategoryFromUnknown(error);
+  if (apiCategory) {
+    return apiCategory;
+  }
+
   // Handle Error objects
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
@@ -123,19 +115,13 @@ export function categorizeError(error: unknown): ErrorCategory {
 
   // Handle Response objects (from fetch)
   if (error instanceof Response) {
-    if (error.status === 404) return ErrorCategory.NOT_FOUND;
-    if (error.status === 401 || error.status === 403) return ErrorCategory.AUTH;
-    if (error.status === 429) return ErrorCategory.RATE_LIMIT;
-    if (error.status >= 500) return ErrorCategory.SERVER;
+    return getHttpStatusErrorCategory(error.status);
   }
 
   // Handle objects with status property
   if (error && typeof error === 'object' && 'status' in error) {
     const status = (error as { status: number }).status;
-    if (status === 404) return ErrorCategory.NOT_FOUND;
-    if (status === 401 || status === 403) return ErrorCategory.AUTH;
-    if (status === 429) return ErrorCategory.RATE_LIMIT;
-    if (status >= 500) return ErrorCategory.SERVER;
+    return getHttpStatusErrorCategory(status);
   }
 
   return ErrorCategory.UNKNOWN;

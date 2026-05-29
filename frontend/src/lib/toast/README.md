@@ -148,6 +148,11 @@ The library uses strict exports via `index.ts`:
 ```typescript
 export { toastManager } from "./toast-manager";
 export type { ToastType, ToastConfig } from "./toast-manager";
+export {
+  API_ERROR_TOAST_MESSAGES,
+  getApiErrorMessage,
+  toastApiError,
+} from "./api-error-map";
 ```
 
 This ensures only the public API is exposed and prevents accidental internal usage.

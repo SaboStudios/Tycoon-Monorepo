@@ -4,6 +4,7 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
   | 'CONFLICT'
+  | 'RATE_LIMIT'
   | 'INTERNAL_SERVER_ERROR'
   | 'NETWORK_ERROR'
   | 'TIMEOUT'
@@ -51,6 +52,7 @@ function statusToCode(status: number): ApiErrorCode {
     case 403: return 'FORBIDDEN';
     case 404: return 'NOT_FOUND';
     case 409: return 'CONFLICT';
+    case 429: return 'RATE_LIMIT';
     case 500: return 'INTERNAL_SERVER_ERROR';
     default:  return 'UNKNOWN';
   }

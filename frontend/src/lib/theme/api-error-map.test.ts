@@ -19,6 +19,7 @@ const ALL_CODES: ApiErrorCode[] = [
   "NOT_FOUND",
   "VALIDATION_ERROR",
   "CONFLICT",
+  "RATE_LIMIT",
   "INTERNAL_SERVER_ERROR",
   "NETWORK_ERROR",
   "TIMEOUT",
@@ -64,6 +65,7 @@ describe("API_ERROR_SEVERITY", () => {
   });
 
   it("classifies transient/infrastructure errors as transient", () => {
+    expect(API_ERROR_SEVERITY.RATE_LIMIT).toBe("transient");
     expect(API_ERROR_SEVERITY.INTERNAL_SERVER_ERROR).toBe("transient");
     expect(API_ERROR_SEVERITY.NETWORK_ERROR).toBe("transient");
     expect(API_ERROR_SEVERITY.TIMEOUT).toBe("transient");

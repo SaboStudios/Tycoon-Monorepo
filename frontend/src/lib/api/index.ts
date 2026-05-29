@@ -2,4 +2,37 @@ export { apiClient } from './client';
 export type { RequestOptions } from './client';
 export { TycoonApiError, isApiError, isValidationError, isUnauthorized } from './errors';
 export type { ApiError, ApiErrorCode } from './errors';
-export type * from './types/dto';
+export type {
+  AdminLoginDto,
+  AuthTokensResponse,
+  BuyPropertyDto,
+  CreateGameDto,
+  CreateGameSettingsDto,
+  GameMode,
+  GamePlayerResponse,
+  GamePlayerSymbol,
+  GameResponse,
+  GameSettingsResponse,
+  GameStatus,
+  JoinGameDto,
+  LockBalanceDto,
+  LoginDto,
+  PaginationDto,
+  PaginatedResponse,
+  PayRentDto,
+  PayTaxDto,
+  PurchaseResponse,
+  RefreshTokenDto,
+  Role,
+  RollDiceDto,
+  ShopItemResponse,
+  ShopItemType,
+  SortOrder,
+  UnlockBalanceDto,
+  UpdateGamePlayerDto,
+  UpdateGameSettingsDto,
+  UpdateTurnDto,
+  UserInventoryResponse,
+  UserResponse,
+  WalletLoginDto,
+} from './types/dto';

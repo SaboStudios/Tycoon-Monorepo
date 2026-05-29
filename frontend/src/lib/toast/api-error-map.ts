@@ -18,6 +18,7 @@ export const API_ERROR_TOAST_MESSAGES: Record<ApiErrorCode, string> = {
   NOT_FOUND: 'The requested resource could not be found.',
   VALIDATION_ERROR: 'Some fields are invalid. Please review your input and try again.',
   CONFLICT: 'This action conflicts with existing data. Please refresh and try again.',
+  RATE_LIMIT: 'Too many requests. Please wait a moment and try again.',
   INTERNAL_SERVER_ERROR: 'Something went wrong on our end. Please try again in a moment.',
   NETWORK_ERROR: 'Unable to reach the server. Check your connection and try again.',
   TIMEOUT: 'The request took too long. Please try again.',
@@ -33,6 +34,7 @@ export const API_ERROR_TOAST_MESSAGES: Record<ApiErrorCode, string> = {
 const API_ERROR_TOAST_OPTIONS: Partial<Record<ApiErrorCode, Partial<ToastOptions>>> = {
   UNAUTHORIZED: { autoClose: 8000 },
   FORBIDDEN: { autoClose: 8000 },
+  RATE_LIMIT: { autoClose: 7000 },
   INTERNAL_SERVER_ERROR: { autoClose: 7000 },
   NETWORK_ERROR: { autoClose: 7000 },
   TIMEOUT: { autoClose: 7000 },

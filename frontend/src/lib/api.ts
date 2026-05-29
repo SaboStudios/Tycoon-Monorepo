@@ -2,13 +2,13 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-interface RequestOptions extends RequestInit {
+interface ApiRequestOptions extends RequestInit {
   token?: string;
 }
 
 export async function apiRequest<T>(
   endpoint: string,
-  options: RequestOptions = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
   const { token, ...init } = options;
   const headers = new Headers(init.headers);
@@ -37,3 +37,47 @@ export async function apiRequest<T>(
 
   return response.json();
 }
+
+export { apiClient } from "./api/client";
+export type { RequestOptions } from "./api/client";
+export {
+  TycoonApiError,
+  isApiError,
+  isUnauthorized,
+  isValidationError,
+} from "./api/errors";
+export type { ApiError, ApiErrorCode } from "./api/errors";
+export type {
+  AdminLoginDto,
+  AuthTokensResponse,
+  BuyPropertyDto,
+  CreateGameDto,
+  CreateGameSettingsDto,
+  GameMode,
+  GamePlayerResponse,
+  GamePlayerSymbol,
+  GameResponse,
+  GameSettingsResponse,
+  GameStatus,
+  JoinGameDto,
+  LockBalanceDto,
+  LoginDto,
+  PaginationDto,
+  PaginatedResponse,
+  PayRentDto,
+  PayTaxDto,
+  PurchaseResponse,
+  RefreshTokenDto,
+  Role,
+  RollDiceDto,
+  ShopItemResponse,
+  ShopItemType,
+  SortOrder,
+  UnlockBalanceDto,
+  UpdateGamePlayerDto,
+  UpdateGameSettingsDto,
+  UpdateTurnDto,
+  UserInventoryResponse,
+  UserResponse,
+  WalletLoginDto,
+} from "./api/types/dto";

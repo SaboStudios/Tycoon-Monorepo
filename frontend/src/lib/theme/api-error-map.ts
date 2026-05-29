@@ -44,6 +44,7 @@ export const API_ERROR_SEVERITY: Record<ApiErrorCode, ErrorSeverity> = {
   NOT_FOUND: "warning",
   VALIDATION_ERROR: "warning",
   CONFLICT: "warning",
+  RATE_LIMIT: "transient",
   INTERNAL_SERVER_ERROR: "transient",
   NETWORK_ERROR: "transient",
   TIMEOUT: "transient",
