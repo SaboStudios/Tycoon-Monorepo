@@ -17,7 +17,7 @@ import { SortOrder } from '../../common/dto/pagination.dto';
 describe('AdminAnalyticsService', () => {
   let service: AdminAnalyticsService;
 
-  const mockQb = {} as any;
+  const mockQb: Record<string, never> = {};
   const mockUserRepo = {
     count: jest.fn(),
     createQueryBuilder: jest.fn().mockReturnValue(mockQb),
@@ -35,7 +35,10 @@ describe('AdminAnalyticsService', () => {
         AdminAnalyticsService,
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: getRepositoryToken(Game), useValue: mockGameRepo },
-        { provide: getRepositoryToken(GamePlayer), useValue: mockGamePlayerRepo },
+        {
+          provide: getRepositoryToken(GamePlayer),
+          useValue: mockGamePlayerRepo,
+        },
         { provide: PaginationService, useValue: mockPaginationService },
       ],
     }).compile();
@@ -45,17 +48,19 @@ describe('AdminAnalyticsService', () => {
 
   afterEach(() => jest.clearAllMocks());
 
+  const getLogger = () => (service as unknown as { logger: Logger }).logger;
+
   it('should be defined', () => expect(service).toBeDefined());
 
   // ── observability: logger is wired ────────────────────────────────────────
   it('should have a Logger instance', () => {
-    expect((service as any).logger).toBeInstanceOf(Logger);
+    expect(getLogger()).toBeInstanceOf(Logger);
   });
 
   describe('getTotalUsers', () => {
     it('returns count and logs debug', async () => {
       mockUserRepo.count.mockResolvedValue(100);
-      const debugSpy = jest.spyOn((service as any).logger, 'debug').mockImplementation();
+      const debugSpy = jest.spyOn(getLogger(), 'debug').mockImplementation();
       expect(await service.getTotalUsers()).toBe(100);
       expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('100'));
     });
@@ -64,11 +69,13 @@ describe('AdminAnalyticsService', () => {
   describe('getActiveUsers', () => {
     it('returns active count filtered by last 30 days and logs debug', async () => {
       mockUserRepo.count.mockResolvedValue(50);
-      const debugSpy = jest.spyOn((service as any).logger, 'debug').mockImplementation();
+      const debugSpy = jest.spyOn(getLogger(), 'debug').mockImplementation();
       expect(await service.getActiveUsers()).toBe(50);
-      expect(mockUserRepo.count).toHaveBeenCalledWith({
-        where: { updated_at: expect.objectContaining({ _type: 'moreThan' }) },
-      });
+      const countCalls = mockUserRepo.count.mock.calls as [
+        [{ where: { updated_at: { _type: string } } }],
+      ];
+      const [countArg] = countCalls[0];
+      expect(countArg.where.updated_at._type).toBe('moreThan');
       expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('50'));
     });
   });
@@ -76,7 +83,7 @@ describe('AdminAnalyticsService', () => {
   describe('getTotalGames', () => {
     it('returns count and logs debug', async () => {
       mockGameRepo.count.mockResolvedValue(200);
-      const debugSpy = jest.spyOn((service as any).logger, 'debug').mockImplementation();
+      const debugSpy = jest.spyOn(getLogger(), 'debug').mockImplementation();
       expect(await service.getTotalGames()).toBe(200);
       expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('200'));
     });
@@ -85,7 +92,7 @@ describe('AdminAnalyticsService', () => {
   describe('getTotalGamePlayers', () => {
     it('returns count and logs debug', async () => {
       mockGamePlayerRepo.count.mockResolvedValue(400);
-      const debugSpy = jest.spyOn((service as any).logger, 'debug').mockImplementation();
+      const debugSpy = jest.spyOn(getLogger(), 'debug').mockImplementation();
       expect(await service.getTotalGamePlayers()).toBe(400);
       expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('400'));
     });
@@ -96,10 +103,15 @@ describe('AdminAnalyticsService', () => {
       mockUserRepo.count.mockResolvedValueOnce(100).mockResolvedValueOnce(50);
       mockGameRepo.count.mockResolvedValue(200);
       mockGamePlayerRepo.count.mockResolvedValue(400);
-      const logSpy = jest.spyOn((service as any).logger, 'log').mockImplementation();
+      const logSpy = jest.spyOn(getLogger(), 'log').mockImplementation();
 
       const result = await service.getDashboardAnalytics();
-      expect(result).toEqual({ totalUsers: 100, activeUsers: 50, totalGames: 200, totalGamePlayers: 400 });
+      expect(result).toEqual({
+        totalUsers: 100,
+        activeUsers: 50,
+        totalGames: 200,
+        totalGamePlayers: 400,
+      });
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('dashboard'));
     });
   });
@@ -107,10 +119,19 @@ describe('AdminAnalyticsService', () => {
   describe('getPaginatedUsers', () => {
     const mockResult = {
       data: [{ id: 1, email: 'a@b.com' }],
-      meta: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      meta: {
+        page: 1,
+        limit: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     };
 
-    beforeEach(() => mockPaginationService.paginate.mockResolvedValue(mockResult));
+    beforeEach(() =>
+      mockPaginationService.paginate.mockResolvedValue(mockResult),
+    );
 
     it('calls createQueryBuilder and paginate with correct args', async () => {
       const query: PaginatedUsersQueryDto = { page: 1, limit: 10 };
@@ -126,25 +147,50 @@ describe('AdminAnalyticsService', () => {
     });
 
     it('logs the operation', async () => {
-      const logSpy = jest.spyOn((service as any).logger, 'log').mockImplementation();
-      await service.getPaginatedUsers({ page: 1, limit: 10, sortBy: UserSortField.EMAIL });
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('getPaginatedUsers'));
+      const logSpy = jest.spyOn(getLogger(), 'log').mockImplementation();
+      await service.getPaginatedUsers({
+        page: 1,
+        limit: 10,
+        sortBy: UserSortField.EMAIL,
+      });
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('getPaginatedUsers'),
+      );
     });
 
     it('forwards sortBy and sortOrder', async () => {
-      const query: PaginatedUsersQueryDto = { page: 1, limit: 5, sortBy: UserSortField.GAMES_PLAYED, sortOrder: SortOrder.ASC };
+      const query: PaginatedUsersQueryDto = {
+        page: 1,
+        limit: 5,
+        sortBy: UserSortField.GAMES_PLAYED,
+        sortOrder: SortOrder.ASC,
+      };
       await service.getPaginatedUsers(query);
-      expect(mockPaginationService.paginate).toHaveBeenCalledWith(mockQb, query, expect.any(Array), expect.any(Array));
+      expect(mockPaginationService.paginate).toHaveBeenCalledWith(
+        mockQb,
+        query,
+        expect.any(Array),
+        expect.any(Array),
+      );
     });
   });
 
   describe('getPaginatedGames', () => {
     const mockResult = {
       data: [{ id: 1, code: 'GAME1', status: 'PENDING' }],
-      meta: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      meta: {
+        page: 1,
+        limit: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     };
 
-    beforeEach(() => mockPaginationService.paginate.mockResolvedValue(mockResult));
+    beforeEach(() =>
+      mockPaginationService.paginate.mockResolvedValue(mockResult),
+    );
 
     it('calls createQueryBuilder and paginate with correct args', async () => {
       const query: PaginatedGamesQueryDto = { page: 1, limit: 10 };
@@ -160,9 +206,15 @@ describe('AdminAnalyticsService', () => {
     });
 
     it('logs the operation', async () => {
-      const logSpy = jest.spyOn((service as any).logger, 'log').mockImplementation();
-      await service.getPaginatedGames({ page: 1, limit: 10, sortBy: GameSortField.STATUS });
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('getPaginatedGames'));
+      const logSpy = jest.spyOn(getLogger(), 'log').mockImplementation();
+      await service.getPaginatedGames({
+        page: 1,
+        limit: 10,
+        sortBy: GameSortField.STATUS,
+      });
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('getPaginatedGames'),
+      );
     });
   });
 });

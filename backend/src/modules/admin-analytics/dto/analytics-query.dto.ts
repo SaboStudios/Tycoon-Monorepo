@@ -18,14 +18,20 @@ export enum GameSortField {
 }
 
 export class PaginatedUsersQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: UserSortField, description: 'Field to sort users by' })
+  @ApiPropertyOptional({
+    enum: UserSortField,
+    description: 'Field to sort users by',
+  })
   @IsOptional()
   @IsEnum(UserSortField)
   sortBy?: UserSortField = UserSortField.CREATED_AT;
 }
 
 export class PaginatedGamesQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: GameSortField, description: 'Field to sort games by' })
+  @ApiPropertyOptional({
+    enum: GameSortField,
+    description: 'Field to sort games by',
+  })
   @IsOptional()
   @IsEnum(GameSortField)
   sortBy?: GameSortField = GameSortField.CREATED_AT;

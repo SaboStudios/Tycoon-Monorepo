@@ -5,7 +5,10 @@ import { User } from '../users/entities/user.entity';
 import { Game } from '../games/entities/game.entity';
 import { GamePlayer } from '../games/entities/game-player.entity';
 import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
-import { PaginatedUsersQueryDto, PaginatedGamesQueryDto } from './dto/analytics-query.dto';
+import {
+  PaginatedUsersQueryDto,
+  PaginatedGamesQueryDto,
+} from './dto/analytics-query.dto';
 import { PaginationService } from '../../common/services/pagination.service';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
@@ -47,7 +50,9 @@ export class AdminAnalyticsService {
   async getActiveUsers(): Promise<number> {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const count = await this.userRepo.count({ where: { updated_at: MoreThan(thirtyDaysAgo) } });
+    const count = await this.userRepo.count({
+      where: { updated_at: MoreThan(thirtyDaysAgo) },
+    });
     this.logger.debug(`getActiveUsers (last 30d): ${count}`);
     return count;
   }
@@ -64,8 +69,12 @@ export class AdminAnalyticsService {
     return count;
   }
 
-  async getPaginatedUsers(query: PaginatedUsersQueryDto): Promise<PaginatedResponse<User>> {
-    this.logger.log(`getPaginatedUsers: page=${query.page}, limit=${query.limit}, sortBy=${query.sortBy}`);
+  async getPaginatedUsers(
+    query: PaginatedUsersQueryDto,
+  ): Promise<PaginatedResponse<User>> {
+    this.logger.log(
+      `getPaginatedUsers: page=${query.page}, limit=${query.limit}, sortBy=${query.sortBy}`,
+    );
     const qb = this.userRepo.createQueryBuilder('user');
     return this.paginationService.paginate(
       qb,
@@ -75,8 +84,12 @@ export class AdminAnalyticsService {
     );
   }
 
-  async getPaginatedGames(query: PaginatedGamesQueryDto): Promise<PaginatedResponse<Game>> {
-    this.logger.log(`getPaginatedGames: page=${query.page}, limit=${query.limit}, sortBy=${query.sortBy}`);
+  async getPaginatedGames(
+    query: PaginatedGamesQueryDto,
+  ): Promise<PaginatedResponse<Game>> {
+    this.logger.log(
+      `getPaginatedGames: page=${query.page}, limit=${query.limit}, sortBy=${query.sortBy}`,
+    );
     const qb = this.gameRepo.createQueryBuilder('game');
     return this.paginationService.paginate(
       qb,

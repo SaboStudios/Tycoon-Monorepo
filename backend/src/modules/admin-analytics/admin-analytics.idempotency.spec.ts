@@ -1,162 +1,215 @@
-/**
- * admin-analytics — idempotency and replay tests (#862)
- *
- * All admin-analytics endpoints are GET (read-only). Idempotency is therefore
- * structural: repeated calls with identical inputs must return identical
- * outputs and must never mutate state.
- *
- * Covers:
- *  - Repeated calls to every service method return the same value.
- *  - Concurrent calls resolve independently without cross-contamination.
- *  - Stale / disconnected repo (rejected promise) surfaces as a thrown error,
- *    not silent data corruption.
- *  - Paginated endpoints are stable: same query params → same page shape.
- */
-
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AdminAnalyticsService } from './admin-analytics.service';
-import { User } from '../users/entities/user.entity';
-import { Game } from '../games/entities/game.entity';
-import { GamePlayer } from '../games/entities/game-player.entity';
+import { IDEMPOTENT_KEY } from '../../common/decorators/idempotent.decorator';
 import { PaginationService } from '../../common/services/pagination.service';
-import { PaginatedUsersQueryDto, PaginatedGamesQueryDto } from './dto/analytics-query.dto';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GamePlayer } from '../games/entities/game-player.entity';
+import { Game } from '../games/entities/game.entity';
+import { User } from '../users/entities/user.entity';
+import { AdminAnalyticsController } from './admin-analytics.controller';
+import { AdminAnalyticsService } from './admin-analytics.service';
+import {
+  PaginatedGamesQueryDto,
+  PaginatedUsersQueryDto,
+} from './dto/analytics-query.dto';
 
-const PAGINATED_RESULT = {
-  data: [{ id: 1 }],
-  meta: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
-};
+const paginated = (data: unknown[] = []) => ({
+  data,
+  meta: {
+    page: 1,
+    limit: 10,
+    totalItems: data.length,
+    totalPages: data.length ? 1 : 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+});
 
-describe('AdminAnalyticsService — idempotency and replay', () => {
+describe('AdminAnalytics idempotency and replay behavior (#862)', () => {
+  let controller: AdminAnalyticsController;
   let service: AdminAnalyticsService;
 
-  const mockUserRepo = { count: jest.fn(), createQueryBuilder: jest.fn() };
-  const mockGameRepo = { count: jest.fn(), createQueryBuilder: jest.fn() };
-  const mockGamePlayerRepo = { count: jest.fn() };
-  const mockPaginationService = { paginate: jest.fn() };
+  const mockUserRepo = {
+    count: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+  const mockGameRepo = {
+    count: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+  const mockGamePlayerRepo = {
+    count: jest.fn(),
+  };
+  const mockPaginationService = {
+    paginate: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      controllers: [AdminAnalyticsController],
       providers: [
         AdminAnalyticsService,
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: getRepositoryToken(Game), useValue: mockGameRepo },
-        { provide: getRepositoryToken(GamePlayer), useValue: mockGamePlayerRepo },
+        {
+          provide: getRepositoryToken(GamePlayer),
+          useValue: mockGamePlayerRepo,
+        },
         { provide: PaginationService, useValue: mockPaginationService },
       ],
     }).compile();
 
+    controller = module.get<AdminAnalyticsController>(AdminAnalyticsController);
     service = module.get<AdminAnalyticsService>(AdminAnalyticsService);
   });
 
   afterEach(() => jest.clearAllMocks());
 
-  // ── repeated calls return identical results ──────────────────────────────
+  it('confirms admin-analytics currently exposes only read-only endpoints', () => {
+    const routeNames = [
+      'getDashboardAnalytics',
+      'getTotalUsers',
+      'getActiveUsers',
+      'getPaginatedUsers',
+      'getTotalGames',
+      'getTotalGamePlayers',
+      'getPaginatedGames',
+    ] as const;
 
-  it('getTotalUsers: repeated calls return the same value', async () => {
-    mockUserRepo.count.mockResolvedValue(42);
-    const [a, b] = await Promise.all([service.getTotalUsers(), service.getTotalUsers()]);
-    expect(a).toBe(42);
-    expect(b).toBe(42);
+    routeNames.forEach((routeName) => {
+      expect(
+        Reflect.getMetadata(
+          IDEMPOTENT_KEY,
+          AdminAnalyticsController.prototype[routeName],
+        ),
+      ).toBeUndefined();
+    });
   });
 
-  it('getActiveUsers: repeated calls return the same value', async () => {
-    mockUserRepo.count.mockResolvedValue(10);
-    const [a, b] = await Promise.all([service.getActiveUsers(), service.getActiveUsers()]);
-    expect(a).toBe(10);
-    expect(b).toBe(10);
+  it('keeps JwtAuthGuard and AdminGuard on the controller', () => {
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      AdminAnalyticsController,
+    ) as unknown[];
+
+    expect(guards).toEqual([JwtAuthGuard, AdminGuard]);
   });
 
-  it('getTotalGames: repeated calls return the same value', async () => {
-    mockGameRepo.count.mockResolvedValue(5);
-    const [a, b] = await Promise.all([service.getTotalGames(), service.getTotalGames()]);
-    expect(a).toBe(5);
-    expect(b).toBe(5);
+  it('processes the first dashboard analytics request normally', async () => {
+    mockUserRepo.count.mockResolvedValueOnce(10).mockResolvedValueOnce(4);
+    mockGameRepo.count.mockResolvedValue(6);
+    mockGamePlayerRepo.count.mockResolvedValue(18);
+
+    await expect(controller.getDashboardAnalytics()).resolves.toEqual({
+      totalUsers: 10,
+      activeUsers: 4,
+      totalGames: 6,
+      totalGamePlayers: 18,
+    });
   });
 
-  it('getTotalGamePlayers: repeated calls return the same value', async () => {
-    mockGamePlayerRepo.count.mockResolvedValue(20);
-    const [a, b] = await Promise.all([service.getTotalGamePlayers(), service.getTotalGamePlayers()]);
-    expect(a).toBe(20);
-    expect(b).toBe(20);
+  it('replays a same-input read request structurally by returning the same response shape', async () => {
+    mockUserRepo.count
+      .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(4);
+    mockGameRepo.count.mockResolvedValue(6);
+    mockGamePlayerRepo.count.mockResolvedValue(18);
+
+    const first = await controller.getDashboardAnalytics();
+    const replay = await controller.getDashboardAnalytics();
+
+    expect(replay).toEqual(first);
+    expect(mockUserRepo.count).toHaveBeenCalledTimes(4);
+    expect(mockGameRepo.count).toHaveBeenCalledTimes(2);
+    expect(mockGamePlayerRepo.count).toHaveBeenCalledTimes(2);
   });
 
-  it('getDashboardAnalytics: repeated calls return identical shape', async () => {
-    mockUserRepo.count.mockResolvedValue(100);
-    mockGameRepo.count.mockResolvedValue(50);
-    mockGamePlayerRepo.count.mockResolvedValue(200);
+  it('allows changed query parameters to execute independently', async () => {
+    const firstQuery: PaginatedUsersQueryDto = { page: 1, limit: 10 };
+    const changedQuery: PaginatedUsersQueryDto = {
+      page: 2,
+      limit: 10,
+      search: 'bob',
+    };
+    const firstResult = paginated([{ id: 1, email: 'a@test.com' }]);
+    const changedResult = paginated([{ id: 2, email: 'bob@test.com' }]);
+    mockUserRepo.createQueryBuilder.mockReturnValue({});
+    mockPaginationService.paginate
+      .mockResolvedValueOnce(firstResult)
+      .mockResolvedValueOnce(changedResult);
 
-    const [a, b] = await Promise.all([
-      service.getDashboardAnalytics(),
-      service.getDashboardAnalytics(),
-    ]);
-    expect(a).toEqual(b);
+    await expect(controller.getPaginatedUsers(firstQuery)).resolves.toEqual(
+      firstResult,
+    );
+    await expect(controller.getPaginatedUsers(changedQuery)).resolves.toEqual(
+      changedResult,
+    );
+    expect(mockPaginationService.paginate).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Object),
+      changedQuery,
+      expect.any(Array),
+      expect.any(Array),
+    );
   });
 
-  // ── no state mutation between calls ─────────────────────────────────────
+  it('handles missing idempotency key according to read-only route rules', async () => {
+    mockUserRepo.count.mockResolvedValue(3);
 
-  it('getDashboardAnalytics: does not mutate shared state across calls', async () => {
-    mockUserRepo.count.mockResolvedValue(7);
-    mockGameRepo.count.mockResolvedValue(3);
-    mockGamePlayerRepo.count.mockResolvedValue(12);
-
-    const first = await service.getDashboardAnalytics();
-    const second = await service.getDashboardAnalytics();
-    expect(first).toEqual(second);
-    // Verify repo was called fresh each time (no cached mutation)
-    expect(mockUserRepo.count).toHaveBeenCalledTimes(4); // 2 calls × (totalUsers + activeUsers)
+    await expect(controller.getTotalUsers()).resolves.toEqual({
+      totalUsers: 3,
+    });
   });
 
-  // ── paginated endpoints are stable ───────────────────────────────────────
+  it('propagates stale or disconnected data state without caching a successful replay', async () => {
+    mockGameRepo.count.mockRejectedValueOnce(new Error('DB connection lost'));
+    mockGameRepo.count.mockResolvedValueOnce(7);
 
-  it('getPaginatedUsers: same query params produce identical response', async () => {
-    const mockQb = {} as any;
-    mockUserRepo.createQueryBuilder.mockReturnValue(mockQb);
-    mockPaginationService.paginate.mockResolvedValue(PAGINATED_RESULT);
+    await expect(controller.getTotalGames()).rejects.toThrow(
+      'DB connection lost',
+    );
+    await expect(controller.getTotalGames()).resolves.toEqual({
+      totalGames: 7,
+    });
+    expect(mockGameRepo.count).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not store a successful replay response when the service fails', async () => {
+    mockUserRepo.createQueryBuilder.mockReturnValue({});
+    mockPaginationService.paginate.mockRejectedValueOnce(
+      new Error('invalid sort field'),
+    );
+    mockPaginationService.paginate.mockResolvedValueOnce(
+      paginated([{ id: 1 }]),
+    );
 
     const query: PaginatedUsersQueryDto = { page: 1, limit: 10 };
-    const [a, b] = await Promise.all([
-      service.getPaginatedUsers(query),
-      service.getPaginatedUsers(query),
-    ]);
-    expect(a).toEqual(b);
-    expect(a).toEqual(PAGINATED_RESULT);
+
+    await expect(controller.getPaginatedUsers(query)).rejects.toThrow(
+      'invalid sort field',
+    );
+    await expect(controller.getPaginatedUsers(query)).resolves.toEqual(
+      paginated([{ id: 1 }]),
+    );
+    expect(mockPaginationService.paginate).toHaveBeenCalledTimes(2);
   });
 
-  it('getPaginatedGames: same query params produce identical response', async () => {
-    const mockQb = {} as any;
-    mockGameRepo.createQueryBuilder.mockReturnValue(mockQb);
-    mockPaginationService.paginate.mockResolvedValue(PAGINATED_RESULT);
+  it('replays empty analytics results without changing the empty response', async () => {
+    const query: PaginatedGamesQueryDto = { page: 1, limit: 10 };
+    const emptyResult = paginated();
+    mockGameRepo.createQueryBuilder.mockReturnValue({});
+    mockPaginationService.paginate
+      .mockResolvedValueOnce(emptyResult)
+      .mockResolvedValueOnce(emptyResult);
 
-    const query: PaginatedGamesQueryDto = { page: 2, limit: 5 };
-    const [a, b] = await Promise.all([
-      service.getPaginatedGames(query),
-      service.getPaginatedGames(query),
-    ]);
-    expect(a).toEqual(b);
-  });
+    const first = await service.getPaginatedGames(query);
+    const replay = await service.getPaginatedGames(query);
 
-  // ── stale / disconnected repo surfaces as error, not silent corruption ───
-
-  it('getTotalUsers: propagates repo error without swallowing it', async () => {
-    mockUserRepo.count.mockRejectedValue(new Error('DB connection lost'));
-    await expect(service.getTotalUsers()).rejects.toThrow('DB connection lost');
-  });
-
-  it('getTotalGames: propagates repo error without swallowing it', async () => {
-    mockGameRepo.count.mockRejectedValue(new Error('DB timeout'));
-    await expect(service.getTotalGames()).rejects.toThrow('DB timeout');
-  });
-
-  it('getDashboardAnalytics: propagates any inner error', async () => {
-    mockUserRepo.count.mockRejectedValue(new Error('stale connection'));
-    await expect(service.getDashboardAnalytics()).rejects.toThrow('stale connection');
-  });
-
-  it('getPaginatedUsers: propagates pagination error', async () => {
-    const mockQb = {} as any;
-    mockUserRepo.createQueryBuilder.mockReturnValue(mockQb);
-    mockPaginationService.paginate.mockRejectedValue(new Error('invalid sort field'));
-    await expect(service.getPaginatedUsers({ page: 1, limit: 10 })).rejects.toThrow('invalid sort field');
+    expect(replay).toEqual(first);
+    expect(replay.data).toEqual([]);
   });
 });

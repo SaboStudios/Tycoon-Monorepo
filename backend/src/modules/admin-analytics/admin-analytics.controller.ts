@@ -1,7 +1,10 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
-import { PaginatedUsersQueryDto, PaginatedGamesQueryDto } from './dto/analytics-query.dto';
+import {
+  PaginatedUsersQueryDto,
+  PaginatedGamesQueryDto,
+} from './dto/analytics-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
