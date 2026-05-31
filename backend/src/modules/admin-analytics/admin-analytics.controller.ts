@@ -1,4 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiBadRequestResponse } from '@nestjs/swagger';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
 import {
@@ -34,6 +35,10 @@ export class AdminAnalyticsController {
   }
 
   @Get('users')
+  @ApiBadRequestResponse({
+    description:
+      'Invalid pagination, search, sort field, or sort direction query parameter.',
+  })
   async getPaginatedUsers(
     @Query() query: PaginatedUsersQueryDto,
   ): Promise<PaginatedResponse<User>> {
@@ -53,6 +58,10 @@ export class AdminAnalyticsController {
   }
 
   @Get('games')
+  @ApiBadRequestResponse({
+    description:
+      'Invalid pagination, search, sort field, or sort direction query parameter.',
+  })
   async getPaginatedGames(
     @Query() query: PaginatedGamesQueryDto,
   ): Promise<PaginatedResponse<Game>> {
