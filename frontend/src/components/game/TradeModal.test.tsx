@@ -189,4 +189,88 @@ describe("TradeModal - Accessibility", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("aria-labelledby", "trade-modal-title");
   });
+
+  describe("TypeScript strictness - null/undefined edge cases", () => {
+    it("renders without throwing when partner is null", () => {
+      const onClose = vi.fn();
+      const { container } = render(
+        <TradeModal
+          isOpen={true}
+          onClose={onClose}
+          players={mockPlayers}
+          currentPlayer={mockPlayers[0]}
+        />
+      );
+
+      expect(container).toBeInTheDocument();
+      expect(screen.getByTestId("request-column")).toHaveAttribute("aria-disabled", "true");
+    });
+
+    it("handles undefined properties in partner gracefully", () => {
+      const onClose = vi.fn();
+      const playerWithoutProperties = { ...mockPlayers[1], properties: undefined as any };
+      render(
+        <TradeModal
+          isOpen={true}
+          onClose={onClose}
+          players={[mockPlayers[0], playerWithoutProperties]}
+          currentPlayer={mockPlayers[0]}
+        />
+      );
+
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: "p2" } });
+
+      const requestColumn = screen.getByTestId("request-column");
+      expect(requestColumn).toBeInTheDocument();
+    });
+
+    it("handles optional cash values without error", async () => {
+      const onClose = vi.fn();
+      render(
+        <TradeModal
+          isOpen={true}
+          onClose={onClose}
+          players={mockPlayers}
+          currentPlayer={mockPlayers[0]}
+        />
+      );
+
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: mockPlayers[1].id } });
+
+      const cashInput = screen.getByTestId("offer-cash-input") as HTMLInputElement;
+      fireEvent.change(cashInput, { target: { value: "100" } });
+
+      const confirmButton = screen.getByRole("button", { name: /confirm trade/i });
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("validation-error")).not.toBeInTheDocument();
+      });
+    });
+
+    it("renders without crashing when players array is empty", () => {
+      const onClose = vi.fn();
+      const emptyPlayer = {
+        id: "p0",
+        name: "Solo",
+        cash: 2000,
+        properties: [],
+      };
+
+      const { container } = render(
+        <TradeModal
+          isOpen={true}
+          onClose={onClose}
+          players={[emptyPlayer]}
+          currentPlayer={emptyPlayer}
+        />
+      );
+
+      expect(container).toBeInTheDocument();
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      expect(select.childElementCount).toBe(1); // Only "Select a player..." placeholder
+    });
+  });
 });
