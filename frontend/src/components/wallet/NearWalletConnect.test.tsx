@@ -285,3 +285,183 @@ describe('NearWalletConnect - Error and Empty States', () => {
     expect(emptyStateEl).toBeFalsy();
   });
 });
+
+describe('NearWalletConnect - User Interactions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders without throwing with required props', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: null,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [],
+    });
+
+    expect(() => render(<NearWalletConnect />)).not.toThrow();
+  });
+
+  it('responds correctly to connect button click', () => {
+    const mockConnect = vi.fn();
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: null,
+      connect: mockConnect,
+      disconnect: vi.fn(),
+      transactions: [],
+    });
+
+    render(<NearWalletConnect />);
+    const connectBtn = screen.getByText('Connect NEAR');
+    fireEvent.click(connectBtn);
+    expect(mockConnect).toHaveBeenCalled();
+  });
+
+  it('responds correctly to disconnect button click', async () => {
+    const mockDisconnect = vi.fn();
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'test.near',
+      connect: vi.fn(),
+      disconnect: mockDisconnect,
+      transactions: [],
+    });
+
+    render(<NearWalletConnect />);
+    const disconnectBtn = screen.getByText('Disconnect NEAR');
+    fireEvent.click(disconnectBtn);
+    expect(mockDisconnect).toHaveBeenCalled();
+  });
+
+  it('handles missing optional className prop gracefully', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'alice.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [],
+    });
+
+    expect(() => render(<NearWalletConnect />)).not.toThrow();
+    expect(screen.getByText(/alice\.near/)).toBeDefined();
+  });
+
+  it('handles missing variant prop gracefully with default navbar variant', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'bob.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [],
+    });
+
+    const { container } = render(<NearWalletConnect />);
+    // Should render without throwing and with default navbar alignment
+    expect(screen.getByText(/bob\.near/)).toBeDefined();
+    expect(container.querySelector('div[class*="items-end"]')).toBeTruthy();
+  });
+
+  it('renders panel variant with correct alignment', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'test.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [],
+    });
+
+    const { container } = render(<NearWalletConnect variant="panel" />);
+    // Panel variant should have items-stretch and text-left
+    expect(container.querySelector('div[class*="items-stretch"]')).toBeTruthy();
+  });
+});
+
+describe('NearWalletConnect - Transaction Display', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('displays pending transaction status', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'test.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [{
+        hash: 'tx123',
+        phase: 'pending' as const,
+        methodName: 'transfer',
+        errorMessage: null,
+        explorerUrl: 'https://explorer.near.org/tx123',
+      }],
+    });
+
+    render(<NearWalletConnect />);
+    expect(screen.getByText('Transaction pending...')).toBeDefined();
+  });
+
+  it('displays confirmed transaction status', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'test.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [{
+        hash: 'tx123',
+        phase: 'confirmed' as const,
+        methodName: 'transfer',
+        errorMessage: null,
+        explorerUrl: 'https://explorer.near.org/tx123',
+      }],
+    });
+
+    render(<NearWalletConnect />);
+    expect(screen.getByText('Confirmed')).toBeDefined();
+  });
+
+  it('displays failed transaction status with error message', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'test.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [{
+        hash: 'tx123',
+        phase: 'failed' as const,
+        methodName: 'transfer',
+        errorMessage: 'Insufficient balance',
+        explorerUrl: 'https://explorer.near.org/tx123',
+      }],
+    });
+
+    render(<NearWalletConnect />);
+    expect(screen.getByText('Failed')).toBeDefined();
+    expect(screen.getByText('Insufficient balance')).toBeDefined();
+  });
+
+  it('does not display transaction when transactions array is empty', () => {
+    mockUseNearWallet.mockReturnValue({
+      ready: true,
+      initError: null,
+      accountId: 'test.near',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      transactions: [],
+    });
+
+    const { container } = render(<NearWalletConnect />);
+    expect(screen.queryByText('Transaction pending...')).toBeFalsy();
+    expect(screen.queryByText('Confirmed')).toBeFalsy();
+  });
+});
