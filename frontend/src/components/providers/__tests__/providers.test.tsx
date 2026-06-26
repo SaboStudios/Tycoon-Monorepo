@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from "../auth-provider";
 import { ThemeProvider, useTheme } from "../theme-provider";
 import { RouteFocusProvider } from "../route-focus-provider";
 import { I18nProvider } from "../i18n-provider";
+import { AnalyticsProvider } from "../analytics-provider";
+import { MSWProvider } from "../msw-provider";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -13,6 +15,12 @@ const mockRouterRefresh = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRouterRefresh }),
   usePathname: () => "/",
+}));
+
+vi.mock("@/lib/analytics", () => ({
+  track: vi.fn(),
+  registerAnalyticsDebugHandle: vi.fn(),
+  getViewEventForPath: vi.fn(() => null),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -376,5 +384,34 @@ describe("I18nProvider", () => {
       </I18nProvider>
     );
     expect(screen.getByTestId("child")).toBeDefined();
+  });
+});
+
+// ── Performance budget (CLS / LCP) ────────────────────────────────────────────
+// Providers must not render layout-contributing DOM that could cause CLS,
+// and must not block LCP with eagerly-loaded heavy assets.
+
+describe("performance budget: null-render providers produce no DOM", () => {
+  it("AnalyticsProvider renders no DOM nodes", () => {
+    const { container } = render(<AnalyticsProvider />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("MSWProvider renders no DOM nodes", () => {
+    const { container } = render(<MSWProvider />);
+    expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("performance budget: RouteFocusProvider wrapper has no intrinsic size", () => {
+  it("wrapper div has outline-none so focus does not cause layout reflow", () => {
+    render(<RouteFocusProvider><span /></RouteFocusProvider>);
+    const anchor = screen.getByTestId("route-focus-anchor");
+    expect(anchor.className).toContain("outline-none");
+  });
+
+  it("wrapper has tabIndex -1 so it is not in tab order (avoids scroll jump)", () => {
+    render(<RouteFocusProvider><span /></RouteFocusProvider>);
+    expect(screen.getByTestId("route-focus-anchor").tabIndex).toBe(-1);
   });
 });
