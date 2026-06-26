@@ -11,6 +11,7 @@ import {
   SortOrder,
 } from '../../common';
 import { RedisService } from '../redis/redis.service';
+import { LoggerService } from '../../common/logger/logger.service';
 
 const BOARD_STYLE_SORT_FIELDS = [
   'created_at',
@@ -27,6 +28,7 @@ export class BoardStylesService {
     private readonly boardStyleRepository: Repository<BoardStyle>,
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
+    private readonly logger: LoggerService,
   ) {}
 
   async create(createBoardStyleDto: CreateBoardStyleDto): Promise<BoardStyle> {
@@ -70,38 +72,108 @@ export class BoardStylesService {
   }
 
   async findOne(id: number): Promise<BoardStyle> {
-    const style = await this.boardStyleRepository.findOne({ where: { id } });
-    if (!style) {
-      throw new NotFoundException(`Board style with ID ${id} not found`);
+    try {
+      const style = await this.boardStyleRepository.findOne({ where: { id } });
+      if (!style) {
+        this.logger.logWithMeta('warn', 'Board style not found', {
+          styleId: id,
+          context: 'BoardStylesService',
+        });
+        throw new NotFoundException(`Board style with ID ${id} not found`);
+      }
+
+      this.logger.logWithMeta('debug', 'Board style retrieved', {
+        styleId: id,
+        context: 'BoardStylesService',
+      });
+      return style;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to fetch board style ${id}: ${(error as Error).message}`,
+        (error as Error).stack,
+        'BoardStylesService.findOne'
+      );
+      throw error;
     }
-    return style;
   }
 
   async update(
     id: number,
     updateBoardStyleDto: UpdateBoardStyleDto,
   ): Promise<BoardStyle> {
-    const style = await this.findOne(id);
-    const updatedStyle = this.boardStyleRepository.merge(
-      style,
-      updateBoardStyleDto,
-    );
-    const saved = await this.boardStyleRepository.save(updatedStyle);
-    await this.invalidateCache(id);
-    return saved;
+    const startTime = Date.now();
+    try {
+      const style = await this.findOne(id);
+      const updatedStyle = this.boardStyleRepository.merge(
+        style,
+        updateBoardStyleDto,
+      );
+      const saved = await this.boardStyleRepository.save(updatedStyle);
+      const duration = Date.now() - startTime;
+
+      this.logger.logWithMeta('info', 'Board style updated', {
+        styleId: id,
+        duration,
+        context: 'BoardStylesService',
+      });
+
+      await this.invalidateCache(id);
+      return saved;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error(
+        `Failed to update board style ${id}: ${(error as Error).message}`,
+        (error as Error).stack,
+        'BoardStylesService.update'
+      );
+      throw error;
+    }
   }
 
   async remove(id: number): Promise<void> {
-    const style = await this.findOne(id);
-    await this.boardStyleRepository.remove(style);
-    await this.invalidateCache(id);
+    const startTime = Date.now();
+    try {
+      const style = await this.findOne(id);
+      await this.boardStyleRepository.remove(style);
+      const duration = Date.now() - startTime;
+
+      this.logger.logWithMeta('info', 'Board style deleted', {
+        styleId: id,
+        duration,
+        context: 'BoardStylesService',
+      });
+
+      await this.invalidateCache(id);
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error(
+        `Failed to delete board style ${id}: ${(error as Error).message}`,
+        (error as Error).stack,
+        'BoardStylesService.remove'
+      );
+      throw error;
+    }
   }
 
   private async invalidateCache(id?: number) {
-    await this.redisService.delByPattern('tycoon:board-styles:board-styles:*');
-    if (id) {
-      await this.redisService.delByPattern(
-        `tycoon:board-styles:board-styles:${id}:*`,
+    try {
+      await this.redisService.delByPattern('tycoon:board-styles:board-styles:*');
+      if (id) {
+        await this.redisService.delByPattern(
+          `tycoon:board-styles:board-styles:${id}:*`,
+        );
+      }
+      this.logger.logWithMeta('debug', 'Board styles cache invalidated', {
+        styleId: id,
+        context: 'BoardStylesService',
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to invalidate board styles cache: ${(error as Error).message}`,
+        'BoardStylesService.invalidateCache'
       );
     }
   }
