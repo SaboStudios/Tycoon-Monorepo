@@ -103,5 +103,66 @@ describe("SiteShell", () => {
       render(<SiteShell><p>x</p></SiteShell>);
       expect(screen.getByRole("contentinfo")).toBeDefined();
     });
+
+    it("outer shell has stable background color class to prevent flash-of-white CLS", () => {
+      const { container } = render(<SiteShell><p>x</p></SiteShell>);
+      const shell = container.firstChild as HTMLElement;
+      expect(shell.className).toContain("bg-[var(--tycoon-bg)]");
+    });
+  });
+
+  describe("accessibility", () => {
+    it("main element has outline-none to suppress default focus ring", () => {
+      render(<SiteShell><p>x</p></SiteShell>);
+      expect(screen.getByRole("main").className).toContain("outline-none");
+    });
+
+    it("main element has pb-24 for mobile nav bar clearance", () => {
+      render(<SiteShell><p>x</p></SiteShell>);
+      expect(screen.getByRole("main").className).toContain("pb-24");
+    });
+
+    it("main element has flex-1 to fill available vertical space", () => {
+      render(<SiteShell><p>x</p></SiteShell>);
+      expect(screen.getByRole("main").className).toContain("flex-1");
+    });
+
+    it("skip link has sr-only class so it is hidden until focused", () => {
+      render(<SiteShell><p>x</p></SiteShell>);
+      const skipLink = screen.getByRole("link", { name: /skip to content/i });
+      expect(skipLink.className).toContain("sr-only");
+    });
+
+    it("skip link has focus:z-[100] to appear above overlays when focused", () => {
+      render(<SiteShell><p>x</p></SiteShell>);
+      const skipLink = screen.getByRole("link", { name: /skip to content/i });
+      expect(skipLink.className).toContain("focus:z-[100]");
+    });
+  });
+
+  describe("slot variations", () => {
+    it("renders multiple children inside main", () => {
+      render(
+        <SiteShell>
+          <p data-testid="a">A</p>
+          <p data-testid="b">B</p>
+        </SiteShell>
+      );
+      expect(screen.getByTestId("a")).toBeDefined();
+      expect(screen.getByTestId("b")).toBeDefined();
+    });
+
+    it("renders deeply nested children without loss", () => {
+      render(
+        <SiteShell>
+          <div>
+            <section>
+              <p data-testid="deep">deep</p>
+            </section>
+          </div>
+        </SiteShell>
+      );
+      expect(screen.getByTestId("deep")).toBeDefined();
+    });
   });
 });
