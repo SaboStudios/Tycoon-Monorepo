@@ -7,6 +7,7 @@ import { WebhookEvent } from './entities/webhook-event.entity';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
 import * as crypto from 'crypto';
 
 describe('Webhooks Observability Integration', () => {
@@ -50,6 +51,17 @@ describe('Webhooks Observability Integration', () => {
             auditWebhookPersisted: jest.fn(),
             auditProcessingCompleted: jest.fn(),
             auditProcessingFailed: jest.fn(),
+          },
+        },
+        {
+          provide: WebhookAuditHooksService,
+          useValue: {
+            onReceived: jest.fn(),
+            onSignatureVerified: jest.fn(),
+            onSignatureFailed: jest.fn(),
+            onDuplicate: jest.fn(),
+            onProcessed: jest.fn(),
+            onFailed: jest.fn(),
           },
         },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },

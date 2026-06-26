@@ -59,6 +59,20 @@ export enum AuditAction {
   SHOP_ITEM_DELETED = 'SHOP_ITEM_DELETED',
   PURCHASE_CREATED = 'PURCHASE_CREATED',
   GIFT_SENT = 'GIFT_SENT',
+
+  // Webhook lifecycle (SW-BE — audit trail hooks)
+  /** Emitted when a webhook is received */
+  WEBHOOK_RECEIVED = 'WEBHOOK_RECEIVED',
+  /** Emitted when a webhook signature is successfully verified */
+  WEBHOOK_SIGNATURE_VERIFIED = 'WEBHOOK_SIGNATURE_VERIFIED',
+  /** Emitted when a webhook signature verification fails */
+  WEBHOOK_SIGNATURE_FAILED = 'WEBHOOK_SIGNATURE_FAILED',
+  /** Emitted when a duplicate webhook is detected (idempotency hit) */
+  WEBHOOK_DUPLICATE = 'WEBHOOK_DUPLICATE',
+  /** Emitted when a webhook is successfully processed */
+  WEBHOOK_PROCESSED = 'WEBHOOK_PROCESSED',
+  /** Emitted when webhook processing fails */
+  WEBHOOK_FAILED = 'WEBHOOK_FAILED',
 }
 
 @Entity({ name: 'audit_trails' })
