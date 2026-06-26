@@ -40,6 +40,19 @@ export interface WebhookLogContext {
 }
 
 /**
+ * Trace context for distributed tracing
+ */
+export interface TraceContext {
+  trace_id: string;
+  operation: string;
+  webhook_id?: string;
+  event_type?: string;
+  source?: string;
+  user_id?: string;
+  timestamp: string;
+}
+
+/**
  * Observability service for webhooks & signatures
  * Provides structured logging, metrics, and traces for webhook operations
  *
@@ -103,18 +116,32 @@ export class WebhooksObservabilityService {
   /**
    * Log webhook received event
    * @param context - Webhook context (no secrets)
+   * @param traceId - Optional trace ID for correlation
    */
-  logWebhookReceived(context: WebhookLogContext): void {
+  logWebhookReceived(context: WebhookLogContext, traceId?: string): void {
     const sanitizedContext = this.sanitizeContext(context);
 
+    // Create trace context for distributed tracing
+    const traceContext = this.createTraceContext(
+      'webhook.received',
+      context.webhookId,
+      context.eventType,
+      context.source,
+      undefined,
+      traceId,
+    );
+
     this.logger.log(
-      `Webhook received: ${context.source || 'unknown'} - ${context.eventType || 'unknown'}`,
+      `Webhook received: ${context.source || 'unknown'} - ${context.eventType || 'unknown'}${traceId ? ` [trace_id=${traceId}]` : ''}`,
       'WebhooksObservability',
     );
 
     this.logger.logWithMeta('info', 'Webhook received', {
       ...sanitizedContext,
       event: WebhookEventType.RECEIVED,
+      trace_id: traceContext.trace_id,
+      operation: traceContext.operation,
+      request_id: traceId,
     });
 
     this.webhookEventsTotal.inc({
@@ -136,6 +163,7 @@ export class WebhooksObservabilityService {
     success: boolean,
     durationMs: number,
     failureReason?: string,
+    traceId?: string,
   ): void {
     const result = success ? 'valid' : 'invalid';
     const durationSeconds = durationMs / 1000;
@@ -177,6 +205,7 @@ export class WebhooksObservabilityService {
         result,
         durationMs,
         failureReason: failureReason || undefined,
+        request_id: traceId,
       },
     );
   }
@@ -184,18 +213,32 @@ export class WebhooksObservabilityService {
   /**
    * Log idempotency hit (duplicate webhook detected)
    * @param context - Webhook context
+   * @param traceId - Optional trace ID for correlation
    */
-  logIdempotencyHit(context: WebhookLogContext): void {
+  logIdempotencyHit(context: WebhookLogContext, traceId?: string): void {
     const sanitizedContext = this.sanitizeContext(context);
 
+    // Create trace context for distributed tracing
+    const traceContext = this.createTraceContext(
+      'webhook.idempotency_hit',
+      context.webhookId,
+      context.eventType,
+      context.source,
+      undefined,
+      traceId,
+    );
+
     this.logger.log(
-      `Duplicate webhook detected: ${context.webhookId} (${context.source})`,
+      `Duplicate webhook detected: ${context.webhookId} (${context.source})${traceId ? ` [trace_id=${traceId}]` : ''}`,
       'WebhooksObservability',
     );
 
     this.logger.logWithMeta('info', 'Idempotency hit', {
       ...sanitizedContext,
       event: WebhookEventType.IDEMPOTENCY_HIT,
+      trace_id: traceContext.trace_id,
+      operation: traceContext.operation,
+      request_id: traceId,
     });
 
     this.idempotencyHitsTotal.inc({
@@ -214,12 +257,23 @@ export class WebhooksObservabilityService {
    * Log successful webhook processing
    * @param context - Webhook context
    * @param durationMs - Processing duration in milliseconds
+   * @param traceId - Optional trace ID for correlation
    */
-  logWebhookProcessed(context: WebhookLogContext, durationMs: number): void {
+  logWebhookProcessed(context: WebhookLogContext, durationMs: number, traceId?: string): void {
     const sanitizedContext = this.sanitizeContext(context);
 
+    // Create trace context for distributed tracing
+    const traceContext = this.createTraceContext(
+      'webhook.processed',
+      context.webhookId,
+      context.eventType,
+      context.source,
+      undefined,
+      traceId,
+    );
+
     this.logger.log(
-      `Webhook processed: ${context.webhookId} (${context.source}) in ${durationMs}ms`,
+      `Webhook processed: ${context.webhookId} (${context.source}) in ${durationMs}ms${traceId ? ` [trace_id=${traceId}]` : ''}`,
       'WebhooksObservability',
     );
 
@@ -227,6 +281,9 @@ export class WebhooksObservabilityService {
       ...sanitizedContext,
       event: WebhookEventType.PROCESSED,
       processingTimeMs: durationMs,
+      trace_id: traceContext.trace_id,
+      operation: traceContext.operation,
+      request_id: traceId,
     });
 
     this.webhookProcessingDuration.observe(
@@ -249,16 +306,28 @@ export class WebhooksObservabilityService {
    * @param context - Webhook context
    * @param error - Error that occurred
    * @param durationMs - Processing duration in milliseconds
+   * @param traceId - Optional trace ID for correlation
    */
   logWebhookProcessingFailed(
     context: WebhookLogContext,
     error: Error,
     durationMs: number,
+    traceId?: string,
   ): void {
     const sanitizedContext = this.sanitizeContext(context);
 
+    // Create trace context for distributed tracing
+    const traceContext = this.createTraceContext(
+      'webhook.processing_failed',
+      context.webhookId,
+      context.eventType,
+      context.source,
+      undefined,
+      traceId,
+    );
+
     this.logger.error(
-      `Webhook processing failed: ${context.webhookId} (${context.source}) - ${error.message}`,
+      `Webhook processing failed: ${context.webhookId} (${context.source}) - ${error.message}${traceId ? ` [trace_id=${traceId}]` : ''}`,
       error.stack,
       'WebhooksObservability',
     );
@@ -269,6 +338,9 @@ export class WebhooksObservabilityService {
       error: error.message,
       errorStack: error.stack,
       processingTimeMs: durationMs,
+      trace_id: traceContext.trace_id,
+      operation: traceContext.operation,
+      request_id: traceId,
     });
 
     this.webhookEventsTotal.inc({
@@ -276,6 +348,36 @@ export class WebhooksObservabilityService {
       event_type: context.eventType || 'unknown',
       status: 'failed',
     });
+  }
+
+  /**
+   * Create a trace context for webhook operations
+   * Supports correlation and distributed tracing
+   */
+  createTraceContext(
+    operation: string,
+    webhookId?: string,
+    eventType?: string,
+    source?: string,
+    userId?: string,
+    traceId?: string,
+  ): TraceContext {
+    return {
+      trace_id: traceId || this.generateTraceId(),
+      operation,
+      webhook_id: webhookId,
+      event_type: eventType,
+      source,
+      user_id: userId,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Log trace IDs for debugging purposes
+   */
+  private generateTraceId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }
 
   /**
@@ -296,10 +398,12 @@ export class WebhooksObservabilityService {
 
     // Remove any fields that might contain sensitive data
     // (signatures, tokens, etc. should never be in context, but defensive)
-    delete (sanitized as any).signature;
-    delete (sanitized as any).secret;
-    delete (sanitized as any).token;
-    delete (sanitized as any).authorization;
+    const sensitiveFields = ['signature', 'secret', 'token', 'authorization'];
+    sensitiveFields.forEach(field => {
+      if (field in sanitized) {
+        delete (sanitized as any)[field];
+      }
+    });
 
     return sanitized;
   }

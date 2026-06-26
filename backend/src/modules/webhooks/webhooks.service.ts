@@ -41,6 +41,7 @@ export class WebhooksService {
     rawBody: Buffer,
     source = 'stripe',
     ipAddress?: string,
+    traceId?: string,
   ): Promise<boolean> {
     const startTime = Date.now();
     let failureReason: string | undefined;
@@ -53,6 +54,7 @@ export class WebhooksService {
           false,
           Date.now() - startTime,
           failureReason,
+          traceId,
         );
         await this.auditService.auditSignatureVerification(
           undefined,
@@ -77,6 +79,7 @@ export class WebhooksService {
           false,
           Date.now() - startTime,
           failureReason,
+          traceId,
         );
         await this.auditService.auditSignatureVerification(
           undefined,
@@ -124,6 +127,7 @@ export class WebhooksService {
         isValid,
         Date.now() - startTime,
         failureReason,
+        traceId,
       );
 
       // Audit verification result (audit trail)
@@ -145,6 +149,7 @@ export class WebhooksService {
           false,
           Date.now() - startTime,
           'unexpected_error',
+          traceId,
         );
         await this.auditService.auditSignatureVerification(
           undefined,
@@ -164,17 +169,21 @@ export class WebhooksService {
     source = 'stripe',
     ipAddress?: string,
     userAgent?: string,
+    traceId?: string,
   ) {
     const startTime = Date.now();
     const webhookId = payload.id;
     const eventType = payload.type ?? 'unknown';
 
     // Log webhook received (observability)
-    this.observability.logWebhookReceived({
-      webhookId,
-      eventType,
-      source,
-    });
+    this.observability.logWebhookReceived(
+      {
+        webhookId,
+        eventType,
+        source,
+      },
+      traceId,
+    );
 
     // Audit webhook received (audit trail)
     await this.auditService.auditWebhookReceived(
@@ -206,11 +215,14 @@ export class WebhooksService {
 
       if (isProcessed) {
         // Log idempotency hit (observability)
-        this.observability.logIdempotencyHit({
-          webhookId,
-          eventType,
-          source,
-        });
+        this.observability.logIdempotencyHit(
+          {
+            webhookId,
+            eventType,
+            source,
+          },
+          traceId,
+        );
         return { received: true, idempotent: true };
       }
 
@@ -242,6 +254,7 @@ export class WebhooksService {
           source,
         },
         Date.now() - startTime,
+        traceId,
       );
 
       // Audit successful processing
@@ -263,6 +276,7 @@ export class WebhooksService {
         },
         error as Error,
         Date.now() - startTime,
+        traceId,
       );
 
       // Audit processing failure

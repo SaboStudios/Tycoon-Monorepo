@@ -99,12 +99,40 @@ describe('WebhooksService', () => {
       );
 
       expect(result).toBe(true);
-      expect(observability.logSignatureVerification).toHaveBeenCalledWith(
+      expect(observability.logSignatureVerification.mock.calls[0]).toEqual([
         'stripe',
         true,
         expect.any(Number),
         undefined,
+        undefined,
+      ]);
+    });
+
+    it('should forward trace ids to signature verification observability', async () => {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const body = JSON.stringify({ test: 'data' });
+      const signedPayload = `${timestamp}.${body}`;
+      const signature = require('crypto')
+        .createHmac('sha256', secret)
+        .update(signedPayload)
+        .digest('hex');
+
+      await service.verifySignature(
+        signature,
+        timestamp,
+        Buffer.from(body),
+        'stripe',
+        undefined,
+        'trace-123',
       );
+
+      expect(observability.logSignatureVerification.mock.calls[0]).toEqual([
+        'stripe',
+        true,
+        expect.any(Number),
+        undefined,
+        'trace-123',
+      ]);
     });
 
     it('should reject invalid signature and log failure', async () => {
@@ -120,12 +148,13 @@ describe('WebhooksService', () => {
       );
 
       expect(result).toBe(false);
-      expect(observability.logSignatureVerification).toHaveBeenCalledWith(
+      expect(observability.logSignatureVerification.mock.calls[0]).toEqual([
         'stripe',
         false,
         expect.any(Number),
         'signature_length_mismatch',
-      );
+        undefined,
+      ]);
     });
 
     it('should reject timestamp outside tolerance and log failure', async () => {
@@ -141,12 +170,13 @@ describe('WebhooksService', () => {
         ),
       ).rejects.toThrow('Webhook timestamp outside of tolerance');
 
-      expect(observability.logSignatureVerification).toHaveBeenCalledWith(
+      expect(observability.logSignatureVerification.mock.calls[0]).toEqual([
         'stripe',
         false,
         expect.any(Number),
         'timestamp_outside_tolerance',
-      );
+        undefined,
+      ]);
     });
 
     it('should log failure for missing signature', async () => {
@@ -157,12 +187,13 @@ describe('WebhooksService', () => {
         service.verifySignature('', timestamp, Buffer.from(body), 'stripe'),
       ).rejects.toThrow('Missing webhook signature or timestamp');
 
-      expect(observability.logSignatureVerification).toHaveBeenCalledWith(
+      expect(observability.logSignatureVerification.mock.calls[0]).toEqual([
         'stripe',
         false,
         expect.any(Number),
         'missing_signature_or_timestamp',
-      );
+        undefined,
+      ]);
     });
   });
 
@@ -190,19 +221,23 @@ describe('WebhooksService', () => {
       );
 
       // Verify observability calls
-      expect(observability.logWebhookReceived).toHaveBeenCalledWith({
-        webhookId: 'evt_123',
-        eventType: 'payment.succeeded',
-        source: 'stripe',
-      });
-      expect(observability.logWebhookProcessed).toHaveBeenCalledWith(
+      expect(observability.logWebhookReceived.mock.calls[0]).toEqual([
+        {
+          webhookId: 'evt_123',
+          eventType: 'payment.succeeded',
+          source: 'stripe',
+        },
+        undefined,
+      ]);
+      expect(observability.logWebhookProcessed.mock.calls[0]).toEqual([
         {
           webhookId: 'evt_123',
           eventType: 'payment.succeeded',
           source: 'stripe',
         },
         expect.any(Number),
-      );
+        undefined,
+      ]);
     });
 
     it('should return idempotent response for duplicate webhook and log hit', async () => {
@@ -217,11 +252,38 @@ describe('WebhooksService', () => {
 
       // Verify observability calls
       expect(observability.logWebhookReceived).toHaveBeenCalled();
-      expect(observability.logIdempotencyHit).toHaveBeenCalledWith({
-        webhookId: 'evt_123',
-        eventType: 'test.event',
-        source: 'stripe',
-      });
+      expect(observability.logIdempotencyHit.mock.calls[0]).toEqual([
+        {
+          webhookId: 'evt_123',
+          eventType: 'test.event',
+          source: 'stripe',
+        },
+        undefined,
+      ]);
+    });
+
+    it('should forward trace ids to webhook observability', async () => {
+      const payload = { id: 'evt_123', type: 'test.event' };
+      redisService.get.mockResolvedValue(true);
+
+      await service.processWebhook(payload, 'stripe', undefined, undefined, 'trace-456');
+
+      expect(observability.logWebhookReceived.mock.calls[0]).toEqual([
+        {
+          webhookId: 'evt_123',
+          eventType: 'test.event',
+          source: 'stripe',
+        },
+        'trace-456',
+      ]);
+      expect(observability.logIdempotencyHit.mock.calls[0]).toEqual([
+        {
+          webhookId: 'evt_123',
+          eventType: 'test.event',
+          source: 'stripe',
+        },
+        'trace-456',
+      ]);
     });
 
     it('should reject webhook without ID and log failure', async () => {
@@ -232,14 +294,15 @@ describe('WebhooksService', () => {
       );
 
       expect(observability.logWebhookReceived).toHaveBeenCalled();
-      expect(observability.logWebhookProcessingFailed).toHaveBeenCalledWith(
+      expect(observability.logWebhookProcessingFailed.mock.calls[0]).toEqual([
         expect.objectContaining({
           eventType: 'test.event',
           source: 'stripe',
         }),
         expect.any(Error),
         expect.any(Number),
-      );
+        undefined,
+      ]);
     });
 
     it('should log processing failure on database error', async () => {
@@ -254,7 +317,7 @@ describe('WebhooksService', () => {
         dbError,
       );
 
-      expect(observability.logWebhookProcessingFailed).toHaveBeenCalledWith(
+      expect(observability.logWebhookProcessingFailed.mock.calls[0]).toEqual([
         {
           webhookId: 'evt_123',
           eventType: 'payment.succeeded',
@@ -262,7 +325,8 @@ describe('WebhooksService', () => {
         },
         dbError,
         expect.any(Number),
-      );
+        undefined,
+      ]);
     });
   });
 
