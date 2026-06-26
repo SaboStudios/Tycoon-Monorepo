@@ -39,6 +39,10 @@ export class WebhooksController {
       const ipAddress =
         req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
+      const traceId =
+        (req.headers['x-trace-id'] as string) ||
+        (req.headers['x-request-id'] as string) ||
+        (req.headers['traceparent'] as string);
 
       const isValid = await this.webhooksService.verifySignature(
         signature,
@@ -46,6 +50,7 @@ export class WebhooksController {
         req.rawBody,
         'stripe',
         ipAddress,
+        traceId,
       );
 
       if (!isValid) {
@@ -57,6 +62,7 @@ export class WebhooksController {
         'stripe',
         ipAddress,
         userAgent,
+        traceId,
       );
     } catch (error) {
       if (error instanceof UnauthorizedException) {

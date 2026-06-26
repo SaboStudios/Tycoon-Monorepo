@@ -118,6 +118,18 @@ describe('WebhooksObservabilityService', () => {
       );
     });
 
+    it('should include request trace id in structured signature logs', () => {
+      service.logSignatureVerification('stripe', true, 5, undefined, 'trace-123');
+
+      expect(loggerService.logWithMeta).toHaveBeenCalledWith(
+        'debug',
+        'Signature verification',
+        expect.objectContaining({
+          request_id: 'trace-123',
+        }),
+      );
+    });
+
     it('should log failed signature verification with reason', () => {
       service.logSignatureVerification(
         'stripe',
@@ -207,6 +219,24 @@ describe('WebhooksObservabilityService', () => {
           source: 'stripe',
           event: WebhookEventType.PROCESSED,
           processingTimeMs: 150,
+        }),
+      );
+    });
+
+    it('should include request trace id in structured processing logs', () => {
+      const context = {
+        webhookId: 'wh_123',
+        eventType: 'payment.succeeded',
+        source: 'stripe',
+      };
+
+      service.logWebhookProcessed(context, 150, 'trace-456');
+
+      expect(loggerService.logWithMeta).toHaveBeenCalledWith(
+        'info',
+        'Webhook processed',
+        expect.objectContaining({
+          request_id: 'trace-456',
         }),
       );
     });
