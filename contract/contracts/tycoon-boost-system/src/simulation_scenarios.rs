@@ -12,6 +12,7 @@
 //! | SIM-05 | Multiple players are isolated; one player's boosts don't affect another |
 //! | SIM-06 | Mixed boost types across a full game round produce correct total |
 //! | SIM-07 | Admin clears all boosts at end of season; all players reset to base |
+//! | SIM-08 | Override boost (e.g. event grand prize) takes precedence over stacking; highest priority wins among competing overrides |
 
 extern crate std;
 use super::*;
@@ -59,6 +60,16 @@ fn eb(id: u128, boost_type: BoostType, value: u32, expires: u32) -> Boost {
         value,
         priority: 0,
         expires_at_ledger: expires,
+    }
+}
+
+fn ovb(id: u128, value: u32, priority: u32) -> Boost {
+    Boost {
+        id,
+        boost_type: BoostType::Override,
+        value,
+        priority,
+        expires_at_ledger: 0,
     }
 }
 
@@ -219,4 +230,35 @@ fn sim_07_end_of_season_clear_all_players() {
     for p in &players {
         assert_eq!(client.calculate_total_boost(p), 10000);
     }
+}
+
+// ── SIM-08 ────────────────────────────────────────────────────────────────────
+
+/// An event grand-prize Override boost takes precedence over any
+/// multiplicative/additive stacking — the player's total becomes exactly
+/// the override's value, regardless of other active boosts. When a second,
+/// higher-priority override is granted (e.g. a rarer prize), it wins.
+#[test]
+fn sim_08_override_boost_takes_precedence() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+    let player = Address::generate(&env);
+
+    // Player already has stacking boosts active.
+    client.add_boost(&player, &nb(1, BoostType::Multiplicative, 15000)); // 1.5x
+    client.add_boost(&player, &nb(2, BoostType::Additive, 2000)); // +20%
+    assert_eq!(client.calculate_total_boost(&player), 18000);
+
+    // Grand-prize override grants a flat 50000 (5x), ignoring the stack above.
+    client.admin_grant_boost(&player, &ovb(3, 50000, 1));
+    assert_eq!(client.calculate_total_boost(&player), 50000);
+
+    // A rarer, higher-priority override replaces the prior override's value.
+    client.admin_grant_boost(&player, &ovb(4, 90000, 5));
+    assert_eq!(client.calculate_total_boost(&player), 90000);
+
+    // A lower-priority override does not unseat the current winner.
+    client.admin_grant_boost(&player, &ovb(5, 70000, 2));
+    assert_eq!(client.calculate_total_boost(&player), 90000);
 }
