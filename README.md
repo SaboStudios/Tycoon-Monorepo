@@ -20,7 +20,7 @@ Then proceed with the git workflow below.
 The Kiro shell is frozen and cannot execute git commands. **You need to run these 5 commands manually:**
 
 ```bash
-cd Tycoon-Monorepo
+cd TYNS-Monorepo
 
 # 1. Create feature branch
 git checkout -b feat/SW-001-purchases-idempotency
