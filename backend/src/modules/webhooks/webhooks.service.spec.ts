@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
 import { RedisService } from '../redis/redis.service';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { SortOrder } from '../../common/dto/pagination.dto';
@@ -54,6 +55,17 @@ describe('WebhooksService', () => {
         { provide: RedisService, useValue: mockRedisService },
         { provide: WebhooksObservabilityService, useValue: observability },
         { provide: WebhooksAuditService, useValue: auditService },
+        {
+          provide: WebhookAuditHooksService,
+          useValue: {
+            onReceived: jest.fn(),
+            onSignatureVerified: jest.fn(),
+            onSignatureFailed: jest.fn(),
+            onDuplicate: jest.fn(),
+            onProcessed: jest.fn(),
+            onFailed: jest.fn(),
+          },
+        },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },
         {
           provide: ConfigService,
