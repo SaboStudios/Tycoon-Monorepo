@@ -151,6 +151,7 @@ For detailed migration instructions, see [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.
 cargo test --package tycoon-boost-system
 ```
 
+### Test Coverage (191+ tests total)
 ### Test Coverage (211+ tests total)
 ### Test Coverage (232+ tests total)
 
@@ -172,6 +173,8 @@ See [TEST_COVERAGE_IMPROVEMENTS.md](./TEST_COVERAGE_IMPROVEMENTS.md) and [CAP_ST
 See [ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md](./ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md) for detailed admin access control test documentation (SW-CON-1038).
 
 See [ADVANCED_INTEGRATION_TEST_COVERAGE.md](./ADVANCED_INTEGRATION_TEST_COVERAGE.md) for advanced integration test documentation (SW-CON-1039).
+
+See [ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md](./ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md) for detailed admin access control test documentation (SW-CON-1038).
 
 ### Running Specific Test Suites
 
