@@ -1,8 +1,14 @@
 #![no_std]
 
-// Pause module removed - each contract implements pause locally for better isolation
-// See tycoon-main-game/src/storage.rs for pause implementation example
+// Pause module removed - each contract implements pause locally for better isolation.
+// See tycoon-main-game/src/storage.rs for the canonical pause implementation.
 pub mod fees;
+
+/// Deprecated re-exports for consumers using pre-0.2.0 import paths.
+///
+/// All items in this module emit `#[deprecated]` compiler warnings.
+/// See the module documentation for the replacement path of each item.
+pub mod legacy;
 
 #[cfg(test)]
 mod fees_coverage_tests;
