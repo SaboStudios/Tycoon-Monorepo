@@ -4,8 +4,8 @@
 // See tycoon-main-game/src/storage.rs for pause implementation example
 pub mod fees;
 
-// Documents storage rent budget and TTL constants for Tycoon contracts.
-pub mod storage_budget;
+// Shared types and helpers for upgrade/migration key governance.
+pub mod migration;
 
 // Platform improvement modules — formalize shared governance patterns
 pub mod access_control;
