@@ -30,6 +30,15 @@ pub struct FeeSplit {
 }
 
 pub fn calculate_fee_split(amount: u128, config: &FeeConfig) -> FeeSplit {
+    if !config.is_valid() {
+        return FeeSplit {
+            platform_amount: 0,
+            creator_amount: 0,
+            pool_amount: 0,
+            residue: amount,
+        };
+    }
+
     let platform_amount = (amount * config.platform_fee_bps as u128) / 10000;
     let creator_amount = (amount * config.creator_fee_bps as u128) / 10000;
     let pool_amount = (amount * config.pool_fee_bps as u128) / 10000;
