@@ -534,3 +534,52 @@ fn test_boost_state_consistency_integration() {
     assert_eq!(active_boosts_after.len(), 1); // Only permanent boost active
     assert_eq!(total_after, 11000); // Only permanent boost counted
 }
+
+/// Test boost system with complex priority and override logic
+#[test]
+fn test_boost_system_priority_overrides() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let config = TestFixtureConfig::default();
+    let fixture = TestFixture::new_with_config(&env, config);
+
+    let boost_client = TycoonBoostSystemClient::new(&env, &fixture.boost_system_id);
+    let player = Address::generate(&env);
+
+    // Add some base boosts
+    boost_client.add_boost(&player, &nb(1, BoostType::Additive, 2000, 0));
+    boost_client.add_boost(&player, &nb(2, BoostType::Multiplicative, 15000, 0));
+
+    // Add override with low priority
+    boost_client.add_boost(&player, &nb(3, BoostType::Override, 20000, 10));
+    assert_eq!(boost_client.calculate_total_boost(&player), 20000);
+
+    // Add override with higher priority
+    boost_client.add_boost(&player, &nb(4, BoostType::Override, 50000, 50));
+    assert_eq!(boost_client.calculate_total_boost(&player), 50000);
+
+    // Add override with lower priority than 50 (should not affect total)
+    boost_client.add_boost(&player, &nb(5, BoostType::Override, 10000, 20));
+    assert_eq!(boost_client.calculate_total_boost(&player), 50000);
+}
+
+/// Test grace period or disconnected states (simulate by removing boosts)
+#[test]
+fn test_boost_system_invalid_state_handling() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let config = TestFixtureConfig::default();
+    let fixture = TestFixture::new_with_config(&env, config);
+
+    let boost_client = TycoonBoostSystemClient::new(&env, &fixture.boost_system_id);
+    let player = Address::generate(&env);
+
+    boost_client.clear_boosts(&player);
+    assert_eq!(boost_client.get_boosts(&player).len(), 0);
+    assert_eq!(boost_client.calculate_total_boost(&player), 10000); // default base is 10000
+    
+    boost_client.remove_boost(&player, &999); // removing non-existent should not panic
+    assert_eq!(boost_client.calculate_total_boost(&player), 10000);
+}
