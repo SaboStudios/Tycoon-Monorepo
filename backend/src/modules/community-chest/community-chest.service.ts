@@ -10,7 +10,9 @@ import { UpdateCommunityChestDto } from './dto/update-community-chest.dto';
 import {
   GetCommunityChestListDto,
   CommunityChestSortBy,
+  COMMUNITY_CHEST_MAX_LIMIT,
 } from './dto/get-community-chest-list.dto';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { secureRandomInt } from '../../common/crypto-secure-random';
 import {
   CommunityChestErrorMapperService,
@@ -105,23 +107,26 @@ export class CommunityChestService {
     }
   }
 
-  /**
-   * Get all Community Chest cards with optional filtering and ordering
-   * Supports flexible ordering by any field and type filtering
-   * Optimized query with index on type and createdAt for efficient filtering/sorting
-   */
-  async findAll(query: GetCommunityChestListDto): Promise<CommunityChest[]> {
-    const { sortBy = CommunityChestSortBy.ID, sortOrder = 'ASC', type } = query;
+  async findAll(
+    query: GetCommunityChestListDto,
+  ): Promise<PaginatedResponse<CommunityChest>> {
+    const {
+      page = 1,
+      limit: rawLimit = 10,
+      sortBy = CommunityChestSortBy.ID,
+      sortOrder = 'ASC',
+      type,
+    } = query;
+
+    const limit = Math.min(Math.max(1, rawLimit), COMMUNITY_CHEST_MAX_LIMIT);
 
     const qb =
       this.communityChestRepository.createQueryBuilder('community_chest');
 
-    // Apply type filter if provided
     if (type) {
       qb.andWhere('community_chest.type = :type', { type });
     }
 
-    // Apply ordering - validate sortBy is a valid column
     const validSortColumns = Object.values(CommunityChestSortBy);
     const sortColumn = validSortColumns.includes(sortBy)
       ? sortBy
@@ -129,7 +134,27 @@ export class CommunityChestService {
 
     qb.orderBy(`community_chest.${sortColumn}`, sortOrder);
 
-    return await qb.getMany();
+    if (sortColumn !== CommunityChestSortBy.ID) {
+      qb.addOrderBy('community_chest.id', sortOrder);
+    }
+
+    const skip = (page - 1) * limit;
+    qb.skip(skip).take(limit);
+
+    const [data, totalItems] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async findOne(id: number): Promise<CommunityChest | null> {
