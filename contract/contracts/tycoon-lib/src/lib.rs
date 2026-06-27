@@ -4,6 +4,15 @@
 // See tycoon-main-game/src/storage.rs for pause implementation example
 pub mod fees;
 
+// Shared types and helpers for upgrade/migration key governance.
+pub mod migration;
+
+// Platform improvement modules — formalize shared governance patterns
+pub mod access_control;
+pub mod auth;
+pub mod migration;
+pub mod storage_budget;
+
 #[cfg(test)]
 mod fees_coverage_tests;
 
