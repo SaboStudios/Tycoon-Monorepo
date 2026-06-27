@@ -1,4 +1,9 @@
-import { ExecutionContext, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ConflictException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { of, throwError, lastValueFrom } from 'rxjs';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { IdempotencyService } from './idempotency.service';
@@ -39,12 +44,15 @@ describe('IdempotencyInterceptor (redis module)', () => {
   // ── non-mutating methods ──────────────────────────────────────────────────
 
   describe('non-mutating methods', () => {
-    it.each(['GET', 'HEAD', 'OPTIONS'])('%s passes through without idempotency check', async (method) => {
-      const ctx = makeCtx(method);
-      const obs = await interceptor.intercept(ctx, makeHandler());
-      expect(await lastValueFrom(obs)).toEqual({ id: 1 });
-      expect(idempotency.get).not.toHaveBeenCalled();
-    });
+    it.each(['GET', 'HEAD', 'OPTIONS'])(
+      '%s passes through without idempotency check',
+      async (method) => {
+        const ctx = makeCtx(method);
+        const obs = await interceptor.intercept(ctx, makeHandler());
+        expect(await lastValueFrom(obs)).toEqual({ id: 1 });
+        expect(idempotency.get).not.toHaveBeenCalled();
+      },
+    );
   });
 
   // ── no header ─────────────────────────────────────────────────────────────
@@ -67,12 +75,17 @@ describe('IdempotencyInterceptor (redis module)', () => {
     it('marks processing, executes handler, marks complete', async () => {
       idempotency.get.mockResolvedValue(undefined);
       const ctx = makeCtx('POST', { 'idempotency-key': 'key-abc' });
-      const obs = await interceptor.intercept(ctx, makeHandler({ created: true }));
+      const obs = await interceptor.intercept(
+        ctx,
+        makeHandler({ created: true }),
+      );
       const result = await lastValueFrom(obs);
 
       expect(result).toEqual({ created: true });
       expect(idempotency.markProcessing).toHaveBeenCalledWith('key-abc');
-      expect(idempotency.markComplete).toHaveBeenCalledWith('key-abc', { created: true });
+      expect(idempotency.markComplete).toHaveBeenCalledWith('key-abc', {
+        created: true,
+      });
     });
 
     it('does not set the replay header on a fresh request', async () => {
@@ -97,7 +110,10 @@ describe('IdempotencyInterceptor (redis module)', () => {
       const result = await lastValueFrom(obs);
 
       expect(result).toEqual({ id: 99 });
-      expect(ctx.res.setHeader).toHaveBeenCalledWith('x-idempotency-replayed', 'true');
+      expect(ctx.res.setHeader).toHaveBeenCalledWith(
+        'x-idempotency-replayed',
+        'true',
+      );
       expect(idempotency.markProcessing).not.toHaveBeenCalled();
     });
 
@@ -113,16 +129,19 @@ describe('IdempotencyInterceptor (redis module)', () => {
       expect(handler.handle).not.toHaveBeenCalled();
     });
 
-    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('%s replays correctly', async (method) => {
-      idempotency.get.mockResolvedValue({
-        status: 'complete',
-        response: { method },
-        createdAt: Date.now(),
-      });
-      const ctx = makeCtx(method, { 'idempotency-key': 'k' });
-      const obs = await interceptor.intercept(ctx, makeHandler());
-      expect(await lastValueFrom(obs)).toEqual({ method });
-    });
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+      '%s replays correctly',
+      async (method) => {
+        idempotency.get.mockResolvedValue({
+          status: 'complete',
+          response: { method },
+          createdAt: Date.now(),
+        });
+        const ctx = makeCtx(method, { 'idempotency-key': 'k' });
+        const obs = await interceptor.intercept(ctx, makeHandler());
+        expect(await lastValueFrom(obs)).toEqual({ method });
+      },
+    );
 
     it('replays a null response correctly', async () => {
       idempotency.get.mockResolvedValue({
@@ -131,7 +150,10 @@ describe('IdempotencyInterceptor (redis module)', () => {
         createdAt: Date.now(),
       });
       const ctx = makeCtx('DELETE', { 'idempotency-key': 'del-key' });
-      const obs = await interceptor.intercept(ctx, makeHandler({ should: 'not appear' }));
+      const obs = await interceptor.intercept(
+        ctx,
+        makeHandler({ should: 'not appear' }),
+      );
       expect(await lastValueFrom(obs)).toBeNull();
     });
 
@@ -162,13 +184,21 @@ describe('IdempotencyInterceptor (redis module)', () => {
 
   describe('in-flight — processing record exists', () => {
     it('throws ConflictException', async () => {
-      idempotency.get.mockResolvedValue({ status: 'processing', createdAt: Date.now() });
+      idempotency.get.mockResolvedValue({
+        status: 'processing',
+        createdAt: Date.now(),
+      });
       const ctx = makeCtx('POST', { 'idempotency-key': 'key-abc' });
-      await expect(interceptor.intercept(ctx, makeHandler())).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        interceptor.intercept(ctx, makeHandler()),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('does not call markProcessing when already processing', async () => {
-      idempotency.get.mockResolvedValue({ status: 'processing', createdAt: Date.now() });
+      idempotency.get.mockResolvedValue({
+        status: 'processing',
+        createdAt: Date.now(),
+      });
       const ctx = makeCtx('POST', { 'idempotency-key': 'key-abc' });
       try {
         await interceptor.intercept(ctx, makeHandler());

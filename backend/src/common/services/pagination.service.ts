@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SelectQueryBuilder, ObjectLiteral } from 'typeorm';
-import { PaginationDto, SortOrder, PAGINATION_MAX_LIMIT } from '../dto/pagination.dto';
+import {
+  PaginationDto,
+  SortOrder,
+  PAGINATION_MAX_LIMIT,
+} from '../dto/pagination.dto';
 import { PaginatedResponse } from '../interfaces/paginated-response.interface';
 
 @Injectable()
@@ -55,7 +59,10 @@ export class PaginationService {
 
     // Apply primary sort + stable secondary sort on `id` to guarantee
     // deterministic page boundaries when rows share the same primary sort value.
-    if (sortBy && (allowedSortFields === undefined || allowedSortFields.includes(sortBy))) {
+    if (
+      sortBy &&
+      (allowedSortFields === undefined || allowedSortFields.includes(sortBy))
+    ) {
       queryBuilder
         .orderBy(`${queryBuilder.alias}.${sortBy}`, sortOrder)
         .addOrderBy(`${queryBuilder.alias}.id`, sortOrder);

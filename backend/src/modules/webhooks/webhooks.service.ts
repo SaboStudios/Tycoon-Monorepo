@@ -9,6 +9,7 @@ import { PaginationDto, SortOrder } from '../../common/dto/pagination.dto';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
 
 const ALLOWED_SORT_FIELDS = new Set(['id', 'eventType', 'source', 'createdAt']);
 
@@ -22,6 +23,7 @@ export class WebhooksService {
     private readonly redisService: RedisService,
     private readonly observability: WebhooksObservabilityService,
     private readonly auditService: WebhooksAuditService,
+    private readonly auditHooks: WebhookAuditHooksService,
     @InjectRepository(WebhookEvent)
     private readonly webhookEventRepo: Repository<WebhookEvent>,
   ) {
@@ -62,7 +64,9 @@ export class WebhooksService {
           failureReason,
           ipAddress,
         );
-        throw new UnauthorizedException('Missing webhook signature or timestamp');
+        throw new UnauthorizedException(
+          'Missing webhook signature or timestamp',
+        );
       }
 
       // Anti-replay protection: Check timestamp tolerance
@@ -84,7 +88,9 @@ export class WebhooksService {
           failureReason,
           ipAddress,
         );
-        throw new UnauthorizedException('Webhook timestamp outside of tolerance');
+        throw new UnauthorizedException(
+          'Webhook timestamp outside of tolerance',
+        );
       }
 
       // Construct the payload for verification (standard pattern: timestamp + '.' + body)
@@ -131,6 +137,22 @@ export class WebhooksService {
         failureReason,
         ipAddress,
       );
+
+      // Central audit trail hook
+      if (isValid) {
+        this.auditHooks.onSignatureVerified({
+          source,
+          ipAddress,
+          durationMs: Date.now() - startTime,
+        });
+      } else {
+        this.auditHooks.onSignatureFailed({
+          source,
+          reason: failureReason,
+          ipAddress,
+          durationMs: Date.now() - startTime,
+        });
+      }
 
       return isValid;
     } catch (error) {
@@ -181,10 +203,15 @@ export class WebhooksService {
       userAgent,
     );
 
+    // Central audit trail hook
+    this.auditHooks.onReceived({ webhookId, eventType, source, ipAddress, userAgent });
+
     try {
       // Idempotency check: Use the webhook ID to prevent duplicate processing
       if (!webhookId) {
-        throw new UnauthorizedException('Webhook payload missing ID for idempotency');
+        throw new UnauthorizedException(
+          'Webhook payload missing ID for idempotency',
+        );
       }
 
       const idempotencyKey = `webhook:${webhookId}`;
@@ -205,6 +232,8 @@ export class WebhooksService {
           eventType,
           source,
         });
+        // Central audit trail hook
+        this.auditHooks.onDuplicate({ webhookId, eventType, source });
         return { received: true, idempotent: true };
       }
 
@@ -222,7 +251,11 @@ export class WebhooksService {
       );
 
       // Audit persistence
-      await this.auditService.auditWebhookPersisted(webhookId, eventType, source);
+      await this.auditService.auditWebhookPersisted(
+        webhookId,
+        eventType,
+        source,
+      );
 
       // Log successful processing (observability)
       this.observability.logWebhookProcessed(
@@ -241,6 +274,14 @@ export class WebhooksService {
         source,
         Date.now() - startTime,
       );
+
+      // Central audit trail hook
+      this.auditHooks.onProcessed({
+        webhookId,
+        eventType,
+        source,
+        durationMs: Date.now() - startTime,
+      });
 
       return { received: true, processed: true };
     } catch (error) {
@@ -264,6 +305,16 @@ export class WebhooksService {
         Date.now() - startTime,
       );
 
+      // Central audit trail hook
+      this.auditHooks.onFailed({
+        webhookId,
+        eventType,
+        source,
+        errorName: (error as Error).name,
+        errorMessage: (error as Error).message,
+        durationMs: Date.now() - startTime,
+      });
+
       throw error;
     }
   }
@@ -275,12 +326,7 @@ export class WebhooksService {
   async listEvents(
     dto: PaginationDto,
   ): Promise<PaginatedResponse<WebhookEvent>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy,
-      sortOrder = SortOrder.ASC,
-    } = dto;
+    const { page = 1, limit = 10, sortBy, sortOrder = SortOrder.ASC } = dto;
 
     const safeSortBy =
       sortBy && ALLOWED_SORT_FIELDS.has(sortBy) ? sortBy : 'createdAt';

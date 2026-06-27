@@ -205,3 +205,120 @@ fn test_add_boost_requires_admin_auth() {
     let client2 = TycoonBoostSystemClient::new(&env2, &contract_id);
     client2.add_boost(&player, &boost(1, BoostType::Additive, 1000, 0));
 }
+
+// ── add_boost error-path coverage ────────────────────────────────────────────
+
+#[test]
+#[should_panic(expected = "DuplicateId")]
+fn test_add_boost_duplicate_id_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, player) = setup_with_admin(&env);
+    client.add_boost(&player, &boost(1, BoostType::Additive, 1000, 0));
+    client.add_boost(&player, &boost(1, BoostType::Additive, 500, 0));
+}
+
+#[test]
+#[should_panic(expected = "InvalidValue")]
+fn test_add_boost_zero_value_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, player) = setup_with_admin(&env);
+    client.add_boost(&player, &boost(1, BoostType::Additive, 0, 0));
+}
+
+#[test]
+#[should_panic(expected = "InvalidExpiry")]
+fn test_add_boost_past_expiry_panics() {
+    use soroban_sdk::testutils::{Ledger, LedgerInfo};
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set(LedgerInfo {
+        sequence_number: 100,
+        timestamp: 500,
+        protocol_version: 23,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 1,
+        min_persistent_entry_ttl: 1,
+        max_entry_ttl: 100_000,
+    });
+    let (client, _admin, player) = setup_with_admin(&env);
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Additive,
+            value: 1000,
+            priority: 0,
+            expires_at_ledger: 50,
+        },
+    );
+}
+
+#[test]
+#[should_panic(expected = "CapExceeded")]
+fn test_add_boost_cap_exceeded_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, player) = setup_with_admin(&env);
+    for i in 0..MAX_BOOSTS_PER_PLAYER as u128 {
+        client.add_boost(&player, &boost(i + 1, BoostType::Additive, 100, 0));
+    }
+    client.add_boost(
+        &player,
+        &boost(MAX_BOOSTS_PER_PLAYER as u128 + 1, BoostType::Additive, 100, 0),
+    );
+}
+
+// ── get_active_boosts ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_get_active_boosts_excludes_expired() {
+    use soroban_sdk::testutils::{Ledger, LedgerInfo};
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set(LedgerInfo {
+        sequence_number: 50,
+        timestamp: 250,
+        protocol_version: 23,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 1,
+        min_persistent_entry_ttl: 1,
+        max_entry_ttl: 100_000,
+    });
+    let (client, _admin, player) = setup_with_admin(&env);
+    client.add_boost(
+        &player,
+        &Boost {
+            id: 1,
+            boost_type: BoostType::Additive,
+            value: 1000,
+            priority: 0,
+            expires_at_ledger: 100,
+        },
+    );
+    client.add_boost(&player, &boost(2, BoostType::Additive, 500, 0));
+    env.ledger().set(LedgerInfo {
+        sequence_number: 200,
+        timestamp: 1000,
+        protocol_version: 23,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 1,
+        min_persistent_entry_ttl: 1,
+        max_entry_ttl: 100_000,
+    });
+    let active = client.get_active_boosts(&player);
+    assert_eq!(active.len(), 1);
+    assert_eq!(active.get(0).unwrap().id, 2);
+}
+
+#[test]
+fn test_get_active_boosts_empty_when_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, player) = setup_with_admin(&env);
+    assert_eq!(client.get_active_boosts(&player).len(), 0);
+}

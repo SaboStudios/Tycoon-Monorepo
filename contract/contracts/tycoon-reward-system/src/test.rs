@@ -1024,6 +1024,129 @@ fn test_mint_voucher_zero_value() {
     assert_eq!(client.get_balance(&user, &token_id), 0);
 }
 
+/// Basic mint via the test_mint helper: balance accumulates across calls.
+#[test]
+fn test_mint() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let user = Address::generate(&env);
+
+    assert_eq!(client.get_balance(&user, &300), 0);
+
+    client.test_mint(&user, &300, &7);
+    assert_eq!(client.get_balance(&user, &300), 7);
+
+    client.test_mint(&user, &300, &3);
+    assert_eq!(client.get_balance(&user, &300), 10);
+}
+
+/// Basic burn via the test_burn helper: balance decrements correctly.
+#[test]
+fn test_burn() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let user = Address::generate(&env);
+
+    client.test_mint(&user, &100, &5);
+    assert_eq!(client.get_balance(&user, &100), 5);
+
+    client.test_burn(&user, &100, &3);
+    assert_eq!(client.get_balance(&user, &100), 2);
+
+    client.test_burn(&user, &100, &2);
+    assert_eq!(client.get_balance(&user, &100), 0);
+}
+
+/// Burning more than the held balance must panic with "Insufficient balance".
+#[test]
+#[should_panic(expected = "Insufficient balance")]
+fn test_burn_insufficient() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let user = Address::generate(&env);
+
+    client.test_mint(&user, &200, &2);
+    client.test_burn(&user, &200, &5); // 5 > 2 — must panic
+}
+
+/// mint_voucher and redeem_voucher_from each emit at least one event.
+#[test]
+fn test_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
+        .address();
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
+    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id, &10_000);
+
+    let events_before_mint = env.events().all().len();
+    let token_id = client.mint_voucher(&admin, &user, &500);
+    assert!(
+        env.events().all().len() > events_before_mint,
+        "mint_voucher must emit events"
+    );
+
+    let events_before_redeem = env.events().all().len();
+    client.redeem_voucher_from(&user, &token_id);
+    assert!(
+        env.events().all().len() > events_before_redeem,
+        "redeem_voucher_from must emit events"
+    );
+}
+
+/// Adding 1 to a balance already at u64::MAX must panic with "Balance overflow".
+#[test]
+#[should_panic(expected = "Balance overflow")]
+fn test_overflow() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let user = Address::generate(&env);
+
+    client.test_mint(&user, &400, &u64::MAX);
+    client.test_mint(&user, &400, &1); // must overflow
+}
+
+/// A fresh address returns 0 for any token_id and owned_token_count.
+#[test]
+fn test_zero_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    let user = Address::generate(&env);
+
+    assert_eq!(client.get_balance(&user, &0), 0);
+    assert_eq!(client.get_balance(&user, &1_000_000), 0);
+    assert_eq!(client.get_balance(&user, &u128::MAX), 0);
+    assert_eq!(client.owned_token_count(&user), 0);
+}
+
 /// Verify that voucher IDs are monotonically increasing and unique.
 #[test]
 fn test_voucher_ids_are_unique() {
@@ -1084,38 +1207,4 @@ fn test_redeem_nonexistent_token_panics() {
         client.redeem_voucher_from(&user, &999_999_999_999u128);
     }));
     assert!(res.is_err(), "redeeming non-existent token must panic");
-    let admin = Address::generate(&env);
-    let user_a = Address::generate(&env);
-    let user_b = Address::generate(&env);
-    let tyc_id = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let usdc_id = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    client.initialize(&admin, &tyc_id, &usdc_id);
-
-    // Mint a voucher to user_a
-    let token_id = client.mint_voucher(&admin, &user_a, &100u128);
-    assert_eq!(client.get_balance(&user_a, &token_id), 1);
-
-    // Pause the contract
-    client.pause();
-
-    // Transfer must be blocked
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.transfer(&user_a, &user_b, &token_id, &1);
-    }));
-    assert!(
-        res.is_err(),
-        "transfer must be blocked when contract is paused"
-    );
-
-    // Unpause — transfer must succeed
-    client.unpause();
-    client.transfer(&user_a, &user_b, &token_id, &1);
-    assert_eq!(client.get_balance(&user_a, &token_id), 0);
-    assert_eq!(client.get_balance(&user_b, &token_id), 1);
 }

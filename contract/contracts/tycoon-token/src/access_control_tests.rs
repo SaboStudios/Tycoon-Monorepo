@@ -228,3 +228,70 @@ fn read_only_entrypoints_need_no_auth() {
     assert_eq!(client.symbol(), soroban_sdk::String::from_str(&e, "TYC"));
     assert_eq!(client.allowance(&admin, &admin), 0);
 }
+
+// ---------------------------------------------------------------------------
+// Public: approve, transfer_from, burn, burn_from
+// ---------------------------------------------------------------------------
+
+#[test]
+fn token_holder_can_approve_and_transfer_from() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let id = e.register(TycoonToken, ());
+    let client = crate::TycoonTokenClient::new(&e, &id);
+    let admin = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let spender = Address::generate(&e);
+    let recipient = Address::generate(&e);
+    client.initialize(&admin, &SUPPLY);
+    
+    // Admin gives owner some tokens
+    client.transfer(&admin, &owner, &1000);
+    
+    // Owner approves spender
+    client.approve(&owner, &spender, &500, &100);
+    assert_eq!(client.allowance(&owner, &spender), 500);
+    
+    // Spender transfers from owner
+    client.transfer_from(&spender, &owner, &recipient, &200);
+    assert_eq!(client.balance(&recipient), 200);
+    assert_eq!(client.balance(&owner), 800);
+    assert_eq!(client.allowance(&owner, &spender), 300);
+}
+
+#[test]
+fn token_holder_can_burn() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let id = e.register(TycoonToken, ());
+    let client = crate::TycoonTokenClient::new(&e, &id);
+    let admin = Address::generate(&e);
+    let user = Address::generate(&e);
+    client.initialize(&admin, &SUPPLY);
+    
+    client.transfer(&admin, &user, &1000);
+    client.burn(&user, &200);
+    
+    assert_eq!(client.balance(&user), 800);
+    assert_eq!(client.total_supply(), SUPPLY - 200);
+}
+
+#[test]
+fn approved_spender_can_burn_from() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let id = e.register(TycoonToken, ());
+    let client = crate::TycoonTokenClient::new(&e, &id);
+    let admin = Address::generate(&e);
+    let owner = Address::generate(&e);
+    let spender = Address::generate(&e);
+    client.initialize(&admin, &SUPPLY);
+    
+    client.transfer(&admin, &owner, &1000);
+    client.approve(&owner, &spender, &500, &100);
+    client.burn_from(&spender, &owner, &200);
+    
+    assert_eq!(client.balance(&owner), 800);
+    assert_eq!(client.allowance(&owner, &spender), 300);
+    assert_eq!(client.total_supply(), SUPPLY - 200);
+}

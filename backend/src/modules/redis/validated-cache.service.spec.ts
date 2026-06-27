@@ -4,7 +4,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ValidatedCacheService } from './validated-cache.service';
 import { RedisService } from './redis.service';
-import { CacheValidationException, CacheOperationException } from './errors/cache.errors';
+import {
+  CacheValidationException,
+  CacheOperationException,
+} from './errors/cache.errors';
 
 const mockRedis = () => ({
   get: jest.fn(),
@@ -41,17 +44,23 @@ describe('ValidatedCacheService', () => {
     });
 
     it('throws CacheValidationException on empty key', async () => {
-      await expect(service.get('')).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.get('')).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
       expect(redis.get).not.toHaveBeenCalled();
     });
 
     it('throws CacheValidationException on key with illegal chars', async () => {
-      await expect(service.get('bad key!')).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.get('bad key!')).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('maps RedisService error to CacheOperationException', async () => {
       redis.get.mockRejectedValue(new Error('connection refused'));
-      await expect(service.get('valid:key')).rejects.toBeInstanceOf(CacheOperationException);
+      await expect(service.get('valid:key')).rejects.toBeInstanceOf(
+        CacheOperationException,
+      );
     });
   });
 
@@ -65,16 +74,22 @@ describe('ValidatedCacheService', () => {
     });
 
     it('throws CacheValidationException on invalid key', async () => {
-      await expect(service.set('bad key!', 'v')).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.set('bad key!', 'v')).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('throws CacheValidationException when ttl exceeds max', async () => {
-      await expect(service.set('k', 'v', 604_801)).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.set('k', 'v', 604_801)).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('maps RedisService error to CacheOperationException', async () => {
       redis.set.mockRejectedValue(new Error('READONLY'));
-      await expect(service.set('k', 'v', 60)).rejects.toBeInstanceOf(CacheOperationException);
+      await expect(service.set('k', 'v', 60)).rejects.toBeInstanceOf(
+        CacheOperationException,
+      );
     });
   });
 
@@ -88,12 +103,16 @@ describe('ValidatedCacheService', () => {
     });
 
     it('throws CacheValidationException on empty key', async () => {
-      await expect(service.del('')).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.del('')).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('maps RedisService error to CacheOperationException', async () => {
       redis.del.mockRejectedValue(new Error('down'));
-      await expect(service.del('k')).rejects.toBeInstanceOf(CacheOperationException);
+      await expect(service.del('k')).rejects.toBeInstanceOf(
+        CacheOperationException,
+      );
     });
   });
 
@@ -108,20 +127,28 @@ describe('ValidatedCacheService', () => {
     });
 
     it('throws CacheValidationException on empty pattern', async () => {
-      await expect(service.scanPage('')).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.scanPage('')).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('throws CacheValidationException when count > 500', async () => {
-      await expect(service.scanPage('shop:*', 0, 501)).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.scanPage('shop:*', 0, 501)).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('throws CacheValidationException on negative cursor', async () => {
-      await expect(service.scanPage('shop:*', -1)).rejects.toBeInstanceOf(CacheValidationException);
+      await expect(service.scanPage('shop:*', -1)).rejects.toBeInstanceOf(
+        CacheValidationException,
+      );
     });
 
     it('maps RedisService error to CacheOperationException', async () => {
       redis.scanPage.mockRejectedValue(new Error('down'));
-      await expect(service.scanPage('shop:*')).rejects.toBeInstanceOf(CacheOperationException);
+      await expect(service.scanPage('shop:*')).rejects.toBeInstanceOf(
+        CacheOperationException,
+      );
     });
   });
 });

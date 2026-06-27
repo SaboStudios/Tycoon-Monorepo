@@ -9,7 +9,9 @@ export class NearService {
   private currentRpcIndex = 0;
 
   constructor(private configService: ConfigService) {
-    this.rpcEndpoints = this.configService.get<string[]>('near.rpcEndpoints') || ['https://rpc.testnet.near.org'];
+    this.rpcEndpoints = this.configService.get<string[]>(
+      'near.rpcEndpoints',
+    ) || ['https://rpc.testnet.near.org'];
     this.timeoutMs = this.configService.get<number>('near.timeoutMs') || 10000;
   }
 
@@ -27,7 +29,9 @@ export class NearService {
     const oldRpc = this.currentRpc;
     this.currentRpcIndex++;
     const newRpc = this.currentRpc;
-    this.logger.warn(`Rotating RPC endpoint from ${oldRpc} to ${newRpc} due to: ${reason}`);
+    this.logger.warn(
+      `Rotating RPC endpoint from ${oldRpc} to ${newRpc} due to: ${reason}`,
+    );
   }
 
   /**
@@ -61,7 +65,7 @@ export class NearService {
         }
 
         const data = await response.json();
-        
+
         if (data.error) {
           // A JSON-RPC error means the node is active but the request or contract failed.
           // In this case, there's no need to rotate to another RPC node.
@@ -71,14 +75,18 @@ export class NearService {
         return data.result;
       } catch (err: any) {
         lastError = err;
-        
+
         // Always rotate on fetch failure (network issue, timeout, 5xx).
-        // If it's a 400 or JSON-RPC error, we might not want to rotate, 
+        // If it's a 400 or JSON-RPC error, we might not want to rotate,
         // but simple assumption: if we hit catch, it's mostly network/timeout.
         // Wait, if we threw from data.error above, it's a JSON-RPC error. We shouldn't rotate.
-        if (err.message && (err.message.includes('FunctionCallError') || err.message.includes('does not exist'))) {
-            // contract error, just rethrow
-            throw err;
+        if (
+          err.message &&
+          (err.message.includes('FunctionCallError') ||
+            err.message.includes('does not exist'))
+        ) {
+          // contract error, just rethrow
+          throw err;
         }
 
         this.rotateRpc(err.message);
@@ -87,7 +95,9 @@ export class NearService {
     }
 
     this.logger.error(`All ${maxRetries} NEAR RPC endpoints failed.`);
-    throw new Error(`All NEAR RPC endpoints failed. Last error: ${lastError?.message}`);
+    throw new Error(
+      `All NEAR RPC endpoints failed. Last error: ${lastError?.message}`,
+    );
   }
 
   /**
@@ -96,7 +106,11 @@ export class NearService {
    * @param methodName The view method to call.
    * @param args Optional arguments to pass to the method.
    */
-  async view(contractId: string, methodName: string, args: Record<string, any> = {}): Promise<any> {
+  async view(
+    contractId: string,
+    methodName: string,
+    args: Record<string, any> = {},
+  ): Promise<any> {
     const argsBase64 = Buffer.from(JSON.stringify(args)).toString('base64');
 
     const result = await this.rpcCall('query', {

@@ -3,8 +3,15 @@
 import { useTranslation } from "react-i18next";
 import JoinRoomForm from "@/components/settings/JoinRoomForm";
 import { JOIN_ROOM_I18N } from "@/lib/join-room/i18n-keys";
+import type React from "react";
 
-export default function JoinRoomPageContent(): React.JSX.Element {
+/**
+ * Client component that renders the Join Room page content.
+ * Includes the main layout with the join room form.
+ *
+ * @returns The rendered page content
+ */
+export default function JoinRoomPageContent(): React.ReactNode {
   const { t } = useTranslation("common");
 
   return (

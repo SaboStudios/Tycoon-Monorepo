@@ -47,7 +47,10 @@ import { AuditTrailModule } from '../audit-trail/audit-trail.module';
       useClass: UploadExceptionFilter,
     },
   ],
-  exports: [UploadsService, UploadsObservabilityService, UploadsErrorMapperService],
+  exports: [
+    UploadsService,
+    UploadsObservabilityService,
+    UploadsErrorMapperService,
+  ],
 })
-export class UploadsModule { }
-
+export class UploadsModule {}

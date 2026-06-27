@@ -21,7 +21,6 @@ import {
 import { apiClient } from "@/lib/api/client";
 import type { GameResponse } from "@/lib/api/types/dto";
 import { useJoinRoomTelemetry } from "@/hooks/useJoinRoomTelemetry";
-import { useErrorReporting } from "@/hooks/useErrorReporting";
 
 function parseZodErrors(error: ZodError): FieldErrors {
   const out: FieldErrors = {};
@@ -33,6 +32,22 @@ function parseZodErrors(error: ZodError): FieldErrors {
 }
 
 const SUBMIT_COOLDOWN_MS = 2_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/** Errors that indicate the connection is likely broken or stale */
+type ConnectionErrorType = "network_error" | "timeout" | "unauthorized" | "unknown";
+
+function isConnectionError(error: unknown): ConnectionErrorType | null {
+  if (error instanceof Error) {
+    if (error.message.includes("Network") || error.message.includes("Failed to fetch")) {
+      return "network_error";
+    }
+    if (error.message.includes("timeout")) {
+      return "timeout";
+    }
+  }
+  return null;
+}
 
 export interface JoinRoomFormPreviewState {
   code?: string;
@@ -53,14 +68,14 @@ export default function JoinRoomForm({
   const [code, setCode] = useState(previewState?.code ?? "");
   const [errors, setErrors] = useState<FieldErrors>(previewState?.errors ?? {});
   const [isLoading, setIsLoading] = useState(previewState?.isLoading ?? false);
+  const [connectionError, setConnectionError] = useState<ConnectionErrorType | null>(null);
 
   const { trackJoinAttempted, trackJoinSucceeded, trackJoinFailed } = useJoinRoomTelemetry();
-  const { reportError } = useErrorReporting();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const lastSubmitRef = useRef<number>(0);
-  const formViewedRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const errorId = "room-code-error";
 
@@ -69,12 +84,20 @@ export default function JoinRoomForm({
     inputRef.current?.focus();
   }, [previewState?.skipAutoFocus]);
 
+  // Cleanup on unmount: abort any pending requests
+  React.useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
   // Keyboard shortcuts: Escape clears the input, Ctrl/Cmd+Enter submits the form
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && document.activeElement === inputRef.current) {
         setCode("");
         setErrors({});
+        setConnectionError(null);
         inputRef.current?.blur();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -93,6 +116,7 @@ export default function JoinRoomForm({
 
   const handleRetry = useCallback(() => {
     setErrors({});
+    setConnectionError(null);
     lastSubmitRef.current = 0;
     formRef.current?.requestSubmit();
   }, []);
@@ -104,6 +128,7 @@ export default function JoinRoomForm({
       const now = Date.now();
       if (now - lastSubmitRef.current < SUBMIT_COOLDOWN_MS) {
         setErrors({ _form: JOIN_ROOM_I18N.errors.rateLimit });
+        trackJoinFailed("rate_limit");
         return;
       }
       lastSubmitRef.current = now;
@@ -117,22 +142,41 @@ export default function JoinRoomForm({
 
       if (!hasJoinAuthToken()) {
         setErrors({ _form: JOIN_ROOM_I18N.errors.unauthorized });
+        trackJoinFailed("unauthorized");
+        setConnectionError("unauthorized");
         return;
       }
 
       setIsLoading(true);
       setErrors({});
+      setConnectionError(null);
 
       // Track the join attempt
       trackJoinAttempted("submit_button");
 
+      // Abort any previous request
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
       try {
         const startTime = performance.now();
 
-        const response = await apiClient.post<GameResponse>(
-          `/games/${encodeURIComponent(result.data.roomCode)}/join`,
-          {}
-        );
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error("Request timeout"));
+          }, REQUEST_TIMEOUT_MS);
+        });
+
+        // Race between actual request and timeout
+        const response = await Promise.race([
+          apiClient.post<GameResponse>(
+            `/games/${encodeURIComponent(result.data.roomCode)}/join`,
+            {},
+            { signal: abortControllerRef.current.signal }
+          ),
+          timeoutPromise,
+        ]);
 
         const duration = performance.now() - startTime;
 
@@ -141,26 +185,40 @@ export default function JoinRoomForm({
 
         // Report performance metrics (non-blocking)
         if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-          (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(() => {
+          requestIdleCallback(() => {
             console.debug(`[Join Room] Join completed in ${duration.toFixed(2)}ms`);
           });
         }
 
         router.push(`/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`);
       } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          // Request was aborted (component unmounted or new request started)
+          return;
+        }
+
+        const connErrorType = isConnectionError(err);
+        if (connErrorType) {
+          setConnectionError(connErrorType);
+          trackJoinFailed(
+            connErrorType === "network_error" ? "network" : connErrorType,
+          );
+        }
+
         setErrors(mapJoinRoomErrors(err));
+        trackJoinFailed("api_error");
       } finally {
         setIsLoading(false);
       }
     },
-    [code, router, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed, reportError]
+    [code, router, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed]
   );
 
   const isValid = joinRoomSchema.safeParse({ roomCode: code }).success;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-5">
-      {errors._form && (
+      {(errors._form || connectionError) && (
         <div
           role="alert"
           data-testid="form-error-banner"
@@ -168,9 +226,17 @@ export default function JoinRoomForm({
         >
           <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="flex-1 leading-snug">
-            {translateJoinRoomMessage(t, errors._form)}
+            {errors._form 
+              ? translateJoinRoomMessage(t, errors._form)
+              : connectionError === "network_error"
+              ? t(JOIN_ROOM_I18N.errors.networkError)
+              : connectionError === "timeout"
+              ? t(JOIN_ROOM_I18N.errors.timeout)
+              : connectionError === "unauthorized"
+              ? t(JOIN_ROOM_I18N.errors.unauthorized)
+              : t(JOIN_ROOM_I18N.errors.unexpected)}
           </span>
-          {isValid && (
+          {isValid && errors._form && (
             <button
               type="button"
               onClick={handleRetry}

@@ -1,11 +1,11 @@
 import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 
 export enum CacheErrorCode {
-  INVALID_KEY      = 'CACHE_INVALID_KEY',
-  INVALID_TTL      = 'CACHE_INVALID_TTL',
-  INVALID_PATTERN  = 'CACHE_INVALID_PATTERN',
+  INVALID_KEY = 'CACHE_INVALID_KEY',
+  INVALID_TTL = 'CACHE_INVALID_TTL',
+  INVALID_PATTERN = 'CACHE_INVALID_PATTERN',
   OPERATION_FAILED = 'CACHE_OPERATION_FAILED',
-  SERIALIZATION    = 'CACHE_SERIALIZATION_ERROR',
+  SERIALIZATION = 'CACHE_SERIALIZATION_ERROR',
 }
 
 interface CacheErrorBody {
@@ -41,7 +41,10 @@ export class CacheOperationException extends HttpException {
  * Strips internal connection strings and credentials from the message so nothing
  * sensitive reaches the response body or logs.
  */
-export function mapCacheError(err: unknown, operation: string): CacheOperationException {
+export function mapCacheError(
+  err: unknown,
+  operation: string,
+): CacheOperationException {
   const raw = err instanceof Error ? err.message : String(err);
   const safe = raw
     .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?\b/g, '[host]')

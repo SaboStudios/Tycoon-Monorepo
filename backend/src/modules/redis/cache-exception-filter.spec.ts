@@ -50,7 +50,10 @@ describe('CacheExceptionFilter', () => {
 
   it('omits detail for 500 CacheOperationException', () => {
     const host = makeHost();
-    const ex = new CacheOperationException('Cache get failed', 'connection refused');
+    const ex = new CacheOperationException(
+      'Cache get failed',
+      'connection refused',
+    );
     filter.catch(ex, host);
 
     expect(host.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);

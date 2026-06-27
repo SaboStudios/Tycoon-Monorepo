@@ -19,7 +19,10 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export class IdempotencyInterceptor implements NestInterceptor {
   constructor(private readonly idempotency: IdempotencyService) {}
 
-  async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
+  async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
     const req = context.switchToHttp().getRequest<{
       method: string;
       headers: Record<string, string | undefined>;
@@ -32,7 +35,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const idempotencyKey = req.headers[IDEMPOTENCY_HEADER];
+    const idempotencyKey =
+      req.headers[IDEMPOTENCY_HEADER] ?? req.headers['x-idempotency-key'];
     if (!idempotencyKey) {
       return next.handle();
     }
@@ -59,9 +63,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
       }),
       catchError((err: unknown) => {
         void this.idempotency.delete(idempotencyKey);
-        return throwError(() => err instanceof HttpException
-          ? err
-          : new HttpException('Internal server error', HttpStatus.INTERNAL_SERVER_ERROR));
+        return throwError(() =>
+          err instanceof HttpException
+            ? err
+            : new HttpException(
+                'Internal server error',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+              ),
+        );
       }),
     );
   }

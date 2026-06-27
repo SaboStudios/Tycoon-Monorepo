@@ -411,7 +411,14 @@ describe('GamesService', () => {
       const dto: GetGamesDto = {};
       mockPaginationService.paginate.mockResolvedValue({
         data: [],
-        meta: { page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+        meta: {
+          page: 1,
+          limit: 10,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
 
       await service.findAll(dto);
@@ -427,7 +434,14 @@ describe('GamesService', () => {
       const dto: GetGamesDto = { sortBy: GameSortField.STATUS };
       mockPaginationService.paginate.mockResolvedValue({
         data: [],
-        meta: { page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+        meta: {
+          page: 1,
+          limit: 10,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
 
       await service.findAll(dto);
@@ -443,7 +457,14 @@ describe('GamesService', () => {
       const dto: GetGamesDto = { sortBy: GameSortField.STARTED_AT };
       mockPaginationService.paginate.mockResolvedValue({
         data: [],
-        meta: { page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+        meta: {
+          page: 1,
+          limit: 10,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
 
       await service.findAll(dto);

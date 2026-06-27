@@ -19,7 +19,13 @@ describe('HttpLoggerMiddleware', () => {
   });
 
   it('skips excluded health paths', () => {
-    const req = { path: '/health/live', method: 'GET', originalUrl: '/health/live', ip: '127.0.0.1', headers: {} } as Request;
+    const req = {
+      path: '/health/live',
+      method: 'GET',
+      originalUrl: '/health/live',
+      ip: '127.0.0.1',
+      headers: {},
+    } as Request;
     const res = new EventEmitter() as Response;
     const next = jest.fn();
 

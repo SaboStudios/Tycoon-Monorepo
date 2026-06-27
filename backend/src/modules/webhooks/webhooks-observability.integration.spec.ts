@@ -7,6 +7,7 @@ import { WebhookEvent } from './entities/webhook-event.entity';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
 import * as crypto from 'crypto';
 
 describe('Webhooks Observability Integration', () => {
@@ -52,6 +53,17 @@ describe('Webhooks Observability Integration', () => {
             auditProcessingFailed: jest.fn(),
           },
         },
+        {
+          provide: WebhookAuditHooksService,
+          useValue: {
+            onReceived: jest.fn(),
+            onSignatureVerified: jest.fn(),
+            onSignatureFailed: jest.fn(),
+            onDuplicate: jest.fn(),
+            onProcessed: jest.fn(),
+            onFailed: jest.fn(),
+          },
+        },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },
         {
           provide: LoggerService,
@@ -71,7 +83,10 @@ describe('Webhooks Observability Integration', () => {
   });
 
   it('processes valid webhook and emits metrics', async () => {
-    const payload = { id: 'evt_test_observability_123', type: 'payment.succeeded' };
+    const payload = {
+      id: 'evt_test_observability_123',
+      type: 'payment.succeeded',
+    };
     const body = Buffer.from(JSON.stringify(payload));
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const signature = crypto
@@ -79,7 +94,12 @@ describe('Webhooks Observability Integration', () => {
       .update(`${timestamp}.${body.toString()}`)
       .digest('hex');
 
-    const valid = await service.verifySignature(signature, timestamp, body, 'stripe');
+    const valid = await service.verifySignature(
+      signature,
+      timestamp,
+      body,
+      'stripe',
+    );
     expect(valid).toBe(true);
 
     const result = await service.processWebhook(payload, 'stripe');

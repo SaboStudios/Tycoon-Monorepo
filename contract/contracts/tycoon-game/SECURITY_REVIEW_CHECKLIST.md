@@ -64,7 +64,7 @@
 
 | # | Check | Status | Notes |
 |---|---|---|---|
-| INT-1 | `admin_withdraw_funds` — `amount as i128` cast | ⚠️ | If `amount > i128::MAX` the cast silently truncates. Add an explicit bounds check: `assert!(amount <= i128::MAX as u128, "amount exceeds i128::MAX")` before the cast |
+| INT-1 | `admin_withdraw_funds` — `amount as i128` cast | ✅ | Added `assert!(amount <= i128::MAX as u128, "amount exceeds i128::MAX")` before the cast |
 | INT-2 | `TreasurySnapshot::invariant_holds` — uses `checked_add` | ✅ | Returns `false` on overflow rather than panicking |
 | INT-3 | `TreasurySnapshot::assert_invariant` — panics with descriptive message | ✅ | |
 | INT-4 | No arithmetic on user-supplied values in storage reads/writes | ✅ | Collectible prices and stock are stored as-is; no on-chain arithmetic on them |
@@ -93,8 +93,8 @@
 | EV-1 | `admin_withdraw_funds` | `FundsWithdrawn` (topics: token, to; data: amount) | ✅ |
 | EV-2 | `remove_player_from_game` | `PlayerRemovedFromGame` (topics: game_id, player; data: turn_count) | ✅ |
 | EV-3 | `initialize` | No event emitted | ℹ️ Intentional — initialization is a one-time bootstrap; indexers can detect it from the transaction |
-| EV-4 | `register_player` | No event emitted | ℹ️ Consider adding a `PlayerRegistered` event for off-chain indexing |
-| EV-5 | `admin_set_game_controller` | No event emitted | ⚠️ Controller rotation is a privileged action; recommend adding a `ControllerUpdated` event for auditability |
+| EV-4 | `register_player` | `PlayerRegistered` (topics: player; data: ()) | ✅ Added |
+| EV-5 | `admin_set_game_controller` | `ControllerUpdated` (topics: new_controller; data: ()) | ✅ Added |
 
 ---
 
@@ -102,7 +102,7 @@
 
 | Role | How granted | How rotated | Notes |
 |---|---|---|---|
-| `owner` | Set in `initialize` | No rotation mechanism | ⚠️ Owner key cannot be rotated post-deploy. If the owner key is compromised, the contract cannot be recovered. Consider adding an `admin_transfer_ownership` entrypoint. |
+| `owner` | Set in `initialize` | `admin_transfer_ownership(new_owner)` | ✅ Rotation supported via `admin_transfer_ownership`; emits `OwnershipTransferred` |
 | `backend_game_controller` | Set by owner via `admin_set_game_controller` | Owner calls `admin_set_game_controller` with new address | ✅ Rotation is supported |
 
 ---
@@ -138,10 +138,10 @@
 
 | ID | Severity | Description | Owner | Status |
 |---|---|---|---|---|
-| OI-1 | Medium | `amount as i128` cast in `admin_withdraw_funds` is unchecked — add `assert!(amount <= i128::MAX as u128)` | | 🔲 Open |
-| OI-2 | Medium | No owner rotation mechanism — add `admin_transfer_ownership` to allow key rotation | | 🔲 Open |
-| OI-3 | Low | `admin_set_game_controller` emits no event — add `ControllerUpdated` event for auditability | | 🔲 Open |
-| OI-4 | Low | `register_player` emits no event — add `PlayerRegistered` event for off-chain indexing | | 🔲 Open |
+| OI-1 | Medium | `amount as i128` cast in `admin_withdraw_funds` — added `assert!(amount <= i128::MAX as u128)` | | ✅ Resolved |
+| OI-2 | Medium | Owner rotation — `admin_transfer_ownership` entrypoint added; emits `OwnershipTransferred` | | ✅ Resolved |
+| OI-3 | Low | `admin_set_game_controller` now emits `ControllerUpdated` event | | ✅ Resolved |
+| OI-4 | Low | `register_player` now emits `PlayerRegistered` event | | ✅ Resolved |
 | OI-5 | Info | Reward system address is immutable post-deploy — ensure it is audited before `initialize` is called on mainnet | | 🔲 Pending audit |
 | OI-6 | Info | External audit recommended before mainnet | | 🔲 Pending budget |
 

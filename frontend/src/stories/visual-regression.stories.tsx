@@ -3,6 +3,7 @@ import WhatIsTycoon from '@/components/guest/WhatIsTycoon';
 import HeroSection from '@/components/guest/HeroSection';
 import { BoardSquare } from '@/components/game/BoardSquare';
 import JoinRoomForm from '@/components/settings/JoinRoomForm';
+import type { ShopItemData } from '@/components/game/ShopItem';
 import { JOIN_ROOM_I18N } from '@/lib/join-room/i18n-keys';
 
 export default {

@@ -5,7 +5,7 @@
 /// contract suite and must never silently succeed in production:
 ///
 /// | # | Entrypoint | Contract | Deprecation status |
-/// |---|-----------|----------|--------------------|
+/// |---|-----------|----------|---------------------|
 /// | 1 | `redeem_voucher` | `TycoonRewardSystem` | Hard-deprecated: always panics |
 /// | 2 | `test_mint` / `test_burn` | `TycoonRewardSystem` | Test-only helpers exposed as public entrypoints — must not be callable by an arbitrary address in a production-like scenario |
 /// | 3 | `mint_registration_voucher` | `TycoonContract` | Uses raw untyped `invoke_contract` (legacy cross-contract pattern) — covered here to lock in current behaviour while the typed-client migration is tracked |
@@ -25,11 +25,7 @@ mod tests {
     extern crate std;
 
     use crate::fixture::Fixture;
-    use soroban_sdk::{
-        testutils::Address as _,
-        token::StellarAssetClient,
-        Address, String,
-    };
+    use soroban_sdk::{testutils::Address as _, Address, String};
 
     // -------------------------------------------------------------------------
     // 1. redeem_voucher — hard-deprecated entrypoint
@@ -328,5 +324,121 @@ mod tests {
 
         // No TYC must have moved.
         assert_eq!(f.tyc_balance(&f.player_a), 0);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. Expanded scenarios — stale/disconnected/invalid states
+    // -------------------------------------------------------------------------
+
+    /// Calling `redeem_voucher` on a non-existent token_id must panic.
+    /// Verifies graceful handling of a stale/invalid voucher reference.
+    #[test]
+    fn legacy_redeem_voucher_nonexistent_token_panics() {
+        let f = Fixture::new();
+        let stale_tid: u128 = 0xDEAD_BEEF;
+
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher(&stale_tid);
+        }));
+        assert!(
+            res.is_err(),
+            "redeem_voucher on a non-existent token_id must panic"
+        );
+        // No TYC must have moved.
+        assert_eq!(f.tyc_balance(&f.player_a), 0);
+    }
+
+    /// Multiple deprecated calls on the same voucher must all panic and leave
+    /// the voucher intact for the canonical path.
+    #[test]
+    fn legacy_redeem_voucher_repeated_calls_all_panic_voucher_intact() {
+        let f = Fixture::new();
+        let value: u128 = 20_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+
+        for _ in 0..3 {
+            let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                f.reward.redeem_voucher(&tid);
+            }));
+            assert!(res.is_err(), "every deprecated call must panic");
+        }
+
+        // Voucher must still be redeemable via canonical path.
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        assert_eq!(f.tyc_balance(&f.player_a), value as i128);
+    }
+
+    /// `test_mint` on two different players with the same token_id must give
+    /// each player an independent balance (no cross-account contamination).
+    #[test]
+    fn test_mint_independent_balances_per_player() {
+        let f = Fixture::new();
+        let token_id: u128 = 4_444_444;
+
+        f.reward.test_mint(&f.player_a, &token_id, &2);
+        f.reward.test_mint(&f.player_b, &token_id, &5);
+
+        assert_eq!(f.reward.get_balance(&f.player_a, &token_id), 2);
+        assert_eq!(f.reward.get_balance(&f.player_b, &token_id), 5);
+    }
+
+    /// `test_burn` on player_a must not affect player_b's balance for the
+    /// same token_id (account isolation).
+    #[test]
+    fn test_burn_does_not_affect_other_player_balance() {
+        let f = Fixture::new();
+        let token_id: u128 = 3_333_333;
+
+        f.reward.test_mint(&f.player_a, &token_id, &4);
+        f.reward.test_mint(&f.player_b, &token_id, &4);
+
+        f.reward.test_burn(&f.player_a, &token_id, &4);
+
+        assert_eq!(f.reward.get_balance(&f.player_a, &token_id), 0);
+        // player_b's balance must be untouched.
+        assert_eq!(f.reward.get_balance(&f.player_b, &token_id), 4);
+    }
+
+    /// `mint_registration_voucher` called twice for the same player must mint
+    /// two vouchers (idempotency is NOT expected — each call is a new mint).
+    #[test]
+    fn legacy_mint_registration_voucher_twice_mints_two_vouchers() {
+        let f = Fixture::new();
+
+        f.game
+            .register_player(&String::from_str(&f.env, "eve"), &f.player_a);
+
+        f.game.mint_registration_voucher(&f.player_a);
+        f.game.mint_registration_voucher(&f.player_a);
+
+        assert_eq!(
+            f.reward.owned_token_count(&f.player_a),
+            2,
+            "two calls to mint_registration_voucher must produce two vouchers"
+        );
+    }
+
+    /// Deprecated `redeem_voucher` followed immediately by canonical
+    /// `redeem_voucher_from` on the same voucher must succeed exactly once.
+    #[test]
+    fn deprecated_then_canonical_redeem_succeeds_once() {
+        let f = Fixture::new();
+        let value: u128 = 30_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_b, &value);
+
+        // Deprecated call panics — voucher state unchanged.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher(&tid);
+        }));
+
+        // Canonical call succeeds.
+        f.reward.redeem_voucher_from(&f.player_b, &tid);
+        assert_eq!(f.tyc_balance(&f.player_b), value as i128);
+
+        // Second canonical call must panic (double-redeem guard).
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_b, &tid);
+        }));
+        assert!(res.is_err(), "second canonical redeem must be rejected");
     }
 }

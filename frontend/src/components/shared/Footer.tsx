@@ -10,7 +10,7 @@ const Footer = () => {
     <footer className="w-full px-4 pb-8 md:pb-12 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center gap-4 rounded-2xl bg-[#0B191A] p-5 md:flex-row md:justify-between md:gap-0">
         <Link href="/" className="md:w-[60px] w-[55px] block">
-          <Image src="/footerLogo.svg" alt="Tycoon" width={60} height={55} className="md:w-[60px] w-[55px] h-auto" unoptimized />
+          <Image src="/footerLogo.svg" alt="Tycoon" width={60} height={55} className="md:w-[60px] w-[55px] h-auto" unoptimized loading="lazy" />
         </Link>
 
         <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400]">

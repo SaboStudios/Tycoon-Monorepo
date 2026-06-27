@@ -358,7 +358,7 @@ export class GamesService {
     return this.findById(gameId);
   }
 
-async joinGame(
+  async joinGame(
     gameId: number,
     userId: number,
     dto: JoinGameDto,
@@ -488,4 +488,3 @@ async joinGame(
     };
   }
 }
-

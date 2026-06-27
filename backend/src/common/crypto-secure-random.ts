@@ -17,7 +17,10 @@ export function secureRandomInt(maxExclusive: number): number {
 /**
  * Build a string of `length` by indexing into `alphabet` using secure random ints.
  */
-export function secureRandomAlphaNumeric(length: number, alphabet: string): string {
+export function secureRandomAlphaNumeric(
+  length: number,
+  alphabet: string,
+): string {
   if (length <= 0 || alphabet.length < 2) {
     throw new Error('secureRandomAlphaNumeric: invalid length or alphabet');
   }

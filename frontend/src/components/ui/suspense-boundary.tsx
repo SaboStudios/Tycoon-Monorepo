@@ -24,13 +24,17 @@ export function SuspenseBoundary({
   minDisplayTime = 0,
   className,
 }: SuspenseBoundaryProps) {
-  const [showFallback, setShowFallback] = React.useState(minDisplayTime > 0);
+  const [showFallback, setShowFallback] = React.useState(minDisplayTime <= 0);
 
   React.useEffect(() => {
-    if (minDisplayTime > 0) {
-      const timer = setTimeout(() => setShowFallback(false), minDisplayTime);
-      return () => clearTimeout(timer);
+    if (minDisplayTime <= 0) {
+      setShowFallback(true);
+      return;
     }
+
+    setShowFallback(false);
+    const timer = window.setTimeout(() => setShowFallback(true), minDisplayTime);
+    return () => window.clearTimeout(timer);
   }, [minDisplayTime]);
 
   const defaultFallback = React.useMemo(() => {
@@ -54,7 +58,7 @@ export function SuspenseBoundary({
   }, [fallback, fallbackType]);
 
   return (
-    <Suspense fallback={<div className={className}>{defaultFallback}</div>}>
+    <Suspense fallback={<div className={className} aria-busy={showFallback ? "true" : undefined}>{showFallback ? defaultFallback : null}</div>}>
       {children}
     </Suspense>
   );

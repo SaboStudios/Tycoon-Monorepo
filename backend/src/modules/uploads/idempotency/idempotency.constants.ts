@@ -9,37 +9,37 @@ export interface IdempotencyOptions {
    * Default: 24 hours (86400 seconds)
    */
   ttl?: number;
-  
+
   /**
    * Whether to include request body in key generation
    * Default: false
    */
   includeBody?: boolean;
-  
+
   /**
    * Whether to include query parameters in key generation
    * Default: true
    */
   includeQuery?: boolean;
-  
+
   /**
    * Whether to include headers in key generation
    * Default: false
    */
   includeHeaders?: boolean;
-  
+
   /**
    * List of headers to include if includeHeaders is true
    * Default: ['content-type', 'authorization']
    */
   headersToInclude?: string[];
-  
+
   /**
    * Whether to store the full response for replay
    * Default: true
    */
   storeResponse?: boolean;
-  
+
   /**
    * Maximum size of response to store (in bytes)
    * Default: 1MB

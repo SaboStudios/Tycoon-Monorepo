@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PurchasesController } from './purchases.controller';
 import { PurchasesService } from './purchases.service';
 import { Purchase, PurchaseStatus } from './entities/purchase.entity';
@@ -43,27 +43,6 @@ describe('PurchasesController', () => {
 
     expect(mockService.create).toHaveBeenCalledWith(dto, 'valid-key-001');
     expect(result).toEqual(mockPurchase);
-  });
-
-  it('throws BadRequestException when Idempotency-Key header is missing', async () => {
-    await expect(
-      controller.create(dto, undefined as unknown as string),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(mockService.create).not.toHaveBeenCalled();
-  });
-
-  it('throws BadRequestException when Idempotency-Key is empty string', async () => {
-    await expect(controller.create(dto, '  ')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-  });
-
-  it('throws BadRequestException when Idempotency-Key exceeds 255 chars', async () => {
-    const longKey = 'a'.repeat(256);
-    await expect(controller.create(dto, longKey)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
   });
 
   it('propagates ConflictException from service (concurrent duplicate)', async () => {

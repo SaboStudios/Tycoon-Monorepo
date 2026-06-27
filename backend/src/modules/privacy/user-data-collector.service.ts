@@ -43,23 +43,31 @@ export class UserDataCollectorService {
     private readonly userSuspensions: Repository<UserSuspension>,
     @InjectRepository(RefreshToken)
     private readonly refreshTokens: Repository<RefreshToken>,
-    @InjectRepository(GamePlayer) private readonly gamePlayers: Repository<GamePlayer>,
-    @InjectRepository(Purchase) private readonly purchases: Repository<Purchase>,
+    @InjectRepository(GamePlayer)
+    private readonly gamePlayers: Repository<GamePlayer>,
+    @InjectRepository(Purchase)
+    private readonly purchases: Repository<Purchase>,
     @InjectRepository(UserInventory)
     private readonly userInventory: Repository<UserInventory>,
     @InjectRepository(CouponUsageLog)
     private readonly couponUsageLogs: Repository<CouponUsageLog>,
-    @InjectRepository(UserSkin) private readonly userSkins: Repository<UserSkin>,
+    @InjectRepository(UserSkin)
+    private readonly userSkins: Repository<UserSkin>,
     @InjectRepository(Gift) private readonly gifts: Repository<Gift>,
     @InjectRepository(Notification)
     private readonly notifications: Repository<Notification>,
-    @InjectRepository(AuditTrail) private readonly auditTrails: Repository<AuditTrail>,
-    @InjectRepository(PlayerPerk) private readonly playerPerks: Repository<PlayerPerk>,
-    @InjectRepository(BoostUsage) private readonly boostUsage: Repository<BoostUsage>,
-    @InjectRepository(ActiveBoost) private readonly activeBoosts: Repository<ActiveBoost>,
+    @InjectRepository(AuditTrail)
+    private readonly auditTrails: Repository<AuditTrail>,
+    @InjectRepository(PlayerPerk)
+    private readonly playerPerks: Repository<PlayerPerk>,
+    @InjectRepository(BoostUsage)
+    private readonly boostUsage: Repository<BoostUsage>,
+    @InjectRepository(ActiveBoost)
+    private readonly activeBoosts: Repository<ActiveBoost>,
     @InjectRepository(PerkAnalyticsEvent)
     private readonly perkAnalytics: Repository<PerkAnalyticsEvent>,
-    @InjectRepository(AdminLog) private readonly adminLogs: Repository<AdminLog>,
+    @InjectRepository(AdminLog)
+    private readonly adminLogs: Repository<AdminLog>,
     @InjectRepository(Waitlist) private readonly waitlist: Repository<Waitlist>,
   ) {}
 
@@ -71,8 +79,13 @@ export class UserDataCollectorService {
       try {
         tables[key] = await fn();
       } catch (err) {
-        this.logger.warn(`Export slice "${key}" failed: ${(err as Error).message}`);
-        tables[key] = { _error: 'collection_failed', _message: (err as Error).message };
+        this.logger.warn(
+          `Export slice "${key}" failed: ${(err as Error).message}`,
+        );
+        tables[key] = {
+          _error: 'collection_failed',
+          _message: (err as Error).message,
+        };
       }
     };
 

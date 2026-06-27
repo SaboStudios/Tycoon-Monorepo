@@ -9,7 +9,7 @@ import {
 /**
  * Webhook Audit Log Entity
  * Immutable audit trail for webhook operations
- * 
+ *
  * Security: No secrets stored, only operation metadata
  * Compliance: Indexed for efficient querying and reporting
  */

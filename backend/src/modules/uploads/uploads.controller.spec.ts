@@ -32,7 +32,10 @@ const OVERSIZE_BUFFER = Buffer.alloc(6 * 1024 * 1024, 0);
 // Mock services
 // ---------------------------------------------------------------------------
 const mockUploadsService = {
-  store: jest.fn().mockResolvedValue({ key: 'test-key/avatar.jpg', url: '/uploads/download?token=tok' }),
+  store: jest.fn().mockResolvedValue({
+    key: 'test-key/avatar.jpg',
+    url: '/uploads/download?token=tok',
+  }),
   signedUrl: jest.fn().mockResolvedValue('/uploads/download?token=tok'),
   resolveLocalDownload: jest.fn(),
 };
@@ -49,7 +52,9 @@ const mockUploadsObservability = {
   recordUploadOutcome: jest.fn(),
   recordMulterError: jest.fn(),
   recordVirusScanOutcome: jest.fn(),
-  createTraceContext: jest.fn().mockReturnValue({ trace_id: 't', route: 'avatar', ts: '' }),
+  createTraceContext: jest
+    .fn()
+    .mockReturnValue({ trace_id: 't', route: 'avatar', ts: '' }),
 };
 
 const allowAllGuard = { canActivate: jest.fn().mockReturnValue(true) };
@@ -67,8 +72,14 @@ describe('UploadsController – integration', () => {
         { provide: UploadsService, useValue: mockUploadsService },
         { provide: VirusScanService, useValue: mockVirusScan },
         { provide: ConfigService, useValue: mockConfigService },
-        { provide: UploadsObservabilityService, useValue: mockUploadsObservability },
-        { provide: UploadsErrorMapperService, useValue: { mapMulterError: jest.fn() } },
+        {
+          provide: UploadsObservabilityService,
+          useValue: mockUploadsObservability,
+        },
+        {
+          provide: UploadsErrorMapperService,
+          useValue: { mapMulterError: jest.fn() },
+        },
         UploadsObservabilityInterceptor,
       ],
     })
@@ -95,7 +106,10 @@ describe('UploadsController – integration', () => {
     it('rejects an oversize file with 413', async () => {
       const res = await request(app.getHttpServer())
         .post('/uploads/avatar')
-        .attach('file', OVERSIZE_BUFFER, { filename: 'big.jpg', contentType: 'image/jpeg' });
+        .attach('file', OVERSIZE_BUFFER, {
+          filename: 'big.jpg',
+          contentType: 'image/jpeg',
+        });
 
       expect(res.status).toBe(413);
     });
@@ -114,7 +128,10 @@ describe('UploadsController – integration', () => {
     it('rejects an executable file disguised as an image with 400', async () => {
       const res = await request(app.getHttpServer())
         .post('/uploads/avatar')
-        .attach('file', ELF_MAGIC, { filename: 'malware.jpg', contentType: 'image/jpeg' });
+        .attach('file', ELF_MAGIC, {
+          filename: 'malware.jpg',
+          contentType: 'image/jpeg',
+        });
 
       expect(res.status).toBe(400);
     });
@@ -123,7 +140,10 @@ describe('UploadsController – integration', () => {
       // Send a JPEG buffer but declare it as PNG
       const res = await request(app.getHttpServer())
         .post('/uploads/avatar')
-        .attach('file', JPEG_MAGIC, { filename: 'trick.png', contentType: 'image/png' });
+        .attach('file', JPEG_MAGIC, {
+          filename: 'trick.png',
+          contentType: 'image/png',
+        });
 
       expect(res.status).toBe(400);
     });
@@ -131,7 +151,10 @@ describe('UploadsController – integration', () => {
     it('accepts a valid JPEG and returns 201 with a signed URL', async () => {
       const res = await request(app.getHttpServer())
         .post('/uploads/avatar')
-        .attach('file', JPEG_MAGIC, { filename: 'avatar.jpg', contentType: 'image/jpeg' });
+        .attach('file', JPEG_MAGIC, {
+          filename: 'avatar.jpg',
+          contentType: 'image/jpeg',
+        });
 
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('key');
@@ -148,7 +171,10 @@ describe('UploadsController – integration', () => {
     it('rejects an oversize file with 413', async () => {
       const res = await request(app.getHttpServer())
         .post('/uploads/admin/assets')
-        .attach('file', OVERSIZE_BUFFER, { filename: 'big.jpg', contentType: 'image/jpeg' });
+        .attach('file', OVERSIZE_BUFFER, {
+          filename: 'big.jpg',
+          contentType: 'image/jpeg',
+        });
 
       expect(res.status).toBe(413);
     });
@@ -167,7 +193,10 @@ describe('UploadsController – integration', () => {
     it('accepts a valid JPEG asset and returns 201', async () => {
       const res = await request(app.getHttpServer())
         .post('/uploads/admin/assets')
-        .attach('file', JPEG_MAGIC, { filename: 'banner.jpg', contentType: 'image/jpeg' });
+        .attach('file', JPEG_MAGIC, {
+          filename: 'banner.jpg',
+          contentType: 'image/jpeg',
+        });
 
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('url');
@@ -178,18 +207,27 @@ describe('UploadsController – integration', () => {
 // ---------------------------------------------------------------------------
 // Unit tests for validators (no HTTP overhead)
 // ---------------------------------------------------------------------------
-import { MagicBytesValidator, NoExecutableValidator } from './upload-validators';
+import {
+  MagicBytesValidator,
+  NoExecutableValidator,
+} from './upload-validators';
 
 describe('MagicBytesValidator', () => {
   const validator = new MagicBytesValidator();
 
   it('passes a real JPEG buffer', () => {
-    const file = { buffer: JPEG_MAGIC, mimetype: 'image/jpeg' } as Express.Multer.File;
+    const file = {
+      buffer: JPEG_MAGIC,
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
     expect(validator.isValid(file)).toBe(true);
   });
 
   it('fails when declared MIME does not match magic bytes', () => {
-    const file = { buffer: JPEG_MAGIC, mimetype: 'image/png' } as Express.Multer.File;
+    const file = {
+      buffer: JPEG_MAGIC,
+      mimetype: 'image/png',
+    } as Express.Multer.File;
     expect(validator.isValid(file)).toBe(false);
   });
 
@@ -197,12 +235,18 @@ describe('MagicBytesValidator', () => {
     const pngBuf = Buffer.from([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
     ]);
-    const file = { buffer: pngBuf, mimetype: 'image/png' } as Express.Multer.File;
+    const file = {
+      buffer: pngBuf,
+      mimetype: 'image/png',
+    } as Express.Multer.File;
     expect(validator.isValid(file)).toBe(true);
   });
 
   it('fails an empty / too-small buffer', () => {
-    const file = { buffer: Buffer.alloc(2), mimetype: 'image/jpeg' } as Express.Multer.File;
+    const file = {
+      buffer: Buffer.alloc(2),
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
     expect(validator.isValid(file)).toBe(false);
   });
 });
@@ -211,7 +255,10 @@ describe('NoExecutableValidator', () => {
   const validator = new NoExecutableValidator();
 
   it('blocks an ELF binary', () => {
-    const file = { buffer: ELF_MAGIC, mimetype: 'image/jpeg' } as Express.Multer.File;
+    const file = {
+      buffer: ELF_MAGIC,
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
     expect(validator.isValid(file)).toBe(false);
   });
 
@@ -228,7 +275,10 @@ describe('NoExecutableValidator', () => {
   });
 
   it('passes a normal JPEG buffer', () => {
-    const file = { buffer: JPEG_MAGIC, mimetype: 'image/jpeg' } as Express.Multer.File;
+    const file = {
+      buffer: JPEG_MAGIC,
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
     expect(validator.isValid(file)).toBe(true);
   });
 });

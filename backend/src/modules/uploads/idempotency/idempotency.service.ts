@@ -2,7 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { createHash } from 'crypto';
-import { IdempotencyOptions, IDEMPOTENCY_HEADER, DEFAULT_IDEMPOTENCY_TTL, IDEMPOTENCY_KEY_PREFIX } from './idempotency.constants';
+import {
+  IdempotencyOptions,
+  IDEMPOTENCY_HEADER,
+  DEFAULT_IDEMPOTENCY_TTL,
+  IDEMPOTENCY_KEY_PREFIX,
+} from './idempotency.constants';
 import { Request } from 'express';
 
 /** Minimal response shape captured for idempotency replay (not full Express Response typings). */
@@ -63,11 +68,7 @@ export class IdempotencyService {
     }
 
     // Generate server-side key
-    const keyParts = [
-      req.method,
-      req.path,
-      req.ip,
-    ];
+    const keyParts = [req.method, req.path, req.ip];
 
     // Include query parameters if specified
     if (options.includeQuery !== false && Object.keys(req.query).length > 0) {
@@ -77,7 +78,7 @@ export class IdempotencyService {
     // Include selected headers if specified
     if (options.includeHeaders && options.headersToInclude) {
       const headers = options.headersToInclude
-        .map(header => `${header}:${req.headers[header.toLowerCase()]}`)
+        .map((header) => `${header}:${req.headers[header.toLowerCase()]}`)
         .join('|');
       if (headers) {
         keyParts.push(headers);
@@ -92,21 +93,27 @@ export class IdempotencyService {
     // Create hash from key parts
     const keyString = keyParts.join('|');
     const hash = createHash('sha256').update(keyString).digest('hex');
-    
+
     return `${IDEMPOTENCY_KEY_PREFIX}generated:${hash}`;
   }
 
   /**
    * Check if a request is idempotent and return cached response if exists
    */
-  async checkIdempotency(req: Request, options: IdempotencyOptions = {}): Promise<IdempotencyRecord | null> {
+  async checkIdempotency(
+    req: Request,
+    options: IdempotencyOptions = {},
+  ): Promise<IdempotencyRecord | null> {
     const key = this.generateKey(req, options);
-    
+
     try {
       const record = await this.redis.get(key);
       if (record) {
         const parsedRecord: IdempotencyRecord = JSON.parse(record);
-        this.logger.debug('Idempotency hit', { key, timestamp: parsedRecord.timestamp });
+        this.logger.debug('Idempotency hit', {
+          key,
+          timestamp: parsedRecord.timestamp,
+        });
         return parsedRecord;
       }
     } catch (error: unknown) {
@@ -141,13 +148,14 @@ export class IdempotencyService {
     // Store response if specified and within size limits
     if (options.storeResponse !== false) {
       const maxResponseSize = options.maxResponseSize || 1024 * 1024; // 1MB default
-      
+
       let responseBody: any;
       if (response.body) {
-        const bodyString = typeof response.body === 'string' 
-          ? response.body 
-          : JSON.stringify(response.body);
-        
+        const bodyString =
+          typeof response.body === 'string'
+            ? response.body
+            : JSON.stringify(response.body);
+
         if (bodyString.length <= maxResponseSize) {
           responseBody = response.body;
         } else {
@@ -171,7 +179,10 @@ export class IdempotencyService {
       this.logger.debug('Idempotency record stored', { key, ttl });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error('Error storing idempotency record', { key, error: msg });
+      this.logger.error('Error storing idempotency record', {
+        key,
+        error: msg,
+      });
     }
   }
 
@@ -184,7 +195,10 @@ export class IdempotencyService {
       this.logger.debug('Idempotency record cleared', { key });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error('Error clearing idempotency record', { key, error: msg });
+      this.logger.error('Error clearing idempotency record', {
+        key,
+        error: msg,
+      });
     }
   }
 
@@ -199,7 +213,7 @@ export class IdempotencyService {
     try {
       const keys = await this.redis.keys(`${IDEMPOTENCY_KEY_PREFIX}*`);
       const totalRecords = keys.length;
-      
+
       const now = Date.now();
       const recordsByAge = {
         '0-1h': 0,
@@ -210,7 +224,7 @@ export class IdempotencyService {
 
       // Sample a subset of records for age analysis (to avoid too many Redis calls)
       const sampleKeys = keys.slice(0, Math.min(100, keys.length));
-      
+
       for (const key of sampleKeys) {
         try {
           const record = await this.redis.get(key);
@@ -236,7 +250,7 @@ export class IdempotencyService {
 
       // Scale up the sample to estimate total
       const scaleFactor = totalRecords / sampleKeys.length;
-      Object.keys(recordsByAge).forEach(key => {
+      Object.keys(recordsByAge).forEach((key) => {
         recordsByAge[key] = Math.round(recordsByAge[key] * scaleFactor);
       });
 
@@ -267,7 +281,8 @@ export class IdempotencyService {
       for (const key of keys) {
         try {
           const ttl = await this.redis.ttl(key);
-          if (ttl === -1) { // No expiration set
+          if (ttl === -1) {
+            // No expiration set
             await this.redis.del(key);
             cleaned++;
           }
@@ -276,7 +291,10 @@ export class IdempotencyService {
         }
       }
 
-      this.logger.log('Idempotency cleanup completed', { cleaned, total: keys.length });
+      this.logger.log('Idempotency cleanup completed', {
+        cleaned,
+        total: keys.length,
+      });
       return cleaned;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -288,7 +306,11 @@ export class IdempotencyService {
   /**
    * Validate request integrity against stored hash
    */
-  validateRequestIntegrity(req: Request, record: IdempotencyRecord, options: IdempotencyOptions = {}): boolean {
+  validateRequestIntegrity(
+    req: Request,
+    record: IdempotencyRecord,
+    options: IdempotencyOptions = {},
+  ): boolean {
     if (!record.requestHash) {
       return true; // No hash to validate against
     }
@@ -300,11 +322,11 @@ export class IdempotencyService {
   /**
    * Create hash of request for integrity validation
    */
-  private createRequestHash(req: Request, options: IdempotencyOptions = {}): string {
-    const hashParts = [
-      req.method,
-      req.path,
-    ];
+  private createRequestHash(
+    req: Request,
+    options: IdempotencyOptions = {},
+  ): string {
+    const hashParts = [req.method, req.path];
 
     if (options.includeQuery !== false) {
       hashParts.push(JSON.stringify(req.query));
@@ -316,7 +338,7 @@ export class IdempotencyService {
 
     if (options.includeHeaders && options.headersToInclude) {
       const headers = options.headersToInclude
-        .map(header => `${header}:${req.headers[header.toLowerCase()]}`)
+        .map((header) => `${header}:${req.headers[header.toLowerCase()]}`)
         .join('|');
       if (headers) {
         hashParts.push(headers);
@@ -329,7 +351,11 @@ export class IdempotencyService {
   /**
    * Health check for idempotency service
    */
-  async healthCheck(): Promise<{ status: string; redis: boolean; error?: string }> {
+  async healthCheck(): Promise<{
+    status: string;
+    redis: boolean;
+    error?: string;
+  }> {
     try {
       await this.redis.ping();
       return { status: 'healthy', redis: true };

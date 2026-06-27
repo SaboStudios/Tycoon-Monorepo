@@ -40,7 +40,9 @@ async function seed() {
         startingCash: defaultSettings.startingCash,
       });
       // Note: settings require game_id, so this is doc-only.
-      console.log('Game defaults documented and verified. No static data needed (per-game dynamic).');
+      console.log(
+        'Game defaults documented and verified. No static data needed (per-game dynamic).',
+      );
     }
 
     await AppDataSource.destroy();
@@ -55,4 +57,3 @@ seed().catch((error) => {
   console.error('Unhandled error during game seeding:', error);
   process.exit(1);
 });
-

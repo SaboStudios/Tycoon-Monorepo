@@ -96,7 +96,7 @@ const NavbarMobile = () => {
                   type="button"
                   onClick={() => {
                     closeMenu();
-                    logout();
+                    try { logout(); } catch { /* logout errors are non-fatal */ }
                   }}
                   className="rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] px-3 py-2 text-xs font-dm-sans font-medium text-[var(--tycoon-text)] transition-colors hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tycoon-accent)]"
                 >

@@ -310,6 +310,7 @@ export function TradeModal({
             {validationError && (
               <div
                 role="alert"
+                aria-live="assertive"
                 className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300"
                 data-testid="validation-error"
               >
@@ -370,12 +371,17 @@ function TradeColumn({
   testIdPrefix,
   disabled = false,
 }: TradeColumnProps): React.JSX.Element {
+  const headingId = `${testIdPrefix}-heading`;
   return (
     <div
       className={`rounded-lg border border-[#003B3E] bg-[#0E1415]/60 p-4 ${disabled ? "opacity-40 pointer-events-none" : ""}`}
       data-testid={`${testIdPrefix}-column`}
+      aria-disabled={disabled}
+      aria-labelledby={headingId}
+      role="group"
     >
       <h3
+        id={headingId}
         className={`text-xs font-bold uppercase tracking-wider mb-3 font-orbitron ${accentClass}`}
       >
         {heading}
@@ -395,6 +401,8 @@ function TradeColumn({
                 key={prop.name}
                 type="button"
                 onClick={() => onToggle(prop.name)}
+                aria-pressed={selected}
+                aria-label={`${prop.name}, ${prop.price} dollars${selected ? ", selected" : ""}`}
                 data-testid={`${testIdPrefix}-property-${prop.name.replace(/\s+/g, "-").toLowerCase()}`}
                 className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-all ${
                   selected

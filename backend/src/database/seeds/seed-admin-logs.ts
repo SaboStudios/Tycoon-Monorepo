@@ -65,35 +65,52 @@ async function seed() {
     console.log(`Using admin ID: ${adminId}`);
 
     console.log(`Seeding ${TOTAL_LOGS} logs...`);
-    const actions = ['user:update', 'user:delete', 'shop:item_add', 'shop:item_remove', 'settings:update', 'waitlist:export'];
+    const actions = [
+      'user:update',
+      'user:delete',
+      'shop:item_add',
+      'shop:item_remove',
+      'settings:update',
+      'waitlist:export',
+    ];
 
     for (let i = 0; i < TOTAL_LOGS; i += BATCH_SIZE) {
       const placeholders: string[] = [];
       const correctValues: any[] = [];
-      
+
       for (let j = 0; j < BATCH_SIZE; j++) {
         const offset = j * 7;
-        placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7})`);
-        
+        placeholders.push(
+          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7})`,
+        );
+
         const date = new Date();
         date.setMinutes(date.getMinutes() - (i + j));
-        
+
         const action = actions[randomInt(0, actions.length)];
         const targetId = randomInt(0, 1000);
         const details = JSON.stringify({ foo: 'bar', index: i + j });
         const ipAddress = `192.168.1.${randomInt(0, 255)}`;
         const userAgent = 'Mozilla/5.0';
-        
-        correctValues.push(adminId, action, targetId, details, ipAddress, userAgent, date);
+
+        correctValues.push(
+          adminId,
+          action,
+          targetId,
+          details,
+          ipAddress,
+          userAgent,
+          date,
+        );
       }
-      
+
       const correctQuery = `
         INSERT INTO admin_logs ("adminId", action, "targetId", details, "ipAddress", "userAgent", "created_at")
         VALUES ${placeholders.join(', ')}
       `;
 
       await client.query(correctQuery, correctValues);
-      
+
       console.log(`Inserted ${i + BATCH_SIZE} logs...`);
     }
 

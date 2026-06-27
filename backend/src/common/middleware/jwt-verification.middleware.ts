@@ -28,12 +28,14 @@ export class JwtVerificationMiddleware implements NestMiddleware {
     try {
       const secret =
         this.configService.get<string>('jwt.secret') || 'default-secret';
-      const decoded = jwt.verify(token, secret) as JwtPayload;
+      const decoded = jwt.verify(token, secret) as unknown as JwtPayload;
       (req as Request & { user?: JwtPayload }).user = decoded;
       next();
     } catch (error) {
       const message =
-        error instanceof jwt.TokenExpiredError ? 'Token expired' : 'Invalid token';
+        error instanceof jwt.TokenExpiredError
+          ? 'Token expired'
+          : 'Invalid token';
       return next(
         new UnauthorizedException({
           statusCode: 401,

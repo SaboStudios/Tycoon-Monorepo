@@ -98,18 +98,21 @@ cargo build --target wasm32-unknown-unknown --release
 ## Testing
 
 ```bash
-cargo test
+cargo test --package tycoon-token
 ```
 
-All 14 tests cover:
-- Initialization and metadata
-- Double initialization prevention
-- Admin minting (positive, zero amounts)
-- Token transfers (success and failure)
-- Approve and transfer_from flow
-- Allowance validation
-- Burn operations (self and from allowance)
-- Admin transfer and permissions
+Test modules and coverage:
+
+| Module | Description |
+|---|---|
+| `src/test.rs` | Core functional tests + simulation scenarios (SW-1) |
+| `src/invariant_tests.rs` | Mint/burn invariants INV-01 – INV-17 |
+| `src/error_branch_tests.rs` | Error path coverage |
+| `src/access_control_tests.rs` | Admin-only vs public entrypoint enforcement (#1033) |
+| `src/deprecation_tests.rs` | Legacy entrypoint deprecation guards |
+| `src/security_review_tests.rs` | Security checklist items SEC-01 – SEC-07 |
+| `src/simulation_scenarios.rs` | End-to-end simulation scenarios (SIM-01 – SIM-05) |
+| `src/storage_rent_tests.rs` | Storage rent budget & TTL verification (#1034) |
 
 ## Deployment
 

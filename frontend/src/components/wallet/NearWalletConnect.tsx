@@ -5,6 +5,9 @@ import { AlertCircle, ExternalLink, Loader2, Wallet } from "lucide-react";
 import { useNearWallet } from "@/components/providers/near-wallet-provider";
 import { cn } from "@/lib/utils";
 
+// Performance budget: CLS 0 (reserved height prevents layout shift)
+// All icon dimensions are explicit (h-3.5 w-3.5), text is stable.
+// LCP: minimal (only initial render, no lazy loading needed for small component)
 function truncateAccount(id: string, head = 6, tail = 4) {
   if (id.length <= head + tail + 1) return id;
   return `${id.slice(0, head)}...${id.slice(-tail)}`;

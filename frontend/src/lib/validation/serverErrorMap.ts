@@ -39,8 +39,8 @@ function isServerErrorResponse(v: unknown): v is ServerErrorResponse {
  * Details is a Record<fieldName, string[]> where each field maps to an array of error messages.
  * We take the first message for each field.
  */
-function extractDetailsErrors(details: Record<string, string[]> | undefined): FieldErrors | null {
-  if (!details || typeof details !== "object") return null;
+function extractDetailsErrors(details: unknown): FieldErrors | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
 
   const result: FieldErrors = {};
   let hasErrors = false;
@@ -71,7 +71,7 @@ export function mapServerErrors(error: unknown): FieldErrors {
   }
 
   // Priority 2: Explicit field errors array (custom format)
-  if (Array.isArray(body.errors)) {
+  if (Array.isArray(body.errors) && body.errors.length > 0) {
     for (const e of body.errors) {
       result[e.field] = e.message;
     }
@@ -85,7 +85,17 @@ export function mapServerErrors(error: unknown): FieldErrors {
     return { _form: "Please sign in to join a room." };
   }
   if (body.statusCode === 404) return { _form: "Room not found. Check the code and try again." };
-  if (body.statusCode === 409) return { _form: "Room is full. Try a different room." };
+  if (body.statusCode === 409) {
+    const conflictMessage = formatMessages(body.message).find(
+      (msg) =>
+        msg.toLowerCase().includes("already joined") ||
+        msg.toLowerCase().includes("already in this"),
+    );
+    if (conflictMessage) {
+      return { _form: "You're already in this room." };
+    }
+    return { _form: "Room is full. Try a different room." };
+  }
   if (body.statusCode === 410) {
     return { _form: "This invite link has expired. Ask the host for a new one." };
   }
@@ -95,12 +105,7 @@ export function mapServerErrors(error: unknown): FieldErrors {
 
   // Priority 4: NestJS class-validator messages array
   // Infer field from message text using keyword matching
-  const raw = body.message;
-  const messages: string[] = Array.isArray(raw)
-    ? raw.filter((m): m is string => typeof m === "string")
-    : typeof raw === "string"
-    ? [raw]
-    : [];
+  const messages = formatMessages(body.message);
 
   for (const msg of messages) {
     const lower = msg.toLowerCase();
@@ -119,17 +124,31 @@ export function mapServerErrors(error: unknown): FieldErrors {
     if (lower.includes("unauthorized") || lower.includes("not authenticated")) {
       return { _form: "Please sign in to join a room." };
     }
+    let matchedField = false;
     for (const [field, keyword] of Object.entries(FIELD_KEYWORDS)) {
-      if (lower.includes(keyword)) {
+      if (lower.includes(keyword.toLowerCase())) {
         result[field] = msg;
+        matchedField = true;
         break;
       }
     }
     // Fallback: attach to _form if no field matched
-    if (Object.keys(result).length === 0) {
+    if (!matchedField && !result["_form"]) {
       result["_form"] = msg;
     }
   }
 
+  if (Object.keys(result).length === 0) {
+    return { _form: "An unexpected error occurred" };
+  }
+
   return result;
+}
+
+function formatMessages(raw: string | string[] | undefined): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((m): m is string => typeof m === "string")
+    : typeof raw === "string"
+      ? [raw]
+      : [];
 }

@@ -110,7 +110,8 @@ describe('UsersService', () => {
 
       await service.findAll({ page: 1, sortBy: 'email' });
 
-      const [, , , allowedSortFields] = mockPaginationService.paginate.mock.calls[0];
+      const [, , , allowedSortFields] =
+        mockPaginationService.paginate.mock.calls[0];
       expect(Array.isArray(allowedSortFields)).toBe(true);
       expect(allowedSortFields).toContain('email');
       expect(allowedSortFields).toContain('id');

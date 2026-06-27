@@ -130,7 +130,13 @@ export class GamesObservabilityService {
   /**
    * Log game join attempts and results
    */
-  logGameJoin(gameId: number, userId: number, result: 'success' | 'error', reason?: string, duration?: number) {
+  logGameJoin(
+    gameId: number,
+    userId: number,
+    result: 'success' | 'error',
+    reason?: string,
+    duration?: number,
+  ) {
     const normalizedReason = reason || 'none';
     const labels = { result, reason: normalizedReason };
     this.gamesJoinedTotal.inc(labels);
@@ -153,10 +159,16 @@ export class GamesObservabilityService {
   /**
    * Log game updates
    */
-  logGameUpdate(gameId: number, updates: any, userId: number, userRole: string, duration: number) {
+  logGameUpdate(
+    gameId: number,
+    updates: any,
+    userId: number,
+    userRole: string,
+    duration: number,
+  ) {
     const fields = Object.keys(updates);
     const isStatusTransition = updates.status !== undefined;
-    
+
     this.gamesUpdatedTotal.inc({
       field: fields.join(','),
       status_transition: isStatusTransition.toString(),
@@ -179,7 +191,7 @@ export class GamesObservabilityService {
    */
   logGameCodeGenerationAttempt(attempts: number, success: boolean) {
     this.gameCodeGenerationAttempts.inc();
-    
+
     if (!success) {
       this.gameCodeGenerationFailures.inc();
     }
@@ -194,7 +206,10 @@ export class GamesObservabilityService {
   /**
    * Update active games metrics
    */
-  updateActiveGamesMetrics(gameCounts: Record<GameStatus, number>, totalPlayers: number) {
+  updateActiveGamesMetrics(
+    gameCounts: Record<GameStatus, number>,
+    totalPlayers: number,
+  ) {
     // Update gauge for each status
     Object.entries(gameCounts).forEach(([status, count]) => {
       this.activeGamesGauge.set({ status }, count);
@@ -226,8 +241,16 @@ export class GamesObservabilityService {
   /**
    * Log game settings updates
    */
-  logGameSettingsUpdate(gameId: number, userId: number, settingsUpdated: any, duration: number) {
-    this.gameOperationsDuration.observe({ operation: 'update_settings' }, duration);
+  logGameSettingsUpdate(
+    gameId: number,
+    userId: number,
+    settingsUpdated: any,
+    duration: number,
+  ) {
+    this.gameOperationsDuration.observe(
+      { operation: 'update_settings' },
+      duration,
+    );
 
     this.logger.log('Game settings updated', {
       event: 'game_settings_updated',
@@ -253,7 +276,12 @@ export class GamesObservabilityService {
   /**
    * Log matchmaking operations
    */
-  logMatchmakingOperation(operation: string, gameId: number, userId: number, metadata?: any) {
+  logMatchmakingOperation(
+    operation: string,
+    gameId: number,
+    userId: number,
+    metadata?: any,
+  ) {
     this.logger.log('Matchmaking operation', {
       event: 'matchmaking',
       operation,
@@ -269,7 +297,8 @@ export class GamesObservabilityService {
   logPerformanceMetric(operation: string, duration: number, metadata?: any) {
     this.gameOperationsDuration.observe({ operation }, duration);
 
-    if (duration > 1.0) { // Log slow operations
+    if (duration > 1.0) {
+      // Log slow operations
       this.logger.warn(`Slow game operation detected: ${operation}`, {
         event: 'slow_operation',
         operation,
@@ -298,7 +327,7 @@ export class GamesObservabilityService {
 
   /**
    * Increment audit log total counter.
-   * 
+   *
    * @param action - Audit action type
    * @param result - Result of the audit operation (success/failure)
    */
@@ -308,7 +337,7 @@ export class GamesObservabilityService {
 
   /**
    * Increment audit log failure counter.
-   * 
+   *
    * @param action - Audit action type
    * @param errorType - Type of error that occurred
    */
@@ -318,7 +347,7 @@ export class GamesObservabilityService {
 
   /**
    * Observe audit log duration.
-   * 
+   *
    * @param action - Audit action type
    * @param duration - Duration in seconds
    */
@@ -328,7 +357,7 @@ export class GamesObservabilityService {
 
   /**
    * Set audit log queue size.
-   * 
+   *
    * @param size - Number of pending audit operations
    */
   setAuditLogQueueSize(size: number) {

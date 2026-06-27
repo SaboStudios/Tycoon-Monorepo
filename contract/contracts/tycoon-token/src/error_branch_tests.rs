@@ -284,3 +284,192 @@ fn test_snapshot_state_after_operations() {
         "snapshot: total_supply"
     );
 }
+
+// ── Additional error branch coverage ──────────────────────────────────────────
+
+/// `burn` with negative amount must be rejected.
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_burn_negative_amount() {
+    let (_e, client, admin) = setup();
+    client.burn(&admin, &-1);
+}
+
+/// `burn` of zero is rejected.
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_burn_zero_is_noop() {
+    let (_e, client, admin) = setup();
+    client.burn(&admin, &0);
+}
+
+/// `mint` with negative amount must be rejected.
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_mint_negative_amount() {
+    let (e, client, _admin) = setup();
+    let user = Address::generate(&e);
+    client.mint(&user, &-1);
+}
+
+/// `mint` of zero is rejected.
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_mint_zero_is_noop() {
+    let (e, client, _admin) = setup();
+    let user = Address::generate(&e);
+    client.mint(&user, &0);
+}
+
+/// `burn_from` with negative amount must be rejected.
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_burn_from_negative_amount() {
+    let (e, client, admin) = setup();
+    let spender = Address::generate(&e);
+    let allowance: i128 = 1_000_000_000_000_000_000;
+    client.approve(&admin, &spender, &allowance, &0);
+    client.burn_from(&spender, &admin, &-1);
+}
+
+/// `burn_from` of zero is rejected.
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_burn_from_zero_is_noop() {
+    let (e, client, admin) = setup();
+    let spender = Address::generate(&e);
+    let allowance: i128 = 1_000_000_000_000_000_000;
+    client.approve(&admin, &spender, &allowance, &0);
+    client.burn_from(&spender, &admin, &0);
+}
+
+/// Transfer to self should work correctly (no-op in effect but valid).
+#[test]
+fn test_transfer_to_self() {
+    let (_e, client, admin) = setup();
+    let before_balance = client.balance(&admin);
+    let before_supply = client.total_supply();
+
+    let amount: i128 = 100_000_000_000_000_000_000;
+    client.transfer(&admin, &admin, &amount);
+
+    assert_eq!(
+        client.balance(&admin),
+        before_balance,
+        "self-transfer changed balance"
+    );
+    assert_eq!(
+        client.total_supply(),
+        before_supply,
+        "self-transfer changed supply"
+    );
+}
+
+/// Approve with same amount twice should update allowance correctly.
+#[test]
+fn test_approve_idempotent() {
+    let (e, client, admin) = setup();
+    let spender = Address::generate(&e);
+    let allowance: i128 = 500_000_000_000_000_000;
+
+    client.approve(&admin, &spender, &allowance, &0);
+    assert_eq!(client.allowance(&admin, &spender), allowance);
+
+    client.approve(&admin, &spender, &allowance, &0);
+    assert_eq!(
+        client.allowance(&admin, &spender),
+        allowance,
+        "repeated approve changed allowance"
+    );
+}
+
+/// Snapshot: complex multi-user scenario with approvals and delegated operations.
+/// SNAPSHOT: multi-user with approve, transfer_from, burn_from
+#[test]
+fn test_snapshot_complex_multi_user_scenario() {
+    let (e, client, _admin) = setup();
+    let user_a = Address::generate(&e);
+    let user_b = Address::generate(&e);
+    let spender = Address::generate(&e);
+
+    // Admin mints to user_a
+    let mint_amount: i128 = 2_000_000_000_000_000_000_000; // 2000 TYC
+    client.mint(&user_a, &mint_amount);
+
+    // user_a approves spender
+    let allowance: i128 = 1_000_000_000_000_000_000_000; // 1000 TYC
+    client.approve(&user_a, &spender, &allowance, &0);
+
+    // spender transfers from user_a to user_b
+    let transfer_amount: i128 = 600_000_000_000_000_000_000; // 600 TYC
+    client.transfer_from(&spender, &user_a, &user_b, &transfer_amount);
+
+    // spender burns from user_a
+    let burn_amount: i128 = 300_000_000_000_000_000_000; // 300 TYC
+    client.burn_from(&spender, &user_a, &burn_amount);
+
+    // SNAPSHOT: user_a has mint - transfer - burn = 1100 TYC
+    let expected_a: i128 = mint_amount - transfer_amount - burn_amount;
+    assert_eq!(client.balance(&user_a), expected_a, "snapshot: user_a");
+
+    // SNAPSHOT: user_b has transfer = 600 TYC
+    assert_eq!(client.balance(&user_b), transfer_amount, "snapshot: user_b");
+
+    // SNAPSHOT: allowance consumed = transfer + burn = 900 TYC, remaining = 100 TYC
+    let expected_allowance: i128 = allowance - transfer_amount - burn_amount;
+    assert_eq!(
+        client.allowance(&user_a, &spender),
+        expected_allowance,
+        "snapshot: allowance"
+    );
+
+    // SNAPSHOT: total_supply = INITIAL + mint - burn
+    let expected_supply: i128 = INITIAL_SUPPLY + mint_amount - burn_amount;
+    assert_eq!(
+        client.total_supply(),
+        expected_supply,
+        "snapshot: total_supply"
+    );
+}
+
+/// Metadata queries should be consistent across multiple calls.
+#[test]
+fn test_metadata_consistency() {
+    let (_e, client, _) = setup();
+
+    let name1 = client.name();
+    let symbol1 = client.symbol();
+    let decimals1 = client.decimals();
+
+    // Call again
+    let name2 = client.name();
+    let symbol2 = client.symbol();
+    let decimals2 = client.decimals();
+
+    assert_eq!(name1, name2, "name changed between calls");
+    assert_eq!(symbol1, symbol2, "symbol changed between calls");
+    assert_eq!(decimals1, decimals2, "decimals changed between calls");
+}
+
+/// Balance queries for multiple unknown addresses should all return 0.
+#[test]
+fn test_multiple_unknown_addresses_return_zero() {
+    let (e, client, _) = setup();
+
+    for _ in 0..5 {
+        let stranger = Address::generate(&e);
+        assert_eq!(client.balance(&stranger), 0);
+    }
+}
+
+/// Allowance queries for multiple unknown pairs should all return 0.
+#[test]
+fn test_multiple_unknown_allowances_return_zero() {
+    let (e, client, _) = setup();
+
+    for _ in 0..5 {
+        let owner = Address::generate(&e);
+        let spender = Address::generate(&e);
+        assert_eq!(client.allowance(&owner, &spender), 0);
+    }
+}

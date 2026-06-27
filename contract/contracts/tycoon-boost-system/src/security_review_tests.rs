@@ -462,30 +462,30 @@ mod tests {
         assert_eq!(client.get_boosts(&player).len(), 1);
     }
 
-    // ── SEC-02: additive_total u32 wrapping overflow ──────────────────────────
+    // ── SEC-02: additive_total u32 overflow panics (does not wrap) ────────────
 
-    /// Documents that additive_total wraps on u32 overflow.
-    /// Pins current (wrapping) behavior so any future fix is visible.
+    /// `additive_total += boost.value` uses the checked `+=` operator, and this
+    /// workspace's `[profile.release]` sets `overflow-checks = true` (see
+    /// `contract/Cargo.toml`), so this overflow panics in both debug and
+    /// release builds — it does NOT silently wrap. This is a DoS/availability
+    /// concern (any caller can make `calculate_total_boost` panic for a player
+    /// with enough additive boosts stacked), not a silent-miscalculation one.
+    /// Pins the panic so a future change to the arithmetic (e.g. switching to
+    /// `wrapping_add` or a saturating sum) is visible here.
     #[test]
-    #[should_panic]
-    fn test_additive_overflow_wraps() {
+    #[should_panic(expected = "attempt to add with overflow")]
+    fn test_additive_overflow_panics() {
         let env = make_env();
         let (client, _, player) = setup(&env);
 
-        // Each value = 429_496_730 (≈ u32::MAX / 10 + 1)
-        // 10 × 429_496_730 = 4_294_967_300 which wraps to 4 in u32
+        // Each value = 429_496_730 (≈ u32::MAX / 10 + 1); summing 10 of them
+        // exceeds u32::MAX and panics under overflow-checks=true.
         let per_boost: u32 = u32::MAX / 10 + 1;
         for i in 0..10u128 {
             client.add_boost(&player, &nb(i, per_boost));
         }
 
-        let total = client.calculate_total_boost(&player);
-        let correct_additive_sum = (per_boost as u64) * 10;
-        let expected_if_no_overflow = (10000u64 * (10000 + correct_additive_sum) / 10000) as u32;
-        assert_ne!(
-            total, expected_if_no_overflow,
-            "SEC-02: additive overflow no longer wraps — update checklist"
-        );
+        client.calculate_total_boost(&player);
     }
 
     // ── SEC-03: mixed-stacking final cast truncation ──────────────────────────

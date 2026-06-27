@@ -4,7 +4,7 @@ import { Download, RefreshCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PWA_SW_SCOPE, PWA_SW_URL } from "@/lib/pwa/constants";
+import { PWA_SW_SCOPE, PWA_SW_URL } from "@/lib/pwa";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;

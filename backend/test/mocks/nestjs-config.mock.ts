@@ -17,13 +17,11 @@ export class ConfigService {
   exports: [ConfigService],
 })
 export class ConfigModule {
-  static forRoot = jest
-    .fn()
-    .mockReturnValue({
-      module: ConfigModule,
-      providers: [{ provide: ConfigService, useValue: new ConfigService() }],
-      exports: [ConfigService],
-    });
+  static forRoot = jest.fn().mockReturnValue({
+    module: ConfigModule,
+    providers: [{ provide: ConfigService, useValue: new ConfigService() }],
+    exports: [ConfigService],
+  });
 }
 
 export const registerAs = jest.fn((token: string, factory: () => unknown) => {

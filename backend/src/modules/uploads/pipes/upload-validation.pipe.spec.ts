@@ -14,7 +14,9 @@ describe('UploadValidationPipe', () => {
     }).compile();
 
     pipe = module.get<UploadValidationPipe>(UploadValidationPipe);
-    errorMapper = module.get<UploadsErrorMapperService>(UploadsErrorMapperService);
+    errorMapper = module.get<UploadsErrorMapperService>(
+      UploadsErrorMapperService,
+    );
   });
 
   it('should be defined', () => {

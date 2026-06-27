@@ -151,17 +151,30 @@ For detailed migration instructions, see [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.
 cargo test --package tycoon-boost-system
 ```
 
-### Test Coverage (151 tests total)
+### Test Coverage (191+ tests total)
+### Test Coverage (211+ tests total)
+### Test Coverage (232+ tests total)
 
 Tests are organized across multiple modules:
 - `src/test.rs` — Core stacking behaviour (9 tests)
-- `src/cap_stacking_expiry_tests.rs` — Cap, stacking matrix, expiry, and event tests (31 tests)
+- `src/cap_stacking_expiry_tests.rs` — Cap, stacking matrix, expiry, and event tests (52+ tests) ⭐ Enhanced
 - `src/time_boundary_tests.rs` — Time boundary and ledger sequence tests (11 tests)
-- `src/advanced_integration_tests.rs` — Advanced edge cases, stress tests, and multi-player scenarios (45 tests)
+- `src/advanced_integration_tests.rs` — Advanced edge cases, stress tests, and multi-player scenarios (49 tests) ✨ **Enhanced**
 - `src/deprecation_tests.rs` — Deprecation behavior and migration tests (30 tests)
+- `src/admin_access_control_tests.rs` — Admin authorization and access control tests (40+ tests) ✨ **Enhanced**
+- `src/security_review_tests.rs` — Security checklist verification tests
+- `src/simulation_scenarios.rs` — End-to-end simulation scenarios
+- `src/simulation_scenarios.rs` — End-to-end game session simulations (7 tests)
+- `src/security_review_tests.rs` — Security property verification (4 tests)
 - `../integration-tests/src/boost_system_integration.rs` — Cross-contract integration tests (25 tests)
 
-See [TEST_COVERAGE_IMPROVEMENTS.md](./TEST_COVERAGE_IMPROVEMENTS.md) for comprehensive coverage details.
+See [TEST_COVERAGE_IMPROVEMENTS.md](./TEST_COVERAGE_IMPROVEMENTS.md) and [CAP_STACKING_EXPIRY_TEST_COVERAGE.md](./CAP_STACKING_EXPIRY_TEST_COVERAGE.md) for comprehensive coverage details.
+
+See [ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md](./ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md) for detailed admin access control test documentation (SW-CON-1038).
+
+See [ADVANCED_INTEGRATION_TEST_COVERAGE.md](./ADVANCED_INTEGRATION_TEST_COVERAGE.md) for advanced integration test documentation (SW-CON-1039).
+
+See [ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md](./ADMIN_ACCESS_CONTROL_TEST_COVERAGE.md) for detailed admin access control test documentation (SW-CON-1038).
 
 ### Running Specific Test Suites
 

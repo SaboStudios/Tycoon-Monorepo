@@ -76,7 +76,7 @@ const Navbar = () => {
               </span>
               <button
                 type="button"
-                onClick={logout}
+                onClick={() => { try { logout(); } catch { /* logout errors are non-fatal */ } }}
                 className="rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-card-bg)] px-4 py-1.5 text-xs font-dm-sans font-medium text-[var(--tycoon-text)] transition-colors hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tycoon-accent)]"
               >
                 Logout

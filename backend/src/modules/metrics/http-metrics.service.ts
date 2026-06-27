@@ -2,10 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Counter, Gauge, Histogram, Registry } from 'prom-client';
 import { DataSource } from 'typeorm';
-import {
-  classifyHttpRouteGroup,
-  httpStatusClass,
-} from './route-group';
+import { classifyHttpRouteGroup, httpStatusClass } from './route-group';
 
 /** HTTP handler latency buckets (seconds) — tuned for API latency (p50–p99). */
 const HTTP_DURATION_BUCKETS = [
@@ -141,7 +138,15 @@ export class HttpMetricsService {
   /** Snapshot pool stats from the underlying pg Pool and update gauges. */
   collectPoolMetrics(): void {
     // TypeORM exposes the underlying pg Pool via driver.master
-    const pool = (this.dataSource.driver as unknown as { master?: { totalCount?: number; idleCount?: number; waitingCount?: number } }).master;
+    const pool = (
+      this.dataSource.driver as unknown as {
+        master?: {
+          totalCount?: number;
+          idleCount?: number;
+          waitingCount?: number;
+        };
+      }
+    ).master;
     if (!pool) return;
 
     const total = pool.totalCount ?? 0;

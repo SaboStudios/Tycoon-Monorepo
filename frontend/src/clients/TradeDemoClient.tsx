@@ -53,7 +53,7 @@ const MOCK_PLAYERS: TradePlayer[] = [
 
 // ─── Demo page ───────────────────────────────────────────────────────────────
 
-export default function TradeDemoClient() {
+export default function TradeDemoClient(): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -95,6 +95,7 @@ export default function TradeDemoClient() {
       {/* Open button */}
       <button
         onClick={() => setIsOpen(true)}
+        aria-label="Open trade modal"
         className="flex items-center gap-2 rounded-xl bg-[#00F0FF] px-8 py-3 text-base font-bold text-[#010F10] hover:bg-[#00F0FF]/80 shadow-[0_0_24px_rgba(0,240,255,0.35)] hover:shadow-[0_0_32px_rgba(0,240,255,0.5)] transition-all active:scale-95"
       >
         🤝 Open Trade Modal

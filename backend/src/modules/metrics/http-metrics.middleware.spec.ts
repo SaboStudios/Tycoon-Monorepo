@@ -84,7 +84,9 @@ describe('HttpMetricsMiddleware', () => {
       middleware.use(req, res, next);
       res.emit('finish');
 
-      const duration = (mockHttpMetricsService.recordRequest.mock.calls[0] as unknown[])[3] as number;
+      const duration = (
+        mockHttpMetricsService.recordRequest.mock.calls[0] as unknown[]
+      )[3] as number;
       expect(duration).toBeGreaterThanOrEqual(0);
     });
 

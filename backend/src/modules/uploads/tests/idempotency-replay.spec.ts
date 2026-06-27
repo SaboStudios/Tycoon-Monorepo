@@ -103,9 +103,13 @@ describe('Uploads Idempotency and Replay Tests', () => {
       body: { amount: 1 },
     } as any;
 
-    const valid = service.validateRequestIntegrity(req, { requestHash: 'mismatch' } as any, {
-      includeBody: true,
-    });
+    const valid = service.validateRequestIntegrity(
+      req,
+      { requestHash: 'mismatch' } as any,
+      {
+        includeBody: true,
+      },
+    );
     expect(valid).toBe(false);
   });
 

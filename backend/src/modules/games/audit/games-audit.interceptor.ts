@@ -36,18 +36,18 @@ interface HttpAuditContext {
 
 /**
  * NestJS interceptor for automatic HTTP-level audit capture.
- * 
+ *
  * Captures request context (user, IP, user agent) and response metadata
  * (status, duration) for all game endpoints. Integrates with GamesAuditService
  * for structured audit logging.
- * 
+ *
  * Features:
  * - Extracts user context from JWT tokens
  * - Captures IP address from X-Forwarded-For or remoteAddress
  * - Calculates request duration
  * - Handles both successful and failed requests
  * - Non-blocking: audit logging doesn't block response
- * 
+ *
  * Usage:
  * ```typescript
  * @UseInterceptors(GamesAuditInterceptor)
@@ -63,7 +63,7 @@ export class GamesAuditInterceptor implements NestInterceptor {
 
   /**
    * Intercept HTTP requests to capture audit context.
-   * 
+   *
    * @param context - Execution context
    * @param next - Call handler
    * @returns Observable of the response
@@ -108,7 +108,7 @@ export class GamesAuditInterceptor implements NestInterceptor {
 
   /**
    * Extract audit context from HTTP request and response.
-   * 
+   *
    * @param request - Express request object
    * @param response - Response data (if successful)
    * @param duration - Request duration in milliseconds
@@ -157,10 +157,10 @@ export class GamesAuditInterceptor implements NestInterceptor {
 
   /**
    * Log HTTP request audit context.
-   * 
+   *
    * This method is called asynchronously after the response is sent,
    * so it doesn't block the request processing.
-   * 
+   *
    * @param context - HTTP audit context
    */
   private async logHttpRequest(context: HttpAuditContext): Promise<void> {

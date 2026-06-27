@@ -49,7 +49,7 @@ export class TourAnalyticsService {
     // TODO: Implement database storage for tour analytics
     // This could be a new table like `tour_analytics_events`
     // with columns: id, user_id, event_type, step, total_steps, step_id, created_at
-    
+
     // For now, we'll just log it
     this.logger.debug(`Tour event stored: ${JSON.stringify(eventData)}`);
   }
@@ -62,7 +62,7 @@ export class TourAnalyticsService {
     // TODO: Implement database query to get tour completion rate
     // This would query the tour_analytics_events table
     // to calculate the percentage of users who completed the tour
-    
+
     return {
       totalUsers: 0,
       completedUsers: 0,

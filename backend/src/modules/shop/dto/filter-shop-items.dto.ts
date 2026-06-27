@@ -1,8 +1,4 @@
-import {
-  IsBoolean,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ShopItemType, ShopItemRarity } from '../enums/shop-item-type.enum';
 import { Transform } from 'class-transformer';

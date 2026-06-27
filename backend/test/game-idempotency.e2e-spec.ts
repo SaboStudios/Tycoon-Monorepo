@@ -52,4 +52,3 @@ describe('Game Idempotency E2E (400)', () => {
     expect(true).toBe(true); // Verified manually
   });
 });
-

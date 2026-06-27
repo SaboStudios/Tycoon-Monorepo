@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { MulterError } from 'multer';
-import { UploadsErrorMapperService, UploadErrorCode } from '../uploads-error-mapper.service';
+import {
+  UploadsErrorMapperService,
+  UploadErrorCode,
+} from '../uploads-error-mapper.service';
 import { UploadsObservabilityService } from '../uploads-observability.service';
 
 /**
@@ -34,8 +37,13 @@ export class UploadExceptionFilter implements ExceptionFilter {
 
     // Handle Multer errors
     if (exception instanceof MulterError) {
-      mappedError = this.errorMapper.mapMulterError(exception.code, exception.message);
-      this.logger.warn(`Multer error: ${exception.code} - ${exception.message}`);
+      mappedError = this.errorMapper.mapMulterError(
+        exception.code,
+        exception.message,
+      );
+      this.logger.warn(
+        `Multer error: ${exception.code} - ${exception.message}`,
+      );
       this.observability?.recordMulterError(exception.code);
     }
     // Handle HTTP exceptions (including validation errors)
@@ -56,16 +64,24 @@ export class UploadExceptionFilter implements ExceptionFilter {
           statusCode: status,
           message: exception.message,
           error: HttpStatus[status] || 'ERROR',
-          details: typeof exceptionResponse === 'object' ? exceptionResponse : undefined,
+          details:
+            typeof exceptionResponse === 'object'
+              ? exceptionResponse
+              : undefined,
         };
       }
 
       this.logger.warn(`HTTP exception: ${status} - ${exception.message}`);
     }
     // Handle file validator errors (from ParseFilePipe)
-    else if (exception instanceof Error && exception.message.includes('Validation failed')) {
+    else if (
+      exception instanceof Error &&
+      exception.message.includes('Validation failed')
+    ) {
       // Extract the actual validation message
-      const validatorMessage = exception.message.replace('Validation failed', '').trim();
+      const validatorMessage = exception.message
+        .replace('Validation failed', '')
+        .trim();
       mappedError = this.errorMapper.mapFileValidatorError(validatorMessage);
       this.logger.warn(`File validation error: ${validatorMessage}`);
     }
@@ -75,7 +91,10 @@ export class UploadExceptionFilter implements ExceptionFilter {
         UploadErrorCode.STORAGE_ERROR,
         process.env.NODE_ENV === 'development' ? exception.message : undefined,
       );
-      this.logger.error(`Unexpected error: ${exception.message}`, exception.stack);
+      this.logger.error(
+        `Unexpected error: ${exception.message}`,
+        exception.stack,
+      );
     }
     // Handle unknown errors
     else {

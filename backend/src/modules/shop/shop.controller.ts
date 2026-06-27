@@ -40,6 +40,7 @@ import { CacheOptions } from '../../common/decorators/cache-options.decorator';
 import { AuditLog } from '../audit-trail/audit-log.decorator';
 import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
+import { IdempotencyInterceptor } from '../redis/idempotency.interceptor';
 
 @ApiTags('shop')
 @Controller('shop')
@@ -151,6 +152,7 @@ export class ShopController {
   @Post('purchase')
   @AuditLog(AuditAction.PURCHASE_CREATED)
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Purchase a shop item with optional coupon' })

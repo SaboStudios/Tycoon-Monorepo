@@ -5,6 +5,26 @@
 //! cross-functional integration patterns.
 //!
 //! Part of Stellar Wave engineering batch - SW-CONTRACT-BOOST-001
+//!
+//! ## Test Coverage Matrix
+//!
+//! | Category | Test Count | Coverage |
+//! |----------|------------|----------|
+//! | Edge Cases | 5 | Boundary values, max/min scenarios |
+//! | Stress Tests | 4 | Capacity limits, rapid cycles |
+//! | Multi-Player | 2 | Isolation, concurrent operations |
+//! | Complex Calculations | 3 | Mixed stacking, precision, chains |
+//! | Event Verification | 3 | Event data and emission |
+//! | Authorization | 2 | Auth requirements |
+//! | Idempotency | 3 | Consistent results |
+//! | State Consistency | 2 | Storage integrity |
+//! | Boundary Conditions | 3 | Ledger boundaries |
+//! | Error Recovery | 2 | State corruption prevention |
+//! | Admin Operations | 8 | Admin grant/revoke integration |
+//! | Priority Mechanics | 4 | Override priority handling |
+//! | State Transitions | 5 | Complex workflows |
+//! | Performance | 3 | Stress and scalability |
+//! | **Total** | **49+** | **Comprehensive** |
 
 extern crate std;
 
@@ -693,4 +713,591 @@ fn test_recovery_after_cap_exceeded() {
     // Should now be able to add boosts again
     client.add_boost(&player, &nb(1000, BoostType::Additive, 500, 0));
     assert_eq!(client.get_boosts(&player).len(), 1);
+}
+
+// ── Admin Operations Integration Tests ───────────────────────────────────────
+
+/// AIT-01: Admin-granted boost interacts correctly with player-added boosts
+#[test]
+fn test_admin_granted_and_player_added_coexist() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Admin grants multiplicative boost
+    client.admin_grant_boost(&player, &nb(1, BoostType::Multiplicative, 15000, 0));
+    
+    // Player adds additive boost
+    client.add_boost(&player, &nb(2, BoostType::Additive, 2000, 0));
+    
+    // Both should be active: 10000 * 1.5 * (1 + 0.2) = 18000
+    assert_eq!(client.calculate_total_boost(&player), 18000);
+    
+    let boosts = client.get_active_boosts(&player);
+    assert_eq!(boosts.len(), 2);
+}
+
+/// AIT-02: Admin revoke removes boost without affecting others
+#[test]
+fn test_admin_revoke_preserves_other_boosts() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Admin grants multiple boosts
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000, 0));
+    client.admin_grant_boost(&player, &nb(2, BoostType::Additive, 2000, 0));
+    client.admin_grant_boost(&player, &nb(3, BoostType::Multiplicative, 15000, 0));
+    
+    // Player adds own boost
+    client.add_boost(&player, &nb(4, BoostType::Additive, 500, 0));
+    
+    assert_eq!(client.get_active_boosts(&player).len(), 4);
+    
+    // Admin revokes one boost
+    client.admin_revoke_boost(&player, &2);
+    
+    // Three boosts should remain
+    let remaining = client.get_active_boosts(&player);
+    assert_eq!(remaining.len(), 3);
+    
+    // Verify correct boosts remain
+    let ids: std::vec::Vec<u128> = (0..remaining.len())
+        .map(|i| remaining.get(i).unwrap().id)
+        .collect();
+    assert!(ids.contains(&1));
+    assert!(!ids.contains(&2)); // Revoked
+    assert!(ids.contains(&3));
+    assert!(ids.contains(&4));
+}
+
+/// AIT-03: Admin grant with expiry integrates with pruning
+#[test]
+fn test_admin_granted_expiring_boost_pruned() {
+    let env = make_env();
+    set_ledger(&env, 100);
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Admin grants expiring boost
+    client.admin_grant_boost(&player, &eb(1, BoostType::Additive, 1000, 0, 200));
+    
+    // Player adds permanent boost
+    client.add_boost(&player, &nb(2, BoostType::Additive, 500, 0));
+    
+    assert_eq!(client.get_active_boosts(&player).len(), 2);
+    
+    // Advance ledger past expiry
+    set_ledger(&env, 250);
+    
+    // Only permanent boost should be active
+    assert_eq!(client.get_active_boosts(&player).len(), 1);
+    assert_eq!(client.get_active_boosts(&player).get(0).unwrap().id, 2);
+}
+
+/// AIT-04: Admin revoke of non-existent boost is idempotent
+#[test]
+fn test_admin_revoke_nonexistent_idempotent() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000, 0));
+    
+    // Revoke non-existent boost ID multiple times
+    client.admin_revoke_boost(&player, &999);
+    client.admin_revoke_boost(&player, &999);
+    client.admin_revoke_boost(&player, &888);
+    
+    // Original boost should still be there
+    assert_eq!(client.get_active_boosts(&player).len(), 1);
+    assert_eq!(client.get_active_boosts(&player).get(0).unwrap().id, 1);
+}
+
+/// AIT-05: Clear boosts removes both admin-granted and player-added
+#[test]
+fn test_clear_removes_all_boost_sources() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Mix of admin-granted and player-added
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000, 0));
+    client.add_boost(&player, &nb(2, BoostType::Additive, 500, 0));
+    client.admin_grant_boost(&player, &nb(3, BoostType::Multiplicative, 15000, 0));
+    
+    assert_eq!(client.get_active_boosts(&player).len(), 3);
+    
+    // Clear all
+    client.clear_boosts(&player);
+    
+    // Everything removed
+    assert_eq!(client.get_active_boosts(&player).len(), 0);
+    assert_eq!(client.calculate_total_boost(&player), 10000);
+}
+
+/// AIT-06: Admin grant at capacity with expiring boosts
+#[test]
+fn test_admin_grant_frees_slots_via_expiry() {
+    let env = make_env();
+    set_ledger(&env, 100);
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Fill to capacity with expiring boosts
+    for i in 0..MAX_BOOSTS_PER_PLAYER {
+        client.admin_grant_boost(
+            &player,
+            &eb(i as u128 + 1, BoostType::Additive, 100, 0, 200),
+        );
+    }
+    
+    assert_eq!(client.get_active_boosts(&player).len(), MAX_BOOSTS_PER_PLAYER as usize);
+    
+    // Advance past expiry
+    set_ledger(&env, 250);
+    
+    // All expired, should be able to add new boost
+    client.admin_grant_boost(&player, &nb(999, BoostType::Additive, 500, 0));
+    
+    assert_eq!(client.get_active_boosts(&player).len(), 1);
+    assert_eq!(client.get_active_boosts(&player).get(0).unwrap().id, 999);
+}
+
+/// AIT-07: Admin grant multiple boosts rapid succession
+#[test]
+fn test_admin_rapid_grant_sequence() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Rapidly grant various boost types
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 500, 0));
+    client.admin_grant_boost(&player, &nb(2, BoostType::Multiplicative, 12000, 0));
+    client.admin_grant_boost(&player, &nb(3, BoostType::Override, 25000, 10));
+    client.admin_grant_boost(&player, &nb(4, BoostType::Additive, 1000, 0));
+    client.admin_grant_boost(&player, &nb(5, BoostType::Multiplicative, 11000, 0));
+    
+    assert_eq!(client.get_active_boosts(&player).len(), 5);
+    
+    // Override should win
+    assert_eq!(client.calculate_total_boost(&player), 25000);
+}
+
+/// AIT-08: Admin operations across multiple players simultaneously
+#[test]
+fn test_admin_multi_player_operations() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    let player1 = Address::generate(&env);
+    let player2 = Address::generate(&env);
+    let player3 = Address::generate(&env);
+    
+    // Admin grants to multiple players
+    client.admin_grant_boost(&player1, &nb(1, BoostType::Additive, 1000, 0));
+    client.admin_grant_boost(&player2, &nb(1, BoostType::Multiplicative, 15000, 0));
+    client.admin_grant_boost(&player3, &nb(1, BoostType::Override, 30000, 5));
+    
+    // Verify isolation
+    assert_eq!(client.calculate_total_boost(&player1), 11000);
+    assert_eq!(client.calculate_total_boost(&player2), 15000);
+    assert_eq!(client.calculate_total_boost(&player3), 30000);
+    
+    // Admin revokes from player2
+    client.admin_revoke_boost(&player2, &1);
+    
+    // Only player2 affected
+    assert_eq!(client.calculate_total_boost(&player1), 11000);
+    assert_eq!(client.calculate_total_boost(&player2), 10000);
+    assert_eq!(client.calculate_total_boost(&player3), 30000);
+}
+
+// ── Priority Mechanics Tests ──────────────────────────────────────────────────
+
+/// AIT-09: Override boosts with equal priority (first wins)
+#[test]
+fn test_override_equal_priority_behavior() {
+    let env = make_env();
+    let (client, player) = setup(&env);
+    
+    // Add multiple override boosts with same priority
+    client.add_boost(&player, &nb(1, BoostType::Override, 20000, 5));
+    client.add_boost(&player, &nb(2, BoostType::Override, 30000, 5));
+    client.add_boost(&player, &nb(3, BoostType::Override, 25000, 5));
+    
+    let result = client.calculate_total_boost(&player);
+    
+    // One of them should apply (implementation-dependent which one)
+    assert!(
+        result == 20000 || result == 30000 || result == 25000,
+        "Expected one override value, got {}",
+        result
+    );
+}
+
+/// AIT-10: Priority 0 override vs non-zero priorities
+#[test]
+fn test_override_zero_vs_nonzero_priority() {
+    let env = make_env();
+    let (client, player) = setup(&env);
+    
+    // Priority 0 override
+    client.add_boost(&player, &nb(1, BoostType::Override, 15000, 0));
+    // Higher priority override
+    client.add_boost(&player, &nb(2, BoostType::Override, 25000, 1));
+    
+    // Higher priority should win
+    assert_eq!(client.calculate_total_boost(&player), 25000);
+}
+
+/// AIT-11: Override boost with other types inactive due to priority
+#[test]
+fn test_override_suppresses_other_types() {
+    let env = make_env();
+    let (client, player) = setup(&env);
+    
+    // Add strong additive and multiplicative boosts
+    client.add_boost(&player, &nb(1, BoostType::Additive, 50000, 0)); // +500%
+    client.add_boost(&player, &nb(2, BoostType::Multiplicative, 30000, 0)); // 3x
+    
+    // Without override: 10000 * 3 * (1 + 5) = 180000
+    let without_override = client.calculate_total_boost(&player);
+    assert_eq!(without_override, 180000);
+    
+    // Add lower override
+    client.add_boost(&player, &nb(3, BoostType::Override, 50000, 1));
+    
+    // Override should suppress everything
+    assert_eq!(client.calculate_total_boost(&player), 50000);
+}
+
+/// AIT-12: Removing high-priority override reveals lower priority
+#[test]
+fn test_override_priority_cascade() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Add multiple override boosts with different priorities
+    client.add_boost(&player, &nb(1, BoostType::Override, 15000, 1));
+    client.add_boost(&player, &nb(2, BoostType::Override, 25000, 5));
+    client.add_boost(&player, &nb(3, BoostType::Override, 35000, 10));
+    
+    // Highest priority wins
+    assert_eq!(client.calculate_total_boost(&player), 35000);
+    
+    // Admin revokes highest priority
+    client.admin_revoke_boost(&player, &3);
+    
+    // Next highest should now apply
+    assert_eq!(client.calculate_total_boost(&player), 25000);
+    
+    // Revoke that one too
+    client.admin_revoke_boost(&player, &2);
+    
+    // Lowest priority override applies
+    assert_eq!(client.calculate_total_boost(&player), 15000);
+    
+    // Revoke last override
+    client.admin_revoke_boost(&player, &1);
+    
+    // Back to base
+    assert_eq!(client.calculate_total_boost(&player), 10000);
+}
+
+// ── State Transition Tests ────────────────────────────────────────────────────
+
+/// AIT-13: Full workflow - grant, add, revoke, clear cycle
+#[test]
+fn test_full_boost_lifecycle() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Phase 1: Admin grants initial boost
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000, 0));
+    assert_eq!(client.calculate_total_boost(&player), 11000);
+    
+    // Phase 2: Player adds own boost
+    client.add_boost(&player, &nb(2, BoostType::Multiplicative, 15000, 0));
+    assert_eq!(client.calculate_total_boost(&player), 16500); // 10000 * 1.5 * 1.1
+    
+    // Phase 3: Admin grants additional boost
+    client.admin_grant_boost(&player, &nb(3, BoostType::Additive, 2000, 0));
+    assert_eq!(client.calculate_total_boost(&player), 19500); // 10000 * 1.5 * 1.3
+    
+    // Phase 4: Admin revokes one boost
+    client.admin_revoke_boost(&player, &1);
+    assert_eq!(client.calculate_total_boost(&player), 18000); // 10000 * 1.5 * 1.2
+    
+    // Phase 5: Clear all
+    client.clear_boosts(&player);
+    assert_eq!(client.calculate_total_boost(&player), 10000);
+}
+
+/// AIT-14: State transitions with expiry
+#[test]
+fn test_state_transitions_with_time() {
+    let env = make_env();
+    set_ledger(&env, 100);
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // T=100: Grant boost expiring at 200
+    client.admin_grant_boost(&player, &eb(1, BoostType::Additive, 2000, 0, 200));
+    assert_eq!(client.calculate_total_boost(&player), 12000);
+    
+    // T=150: Add player boost expiring at 250
+    set_ledger(&env, 150);
+    client.add_boost(&player, &eb(2, BoostType::Multiplicative, 15000, 0, 250));
+    assert_eq!(client.calculate_total_boost(&player), 18000); // 10000 * 1.5 * 1.2
+    
+    // T=210: First boost expired
+    set_ledger(&env, 210);
+    assert_eq!(client.calculate_total_boost(&player), 15000); // 10000 * 1.5
+    
+    // T=260: Second boost expired
+    set_ledger(&env, 260);
+    assert_eq!(client.calculate_total_boost(&player), 10000);
+}
+
+/// AIT-15: Multiple grant-revoke cycles on same player
+#[test]
+fn test_grant_revoke_cycles() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    for cycle in 1..=3 {
+        // Grant boost
+        client.admin_grant_boost(
+            &player,
+            &nb(cycle as u128, BoostType::Additive, cycle * 1000, 0),
+        );
+        assert_eq!(client.get_active_boosts(&player).len(), 1);
+        
+        // Revoke it
+        client.admin_revoke_boost(&player, &(cycle as u128));
+        assert_eq!(client.get_active_boosts(&player).len(), 0);
+    }
+    
+    // Final state should be clean
+    assert_eq!(client.calculate_total_boost(&player), 10000);
+}
+
+/// AIT-16: Interleaved grant and player operations
+#[test]
+fn test_interleaved_admin_player_operations() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Admin grants
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 500, 0));
+    // Player adds
+    client.add_boost(&player, &nb(2, BoostType::Additive, 500, 0));
+    // Admin grants again
+    client.admin_grant_boost(&player, &nb(3, BoostType::Multiplicative, 12000, 0));
+    // Player adds again
+    client.add_boost(&player, &nb(4, BoostType::Additive, 500, 0));
+    
+    // All four should coexist
+    assert_eq!(client.get_active_boosts(&player).len(), 4);
+    
+    // Calculation: 10000 * 1.2 * (1 + 0.05 + 0.05 + 0.05) = 13800
+    assert_eq!(client.calculate_total_boost(&player), 13800);
+}
+
+/// AIT-17: State consistency after mixed operations
+#[test]
+fn test_state_consistency_complex_operations() {
+    let env = make_env();
+    set_ledger(&env, 100);
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Mix of permanent and expiring, admin and player
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000, 0)); // Permanent
+    client.add_boost(&player, &eb(2, BoostType::Additive, 500, 0, 200)); // Expires 200
+    client.admin_grant_boost(&player, &eb(3, BoostType::Multiplicative, 15000, 0, 300)); // Expires 300
+    client.add_boost(&player, &nb(4, BoostType::Additive, 750, 0)); // Permanent
+    
+    // All active at T=100
+    let initial = client.calculate_total_boost(&player);
+    assert!(initial > 10000);
+    
+    // Advance past first expiry
+    set_ledger(&env, 250);
+    let after_first = client.calculate_total_boost(&player);
+    assert!(after_first < initial);
+    assert!(after_first > 10000);
+    
+    // Advance past all expiries
+    set_ledger(&env, 350);
+    let after_all = client.calculate_total_boost(&player);
+    // Only permanent boosts remain: +1000 +750 = +1750 = 11750
+    assert_eq!(after_all, 11750);
+    
+    // get_active_boosts should match
+    assert_eq!(client.get_active_boosts(&player).len(), 2);
+}
+
+// ── Performance and Stress Tests ──────────────────────────────────────────────
+
+/// AIT-18: Stress test with maximum players and boosts
+#[test]
+fn test_stress_max_players_max_boosts() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Create multiple players, each with max boosts
+    let num_players = 5;
+    let mut players = std::vec::Vec::new();
+    
+    for _ in 0..num_players {
+        players.push(Address::generate(&env));
+    }
+    
+    // Fill each player to capacity
+    for player in &players {
+        for i in 0..MAX_BOOSTS_PER_PLAYER {
+            client.admin_grant_boost(
+                player,
+                &nb(i as u128 + 1, BoostType::Additive, 100, 0),
+            );
+        }
+    }
+    
+    // Verify each player has correct count
+    for player in &players {
+        assert_eq!(
+            client.get_active_boosts(player).len(),
+            MAX_BOOSTS_PER_PLAYER as usize
+        );
+    }
+    
+    // Verify calculations work for all
+    for player in &players {
+        let boost = client.calculate_total_boost(player);
+        // MAX_BOOSTS_PER_PLAYER * 100 additive = +1000 bps = +10% = 11000
+        assert_eq!(boost, 11000);
+    }
+}
+
+/// AIT-19: Rapid state changes stress test
+#[test]
+fn test_rapid_state_changes() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    
+    client.initialize(&admin);
+    
+    // Rapid add-revoke cycles
+    for i in 0..20 {
+        let id = (i % 5) + 1;
+        
+        // Try to grant (may fail if already exists)
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.admin_grant_boost(&player, &nb(id, BoostType::Additive, 100 * id, 0));
+        }));
+        
+        // Revoke (idempotent if not exists)
+        client.admin_revoke_boost(&player, &id);
+    }
+    
+    // Final state should be consistent
+    let final_boosts = client.get_active_boosts(&player);
+    assert!(final_boosts.len() <= 5);
+}
+
+/// AIT-20: Calculation performance with complex boost mix
+#[test]
+fn test_calculation_performance_complex_mix() {
+    let env = make_env();
+    let (client, player) = setup(&env);
+    
+    // Add variety of boost types
+    client.add_boost(&player, &nb(1, BoostType::Multiplicative, 11000, 0));
+    client.add_boost(&player, &nb(2, BoostType::Multiplicative, 10500, 0));
+    client.add_boost(&player, &nb(3, BoostType::Additive, 500, 0));
+    client.add_boost(&player, &nb(4, BoostType::Additive, 750, 0));
+    client.add_boost(&player, &nb(5, BoostType::Additive, 1000, 0));
+    client.add_boost(&player, &nb(6, BoostType::Override, 20000, 5));
+    client.add_boost(&player, &nb(7, BoostType::Override, 15000, 3));
+    client.add_boost(&player, &nb(8, BoostType::Multiplicative, 12000, 0));
+    
+    // Multiple calculations should be fast and consistent
+    let result1 = client.calculate_total_boost(&player);
+    let result2 = client.calculate_total_boost(&player);
+    let result3 = client.calculate_total_boost(&player);
+    
+    assert_eq!(result1, result2);
+    assert_eq!(result2, result3);
+    
+    // Override with priority 5 should win
+    assert_eq!(result1, 20000);
 }

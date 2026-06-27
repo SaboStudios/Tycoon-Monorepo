@@ -53,6 +53,15 @@ impl TycoonContract {
             panic!("Contract already initialized");
         }
 
+        let contract_address = env.current_contract_address();
+        if tyc_token == contract_address
+            || usdc_token == contract_address
+            || initial_owner == contract_address
+            || reward_system == contract_address
+        {
+            panic!("Invalid address: cannot be the contract itself");
+        }
+
         initial_owner.require_auth();
 
         storage::set_tyc_token(&env, &tyc_token);
@@ -92,6 +101,9 @@ impl TycoonContract {
         if token != tyc_token && token != usdc_token {
             panic!("Invalid token address");
         }
+
+        // OI-1: guard against silent truncation when casting u128 → i128
+        assert!(amount <= i128::MAX as u128, "amount exceeds i128::MAX");
 
         let token_client = token::Client::new(&env, &token);
         let contract_address = env.current_contract_address();
@@ -138,9 +150,22 @@ impl TycoonContract {
     ///
     /// The backend controller is a privileged off-chain service that may call
     /// `remove_player_from_game` without being the owner.
+    /// Emits `ControllerUpdated` for auditability (OI-3).
     pub fn admin_set_game_controller(env: Env, new_controller: Address) {
         Self::require_admin(&env);
         storage::set_backend_game_controller(&env, &new_controller);
+        events::emit_controller_updated(&env, &new_controller);
+    }
+
+    /// Transfer ownership to a new address (admin only).
+    ///
+    /// Allows key rotation post-deploy (OI-2). The current owner must authorize
+    /// this call; after it completes the new owner holds all admin privileges.
+    /// Emits `OwnershipTransferred`.
+    pub fn admin_transfer_ownership(env: Env, new_owner: Address) {
+        let old_owner = Self::require_admin(&env);
+        storage::set_owner(&env, &new_owner);
+        events::emit_ownership_transferred(&env, &old_owner, &new_owner);
     }
 
     /// Mint a 2-TYC registration voucher for a player via the reward system (admin only).
@@ -191,6 +216,8 @@ impl TycoonContract {
 
         storage::set_user(&env, &caller, &user);
         storage::set_registered(&env, &caller);
+        // OI-4: emit PlayerRegistered for off-chain indexing
+        events::emit_player_registered(&env, &caller);
     }
 
     /// Remove a player from an active game.

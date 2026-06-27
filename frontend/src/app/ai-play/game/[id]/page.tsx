@@ -21,7 +21,7 @@ interface AiGameContentProps {
   id: string;
 }
 
-function AiGameContent({ id }: AiGameContentProps): React.ReactNode {
+export function AiGameContent({ id }: AiGameContentProps): React.ReactNode {
   const trimmedId = id ? id.trim() : "";
   const gameCode = trimmedId.toUpperCase();
   const isInvalid = gameCode.length === 0;

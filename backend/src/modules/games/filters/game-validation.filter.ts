@@ -7,7 +7,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { mapValidationErrorToGameException, GameException } from '../exceptions/game-exceptions';
+import {
+  mapValidationErrorToGameException,
+  GameException,
+} from '../exceptions/game-exceptions';
 
 @Catch()
 export class GameValidationFilter implements ExceptionFilter {
@@ -25,7 +28,7 @@ export class GameValidationFilter implements ExceptionFilter {
       // Already a GameException, just log and return
       gameException = exception;
       status = exception.getStatus();
-      
+
       this.logger.warn('Game exception occurred', {
         error: exception.errorCode,
         message: exception.message,
@@ -36,7 +39,7 @@ export class GameValidationFilter implements ExceptionFilter {
       });
     } else if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
-      
+
       // Handle validation errors from class-validator
       if (
         typeof exceptionResponse === 'object' &&
@@ -44,9 +47,11 @@ export class GameValidationFilter implements ExceptionFilter {
         'message' in exceptionResponse &&
         Array.isArray(exceptionResponse.message)
       ) {
-        gameException = mapValidationErrorToGameException(exceptionResponse.message);
+        gameException = mapValidationErrorToGameException(
+          exceptionResponse.message,
+        );
         status = gameException.getStatus();
-        
+
         this.logger.warn('Validation error mapped to game exception', {
           originalError: exceptionResponse,
           mappedError: gameException.errorCode,
@@ -72,7 +77,7 @@ export class GameValidationFilter implements ExceptionFilter {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      
+
       this.logger.error('Unhandled error in game module', {
         error: exception.message,
         stack: exception.stack,
@@ -88,7 +93,7 @@ export class GameValidationFilter implements ExceptionFilter {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      
+
       this.logger.error('Unknown error type in game module', {
         exception,
         url: request.url,

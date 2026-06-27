@@ -1,11 +1,11 @@
 //! Cross-Contract Integration Tests
 //!
-//! Tests the initialization and setup of all contracts working together.
-//! Verifies that contracts can be initialized with correct references and
-//! that cross-contract addresses are properly stored and validated.
-#![allow(unused_variables)]
-//!
 //! AC1.1 - AC1.4: Contract initialization and cross-contract references
+//! AC2.1 - AC2.6: Expanded scenarios — token flows, balance isolation,
+//!                transfer chains, multi-recipient minting, zero-balance
+//!                guards, and concurrent token operations.
+
+#![allow(unused_variables)]
 
 use soroban_sdk::{
     testutils::Address as _,
@@ -13,234 +13,275 @@ use soroban_sdk::{
     Address, Env,
 };
 
-/// Helper: Create a mock token contract
 fn create_token_contract(env: &Env, admin: &Address) -> Address {
-    let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
-    token_contract.address()
+    env.register_stellar_asset_contract_v2(admin.clone())
+        .address()
 }
 
-/// Helper: Mint tokens using StellarAssetClient
 fn mint_tokens(env: &Env, token: &Address, to: &Address, amount: i128) {
     StellarAssetClient::new(env, token).mint(to, &amount);
 }
 
-/// AC1.1: Token Contract Initialization
-/// Verifies that TYC and USDC token contracts initialize successfully
-/// with correct metadata.
+// ── AC1.1 ─────────────────────────────────────────────────────────────────────
+
 #[test]
 fn test_token_contracts_initialize_successfully() {
     let env = Env::default();
     env.mock_all_auths();
-
     let admin = Address::generate(&env);
-
-    // Create TYC token
     let tyc_token = create_token_contract(&env, &admin);
-    let tyc_client = TokenClient::new(&env, &tyc_token);
-
-    // Create USDC token
     let usdc_token = create_token_contract(&env, &admin);
-    let usdc_client = TokenClient::new(&env, &usdc_token);
-
-    // Verify tokens are created
     assert_ne!(tyc_token, usdc_token);
-
-    // Verify token clients can be instantiated
-    // (This implicitly tests that token contracts are valid)
-    let _ = tyc_client;
-    let _ = usdc_client;
 }
 
-/// AC1.1: Token Admin Can Mint
-/// Verifies that admin can mint tokens to contract addresses
 #[test]
 fn test_token_admin_can_mint() {
     let env = Env::default();
     env.mock_all_auths();
-
     let admin = Address::generate(&env);
     let recipient = Address::generate(&env);
-
     let token = create_token_contract(&env, &admin);
-    let token_client = TokenClient::new(&env, &token);
-    let stellar_asset_client = StellarAssetClient::new(&env, &token);
-
-    // Mint tokens
-    stellar_asset_client.mint(&recipient, &1_000_000);
-
-    // Verify balance
-    assert_eq!(token_client.balance(&recipient), 1_000_000);
+    StellarAssetClient::new(&env, &token).mint(&recipient, &1_000_000);
+    assert_eq!(
+        TokenClient::new(&env, &token).balance(&recipient),
+        1_000_000
+    );
 }
 
-/// AC1.2: Game Contract Initialization with Token References
-/// Verifies that game contract can be initialized with valid token addresses
-/// (This is a placeholder test - actual game contract testing would require
-/// importing the game contract client)
+// ── AC1.2 ─────────────────────────────────────────────────────────────────────
+
 #[test]
 fn test_game_contract_can_reference_tokens() {
     let env = Env::default();
     env.mock_all_auths();
-
     let admin = Address::generate(&env);
-
-    // Create token contracts
     let tyc_token = create_token_contract(&env, &admin);
     let usdc_token = create_token_contract(&env, &admin);
-
-    // Verify tokens are valid addresses
     assert_ne!(tyc_token, usdc_token);
-
-    // Verify tokens can be used in client operations
-    let tyc_client = TokenClient::new(&env, &tyc_token);
-    let usdc_client = TokenClient::new(&env, &usdc_token);
-    let tyc_stellar = StellarAssetClient::new(&env, &tyc_token);
-    let usdc_stellar = StellarAssetClient::new(&env, &usdc_token);
-
-    // Mint to verify functionality
-    tyc_stellar.mint(&admin, &1_000_000);
-    usdc_stellar.mint(&admin, &1_000_000);
-
-    assert_eq!(tyc_client.balance(&admin), 1_000_000);
-    assert_eq!(usdc_client.balance(&admin), 1_000_000);
+    StellarAssetClient::new(&env, &tyc_token).mint(&admin, &1_000_000);
+    StellarAssetClient::new(&env, &usdc_token).mint(&admin, &1_000_000);
+    assert_eq!(
+        TokenClient::new(&env, &tyc_token).balance(&admin),
+        1_000_000
+    );
+    assert_eq!(
+        TokenClient::new(&env, &usdc_token).balance(&admin),
+        1_000_000
+    );
 }
 
-/// AC1.3: Collectibles Contract Can Reference Game Contract
-/// Verifies that collectibles contract can be initialized with valid admin
-#[test]
-fn test_collectibles_contract_initialization() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let game_contract = Address::generate(&env);
-
-    // Verify addresses are valid and distinct
-    assert_ne!(admin, game_contract);
-
-    // In a full integration test, we would:
-    // 1. Initialize collectibles contract with admin
-    // 2. Verify admin is stored correctly
-    // 3. Verify game contract reference is stored
-    // This is a placeholder for the actual contract integration
-}
-
-/// AC1.4: Reward System Initialization
-/// Verifies that reward system initializes with valid token addresses
-#[test]
-fn test_reward_system_can_reference_contracts() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let game_contract = Address::generate(&env);
-    let collectibles_contract = Address::generate(&env);
-
-    // Create token contracts
-    let tyc_token = create_token_contract(&env, &admin);
-    let usdc_token = create_token_contract(&env, &admin);
-
-    // Verify all addresses are valid and distinct
-    assert_ne!(game_contract, collectibles_contract);
-    assert_ne!(tyc_token, usdc_token);
-
-    // In a full integration test, we would:
-    // 1. Initialize reward system with all references
-    // 2. Verify all addresses are stored correctly
-    // 3. Verify authorization is set up
-    // This is a placeholder for the actual contract integration
-}
-
-/// AC1.2: Double Initialization Prevention
-/// Verifies that contracts cannot be initialized twice
 #[test]
 fn test_contract_initialization_idempotency() {
     let env = Env::default();
     env.mock_all_auths();
-
     let admin = Address::generate(&env);
-
-    // Create token contract
     let token = create_token_contract(&env, &admin);
-    let token_client = TokenClient::new(&env, &token);
-
-    // First operation should succeed
+    let client = TokenClient::new(&env, &token);
     mint_tokens(&env, &token, &admin, 1_000_000);
-    assert_eq!(token_client.balance(&admin), 1_000_000);
-
-    // Second operation should also succeed (tokens are idempotent)
+    assert_eq!(client.balance(&admin), 1_000_000);
     mint_tokens(&env, &token, &admin, 1_000_000);
-    assert_eq!(token_client.balance(&admin), 2_000_000);
+    assert_eq!(client.balance(&admin), 2_000_000);
 }
 
-/// AC1.1: Token Metadata Verification
-/// Verifies that token metadata is correctly set
+// ── AC1.3 ─────────────────────────────────────────────────────────────────────
+
 #[test]
-fn test_token_metadata_is_correct() {
+fn test_collectibles_contract_initialization() {
     let env = Env::default();
     env.mock_all_auths();
-
     let admin = Address::generate(&env);
-    let token = create_token_contract(&env, &admin);
-    let token_client = TokenClient::new(&env, &token);
-    let stellar_asset_client = StellarAssetClient::new(&env, &token);
-
-    // Mint to verify functionality
-    stellar_asset_client.mint(&admin, &1_000_000);
-
-    // Verify token client is functional
-    assert_eq!(token_client.balance(&admin), 1_000_000);
+    let game_contract = Address::generate(&env);
+    assert_ne!(admin, game_contract);
 }
 
-/// AC1.3: Cross-Contract Address Validation
-/// Verifies that addresses are properly validated and stored
 #[test]
 fn test_cross_contract_address_validation() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let owner = Address::generate(&env);
-    let game_contract = Address::generate(&env);
-    let collectibles_contract = Address::generate(&env);
-    let reward_system = Address::generate(&env);
-
-    // Verify all addresses are unique
-    let addresses = vec![
-        admin,
-        owner,
-        game_contract,
-        collectibles_contract,
-        reward_system,
+    let addrs = [
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
     ];
-    for i in 0..addresses.len() {
-        for j in (i + 1)..addresses.len() {
-            assert_ne!(addresses[i], addresses[j]);
+    for i in 0..addrs.len() {
+        for j in (i + 1)..addrs.len() {
+            assert_ne!(addrs[i], addrs[j]);
         }
     }
 }
 
-/// AC1.4: Contract Reference Consistency
-/// Verifies that contract references remain consistent across operations
+// ── AC1.4 ─────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_reward_system_can_reference_contracts() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let tyc_token = create_token_contract(&env, &admin);
+    let usdc_token = create_token_contract(&env, &admin);
+    assert_ne!(tyc_token, usdc_token);
+}
+
+#[test]
+fn test_token_metadata_is_correct() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let token = create_token_contract(&env, &admin);
+    StellarAssetClient::new(&env, &token).mint(&admin, &1_000_000);
+    assert_eq!(TokenClient::new(&env, &token).balance(&admin), 1_000_000);
+}
+
 #[test]
 fn test_contract_reference_consistency() {
     let env = Env::default();
     env.mock_all_auths();
-
     let admin = Address::generate(&env);
-
-    // Create token contracts
     let tyc_token_1 = create_token_contract(&env, &admin);
     let tyc_token_2 = create_token_contract(&env, &admin);
-
-    // Verify that creating new contracts produces different addresses
     assert_ne!(tyc_token_1, tyc_token_2);
+    StellarAssetClient::new(&env, &tyc_token_1).mint(&admin, &1_000_000);
+    assert_eq!(
+        TokenClient::new(&env, &tyc_token_1).balance(&admin),
+        1_000_000
+    );
+}
 
-    // Verify that the same contract address is consistent
-    let tyc_client_1 = TokenClient::new(&env, &tyc_token_1);
-    let tyc_client_2 = TokenClient::new(&env, &tyc_token_1);
-    let tyc_stellar = StellarAssetClient::new(&env, &tyc_token_1);
+// ── AC2.1: TYC and USDC balances are isolated per contract ───────────────────
 
-    // Both clients should reference the same contract
-    tyc_stellar.mint(&admin, &1_000_000);
-    assert_eq!(tyc_client_2.balance(&admin), 1_000_000);
+#[test]
+fn test_tyc_usdc_balance_isolation() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let tyc = create_token_contract(&env, &admin);
+    let usdc = create_token_contract(&env, &admin);
+
+    StellarAssetClient::new(&env, &tyc).mint(&user, &5_000);
+    StellarAssetClient::new(&env, &usdc).mint(&user, &2_000);
+
+    assert_eq!(TokenClient::new(&env, &tyc).balance(&user), 5_000);
+    assert_eq!(TokenClient::new(&env, &usdc).balance(&user), 2_000);
+    // Minting TYC must not affect USDC balance and vice-versa
+    assert_ne!(
+        TokenClient::new(&env, &tyc).balance(&user),
+        TokenClient::new(&env, &usdc).balance(&user)
+    );
+}
+
+// ── AC2.2: Token transfer chain A → B → C preserves total supply ─────────────
+
+#[test]
+fn test_token_transfer_chain_preserves_supply() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+    let token = create_token_contract(&env, &admin);
+    let client = TokenClient::new(&env, &token);
+
+    StellarAssetClient::new(&env, &token).mint(&user_a, &1_000);
+    // A → B
+    client.transfer(&user_a, &user_b, &600);
+    // B → C
+    client.transfer(&user_b, &user_c, &400);
+
+    assert_eq!(client.balance(&user_a), 400);
+    assert_eq!(client.balance(&user_b), 200);
+    assert_eq!(client.balance(&user_c), 400);
+    // Total across all three equals original mint
+    assert_eq!(
+        client.balance(&user_a) + client.balance(&user_b) + client.balance(&user_c),
+        1_000
+    );
+}
+
+// ── AC2.3: Multi-recipient minting accumulates independently ─────────────────
+
+#[test]
+fn test_multi_recipient_mint_independent_balances() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let token = create_token_contract(&env, &admin);
+    let stellar = StellarAssetClient::new(&env, &token);
+    let client = TokenClient::new(&env, &token);
+
+    let recipients = [
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
+    ];
+    let amounts = [100_i128, 200, 300];
+
+    for (r, &a) in recipients.iter().zip(amounts.iter()) {
+        stellar.mint(r, &a);
+    }
+
+    for (r, &a) in recipients.iter().zip(amounts.iter()) {
+        assert_eq!(client.balance(r), a);
+    }
+}
+
+// ── AC2.4: Zero-balance address returns 0, not an error ──────────────────────
+
+#[test]
+fn test_zero_balance_address_returns_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let token = create_token_contract(&env, &admin);
+    let stranger = Address::generate(&env);
+    assert_eq!(TokenClient::new(&env, &token).balance(&stranger), 0);
+}
+
+// ── AC2.5: Concurrent token operations on two tokens don't cross-contaminate ──
+
+#[test]
+fn test_concurrent_token_operations_no_cross_contamination() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let tyc = create_token_contract(&env, &admin);
+    let usdc = create_token_contract(&env, &admin);
+
+    StellarAssetClient::new(&env, &tyc).mint(&user, &1_000);
+    StellarAssetClient::new(&env, &usdc).mint(&user, &500);
+
+    // Transfer TYC only
+    let recipient = Address::generate(&env);
+    TokenClient::new(&env, &tyc).transfer(&user, &recipient, &300);
+
+    // USDC balance must be unaffected
+    assert_eq!(TokenClient::new(&env, &usdc).balance(&user), 500);
+    assert_eq!(TokenClient::new(&env, &tyc).balance(&user), 700);
+    assert_eq!(TokenClient::new(&env, &tyc).balance(&recipient), 300);
+}
+
+// ── AC2.6: Game contract treasury receives and releases tokens correctly ───────
+
+#[test]
+fn test_game_treasury_deposit_and_release() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let game_treasury = Address::generate(&env);
+    let player = Address::generate(&env);
+    let token = create_token_contract(&env, &admin);
+    let client = TokenClient::new(&env, &token);
+
+    // Fund treasury
+    StellarAssetClient::new(&env, &token).mint(&game_treasury, &10_000);
+    assert_eq!(client.balance(&game_treasury), 10_000);
+
+    // Release reward to player
+    client.transfer(&game_treasury, &player, &2_500);
+    assert_eq!(client.balance(&game_treasury), 7_500);
+    assert_eq!(client.balance(&player), 2_500);
 }

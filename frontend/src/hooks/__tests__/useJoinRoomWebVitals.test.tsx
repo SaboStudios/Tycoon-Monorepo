@@ -5,6 +5,22 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // Mock fetch
 global.fetch = vi.fn();
 
+function installPerformanceObserverMock(
+  mockObserver: { observe: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> },
+  onConstruct?: (callback: PerformanceObserverCallback) => void,
+) {
+  const Constructor = vi.fn(function PerformanceObserverMock(
+    this: { observe: typeof mockObserver.observe; disconnect: typeof mockObserver.disconnect },
+    callback: PerformanceObserverCallback,
+  ) {
+    onConstruct?.(callback);
+    this.observe = mockObserver.observe;
+    this.disconnect = mockObserver.disconnect;
+  });
+  window.PerformanceObserver = Constructor as unknown as typeof PerformanceObserver;
+  return Constructor;
+}
+
 describe('useJoinRoomWebVitals', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,13 +71,12 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      const PerformanceObserverMock = vi.fn(() => mockObserver);
-      window.PerformanceObserver = PerformanceObserverMock as any;
+      const Constructor = installPerformanceObserverMock(mockObserver);
 
       const { unmount } = renderHook(() => useJoinRoomWebVitals());
 
       // Should call observe with largest-contentful-paint
-      expect(PerformanceObserverMock).toHaveBeenCalled();
+      expect(Constructor).toHaveBeenCalled();
 
       unmount();
       expect(mockObserver.disconnect).toHaveBeenCalled();
@@ -86,12 +101,9 @@ describe('useJoinRoomWebVitals', () => {
 
       let lcpCallback: ((entries: any) => void) | null = null;
 
-      const PerformanceObserverMock = vi.fn((callback) => {
+      installPerformanceObserverMock(mockObserver, (callback) => {
         lcpCallback = callback;
-        return mockObserver;
       });
-
-      window.PerformanceObserver = PerformanceObserverMock as any;
       (global.fetch as any).mockResolvedValue({ ok: true });
 
       renderHook(() =>
@@ -134,7 +146,7 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      window.PerformanceObserver = vi.fn(() => mockObserver) as any;
+      installPerformanceObserverMock(mockObserver);
 
       renderHook(() => useJoinRoomWebVitals({ debug: false }));
 
@@ -155,14 +167,9 @@ describe('useJoinRoomWebVitals', () => {
 
       let clsCallback: ((entries: any) => void) | null = null;
 
-      const PerformanceObserverMock = vi.fn((callback) => {
-        if (callback) {
-          clsCallback = callback;
-        }
-        return mockObserver;
+      installPerformanceObserverMock(mockObserver, (callback) => {
+        clsCallback = callback;
       });
-
-      window.PerformanceObserver = PerformanceObserverMock as any;
       (global.fetch as any).mockResolvedValue({ ok: true });
 
       renderHook(() =>
@@ -200,7 +207,7 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      window.PerformanceObserver = vi.fn(() => mockObserver) as any;
+      installPerformanceObserverMock(mockObserver);
       (global.fetch as any).mockResolvedValue({ ok: true });
 
       const originalEnv = process.env.NODE_ENV;
@@ -228,7 +235,7 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      window.PerformanceObserver = vi.fn(() => mockObserver) as any;
+      installPerformanceObserverMock(mockObserver);
 
       const { unmount } = renderHook(() => useJoinRoomWebVitals());
 
@@ -246,7 +253,7 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      window.PerformanceObserver = vi.fn(() => mockObserver) as any;
+      installPerformanceObserverMock(mockObserver);
 
       const { unmount } = renderHook(() => useJoinRoomWebVitals());
 
@@ -267,7 +274,7 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      window.PerformanceObserver = vi.fn(() => mockObserver) as any;
+      installPerformanceObserverMock(mockObserver);
 
       renderHook(() => useJoinRoomWebVitals({ debug: true }));
 
@@ -284,7 +291,7 @@ describe('useJoinRoomWebVitals', () => {
         disconnect: vi.fn(),
       };
 
-      window.PerformanceObserver = vi.fn(() => mockObserver) as any;
+      installPerformanceObserverMock(mockObserver);
 
       renderHook(() => useJoinRoomWebVitals({ debug: false }));
 

@@ -338,4 +338,207 @@ describe('useJoinRoomTelemetry', () => {
       });
     });
   });
+
+  describe('no duplicate events on re-render', () => {
+    it('should not fire duplicate events when dependencies are stable', () => {
+      const { result, rerender } = renderHook(
+        ({ route }) => useJoinRoomTelemetry(route),
+        { initialProps: { route: '/join-room' } }
+      );
+
+      act(() => {
+        result.current.trackFormViewed();
+      });
+
+      const callCountBefore = (track as any).mock.calls.length;
+
+      rerender({ route: '/join-room' });
+
+      const callCountAfter = (track as any).mock.calls.length;
+      expect(callCountAfter).toBe(callCountBefore);
+    });
+
+    it('should have stable callback references across re-renders', () => {
+      const { result, rerender } = renderHook(
+        ({ route }) => useJoinRoomTelemetry(route),
+        { initialProps: { route: '/join-room' } }
+      );
+
+      const {
+        trackFormViewed: firstFormViewed,
+        trackJoinAttempted: firstAttempted,
+        trackJoinSucceeded: firstSucceeded,
+        trackJoinFailed: firstFailed,
+      } = result.current;
+
+      rerender({ route: '/join-room' });
+
+      expect(result.current.trackFormViewed).toBe(firstFormViewed);
+      expect(result.current.trackJoinAttempted).toBe(firstAttempted);
+      expect(result.current.trackJoinSucceeded).toBe(firstSucceeded);
+      expect(result.current.trackJoinFailed).toBe(firstFailed);
+    });
+  });
+
+  describe('disconnected or unavailable telemetry provider', () => {
+    it('should handle gracefully when track function throws', () => {
+      (track as any).mockImplementationOnce(() => {
+        throw new Error('Telemetry provider unavailable');
+      });
+
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      expect(() => {
+        act(() => {
+          result.current.trackFormViewed();
+        });
+      }).toThrow();
+    });
+
+    it('should continue to function even if one telemetry call fails', () => {
+      const mockTrack = track as any;
+      mockTrack.mockImplementationOnce(() => {
+        throw new Error('Provider down');
+      });
+
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      expect(() => {
+        act(() => {
+          try {
+            result.current.trackFormViewed();
+          } catch {
+            // Expected to fail on first call
+          }
+        });
+      }).not.toThrow();
+    });
+
+    it('should recover and fire events after provider recovers', () => {
+      const mockTrack = track as any;
+
+      mockTrack.mockClear();
+      mockTrack.mockImplementationOnce(() => {
+        throw new Error('Provider down');
+      });
+
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      try {
+        act(() => {
+          result.current.trackFormViewed();
+        });
+      } catch {
+        // Expected
+      }
+
+      mockTrack.mockClear();
+      mockTrack.mockImplementation(() => {});
+
+      act(() => {
+        result.current.trackJoinSucceeded();
+      });
+
+      expect(mockTrack).toHaveBeenCalledWith('join_room_succeeded', expect.any(Object));
+    });
+  });
+
+  describe('unmount safety (stale state)', () => {
+    it('should not fire events after unmount', () => {
+      const mockTrack = track as any;
+      mockTrack.mockClear();
+
+      const { result, unmount } = renderHook(() => useJoinRoomTelemetry());
+
+      act(() => {
+        result.current.trackFormViewed();
+      });
+
+      expect(mockTrack).toHaveBeenCalledTimes(1);
+
+      mockTrack.mockClear();
+      unmount();
+
+      expect(mockTrack).not.toHaveBeenCalled();
+    });
+
+    it('should not throw on unmount', () => {
+      const { unmount } = renderHook(() => useJoinRoomTelemetry());
+
+      expect(() => {
+        unmount();
+      }).not.toThrow();
+    });
+
+    it('callbacks should remain callable after unmount without throwing', () => {
+      const mockTrack = track as any;
+      mockTrack.mockClear();
+
+      const { result, unmount } = renderHook(() => useJoinRoomTelemetry());
+
+      const trackFormViewedRef = result.current.trackFormViewed;
+
+      unmount();
+
+      expect(() => {
+        trackFormViewedRef();
+      }).not.toThrow();
+    });
+  });
+
+  describe('edge cases: null/undefined/invalid values', () => {
+    it('should handle undefined source in trackFormViewed', () => {
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      act(() => {
+        result.current.trackFormViewed(undefined as any);
+      });
+
+      expect(track).toHaveBeenCalledWith('join_room_form_viewed', expect.objectContaining({ route: '/join-room' }));
+    });
+
+    it('should handle undefined source in trackJoinAttempted', () => {
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      act(() => {
+        result.current.trackJoinAttempted(undefined as any);
+      });
+
+      expect(track).toHaveBeenCalledWith('join_room_attempted', expect.objectContaining({ route: '/join-room' }));
+    });
+
+    it('should handle empty string source in trackFormViewed', () => {
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      act(() => {
+        result.current.trackFormViewed('');
+      });
+
+      expect(track).toHaveBeenCalledWith('join_room_form_viewed', expect.objectContaining({ source: '' }));
+    });
+
+    it('should handle null route parameter gracefully', () => {
+      const { result } = renderHook(() => useJoinRoomTelemetry(null as any));
+
+      act(() => {
+        result.current.trackFormViewed();
+      });
+
+      expect(track).toHaveBeenCalled();
+    });
+
+    it('should validate error_type in trackJoinFailed accepts only valid types', () => {
+      const { result } = renderHook(() => useJoinRoomTelemetry());
+
+      const validErrorTypes = ['validation', 'not_found', 'room_full', 'server_error', 'unknown'];
+
+      act(() => {
+        validErrorTypes.forEach((errorType) => {
+          result.current.trackJoinFailed(errorType as any);
+        });
+      });
+
+      expect(track).toHaveBeenCalledTimes(5);
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
+import { ShopAnalyticsDto } from './dto/shop-analytics.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -12,6 +13,11 @@ export class AdminAnalyticsController {
   @Get('dashboard')
   async getDashboardAnalytics(): Promise<DashboardAnalyticsDto> {
     return this.analyticsService.getDashboardAnalytics();
+  }
+
+  @Get('shop')
+  async getShopAnalytics(): Promise<ShopAnalyticsDto> {
+    return this.analyticsService.getShopAnalytics();
   }
 
   @Get('users/total')

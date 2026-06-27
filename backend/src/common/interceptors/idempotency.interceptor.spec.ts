@@ -133,7 +133,9 @@ describe('IdempotencyInterceptor (common)', () => {
 
     it('does not call the handler on replay', async () => {
       jest.spyOn(reflector, 'get').mockReturnValue(true);
-      const ctx = buildContext({ headers: { 'x-idempotency-key': 'replay-key' } });
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'replay-key' },
+      });
       const next = { handle: jest.fn() };
 
       mockRedisService.get.mockResolvedValue({
@@ -147,7 +149,9 @@ describe('IdempotencyInterceptor (common)', () => {
 
     it('replays a null body correctly', async () => {
       jest.spyOn(reflector, 'get').mockReturnValue(true);
-      const ctx = buildContext({ headers: { 'x-idempotency-key': 'null-key' } });
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'null-key' },
+      });
       const next = { handle: jest.fn() };
 
       mockRedisService.get.mockResolvedValue({
@@ -168,7 +172,9 @@ describe('IdempotencyInterceptor (common)', () => {
   describe('concurrent request lock', () => {
     it('throws 400 when concurrent request with same key is in flight', async () => {
       jest.spyOn(reflector, 'get').mockReturnValue(true);
-      const ctx = buildContext({ headers: { 'x-idempotency-key': 'race-key' } });
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'race-key' },
+      });
       const next = { handle: jest.fn() };
 
       mockRedisService.get.mockResolvedValue(null);
@@ -185,7 +191,9 @@ describe('IdempotencyInterceptor (common)', () => {
   describe('first request', () => {
     it('caches and passes through on first request', async () => {
       jest.spyOn(reflector, 'get').mockReturnValue(true);
-      const ctx = buildContext({ headers: { 'x-idempotency-key': 'fresh-key' } });
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'fresh-key' },
+      });
       const body = { id: 99 };
       const next = { handle: jest.fn().mockReturnValue(of(body)) };
 
@@ -214,7 +222,9 @@ describe('IdempotencyInterceptor (common)', () => {
       mockRedisService.del.mockResolvedValue(undefined);
 
       const result$ = await interceptor.intercept(ctx, next as any);
-      await new Promise((resolve) => result$.subscribe({ complete: resolve as any }));
+      await new Promise((resolve) =>
+        result$.subscribe({ complete: resolve as any }),
+      );
 
       expect(mockRedisService.set).toHaveBeenCalledWith(
         expect.stringContaining('idempotency:'),
@@ -265,7 +275,9 @@ describe('IdempotencyInterceptor (common)', () => {
 
     it('releases the lock after successful response', async () => {
       jest.spyOn(reflector, 'get').mockReturnValue(true);
-      const ctx = buildContext({ headers: { 'x-idempotency-key': 'lock-key' } });
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'lock-key' },
+      });
       const next = { handle: jest.fn().mockReturnValue(of({ done: true })) };
 
       mockRedisService.get.mockResolvedValue(null);
@@ -274,7 +286,9 @@ describe('IdempotencyInterceptor (common)', () => {
       mockRedisService.del.mockResolvedValue(undefined);
 
       const result$ = await interceptor.intercept(ctx, next as any);
-      await new Promise((resolve) => result$.subscribe({ complete: resolve as any }));
+      await new Promise((resolve) =>
+        result$.subscribe({ complete: resolve as any }),
+      );
 
       // Lock key is deleted after the response is cached
       expect(mockRedisService.del).toHaveBeenCalledWith(

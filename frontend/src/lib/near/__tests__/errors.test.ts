@@ -50,6 +50,12 @@ describe("isLikelyUserRejectedError", () => {
     expect(isLikelyUserRejectedError(undefined)).toBe(false);
   });
 
+  it("returns true for error objects with a nested message", () => {
+    expect(
+      isLikelyUserRejectedError({ message: { cause: "User rejected the request" } }),
+    ).toBe(true);
+  });
+
   it("returns false for a plain object", () => {
     expect(isLikelyUserRejectedError({ code: 4001 })).toBe(false);
   });
@@ -65,6 +71,26 @@ describe("nearErrorMessage", () => {
   it("returns the error message for a non-rejection Error", () => {
     expect(nearErrorMessage(new Error("Something exploded"))).toBe(
       "Something exploded",
+    );
+  });
+
+  it("returns a friendly message for nested error objects", () => {
+    expect(
+      nearErrorMessage({
+        message: { cause: new Error("Wallet is not connected") },
+      }),
+    ).toBe("Connect your NEAR wallet to continue.");
+  });
+
+  it("returns a friendly message for network failures", () => {
+    expect(nearErrorMessage(new Error("Failed to fetch"))).toBe(
+      "Unable to reach the NEAR network. Check your internet connection.",
+    );
+  });
+
+  it("returns a friendly message for invalid account errors", () => {
+    expect(nearErrorMessage(new Error("Invalid account id"))).toBe(
+      "The NEAR account or contract ID is invalid.",
     );
   });
 

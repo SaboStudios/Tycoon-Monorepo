@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -46,12 +51,15 @@ export class UploadsService {
     const bucket = this.config.get<string>('upload.s3Bucket');
     if (bucket) {
       const region = this.config.get<string>('upload.s3Region') ?? 'us-east-1';
-      const endpoint = this.config.get<string>('upload.s3Endpoint') || undefined;
+      const endpoint =
+        this.config.get<string>('upload.s3Endpoint') || undefined;
       this.s3 = new S3Client({ region, ...(endpoint ? { endpoint } : {}) });
       this.logger.log(`S3 storage enabled – bucket: ${bucket}`);
     } else {
       this.s3 = null;
-      this.logger.warn('AWS_S3_BUCKET not set – falling back to local disk storage');
+      this.logger.warn(
+        'AWS_S3_BUCKET not set – falling back to local disk storage',
+      );
     }
   }
 
@@ -98,13 +106,22 @@ export class UploadsService {
    * Get paginated and sorted list of uploads.
    */
   async findAll(paginationDto: PaginationDto) {
-    const { page = 1, limit = 10, sortBy = 'id', sortOrder = 'DESC', search } = paginationDto;
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'id',
+      sortOrder = 'DESC',
+      search,
+    } = paginationDto;
     const queryBuilder = this.uploadRepository.createQueryBuilder('upload');
 
     if (search) {
-      queryBuilder.andWhere('upload.originalName ILIKE :search OR upload.key ILIKE :search', {
-        search: `%${search}%`,
-      });
+      queryBuilder.andWhere(
+        'upload.originalName ILIKE :search OR upload.key ILIKE :search',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     // Stable sorting requirement: always include ID as a secondary sort key if not already primary
@@ -151,7 +168,8 @@ export class UploadsService {
       const bucket = this.config.get<string>('upload.s3Bucket')!;
       await this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     } else {
-      const baseDir = this.config.get<string>('upload.localUploadDir') ?? './storage/uploads';
+      const baseDir =
+        this.config.get<string>('upload.localUploadDir') ?? './storage/uploads';
       try {
         await unlink(join(baseDir, key));
       } catch (err) {
@@ -184,7 +202,9 @@ export class UploadsService {
    * Resolve a local download token and return the raw file buffer.
    * Only relevant when S3 is not configured.
    */
-  async resolveLocalDownload(token: string): Promise<{ buffer: Buffer; key: string }> {
+  async resolveLocalDownload(
+    token: string,
+  ): Promise<{ buffer: Buffer; key: string }> {
     const payload = await this.jwt.verifyAsync<DownloadTokenPayload>(token);
     if (payload.typ !== 'upload-download') {
       throw new Error('Invalid token type');
@@ -200,10 +220,19 @@ export class UploadsService {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  private async storeS3(buffer: Buffer, key: string, mimeType: string): Promise<void> {
+  private async storeS3(
+    buffer: Buffer,
+    key: string,
+    mimeType: string,
+  ): Promise<void> {
     const bucket = this.config.get<string>('upload.s3Bucket')!;
     await this.s3!.send(
-      new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: mimeType }),
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mimeType,
+      }),
     );
   }
 

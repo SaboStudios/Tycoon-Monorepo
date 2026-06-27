@@ -36,7 +36,8 @@ export class WebhooksController {
     @Body() body: StripeWebhookDto,
   ) {
     try {
-      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const ipAddress =
+        req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
 
       const isValid = await this.webhooksService.verifySignature(

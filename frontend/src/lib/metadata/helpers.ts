@@ -1,6 +1,16 @@
 import { type Metadata } from "next";
 import { siteConfig, isStaging, getCanonicalUrl } from "./config";
 
+function formatKeywords(keywords?: string[]): string {
+  return keywords && keywords.length > 0
+    ? keywords.join(", ")
+    : siteConfig.keywords.join(", ");
+}
+
+function resolveOgImage(ogImage?: string): string {
+  return ogImage ?? siteConfig.ogImage;
+}
+
 /**
  * Generate base metadata for the application
  * This is used in the root layout and can be extended by individual pages
@@ -40,7 +50,7 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
     ],
 
     // Keywords
-    keywords: siteConfig.keywords.join(", "),
+    keywords: formatKeywords(),
 
     // Creator
     creator: siteConfig.creator,
@@ -92,7 +102,7 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
       description: siteConfig.description,
       images: [
         {
-          url: siteConfig.ogImage,
+          url: resolveOgImage(),
           width: 1200,
           height: 630,
           alt: siteConfig.name,
@@ -110,7 +120,7 @@ export function generateBaseMetadata(overrides?: Partial<Metadata>): Metadata {
         template: `%s | ${siteConfig.name}`,
       },
       description: siteConfig.description,
-      images: [siteConfig.ogImage],
+      images: [resolveOgImage()],
     },
 
     // Robots - conditionally set noindex for staging
@@ -159,19 +169,24 @@ export function generatePageMetadata(options: {
   return {
     title,
     description,
-    keywords: keywords?.join(", "),
+    keywords: formatKeywords(keywords),
     openGraph: {
       title,
       description,
       url: canonicalUrl,
-      images: ogImage
-        ? [{ url: ogImage, width: 1200, height: 630, alt: title }]
-        : undefined,
+      images: [
+        {
+          url: resolveOgImage(ogImage),
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
     },
     twitter: {
       title,
       description,
-      images: ogImage ? [ogImage] : undefined,
+      images: [resolveOgImage(ogImage)],
     },
     alternates: {
       canonical: canonicalUrl,

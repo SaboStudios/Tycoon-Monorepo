@@ -16,16 +16,24 @@ const ALLOWED_SIGNATURES: Record<string, Array<[number, number[]]>> = {
 };
 
 /** Magic-byte patterns that indicate executable content. */
-const EXECUTABLE_SIGNATURES: Array<{ label: string; offset: number; bytes: number[] }> = [
-  { label: 'ELF',       offset: 0, bytes: [0x7f, 0x45, 0x4c, 0x46] },
-  { label: 'MZ/PE',     offset: 0, bytes: [0x4d, 0x5a] },
+const EXECUTABLE_SIGNATURES: Array<{
+  label: string;
+  offset: number;
+  bytes: number[];
+}> = [
+  { label: 'ELF', offset: 0, bytes: [0x7f, 0x45, 0x4c, 0x46] },
+  { label: 'MZ/PE', offset: 0, bytes: [0x4d, 0x5a] },
   { label: 'Mach-O BE', offset: 0, bytes: [0xca, 0xfe, 0xba, 0xbe] },
   { label: 'Mach-O LE', offset: 0, bytes: [0xce, 0xfa, 0xed, 0xfe] },
   { label: 'Mach-O 64', offset: 0, bytes: [0xcf, 0xfa, 0xed, 0xfe] },
-  { label: 'shebang',   offset: 0, bytes: [0x23, 0x21] }, // #!
+  { label: 'shebang', offset: 0, bytes: [0x23, 0x21] }, // #!
 ];
 
-function matchesBytes(buf: Buffer, offset: number, expected: number[]): boolean {
+function matchesBytes(
+  buf: Buffer,
+  offset: number,
+  expected: number[],
+): boolean {
   if (buf.length < offset + expected.length) return false;
   return expected.every((b, i) => buf[offset + i] === b);
 }
@@ -64,7 +72,9 @@ export class MagicBytesValidator extends FileValidator<Record<string, never>> {
  * Rejects files whose magic bytes match known executable formats,
  * regardless of the declared MIME type or file extension.
  */
-export class NoExecutableValidator extends FileValidator<Record<string, never>> {
+export class NoExecutableValidator extends FileValidator<
+  Record<string, never>
+> {
   constructor() {
     super({});
   }

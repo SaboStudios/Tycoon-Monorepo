@@ -10,19 +10,15 @@ const mockLogger = {
 };
 
 export class WinstonModule {
-  static forRoot = jest
-    .fn()
-    .mockReturnValue({
-      module: WinstonModule,
-      providers: [{ provide: WINSTON_MODULE_PROVIDER, useValue: mockLogger }],
-      exports: [WINSTON_MODULE_PROVIDER],
-    });
-  static forRootAsync = jest
-    .fn()
-    .mockReturnValue({
-      module: WinstonModule,
-      providers: [{ provide: WINSTON_MODULE_PROVIDER, useValue: mockLogger }],
-      exports: [WINSTON_MODULE_PROVIDER],
-    });
+  static forRoot = jest.fn().mockReturnValue({
+    module: WinstonModule,
+    providers: [{ provide: WINSTON_MODULE_PROVIDER, useValue: mockLogger }],
+    exports: [WINSTON_MODULE_PROVIDER],
+  });
+  static forRootAsync = jest.fn().mockReturnValue({
+    module: WinstonModule,
+    providers: [{ provide: WINSTON_MODULE_PROVIDER, useValue: mockLogger }],
+    exports: [WINSTON_MODULE_PROVIDER],
+  });
 }
 export const utilities = { format: { nestLike: jest.fn() } };

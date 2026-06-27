@@ -23,7 +23,10 @@ const mockLogger = {
   logWithMeta: jest.fn(),
 };
 
-function buildHost(method = 'POST', url = '/api/v1/test'): ArgumentsHost & {
+function buildHost(
+  method = 'POST',
+  url = '/api/v1/test',
+): ArgumentsHost & {
   json: jest.Mock;
   status: jest.Mock;
 } {
@@ -45,7 +48,9 @@ function buildHost(method = 'POST', url = '/api/v1/test'): ArgumentsHost & {
   } as unknown as ArgumentsHost & { json: jest.Mock; status: jest.Mock };
 }
 
-function getResponseBody(host: ReturnType<typeof buildHost>): Record<string, unknown> {
+function getResponseBody(
+  host: ReturnType<typeof buildHost>,
+): Record<string, unknown> {
   return host.json.mock.calls[0][0] as Record<string, unknown>;
 }
 
@@ -64,7 +69,10 @@ describe('HttpExceptionFilter', () => {
   describe('StandardResponse envelope', () => {
     it('always sets success: false', () => {
       const host = buildHost();
-      filter.catch(new HttpException('Bad Request', HttpStatus.BAD_REQUEST), host);
+      filter.catch(
+        new HttpException('Bad Request', HttpStatus.BAD_REQUEST),
+        host,
+      );
       expect(getResponseBody(host).success).toBe(false);
     });
 
@@ -92,7 +100,10 @@ describe('HttpExceptionFilter', () => {
   describe('HttpException with string message', () => {
     it('passes the string message through', () => {
       const host = buildHost();
-      filter.catch(new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED), host);
+      filter.catch(
+        new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED),
+        host,
+      );
       expect(getResponseBody(host).message).toBe('Unauthorized');
     });
   });
@@ -103,12 +114,18 @@ describe('HttpExceptionFilter', () => {
     it('flattens a message array into a comma-separated string', () => {
       const host = buildHost();
       const ex = new HttpException(
-        { statusCode: 400, message: ['name must not be empty', 'email must be an email'], error: 'Bad Request' },
+        {
+          statusCode: 400,
+          message: ['name must not be empty', 'email must be an email'],
+          error: 'Bad Request',
+        },
         HttpStatus.BAD_REQUEST,
       );
       filter.catch(ex, host);
       const body = getResponseBody(host);
-      expect(body.message).toBe('name must not be empty, email must be an email');
+      expect(body.message).toBe(
+        'name must not be empty, email must be an email',
+      );
     });
 
     it('passes a single string message through unchanged', () => {
@@ -136,7 +153,9 @@ describe('HttpExceptionFilter', () => {
     it('maps to 500 Internal Server Error', () => {
       const host = buildHost();
       filter.catch(new Error('Something broke'), host);
-      expect(host.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+      expect(host.status).toHaveBeenCalledWith(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     });
 
     it('uses the error message', () => {
@@ -158,7 +177,9 @@ describe('HttpExceptionFilter', () => {
     it('maps to 500', () => {
       const host = buildHost();
       filter.catch('something weird', host);
-      expect(host.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+      expect(host.status).toHaveBeenCalledWith(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     });
 
     it('returns "Internal server error" message', () => {
@@ -173,14 +194,20 @@ describe('HttpExceptionFilter', () => {
   describe('logging routing', () => {
     it('logs 4xx at warn level', () => {
       const host = buildHost();
-      filter.catch(new HttpException('Bad Request', HttpStatus.BAD_REQUEST), host);
+      filter.catch(
+        new HttpException('Bad Request', HttpStatus.BAD_REQUEST),
+        host,
+      );
       expect(mockLogger.warn).toHaveBeenCalled();
       expect(mockLogger.error).not.toHaveBeenCalled();
     });
 
     it('logs 5xx at error level', () => {
       const host = buildHost();
-      filter.catch(new HttpException('Server Error', HttpStatus.INTERNAL_SERVER_ERROR), host);
+      filter.catch(
+        new HttpException('Server Error', HttpStatus.INTERNAL_SERVER_ERROR),
+        host,
+      );
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
@@ -195,8 +222,15 @@ describe('HttpExceptionFilter', () => {
 
     it('does not emit secrets in logWithMeta context', () => {
       const host = buildHost();
-      filter.catch(new HttpException('Bad Request', HttpStatus.BAD_REQUEST), host);
-      const calls = mockLogger.logWithMeta.mock.calls as [string, string, Record<string, unknown>][];
+      filter.catch(
+        new HttpException('Bad Request', HttpStatus.BAD_REQUEST),
+        host,
+      );
+      const calls = mockLogger.logWithMeta.mock.calls as [
+        string,
+        string,
+        Record<string, unknown>,
+      ][];
       for (const [, , ctx] of calls) {
         const serialised = JSON.stringify(ctx);
         expect(serialised).not.toMatch(/password/i);

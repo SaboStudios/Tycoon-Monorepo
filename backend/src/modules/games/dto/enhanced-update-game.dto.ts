@@ -12,7 +12,10 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { GameStatus } from '../entities/game.entity';
 import type { GamePlacements } from '../entities/game.entity';
-import { IsValidGameStatusTransition, IsValidGamePlacement } from '../validators/game-validators';
+import {
+  IsValidGameStatusTransition,
+  IsValidGamePlacement,
+} from '../validators/game-validators';
 
 export class EnhancedUpdateGameDto {
   @ApiPropertyOptional({
@@ -68,6 +71,9 @@ export class EnhancedUpdateGameDto {
     example: '2024-01-15T10:30:00.000Z',
   })
   @IsOptional()
-  @IsDateString({}, { message: 'startTime must be a valid ISO 8601 date string' })
+  @IsDateString(
+    {},
+    { message: 'startTime must be a valid ISO 8601 date string' },
+  )
   startTime?: string;
 }

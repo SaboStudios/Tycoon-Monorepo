@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as validation from './index';
 
 /**
  * Strict Exports Test Suite
@@ -10,43 +11,43 @@ import { describe, it, expect } from 'vitest';
 describe('Validation Library - Strict Exports', () => {
   describe('schema exports', () => {
     it('exports loginSchema', () => {
-      const { loginSchema } = require('@/lib/validation');
+      const { loginSchema } = validation;
       expect(loginSchema).toBeDefined();
       expect(typeof loginSchema.safeParse).toBe('function');
     });
 
     it('exports adminLoginSchema', () => {
-      const { adminLoginSchema } = require('@/lib/validation');
+      const { adminLoginSchema } = validation;
       expect(adminLoginSchema).toBeDefined();
       expect(typeof adminLoginSchema.safeParse).toBe('function');
     });
 
     it('exports walletLoginSchema', () => {
-      const { walletLoginSchema } = require('@/lib/validation');
+      const { walletLoginSchema } = validation;
       expect(walletLoginSchema).toBeDefined();
       expect(typeof walletLoginSchema.safeParse).toBe('function');
     });
 
     it('exports joinRoomSchema', () => {
-      const { joinRoomSchema } = require('@/lib/validation');
+      const { joinRoomSchema } = validation;
       expect(joinRoomSchema).toBeDefined();
       expect(typeof joinRoomSchema.safeParse).toBe('function');
     });
 
     it('exports inviteTokenSchema', () => {
-      const { inviteTokenSchema } = require('@/lib/validation');
+      const { inviteTokenSchema } = validation;
       expect(inviteTokenSchema).toBeDefined();
       expect(typeof inviteTokenSchema.safeParse).toBe('function');
     });
 
     it('exports displayNameSchema', () => {
-      const { displayNameSchema } = require('@/lib/validation');
+      const { displayNameSchema } = validation;
       expect(displayNameSchema).toBeDefined();
       expect(typeof displayNameSchema.safeParse).toBe('function');
     });
 
     it('exports gameSettingsSchema', () => {
-      const { gameSettingsSchema } = require('@/lib/validation');
+      const { gameSettingsSchema } = validation;
       expect(gameSettingsSchema).toBeDefined();
       expect(typeof gameSettingsSchema.safeParse).toBe('function');
     });
@@ -87,20 +88,20 @@ describe('Validation Library - Strict Exports', () => {
 
   describe('error mapping exports', () => {
     it('exports mapServerErrors function', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
       expect(mapServerErrors).toBeDefined();
       expect(typeof mapServerErrors).toBe('function');
     });
 
     it('mapServerErrors is callable', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
       const result = mapServerErrors(null);
       expect(result).toBeDefined();
       expect(typeof result).toBe('object');
     });
 
     it('mapServerErrors handles various error formats', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       // Test null
       expect(mapServerErrors(null)).toEqual({ _form: 'An unexpected error occurred' });
@@ -119,13 +120,11 @@ describe('Validation Library - Strict Exports', () => {
 
   describe('public API boundary', () => {
     it('only exports intended public API', () => {
-      const validation = require('@/lib/validation');
       const exportedKeys = Object.keys(validation).sort();
 
       const expectedExports = [
         'adminLoginSchema',
         'displayNameSchema',
-        'fieldErrors', // Type export
         'gameSettingsSchema',
         'inviteTokenSchema',
         'joinRoomSchema',
@@ -141,8 +140,6 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('does not export internal implementation details', () => {
-      const validation = require('@/lib/validation');
-
       // These should not be exported
       expect(validation.FIELD_KEYWORDS).toBeUndefined();
       expect(validation.isServerErrorResponse).toBeUndefined();
@@ -152,7 +149,7 @@ describe('Validation Library - Strict Exports', () => {
 
   describe('schema functionality', () => {
     it('loginSchema validates correctly', () => {
-      const { loginSchema } = require('@/lib/validation');
+      const { loginSchema } = validation;
 
       const valid = loginSchema.safeParse({
         email: 'test@example.com',
@@ -168,7 +165,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('joinRoomSchema validates and normalizes', () => {
-      const { joinRoomSchema } = require('@/lib/validation');
+      const { joinRoomSchema } = validation;
 
       const result = joinRoomSchema.safeParse({ roomCode: 'abc123' });
       expect(result.success).toBe(true);
@@ -178,7 +175,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('gameSettingsSchema validates', () => {
-      const { gameSettingsSchema } = require('@/lib/validation');
+      const { gameSettingsSchema } = validation;
 
       const valid = gameSettingsSchema.safeParse({
         playerName: 'Player One',
@@ -196,14 +193,14 @@ describe('Validation Library - Strict Exports', () => {
 
   describe('error mapping functionality', () => {
     it('mapServerErrors handles null/undefined', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       expect(mapServerErrors(null)).toEqual({ _form: 'An unexpected error occurred' });
       expect(mapServerErrors(undefined)).toEqual({ _form: 'An unexpected error occurred' });
     });
 
     it('mapServerErrors handles status codes', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       expect(mapServerErrors({ statusCode: 401 })).toEqual({
         _form: 'Please sign in to join a room.',
@@ -219,7 +216,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('mapServerErrors handles error messages', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       expect(mapServerErrors({ message: 'email is invalid' })).toEqual({
         email: 'email is invalid',
@@ -231,7 +228,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('mapServerErrors handles explicit errors array', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       const result = mapServerErrors({
         errors: [
@@ -257,7 +254,7 @@ describe('Validation Library - Strict Exports', () => {
         inviteTokenSchema,
         displayNameSchema,
         gameSettingsSchema,
-      } = require('@/lib/validation');
+      } = validation;
 
       const schemas = [
         loginSchema,
@@ -277,7 +274,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('error mapping is usable from public API', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       expect(mapServerErrors).toBeDefined();
       expect(typeof mapServerErrors).toBe('function');
@@ -289,7 +286,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('types are correctly inferred', () => {
-      const { loginSchema } = require('@/lib/validation');
+      const { loginSchema } = validation;
 
       const result = loginSchema.safeParse({
         email: 'test@example.com',
@@ -307,7 +304,7 @@ describe('Validation Library - Strict Exports', () => {
 
   describe('graceful state handling', () => {
     it('handles invalid input gracefully', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       // Should not throw on any input
       expect(() => mapServerErrors(null)).not.toThrow();
@@ -318,7 +315,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('schemas handle edge cases', () => {
-      const { joinRoomSchema } = require('@/lib/validation');
+      const { joinRoomSchema } = validation;
 
       // Empty string
       const empty = joinRoomSchema.safeParse({ roomCode: '' });
@@ -334,7 +331,7 @@ describe('Validation Library - Strict Exports', () => {
     });
 
     it('error mapping handles disconnected states', () => {
-      const { mapServerErrors } = require('@/lib/validation');
+      const { mapServerErrors } = validation;
 
       // Partial error object
       const partial = mapServerErrors({ message: undefined });

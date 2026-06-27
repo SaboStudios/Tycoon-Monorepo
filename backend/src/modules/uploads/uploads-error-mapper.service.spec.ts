@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpStatus } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
-import { UploadsErrorMapperService, UploadErrorCode } from './uploads-error-mapper.service';
+import {
+  UploadsErrorMapperService,
+  UploadErrorCode,
+} from './uploads-error-mapper.service';
 
 describe('UploadsErrorMapperService', () => {
   let service: UploadsErrorMapperService;
@@ -52,7 +55,10 @@ describe('UploadsErrorMapperService', () => {
 
     it('should include sanitized details when provided', () => {
       const details = { field: 'test', value: 'safe' };
-      const result = service.mapError(UploadErrorCode.VALIDATION_ERROR, details);
+      const result = service.mapError(
+        UploadErrorCode.VALIDATION_ERROR,
+        details,
+      );
 
       expect(result.details).toEqual(details);
     });
@@ -60,7 +66,10 @@ describe('UploadsErrorMapperService', () => {
 
   describe('mapMulterError', () => {
     it('should map LIMIT_FILE_SIZE error', () => {
-      const result = service.mapMulterError('LIMIT_FILE_SIZE', 'File too large');
+      const result = service.mapMulterError(
+        'LIMIT_FILE_SIZE',
+        'File too large',
+      );
 
       expect(result.statusCode).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
       expect(result.error).toBe('LIMIT_FILE_SIZE');
@@ -149,7 +158,9 @@ describe('UploadsErrorMapperService', () => {
 
   describe('mapFileValidatorError', () => {
     it('should map executable file error', () => {
-      const result = service.mapFileValidatorError('Executable files are not allowed');
+      const result = service.mapFileValidatorError(
+        'Executable files are not allowed',
+      );
 
       expect(result.error).toBe(UploadErrorCode.EXECUTABLE_NOT_ALLOWED);
       expect(result.statusCode).toBe(HttpStatus.BAD_REQUEST);
@@ -182,7 +193,9 @@ describe('UploadsErrorMapperService', () => {
     });
 
     it('should return BAD_REQUEST for unknown error', () => {
-      const statusCode = service.getStatusCode('UNKNOWN_ERROR' as UploadErrorCode);
+      const statusCode = service.getStatusCode(
+        'UNKNOWN_ERROR' as UploadErrorCode,
+      );
 
       expect(statusCode).toBe(HttpStatus.BAD_REQUEST);
     });
@@ -211,7 +224,10 @@ describe('UploadsErrorMapperService', () => {
         safeField: 'keep_this',
       };
 
-      const result = service.mapError(UploadErrorCode.VALIDATION_ERROR, details);
+      const result = service.mapError(
+        UploadErrorCode.VALIDATION_ERROR,
+        details,
+      );
 
       expect(result.details).not.toHaveProperty('password');
       expect(result.details).not.toHaveProperty('token');
@@ -228,7 +244,10 @@ describe('UploadsErrorMapperService', () => {
         safeData: 'keep',
       };
 
-      const result = service.mapError(UploadErrorCode.VALIDATION_ERROR, details);
+      const result = service.mapError(
+        UploadErrorCode.VALIDATION_ERROR,
+        details,
+      );
 
       expect(result.details.user).not.toHaveProperty('password');
       expect(result.details.user).toHaveProperty('name', 'John');
@@ -245,7 +264,8 @@ describe('UploadsErrorMapperService', () => {
     });
 
     it('should remove stack traces from messages', () => {
-      const details = 'Error: Something went wrong\n    at Function.test\n    at Object.<anonymous>';
+      const details =
+        'Error: Something went wrong\n    at Function.test\n    at Object.<anonymous>';
 
       const result = service.mapError(UploadErrorCode.STORAGE_ERROR, details);
 
@@ -259,7 +279,10 @@ describe('UploadsErrorMapperService', () => {
         { token: 'jwt', value: 'item2' },
       ];
 
-      const result = service.mapError(UploadErrorCode.VALIDATION_ERROR, details);
+      const result = service.mapError(
+        UploadErrorCode.VALIDATION_ERROR,
+        details,
+      );
 
       expect(result.details[0]).not.toHaveProperty('password');
       expect(result.details[0]).toHaveProperty('name', 'item1');

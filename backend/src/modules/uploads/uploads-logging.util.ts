@@ -3,7 +3,9 @@ import { basename } from 'path';
 /**
  * Reduces client-supplied filenames to a safe label for logs and metrics (no path segments, no secrets).
  */
-export function sanitizeUploadFilename(original: string | undefined | null): string {
+export function sanitizeUploadFilename(
+  original: string | undefined | null,
+): string {
   if (!original || typeof original !== 'string') {
     return 'unnamed';
   }

@@ -354,4 +354,283 @@ mod tests {
         // Fixture players unaffected
         assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 10000);
     }
+
+    // ── Priority and stacking edge cases ──────────────────────────────────────
+
+    /// Admin grants multiple boosts with different priorities; highest priority wins for override.
+    #[test]
+    fn admin_grant_multiple_priorities_highest_wins() {
+        let f = Fixture::new();
+
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Override, 20000, 5));
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(2, BoostType::Override, 30000, 10));
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(3, BoostType::Override, 15000, 3));
+
+        // Highest priority (10) wins: 30000
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 30000);
+    }
+
+    /// Admin grants additive boosts with different priorities; all stack regardless of priority.
+    #[test]
+    fn admin_grant_additive_all_stack() {
+        let f = Fixture::new();
+
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &nb(1, BoostType::Additive, 1000, 1));
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &nb(2, BoostType::Additive, 2000, 5));
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &nb(3, BoostType::Additive, 1500, 3));
+
+        // 10000 * (1 + 0.10 + 0.20 + 0.15) = 10000 * 1.45 = 14500
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 14500);
+    }
+
+    /// Admin grants multiplicative boosts; all multiply together.
+    #[test]
+    fn admin_grant_multiplicative_all_multiply() {
+        let f = Fixture::new();
+
+        // 1.5x
+        f.boost_system
+            .admin_grant_boost(&f.player_c, &nb(1, BoostType::Multiplicative, 15000, 0));
+        // 2x
+        f.boost_system
+            .admin_grant_boost(&f.player_c, &nb(2, BoostType::Multiplicative, 20000, 0));
+
+        // 10000 * 1.5 * 2.0 = 30000
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_c), 30000);
+    }
+
+    // ── Expiry edge cases ─────────────────────────────────────────────────────
+
+    /// Admin grants boost that expires exactly at current ledger (should be expired).
+    #[test]
+    fn admin_grant_boost_expires_at_current_ledger() {
+        let f = Fixture::new();
+        // Grant while ledger is 99 with expiry at 100; becomes inactive once ledger reaches 100.
+        set_ledger(&f.env, 99);
+
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &eb(1, BoostType::Additive, 5000, 0, 100));
+
+        set_ledger(&f.env, 100);
+        // At ledger 100, boost should be expired
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 10000);
+    }
+
+    /// Admin grants boost that expires one ledger in the future (should be active).
+    #[test]
+    fn admin_grant_boost_expires_next_ledger() {
+        let f = Fixture::new();
+        set_ledger(&f.env, 100);
+
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &eb(1, BoostType::Additive, 3000, 0, 101));
+
+        // At ledger 100, boost should be active
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 13000);
+
+        // At ledger 101, boost should be expired
+        set_ledger(&f.env, 101);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 10000);
+    }
+
+    /// Admin grants multiple boosts with different expiry times; only active ones count.
+    #[test]
+    fn admin_grant_mixed_expiry_times() {
+        let f = Fixture::new();
+        set_ledger(&f.env, 100);
+
+        // Never expires
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Additive, 1000, 0));
+        // Expires at 150
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &eb(2, BoostType::Additive, 2000, 0, 150));
+        // Expires at 120
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &eb(3, BoostType::Additive, 1500, 0, 120));
+
+        // At ledger 100: all active = 10000 * (1 + 0.10 + 0.20 + 0.15) = 14500
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 14500);
+
+        // At ledger 120: boost 3 expired = 10000 * (1 + 0.10 + 0.20) = 13000
+        set_ledger(&f.env, 120);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 13000);
+
+        // At ledger 150: boost 2 expired = 10000 * (1 + 0.10) = 11000
+        set_ledger(&f.env, 150);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 11000);
+    }
+
+    // ── Revoke edge cases ─────────────────────────────────────────────────────
+
+    /// Admin revokes all boosts one by one; player ends with base multiplier.
+    #[test]
+    fn admin_revokes_all_boosts_sequentially() {
+        let f = Fixture::new();
+
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Additive, 1000, 0));
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(2, BoostType::Additive, 2000, 0));
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(3, BoostType::Additive, 1500, 0));
+
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_a).len(), 3);
+
+        f.boost_system.admin_revoke_boost(&f.player_a, &1u128);
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_a).len(), 2);
+
+        f.boost_system.admin_revoke_boost(&f.player_a, &2u128);
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_a).len(), 1);
+
+        f.boost_system.admin_revoke_boost(&f.player_a, &3u128);
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_a).len(), 0);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 10000);
+    }
+
+    /// Admin revokes the same boost id multiple times (idempotent).
+    #[test]
+    fn admin_revoke_same_id_multiple_times() {
+        let f = Fixture::new();
+
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &nb(1, BoostType::Additive, 1000, 0));
+
+        f.boost_system.admin_revoke_boost(&f.player_b, &1u128);
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_b).len(), 0);
+
+        // Revoke again — should not panic
+        f.boost_system.admin_revoke_boost(&f.player_b, &1u128);
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_b).len(), 0);
+
+        // Revoke once more
+        f.boost_system.admin_revoke_boost(&f.player_b, &1u128);
+        assert_eq!(f.boost_system.get_active_boosts(&f.player_b).len(), 0);
+    }
+
+    // ── Cross-contract reward scenarios ───────────────────────────────────────
+
+    /// Admin grants boost, player redeems voucher, admin revokes boost, player redeems again.
+    #[test]
+    fn admin_grant_revoke_between_redemptions() {
+        let f = Fixture::new();
+
+        // Admin grants 3x boost
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Multiplicative, 30000, 0));
+
+        // First redemption with boost
+        let base_reward: u128 = 100_000_000_000_000_000_000;
+        let multiplier1 = f.boost_system.calculate_total_boost(&f.player_a);
+        assert_eq!(multiplier1, 30000);
+        let boosted1 = base_reward * multiplier1 as u128 / 10_000;
+        let tid1 = f.reward.mint_voucher(&f.admin, &f.player_a, &boosted1);
+        f.reward.redeem_voucher_from(&f.player_a, &tid1);
+        assert_eq!(f.tyc_balance(&f.player_a), boosted1 as i128);
+
+        // Admin revokes boost
+        f.boost_system.admin_revoke_boost(&f.player_a, &1u128);
+
+        // Second redemption without boost
+        let multiplier2 = f.boost_system.calculate_total_boost(&f.player_a);
+        assert_eq!(multiplier2, 10000);
+        let boosted2 = base_reward * multiplier2 as u128 / 10_000;
+        let tid2 = f.reward.mint_voucher(&f.admin, &f.player_a, &boosted2);
+        f.reward.redeem_voucher_from(&f.player_a, &tid2);
+
+        // Total balance = boosted1 + boosted2
+        assert_eq!(f.tyc_balance(&f.player_a), (boosted1 + boosted2) as i128);
+    }
+
+    /// Admin grants boost to multiple players; each redeems independently.
+    #[test]
+    fn admin_grants_boosts_multiple_players_redeem_independently() {
+        let f = Fixture::new();
+
+        // Different boosts for each player
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Multiplicative, 20000, 0));
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &nb(1, BoostType::Additive, 5000, 0));
+        f.boost_system
+            .admin_grant_boost(&f.player_c, &nb(1, BoostType::Override, 40000, 10));
+
+        let base_reward: u128 = 50_000_000_000_000_000_000;
+
+        // player_a: 2x
+        let mult_a = f.boost_system.calculate_total_boost(&f.player_a);
+        let reward_a = base_reward * mult_a as u128 / 10_000;
+        let tid_a = f.reward.mint_voucher(&f.admin, &f.player_a, &reward_a);
+        f.reward.redeem_voucher_from(&f.player_a, &tid_a);
+
+        // player_b: 1.5x
+        let mult_b = f.boost_system.calculate_total_boost(&f.player_b);
+        let reward_b = base_reward * mult_b as u128 / 10_000;
+        let tid_b = f.reward.mint_voucher(&f.admin, &f.player_b, &reward_b);
+        f.reward.redeem_voucher_from(&f.player_b, &tid_b);
+
+        // player_c: 4x
+        let mult_c = f.boost_system.calculate_total_boost(&f.player_c);
+        let reward_c = base_reward * mult_c as u128 / 10_000;
+        let tid_c = f.reward.mint_voucher(&f.admin, &f.player_c, &reward_c);
+        f.reward.redeem_voucher_from(&f.player_c, &tid_c);
+
+        assert_eq!(f.tyc_balance(&f.player_a), reward_a as i128);
+        assert_eq!(f.tyc_balance(&f.player_b), reward_b as i128);
+        assert_eq!(f.tyc_balance(&f.player_c), reward_c as i128);
+    }
+
+    // ── State isolation tests ─────────────────────────────────────────────────
+
+    /// Admin operations on one player do not leak state to other players.
+    #[test]
+    fn admin_operations_isolated_per_player() {
+        let f = Fixture::new();
+
+        // Grant to player_a
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Additive, 3000, 0));
+
+        // player_b and player_c should have base multiplier
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 10000);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_c), 10000);
+
+        // Revoke from player_a
+        f.boost_system.admin_revoke_boost(&f.player_a, &1u128);
+
+        // player_b and player_c still unaffected
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 10000);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_c), 10000);
+    }
+
+    /// Admin grants same boost id to different players (ids are scoped per player).
+    #[test]
+    fn admin_grant_same_id_different_players() {
+        let f = Fixture::new();
+
+        // Same id (1) for different players
+        f.boost_system
+            .admin_grant_boost(&f.player_a, &nb(1, BoostType::Additive, 1000, 0));
+        f.boost_system
+            .admin_grant_boost(&f.player_b, &nb(1, BoostType::Additive, 2000, 0));
+        f.boost_system
+            .admin_grant_boost(&f.player_c, &nb(1, BoostType::Additive, 3000, 0));
+
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 11000);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 12000);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_c), 13000);
+
+        // Revoke from player_b only
+        f.boost_system.admin_revoke_boost(&f.player_b, &1u128);
+
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_a), 11000);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_b), 10000);
+        assert_eq!(f.boost_system.calculate_total_boost(&f.player_c), 13000);
+    }
 }

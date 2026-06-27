@@ -24,6 +24,7 @@ export const USER_DATA_EXPORT_TABLE_KEYS = [
   'waitlist_match_by_email',
 ] as const;
 
-export type UserDataExportTableKey = (typeof USER_DATA_EXPORT_TABLE_KEYS)[number];
+export type UserDataExportTableKey =
+  (typeof USER_DATA_EXPORT_TABLE_KEYS)[number];
 
 export const USER_DATA_EXPORT_VERSION = '1';

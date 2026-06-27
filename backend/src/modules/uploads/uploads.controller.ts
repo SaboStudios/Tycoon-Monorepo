@@ -20,16 +20,28 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiConsumes,
+  ApiBody,
+  ApiTags,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { UploadsService, StoredFile } from './uploads.service';
 import { VirusScanService } from './virus-scan.service';
-import { MagicBytesValidator, NoExecutableValidator } from './upload-validators';
+import {
+  MagicBytesValidator,
+  NoExecutableValidator,
+} from './upload-validators';
 import { ConfigService } from '@nestjs/config';
 import { UploadsObservabilityInterceptor } from './uploads-observability.interceptor';
 import { GetSignedUrlDto, DownloadFileDto } from './dto/upload-file.dto';
-import { UploadResponseDto, SignedUrlResponseDto } from './dto/upload-response.dto';
+import {
+  UploadResponseDto,
+  SignedUrlResponseDto,
+} from './dto/upload-response.dto';
 import { UploadValidationPipe } from './pipes/upload-validation.pipe';
 import { UploadExceptionFilter } from './filters/upload-exception.filter';
 import { UploadsErrorMapperService } from './uploads-error-mapper.service';
@@ -103,7 +115,11 @@ export class UploadsController {
     @Request() req: { user: { id: number } },
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
-    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
+    return this.uploadsService.store(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
   }
 
   /**
@@ -136,7 +152,11 @@ export class UploadsController {
     file: Express.Multer.File,
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
-    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
+    return this.uploadsService.store(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
   }
 
   /**
@@ -156,7 +176,9 @@ export class UploadsController {
     description: 'Invalid or missing key parameter',
   })
   @UsePipes(new UploadValidationPipe(new UploadsErrorMapperService()))
-  async getSignedUrl(@Query() query: GetSignedUrlDto): Promise<{ url: string }> {
+  async getSignedUrl(
+    @Query() query: GetSignedUrlDto,
+  ): Promise<{ url: string }> {
     const url = await this.uploadsService.signedUrl(query.key);
     return { url };
   }

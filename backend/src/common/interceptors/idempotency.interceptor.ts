@@ -57,7 +57,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     // Handle concurrent requests with the same key using a temporary lock
     const lockKey = `${redisKey}:lock`;
-    const acquiredLock = await this.redisService.incrementRateLimit(lockKey, 10);
+    const acquiredLock = await this.redisService.incrementRateLimit(
+      lockKey,
+      10,
+    );
     if (acquiredLock > 1) {
       throw new BadRequestException(
         'A request with this idempotency key is already in progress',
