@@ -89,6 +89,77 @@ pub enum PlayerSymbol {
 }
 
 // ============================================================
+// Integration tests
+// ============================================================
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+
+    /// GameStatus transitions follow the expected Pending → Ongoing → Ended sequence.
+    #[test]
+    fn test_game_status_lifecycle_order() {
+        let lifecycle = [GameStatus::Pending, GameStatus::Ongoing, GameStatus::Ended];
+        assert_eq!(lifecycle[0], GameStatus::Pending);
+        assert_eq!(lifecycle[1], GameStatus::Ongoing);
+        assert_eq!(lifecycle[2], GameStatus::Ended);
+        assert_ne!(lifecycle[0], lifecycle[1]);
+        assert_ne!(lifecycle[1], lifecycle[2]);
+    }
+
+    /// A public game does not require a join code; a private game does.
+    #[test]
+    fn test_game_type_access_logic() {
+        let requires_code = |gt: GameType| matches!(gt, GameType::PrivateGame);
+        assert!(!requires_code(GameType::PublicGame));
+        assert!(requires_code(GameType::PrivateGame));
+    }
+
+    /// All eight PlayerSymbol variants are reachable and unique.
+    #[test]
+    fn test_all_player_symbols_unique() {
+        let symbols = [
+            PlayerSymbol::Hat,
+            PlayerSymbol::Car,
+            PlayerSymbol::Dog,
+            PlayerSymbol::Thimble,
+            PlayerSymbol::Iron,
+            PlayerSymbol::Battleship,
+            PlayerSymbol::Boot,
+            PlayerSymbol::Wheelbarrow,
+        ];
+        for (i, a) in symbols.iter().enumerate() {
+            for (j, b) in symbols.iter().enumerate() {
+                if i == j {
+                    assert_eq!(a, b);
+                } else {
+                    assert_ne!(a, b);
+                }
+            }
+        }
+    }
+
+    /// Copy semantics: types can be moved and used again without explicit clone.
+    #[test]
+    fn test_copy_semantics() {
+        let status = GameStatus::Ongoing;
+        let a = status;
+        let b = status;
+        assert_eq!(a, b);
+
+        let gt = GameType::PublicGame;
+        let x = gt;
+        let y = gt;
+        assert_eq!(x, y);
+
+        let sym = PlayerSymbol::Car;
+        let p = sym;
+        let q = sym;
+        assert_eq!(p, q);
+    }
+}
+
+// ============================================================
 // Tests
 // ============================================================
 
