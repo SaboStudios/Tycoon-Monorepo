@@ -1,4 +1,11 @@
-import { Controller, Get, Header, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Header,
+  UseInterceptors,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { HttpMetricsService } from './http-metrics.service';
@@ -10,13 +17,19 @@ import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 @SkipThrottle()
 @Controller('metrics')
 export class MetricsController {
-  constructor(private readonly httpMetrics: HttpMetricsService) { }
+  constructor(
+    private readonly httpMetrics: HttpMetricsService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Get()
   @UseInterceptors(AuditTrailInterceptor)
   @AuditLog(AuditAction.METRICS_SCRAPED)
   @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
   async scrape(): Promise<string> {
+    if (!this.config.get<boolean>('METRICS_ENABLED', true)) {
+      throw new ForbiddenException('Metrics endpoint is disabled');
+    }
     return this.httpMetrics.getMetricsText();
   }
 }

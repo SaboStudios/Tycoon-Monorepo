@@ -60,9 +60,9 @@ describe('AuthAuditService (SW-BE-005)', () => {
     }).compile();
 
     auditService = module.get<AuthAuditService>(AuthAuditService);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     logSpy = jest.spyOn((auditService as any).logger, 'log');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     warnSpy = jest.spyOn((auditService as any).logger, 'warn');
   });
 
@@ -189,18 +189,20 @@ describe('AuthService audit hooks (SW-BE-005)', () => {
       store.set(e.id ?? e.tokenHash, e);
       return e;
     }),
-    findOne: jest.fn().mockImplementation(
-      async ({ where }: { where: Partial<RefreshToken> }) => {
-        for (const e of store.values()) {
-          if (
-            (where.tokenHash && e.tokenHash === where.tokenHash) ||
-            (where.id && e.id === where.id)
-          )
-            return e;
-        }
-        return null;
-      },
-    ),
+    findOne: jest
+      .fn()
+      .mockImplementation(
+        async ({ where }: { where: Partial<RefreshToken> }) => {
+          for (const e of store.values()) {
+            if (
+              (where.tokenHash && e.tokenHash === where.tokenHash) ||
+              (where.id && e.id === where.id)
+            )
+              return e;
+          }
+          return null;
+        },
+      ),
     update: jest
       .fn()
       .mockImplementation(
@@ -326,7 +328,9 @@ describe('AuthService audit hooks (SW-BE-005)', () => {
 
     expect(auditRecordSpy).toHaveBeenCalledWith(
       AuthAuditEvent.TOKEN_REFRESH_FAILED,
-      expect.objectContaining({ meta: expect.objectContaining({ reason: 'expired' }) }),
+      expect.objectContaining({
+        meta: expect.objectContaining({ reason: 'expired' }),
+      }),
     );
   });
 
@@ -408,7 +412,10 @@ describe('AuthService audit hooks (SW-BE-005)', () => {
 
     await authService.validateUser('player@example.com', 'pw', '1.2.3.4');
 
-    const calls = auditRecordSpy.mock.calls as [string, Record<string, unknown>][];
+    const calls = auditRecordSpy.mock.calls as [
+      string,
+      Record<string, unknown>,
+    ][];
     calls.forEach(([, ctx]) => {
       expect(JSON.stringify(ctx)).not.toContain('player@example.com');
     });

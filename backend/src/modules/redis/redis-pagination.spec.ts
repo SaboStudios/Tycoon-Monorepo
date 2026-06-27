@@ -21,7 +21,11 @@ jest.mock('prom-client', () => {
     startTimer: jest.fn(() => jest.fn()),
     observe: jest.fn(),
   });
-  return { Counter: jest.fn(noop), Gauge: jest.fn(noop), Histogram: jest.fn(noop) };
+  return {
+    Counter: jest.fn(noop),
+    Gauge: jest.fn(noop),
+    Histogram: jest.fn(noop),
+  };
 });
 
 const mockRedisInstance = {
@@ -39,7 +43,9 @@ const mockRedisInstance = {
   on: jest.fn(),
 };
 
-jest.mock('ioredis', () => jest.fn().mockImplementation(() => mockRedisInstance));
+jest.mock('ioredis', () =>
+  jest.fn().mockImplementation(() => mockRedisInstance),
+);
 
 describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
   let service: RedisService;
@@ -50,11 +56,29 @@ describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RedisService,
-        { provide: CACHE_MANAGER, useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn() } },
-        { provide: LoggerService, useValue: { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } },
+        {
+          provide: CACHE_MANAGER,
+          useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn() },
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+          },
+        },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue({ host: 'localhost', port: 6379, db: 0, ttl: 300 }) },
+          useValue: {
+            get: jest.fn().mockReturnValue({
+              host: 'localhost',
+              port: 6379,
+              db: 0,
+              ttl: 300,
+            }),
+          },
         },
       ],
     }).compile();
@@ -68,7 +92,10 @@ describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
 
   describe('scanPage', () => {
     it('returns keys sorted lexicographically', async () => {
-      mockRedisInstance.scan.mockResolvedValue(['42', ['cache:z', 'cache:a', 'cache:m']]);
+      mockRedisInstance.scan.mockResolvedValue([
+        '42',
+        ['cache:z', 'cache:a', 'cache:m'],
+      ]);
       const result = await service.scanPage('cache:*');
       expect(result.keys).toEqual(['cache:a', 'cache:m', 'cache:z']);
       expect(result.nextCursor).toBe(42);
@@ -77,7 +104,13 @@ describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
     it('passes cursor, pattern and count to SCAN', async () => {
       mockRedisInstance.scan.mockResolvedValue(['0', []]);
       await service.scanPage('prefix:*', 7, 50);
-      expect(mockRedisInstance.scan).toHaveBeenCalledWith(7, 'MATCH', 'prefix:*', 'COUNT', 50);
+      expect(mockRedisInstance.scan).toHaveBeenCalledWith(
+        7,
+        'MATCH',
+        'prefix:*',
+        'COUNT',
+        50,
+      );
     });
 
     it('nextCursor 0 signals last page', async () => {
@@ -110,7 +143,11 @@ describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
     it('calls ZADD with correct arguments', async () => {
       mockRedisInstance.zadd.mockResolvedValue(1);
       await service.zAdd('leaderboard', 100, 'player:1');
-      expect(mockRedisInstance.zadd).toHaveBeenCalledWith('leaderboard', 100, 'player:1');
+      expect(mockRedisInstance.zadd).toHaveBeenCalledWith(
+        'leaderboard',
+        100,
+        'player:1',
+      );
     });
 
     it('throws on Redis error', async () => {
@@ -144,7 +181,12 @@ describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
       await service.getSortedPage('k', 2, 5);
 
       // page=2, limit=5 → offset=10, end=14
-      expect(mockRedisInstance.zrange).toHaveBeenCalledWith('k', 10, 14, 'WITHSCORES');
+      expect(mockRedisInstance.zrange).toHaveBeenCalledWith(
+        'k',
+        10,
+        14,
+        'WITHSCORES',
+      );
     });
 
     it('returns empty items and total=0 on Redis error (graceful degradation)', async () => {
@@ -168,11 +210,23 @@ describe('RedisService — pagination and stable sorting (SW-BE-032)', () => {
       mockRedisInstance.zcard.mockResolvedValue(0);
 
       await service.getSortedPage('k');
-      expect(mockRedisInstance.zrange).toHaveBeenCalledWith('k', 0, 19, 'WITHSCORES');
+      expect(mockRedisInstance.zrange).toHaveBeenCalledWith(
+        'k',
+        0,
+        19,
+        'WITHSCORES',
+      );
     });
 
     it('preserves score order (ascending) from Redis', async () => {
-      mockRedisInstance.zrange.mockResolvedValue(['low', '1', 'mid', '5', 'high', '9']);
+      mockRedisInstance.zrange.mockResolvedValue([
+        'low',
+        '1',
+        'mid',
+        '5',
+        'high',
+        '9',
+      ]);
       mockRedisInstance.zcard.mockResolvedValue(3);
 
       const { items } = await service.getSortedPage('k');

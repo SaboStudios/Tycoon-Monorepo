@@ -417,6 +417,7 @@ describe('mapServerErrors', () => {
       };
       expect(mapServerErrors(err)).toEqual({
         email: 'email must be an email',
+        password: 'password must be longer than or equal to 6 characters',
       });
     });
 

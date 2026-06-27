@@ -30,7 +30,9 @@ describe('CacheGetDto', () => {
   });
 
   it('rejects a key longer than 512 chars', async () => {
-    expect(await errors(CacheGetDto, { key: 'a'.repeat(513) })).not.toHaveLength(0);
+    expect(
+      await errors(CacheGetDto, { key: 'a'.repeat(513) }),
+    ).not.toHaveLength(0);
   });
 
   it('rejects a key with illegal characters', async () => {
@@ -38,14 +40,20 @@ describe('CacheGetDto', () => {
   });
 
   it('accepts keys with colon, underscore, hyphen, dot, asterisk', async () => {
-    expect(await errors(CacheGetDto, { key: 'prefix:sub_key-v1.0*' })).toHaveLength(0);
+    expect(
+      await errors(CacheGetDto, { key: 'prefix:sub_key-v1.0*' }),
+    ).toHaveLength(0);
   });
 });
 
 describe('CacheSetDto', () => {
   it('accepts valid key, value and ttl', async () => {
     expect(
-      await errors(CacheSetDto, { key: 'shop:items', value: { id: 1 }, ttl: 300 }),
+      await errors(CacheSetDto, {
+        key: 'shop:items',
+        value: { id: 1 },
+        ttl: 300,
+      }),
     ).toHaveLength(0);
   });
 
@@ -54,21 +62,31 @@ describe('CacheSetDto', () => {
   });
 
   it('rejects ttl of 0', async () => {
-    expect(await errors(CacheSetDto, { key: 'k', value: 'v', ttl: 0 })).not.toHaveLength(0);
+    expect(
+      await errors(CacheSetDto, { key: 'k', value: 'v', ttl: 0 }),
+    ).not.toHaveLength(0);
   });
 
   it('rejects ttl exceeding max', async () => {
     expect(
-      await errors(CacheSetDto, { key: 'k', value: 'v', ttl: CACHE_TTL_MAX_SECONDS + 1 }),
+      await errors(CacheSetDto, {
+        key: 'k',
+        value: 'v',
+        ttl: CACHE_TTL_MAX_SECONDS + 1,
+      }),
     ).not.toHaveLength(0);
   });
 
   it('rejects empty value', async () => {
-    expect(await errors(CacheSetDto, { key: 'k', value: '' })).not.toHaveLength(0);
+    expect(await errors(CacheSetDto, { key: 'k', value: '' })).not.toHaveLength(
+      0,
+    );
   });
 
   it('rejects invalid key', async () => {
-    expect(await errors(CacheSetDto, { key: 'bad key!', value: 'v' })).not.toHaveLength(0);
+    expect(
+      await errors(CacheSetDto, { key: 'bad key!', value: 'v' }),
+    ).not.toHaveLength(0);
   });
 });
 
@@ -84,12 +102,18 @@ describe('CacheDelDto', () => {
 
 describe('CacheScanPageDto', () => {
   it('accepts valid pattern with defaults', async () => {
-    expect(await errors(CacheScanPageDto, { pattern: 'shop:*' })).toHaveLength(0);
+    expect(await errors(CacheScanPageDto, { pattern: 'shop:*' })).toHaveLength(
+      0,
+    );
   });
 
   it('accepts explicit cursor and count', async () => {
     expect(
-      await errors(CacheScanPageDto, { pattern: 'shop:*', cursor: 42, count: 100 }),
+      await errors(CacheScanPageDto, {
+        pattern: 'shop:*',
+        cursor: 42,
+        count: 100,
+      }),
     ).toHaveLength(0);
   });
 

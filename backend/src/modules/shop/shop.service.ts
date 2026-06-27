@@ -86,7 +86,9 @@ export class ShopService {
         .getRepository(UserInventory)
         .find({ where: { user_id: userId } });
 
-      const ownedItemIds = new Set(userInventory.map((inv) => inv.shop_item_id));
+      const ownedItemIds = new Set(
+        userInventory.map((inv) => inv.shop_item_id),
+      );
       paginated.data = paginated.data.map((item) => ({
         ...item,
         is_owned: ownedItemIds.has(item.id),
@@ -150,7 +152,9 @@ export class ShopService {
       payment_method = 'balance',
     } = dto;
 
-    this.logger.log(`Initiating purchaseAndGift: sender ${senderId}, receiver ${receiver_id}, item ${shop_item_id}`);
+    this.logger.log(
+      `Initiating purchaseAndGift: sender ${senderId}, receiver ${receiver_id}, item ${shop_item_id}`,
+    );
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -227,7 +231,9 @@ export class ShopService {
       await queryRunner.manager.save(savedPurchase);
 
       await queryRunner.commitTransaction();
-      this.logger.log(`purchaseAndGift successful: purchase ${savedPurchase.id}, gift ${savedGift.id}`);
+      this.logger.log(
+        `purchaseAndGift successful: purchase ${savedPurchase.id}, gift ${savedGift.id}`,
+      );
 
       // 9. TODO: Notify receiver (implement notification service)
       // await this.notificationService.notifyGiftReceived(receiver_id, savedGift);
@@ -267,6 +273,44 @@ export class ShopService {
       .where('purchase.user_id = :userId', { userId });
 
     return this.paginationService.paginate(qb, { page, limit });
+  }
+
+  /**
+   * Bulk update multiple shop items
+   * Supports updating price and/or active status for multiple items in a single operation
+   */
+  async bulkUpdate(
+    updates: Array<{ id: number; price?: number; active?: boolean }>,
+  ): Promise<ShopItem[]> {
+    const updatedItems: ShopItem[] = [];
+
+    for (const update of updates) {
+      try {
+        const item = await this.findOne(update.id);
+
+        if (update.price !== undefined) {
+          item.price = String(update.price);
+        }
+
+        if (update.active !== undefined) {
+          item.active = update.active;
+        }
+
+        const saved = await this.shopItemRepository.save(item);
+        updatedItems.push(saved);
+        this.logger.log(
+          `Bulk updated shop item ${update.id}: ${JSON.stringify(update)}`,
+        );
+        await this.invalidateCache(update.id);
+      } catch (error) {
+        this.logger.error(
+          `Failed to bulk update item ${update.id}: ${error.message}`,
+        );
+        // Continue with other items instead of throwing
+      }
+    }
+
+    return updatedItems;
   }
 
   /**

@@ -20,7 +20,7 @@ import { WalletLoginDto } from './wallet-login.dto';
 // ---------------------------------------------------------------------------
 async function getErrors(DtoClass: new () => object, plain: object) {
   const instance = plainToInstance(DtoClass as new () => object, plain);
-  const errors = await validate(instance as object);
+  const errors = await validate(instance);
   return errors.flatMap((e) => Object.values(e.constraints ?? {}));
 }
 
@@ -255,7 +255,10 @@ describe('AllExceptionsFilter validation error mapping (SW-BE-004)', () => {
    * contains a message array. Verify the filter joins them with '; '.
    */
   it('joins multiple validation messages with semicolons', () => {
-    const messages = ['email must be a valid email address', 'password should not be empty'];
+    const messages = [
+      'email must be a valid email address',
+      'password should not be empty',
+    ];
 
     // Replicate the filter's mapping logic directly
     const raw: unknown = messages;

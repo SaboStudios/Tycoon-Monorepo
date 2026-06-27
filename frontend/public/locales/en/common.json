@@ -88,7 +88,9 @@
       "invite_expired": "This invite link has expired. Ask the host for a new one.",
       "already_joined": "You're already in this room.",
       "server_error": "Server error. Please try again in a moment.",
-      "unexpected": "An unexpected error occurred"
+      "unexpected": "An unexpected error occurred",
+      "network_error": "Network error. Check your connection and try again.",
+      "timeout": "Request timed out. Please try again."
     }
   }
 }

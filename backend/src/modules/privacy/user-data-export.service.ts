@@ -85,7 +85,8 @@ export class UserDataExportService {
     );
 
     const apiPrefix = this.config.get<string>('app.apiPrefix') || 'api';
-    const defaultVersion = this.config.get<string>('app.defaultApiVersion') || '1';
+    const defaultVersion =
+      this.config.get<string>('app.defaultApiVersion') || '1';
     const downloadUrl = `/${apiPrefix}/v${defaultVersion}/data-export/download?token=${encodeURIComponent(token)}`;
 
     return { ...base, downloadUrl };

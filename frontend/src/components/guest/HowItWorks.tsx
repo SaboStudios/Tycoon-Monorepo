@@ -24,6 +24,7 @@ const HowItWorks: React.FC = () => {
 
     return (
         <section aria-label="How it works carousel" className="relative w-full h-[856px] overflow-hidden flex flex-col items-center justify-center border-y-[1px] border-[#0FF0FC]/20">
+            {/* PERF: Background gradients use CSS opacity transitions (not layout-affecting) to prevent CLS */}
             {/* Background Layers (gradients per slide) */}
             <div
                 className={`absolute inset-0 z-0 ${!prefersReducedMotion ? 'transition-opacity duration-700 ease-in-out' : ''}`}
@@ -64,6 +65,7 @@ const HowItWorks: React.FC = () => {
                 >
                     {
                         slidesData.map((item, index) => (
+                            // PERF: Fixed h-[350px] with scale transform (not height/width changes) to prevent CLS; blur/opacity use GPU-accelerated properties
                             <SwiperSlide key={index} className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center ${!prefersReducedMotion ? 'transition-all duration-500' : ''} ${currentSlide !== index ? 'blur-[1.5px] opacity-40 scale-[0.95]' : 'opacity-100 blur-0 scale-100'
                                 }`}>
                                 <div className="w-full h-full bg-[#091F201F] border-[1px] border-[#55656D] rounded-[12px] custom-glow-blur p-6 md:p-10 flex flex-col justify-between items-center">

@@ -21,7 +21,8 @@ export class GameException extends HttpException {
 
 export class GameNotFoundException extends GameException {
   constructor(gameId?: number | string, details?: any) {
-    const identifier = typeof gameId === 'number' ? `ID ${gameId}` : `code ${gameId}`;
+    const identifier =
+      typeof gameId === 'number' ? `ID ${gameId}` : `code ${gameId}`;
     super(
       `Game with ${identifier} not found`,
       'GAME_NOT_FOUND',
@@ -43,7 +44,12 @@ export class GameAlreadyExistsException extends GameException {
 }
 
 export class GameFullException extends GameException {
-  constructor(gameId: number, currentPlayers: number, maxPlayers: number, details?: any) {
+  constructor(
+    gameId: number,
+    currentPlayers: number,
+    maxPlayers: number,
+    details?: any,
+  ) {
     super(
       `Game ${gameId} is full (${currentPlayers}/${maxPlayers} players)`,
       'GAME_FULL',
@@ -65,7 +71,12 @@ export class GameAlreadyJoinedException extends GameException {
 }
 
 export class GameStatusTransitionException extends GameException {
-  constructor(currentStatus: string, targetStatus: string, gameId?: number, details?: any) {
+  constructor(
+    currentStatus: string,
+    targetStatus: string,
+    gameId?: number,
+    details?: any,
+  ) {
     super(
       `Invalid game status transition from ${currentStatus} to ${targetStatus}`,
       'INVALID_STATUS_TRANSITION',
@@ -87,7 +98,13 @@ export class GameNotPendingException extends GameException {
 }
 
 export class GameUnauthorizedException extends GameException {
-  constructor(action: string, gameId: number, userId: number, userRole: string, details?: any) {
+  constructor(
+    action: string,
+    gameId: number,
+    userId: number,
+    userRole: string,
+    details?: any,
+  ) {
     super(
       `User ${userId} (${userRole}) is not authorized to ${action} game ${gameId}`,
       'GAME_UNAUTHORIZED',
@@ -142,7 +159,13 @@ export class GamePlayerNotFoundException extends GameException {
 }
 
 export class GameInsufficientBalanceException extends GameException {
-  constructor(gameId: number, userId: number, balance: number, required: number, details?: any) {
+  constructor(
+    gameId: number,
+    userId: number,
+    balance: number,
+    required: number,
+    details?: any,
+  ) {
     super(
       `Insufficient balance for player ${userId} in game ${gameId}: ${balance} < ${required}`,
       'INSUFFICIENT_BALANCE',
@@ -153,7 +176,13 @@ export class GameInsufficientBalanceException extends GameException {
 }
 
 export class GameInvalidMoveException extends GameException {
-  constructor(gameId: number, userId: number, move: string, reason: string, details?: any) {
+  constructor(
+    gameId: number,
+    userId: number,
+    move: string,
+    reason: string,
+    details?: any,
+  ) {
     super(
       `Invalid move ${move} for player ${userId} in game ${gameId}: ${reason}`,
       'INVALID_MOVE',
@@ -164,9 +193,14 @@ export class GameInvalidMoveException extends GameException {
 }
 
 // Utility function to map validation errors to GameException
-export function mapValidationErrorToGameException(errors: any[]): GameException {
+export function mapValidationErrorToGameException(
+  errors: any[],
+): GameException {
   if (errors.length === 0) {
-    return new GameException('Unknown validation error', 'UNKNOWN_VALIDATION_ERROR');
+    return new GameException(
+      'Unknown validation error',
+      'UNKNOWN_VALIDATION_ERROR',
+    );
   }
 
   const firstError = errors[0];
@@ -183,21 +217,49 @@ export function mapValidationErrorToGameException(errors: any[]): GameException 
       case 'isEnum':
         return new GameValidationException(property, value, constraintMessage);
       case 'isInt':
-        return new GameValidationException(property, value, 'Must be an integer');
+        return new GameValidationException(
+          property,
+          value,
+          'Must be an integer',
+        );
       case 'min':
-        return new GameValidationException(property, value, 'Value is too small');
+        return new GameValidationException(
+          property,
+          value,
+          'Value is too small',
+        );
       case 'max':
-        return new GameValidationException(property, value, 'Value is too large');
+        return new GameValidationException(
+          property,
+          value,
+          'Value is too large',
+        );
       case 'maxLength':
-        return new GameValidationException(property, value, 'Value is too long');
+        return new GameValidationException(
+          property,
+          value,
+          'Value is too long',
+        );
       case 'isString':
         return new GameValidationException(property, value, 'Must be a string');
       case 'isBoolean':
-        return new GameValidationException(property, value, 'Must be a boolean');
+        return new GameValidationException(
+          property,
+          value,
+          'Must be a boolean',
+        );
       case 'isDateString':
-        return new GameValidationException(property, value, 'Must be a valid date string');
+        return new GameValidationException(
+          property,
+          value,
+          'Must be a valid date string',
+        );
       case 'isGameCode':
-        return new GameValidationException(property, value, 'Invalid game code format');
+        return new GameValidationException(
+          property,
+          value,
+          'Invalid game code format',
+        );
       case 'isValidGameStatusTransition':
         return new GameStatusTransitionException(
           firstError.object?.currentStatus || 'UNKNOWN',
@@ -205,13 +267,29 @@ export function mapValidationErrorToGameException(errors: any[]): GameException 
           firstError.object?.gameId,
         );
       case 'isValidPlayerCount':
-        return new GameValidationException(property, value, 'Invalid player count');
+        return new GameValidationException(
+          property,
+          value,
+          'Invalid player count',
+        );
       case 'isValidBlockchainAddress':
-        return new GameValidationException(property, value, 'Invalid blockchain address');
+        return new GameValidationException(
+          property,
+          value,
+          'Invalid blockchain address',
+        );
       case 'isValidContractGameId':
-        return new GameValidationException(property, value, 'Invalid contract game ID');
+        return new GameValidationException(
+          property,
+          value,
+          'Invalid contract game ID',
+        );
       case 'isValidGamePlacement':
-        return new GameValidationException(property, value, 'Invalid game placement format');
+        return new GameValidationException(
+          property,
+          value,
+          'Invalid game placement format',
+        );
       default:
         return new GameValidationException(property, value, constraintMessage);
     }

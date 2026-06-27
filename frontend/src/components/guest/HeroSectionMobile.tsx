@@ -3,8 +3,9 @@
 import { Dices, Gamepad2, Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { track } from "@/lib/analytics";
+import { useCallback, useEffect, useState } from "react";
+import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
+import { sanitizeError } from "@/lib/errors";
 import { HERO_I18N } from "@/lib/hero/i18n-keys";
 
 interface HeroSectionMobileProps {
@@ -44,6 +45,7 @@ function usePrefersReducedMotion(): boolean {
 export default function HeroSectionMobile({ className }: HeroSectionMobileProps): React.ReactElement {
   const router = useRouter();
   const { t } = useTranslation("common");
+  const { trackHeroViewed, trackCtaClicked } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
@@ -55,14 +57,18 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
   const ctaBase =
     "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
 
-  const handleTrackedNavigation = (
-    event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click",
-    destination: string,
-  ): void => {
-    track(event, {
-      route: "/",
-      destination,
-    });
+  const handleTrackedNavigation = useCallback(
+    (cta: "continue_game" | "multiplayer" | "join_room" | "challenge_ai", destination: string) => {
+      try {
+        trackCtaClicked(cta, destination);
+        router.push(destination);
+      } catch (err) {
+        const sanitized = sanitizeError(err);
+        setError({ hasError: true, message: sanitized.userMessage });
+      }
+    },
+    [trackCtaClicked, router],
+  );
 
   if (error.hasError) {
     return (
@@ -101,6 +107,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           {t(HERO_I18N.welcome)}
         </p>
 
+        {/* PERF: LCP candidate - min-h and explicit sizing prevent layout shift; animation (animate-pulse) deferred to non-critical */}
         {/* Title */}
         <h1 className="min-h-[42px] font-orbitron font-[900] text-[36px] leading-[42px] tracking-tight uppercase text-[#17ffff]">
           {t(HERO_I18N.title.main)}
@@ -152,7 +159,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           </button>
 
           <button
-            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
+            onClick={() => handleTrackedNavigation("challenge_ai", "/play-ai")}
             className={`w-full ${ctaBase} bg-[#00F0FF] text-[#010F10] text-[14px] py-4 uppercase tracking-wide`}
             aria-label={t(HERO_I18N.buttons.challengeAI)}
           >

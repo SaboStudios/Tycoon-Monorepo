@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { WebhooksObservabilityService, WebhookEventType } from './webhooks-observability.service';
+import {
+  WebhooksObservabilityService,
+  WebhookEventType,
+} from './webhooks-observability.service';
 import { LoggerService } from '../../common/logger/logger.service';
 
 describe('WebhooksObservabilityService', () => {
@@ -27,7 +30,9 @@ describe('WebhooksObservabilityService', () => {
       ],
     }).compile();
 
-    service = module.get<WebhooksObservabilityService>(WebhooksObservabilityService);
+    service = module.get<WebhooksObservabilityService>(
+      WebhooksObservabilityService,
+    );
     loggerService = module.get(LoggerService);
   });
 
@@ -114,7 +119,12 @@ describe('WebhooksObservabilityService', () => {
     });
 
     it('should log failed signature verification with reason', () => {
-      service.logSignatureVerification('stripe', false, 3, 'signature_mismatch');
+      service.logSignatureVerification(
+        'stripe',
+        false,
+        3,
+        'signature_mismatch',
+      );
 
       expect(loggerService.warn).toHaveBeenCalledWith(
         'Signature verification failed for stripe: signature_mismatch',
@@ -139,7 +149,9 @@ describe('WebhooksObservabilityService', () => {
 
       // Verify metrics are recorded by getting metrics text
       const metricsText = await service.getMetricsText();
-      expect(metricsText).toContain('tycoon_webhook_signature_verification_total');
+      expect(metricsText).toContain(
+        'tycoon_webhook_signature_verification_total',
+      );
     });
   });
 
@@ -209,7 +221,9 @@ describe('WebhooksObservabilityService', () => {
       service.logWebhookProcessed(context, 150);
 
       const metricsText = await service.getMetricsText();
-      expect(metricsText).toContain('tycoon_webhook_processing_duration_seconds');
+      expect(metricsText).toContain(
+        'tycoon_webhook_processing_duration_seconds',
+      );
     });
   });
 
@@ -258,8 +272,12 @@ describe('WebhooksObservabilityService', () => {
       const metricsText = await service.getMetricsText();
 
       expect(metricsText).toContain('tycoon_webhook_events_total');
-      expect(metricsText).toContain('tycoon_webhook_signature_verification_total');
-      expect(metricsText).toContain('tycoon_webhook_signature_verification_duration_seconds');
+      expect(metricsText).toContain(
+        'tycoon_webhook_signature_verification_total',
+      );
+      expect(metricsText).toContain(
+        'tycoon_webhook_signature_verification_duration_seconds',
+      );
     });
   });
 

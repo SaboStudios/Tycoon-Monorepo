@@ -35,7 +35,11 @@ describe('IdempotencyService', () => {
     });
 
     it('returns the stored record', async () => {
-      const record: IdempotencyRecord = { status: 'complete', response: { id: 1 }, createdAt: 1000 };
+      const record: IdempotencyRecord = {
+        status: 'complete',
+        response: { id: 1 },
+        createdAt: 1000,
+      };
       redis.get.mockResolvedValue(record);
       expect(await service.get('k1')).toEqual(record);
     });
@@ -76,7 +80,11 @@ describe('IdempotencyService', () => {
       await service.markProcessing('k1');
       const after = Date.now();
 
-      const [, record] = redis.set.mock.calls[0] as [string, IdempotencyRecord, number];
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
       expect(record.createdAt).toBeGreaterThanOrEqual(before);
       expect(record.createdAt).toBeLessThanOrEqual(after);
     });
@@ -84,7 +92,11 @@ describe('IdempotencyService', () => {
     it('does not include a response field', async () => {
       redis.set.mockResolvedValue(undefined);
       await service.markProcessing('k1');
-      const [, record] = redis.set.mock.calls[0] as [string, IdempotencyRecord, number];
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
       expect(record.response).toBeUndefined();
     });
   });
@@ -105,21 +117,33 @@ describe('IdempotencyService', () => {
     it('preserves arbitrary response shapes (array)', async () => {
       redis.set.mockResolvedValue(undefined);
       await service.markComplete('k1', [1, 2, 3]);
-      const [, record] = redis.set.mock.calls[0] as [string, IdempotencyRecord, number];
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
       expect(record.response).toEqual([1, 2, 3]);
     });
 
     it('preserves null response', async () => {
       redis.set.mockResolvedValue(undefined);
       await service.markComplete('k1', null);
-      const [, record] = redis.set.mock.calls[0] as [string, IdempotencyRecord, number];
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
       expect(record.response).toBeNull();
     });
 
     it('sets status to complete', async () => {
       redis.set.mockResolvedValue(undefined);
       await service.markComplete('k1', {});
-      const [, record] = redis.set.mock.calls[0] as [string, IdempotencyRecord, number];
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
       expect(record.status).toBe('complete');
     });
 
@@ -131,6 +155,115 @@ describe('IdempotencyService', () => {
         expect.any(Object),
         300_000,
       );
+    });
+  });
+
+  // ── markFailed ─────────────────────────────────────────────────────────────
+
+  describe('markFailed', () => {
+    it('stores a failed record with default TTL', async () => {
+      redis.set.mockResolvedValue(undefined);
+      await service.markFailed('k1');
+      expect(redis.set).toHaveBeenCalledWith(
+        'idempotency:k1',
+        expect.objectContaining({ status: 'failed' }),
+        86_400 * 1000,
+      );
+    });
+
+    it('does not include a response field', async () => {
+      redis.set.mockResolvedValue(undefined);
+      await service.markFailed('k1');
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
+      expect(record.response).toBeUndefined();
+    });
+
+    it('respects a custom TTL', async () => {
+      redis.set.mockResolvedValue(undefined);
+      await service.markFailed('k1', 120);
+      expect(redis.set).toHaveBeenCalledWith(
+        'idempotency:k1',
+        expect.any(Object),
+        120_000,
+      );
+    });
+
+    it('sets createdAt to a recent timestamp', async () => {
+      redis.set.mockResolvedValue(undefined);
+      const before = Date.now();
+      await service.markFailed('k1');
+      const after = Date.now();
+      const [, record] = redis.set.mock.calls[0] as [
+        string,
+        IdempotencyRecord,
+        number,
+      ];
+      expect(record.createdAt).toBeGreaterThanOrEqual(before);
+      expect(record.createdAt).toBeLessThanOrEqual(after);
+    });
+
+    it('uses the same namespace prefix', async () => {
+      redis.set.mockResolvedValue(undefined);
+      await service.markFailed('err-key');
+      expect(redis.set).toHaveBeenCalledWith(
+        'idempotency:err-key',
+        expect.any(Object),
+        expect.any(Number),
+      );
+    });
+  });
+
+  // ── claim / complete / fail lifecycle ──────────────────────────────────────
+
+  describe('claim / complete / fail lifecycle', () => {
+    it('happy path: processing → complete', async () => {
+      redis.set.mockResolvedValue(undefined);
+      redis.get.mockResolvedValue(undefined);
+
+      await service.markProcessing('tx-1');
+      expect(redis.set).toHaveBeenCalledWith(
+        'idempotency:tx-1',
+        expect.objectContaining({ status: 'processing' }),
+        expect.any(Number),
+      );
+
+      redis.get.mockResolvedValue({
+        status: 'processing',
+        createdAt: Date.now(),
+      });
+      const inFlight = await service.get('tx-1');
+      expect(inFlight?.status).toBe('processing');
+
+      await service.markComplete('tx-1', { purchaseId: 42 });
+      redis.get.mockResolvedValue({
+        status: 'complete',
+        response: { purchaseId: 42 },
+        createdAt: Date.now(),
+      });
+      const done = await service.get('tx-1');
+      expect(done?.status).toBe('complete');
+      expect(done?.response).toEqual({ purchaseId: 42 });
+    });
+
+    it('failure path: processing → failed', async () => {
+      redis.set.mockResolvedValue(undefined);
+
+      await service.markProcessing('tx-2');
+      await service.markFailed('tx-2');
+
+      redis.get.mockResolvedValue({ status: 'failed', createdAt: Date.now() });
+      const rec = await service.get('tx-2');
+      expect(rec?.status).toBe('failed');
+    });
+
+    it('delete clears a failed record', async () => {
+      redis.del.mockResolvedValue(undefined);
+      await service.delete('tx-err');
+      expect(redis.del).toHaveBeenCalledWith('idempotency:tx-err');
     });
   });
 

@@ -48,7 +48,10 @@ describe('GamesObservabilityService', () => {
 
       const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation();
       const incSpy = jest.spyOn(service['gamesCreatedTotal'], 'inc');
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
 
       service.logGameCreation(gameData, creatorId, duration);
 
@@ -58,7 +61,10 @@ describe('GamesObservabilityService', () => {
         is_minipay: 'false',
         chain: 'none',
       });
-      expect(observeSpy).toHaveBeenCalledWith({ operation: 'create' }, duration);
+      expect(observeSpy).toHaveBeenCalledWith(
+        { operation: 'create' },
+        duration,
+      );
       expect(logSpy).toHaveBeenCalledWith('Game created successfully', {
         event: 'game_created',
         game_id: 1,
@@ -82,11 +88,17 @@ describe('GamesObservabilityService', () => {
 
       const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation();
       const incSpy = jest.spyOn(service['gamesJoinedTotal'], 'inc');
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
 
       service.logGameJoin(gameId, userId, 'success', undefined, duration);
 
-      expect(incSpy).toHaveBeenCalledWith({ result: 'success', reason: 'none' });
+      expect(incSpy).toHaveBeenCalledWith({
+        result: 'success',
+        reason: 'none',
+      });
       expect(observeSpy).toHaveBeenCalledWith({ operation: 'join' }, duration);
       expect(logSpy).toHaveBeenCalledWith('Game join success', {
         event: 'game_join',
@@ -103,12 +115,17 @@ describe('GamesObservabilityService', () => {
       const userId = 123;
       const reason = 'game_full';
 
-      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      const warnSpy = jest
+        .spyOn(service['logger'], 'warn')
+        .mockImplementation();
       const incSpy = jest.spyOn(service['gamesJoinedTotal'], 'inc');
 
       service.logGameJoin(gameId, userId, 'error', reason);
 
-      expect(incSpy).toHaveBeenCalledWith({ result: 'error', reason: 'game_full' });
+      expect(incSpy).toHaveBeenCalledWith({
+        result: 'error',
+        reason: 'game_full',
+      });
       expect(warnSpy).toHaveBeenCalledWith('Game join error', {
         event: 'game_join',
         game_id: 1,
@@ -130,7 +147,10 @@ describe('GamesObservabilityService', () => {
 
       const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation();
       const incSpy = jest.spyOn(service['gamesUpdatedTotal'], 'inc');
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
 
       service.logGameUpdate(gameId, updates, userId, userRole, duration);
 
@@ -138,7 +158,10 @@ describe('GamesObservabilityService', () => {
         field: 'status',
         status_transition: 'true',
       });
-      expect(observeSpy).toHaveBeenCalledWith({ operation: 'update' }, duration);
+      expect(observeSpy).toHaveBeenCalledWith(
+        { operation: 'update' },
+        duration,
+      );
       expect(logSpy).toHaveBeenCalledWith('Game updated successfully', {
         event: 'game_updated',
         game_id: 1,
@@ -157,7 +180,9 @@ describe('GamesObservabilityService', () => {
 
       const incSpy = jest.spyOn(service['gameCodeGenerationAttempts'], 'inc');
       const failSpy = jest.spyOn(service['gameCodeGenerationFailures'], 'inc');
-      const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
+      const debugSpy = jest
+        .spyOn(service['logger'], 'debug')
+        .mockImplementation();
 
       service.logGameCodeGenerationAttempt(attempts, success);
 
@@ -176,7 +201,9 @@ describe('GamesObservabilityService', () => {
 
       const incSpy = jest.spyOn(service['gameCodeGenerationAttempts'], 'inc');
       const failSpy = jest.spyOn(service['gameCodeGenerationFailures'], 'inc');
-      const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
+      const debugSpy = jest
+        .spyOn(service['logger'], 'debug')
+        .mockImplementation();
 
       service.logGameCodeGenerationAttempt(attempts, success);
 
@@ -201,7 +228,9 @@ describe('GamesObservabilityService', () => {
 
       const setSpy = jest.spyOn(service['activeGamesGauge'], 'set');
       const playersSetSpy = jest.spyOn(service['playersInGamesGauge'], 'set');
-      const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
+      const debugSpy = jest
+        .spyOn(service['logger'], 'debug')
+        .mockImplementation();
 
       service.updateActiveGamesMetrics(gameCounts, totalPlayers);
 
@@ -223,12 +252,20 @@ describe('GamesObservabilityService', () => {
       const resultCount = 10;
       const duration = 0.15;
 
-      const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
+      const debugSpy = jest
+        .spyOn(service['logger'], 'debug')
+        .mockImplementation();
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
 
       service.logGameSearch(filters, resultCount, duration);
 
-      expect(observeSpy).toHaveBeenCalledWith({ operation: 'search' }, duration);
+      expect(observeSpy).toHaveBeenCalledWith(
+        { operation: 'search' },
+        duration,
+      );
       expect(debugSpy).toHaveBeenCalledWith('Game search performed', {
         event: 'game_search',
         filters,
@@ -246,11 +283,17 @@ describe('GamesObservabilityService', () => {
       const duration = 0.25;
 
       const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation();
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
 
       service.logGameSettingsUpdate(gameId, userId, settingsUpdated, duration);
 
-      expect(observeSpy).toHaveBeenCalledWith({ operation: 'update_settings' }, duration);
+      expect(observeSpy).toHaveBeenCalledWith(
+        { operation: 'update_settings' },
+        duration,
+      );
       expect(logSpy).toHaveBeenCalledWith('Game settings updated', {
         event: 'game_settings_updated',
         game_id: 1,
@@ -267,7 +310,9 @@ describe('GamesObservabilityService', () => {
       const userId = 123;
       const found = true;
 
-      const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
+      const debugSpy = jest
+        .spyOn(service['logger'], 'debug')
+        .mockImplementation();
 
       service.logGameView(gameId, found, userId);
 
@@ -280,7 +325,9 @@ describe('GamesObservabilityService', () => {
     });
 
     it('should log game view without game ID', () => {
-      const debugSpy = jest.spyOn(service['logger'], 'debug').mockImplementation();
+      const debugSpy = jest
+        .spyOn(service['logger'], 'debug')
+        .mockImplementation();
 
       service.logGameView(undefined, false);
 
@@ -320,8 +367,13 @@ describe('GamesObservabilityService', () => {
       const duration = 0.1;
       const metadata = { game_id: 1 };
 
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
-      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
+      const warnSpy = jest
+        .spyOn(service['logger'], 'warn')
+        .mockImplementation();
 
       service.logPerformanceMetric(operation, duration, metadata);
 
@@ -334,18 +386,26 @@ describe('GamesObservabilityService', () => {
       const duration = 2.5; // > 1 second
       const metadata = { game_id: 1 };
 
-      const observeSpy = jest.spyOn(service['gameOperationsDuration'], 'observe');
-      const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation();
+      const observeSpy = jest.spyOn(
+        service['gameOperationsDuration'],
+        'observe',
+      );
+      const warnSpy = jest
+        .spyOn(service['logger'], 'warn')
+        .mockImplementation();
 
       service.logPerformanceMetric(operation, duration, metadata);
 
       expect(observeSpy).toHaveBeenCalledWith({ operation }, duration);
-      expect(warnSpy).toHaveBeenCalledWith('Slow game operation detected: slow_operation', {
-        event: 'slow_operation',
-        operation,
-        duration_seconds: 2.5,
-        metadata,
-      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Slow game operation detected: slow_operation',
+        {
+          event: 'slow_operation',
+          operation,
+          duration_seconds: 2.5,
+          metadata,
+        },
+      );
     });
   });
 

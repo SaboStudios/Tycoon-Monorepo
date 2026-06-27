@@ -258,3 +258,113 @@ fn test_is_contract_paused_reflects_state() {
     client.set_pause(&false);
     assert!(!client.is_contract_paused());
 }
+
+// ── restock_collectible ───────────────────────────────────────────────────────
+
+/// `restock_collectible` adds to the existing stock of a collectible.
+#[test]
+fn test_restock_collectible_increases_stock() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let token_id = client.stock_shop(&3, &1, &1, &0, &0);
+    assert_eq!(client.get_stock(&token_id), 3);
+
+    client.restock_collectible(&token_id, &5);
+    assert_eq!(client.get_stock(&token_id), 8);
+}
+
+// ── buy_collectible_from_shop with USDC ──────────────────────────────────────
+
+/// `buy_collectible_from_shop` with `use_usdc=true` deducts USDC from the buyer.
+#[test]
+fn test_buy_with_usdc_deducts_usdc_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let tyc_token = make_token(&env, &admin);
+    let usdc_token = make_token(&env, &admin);
+    client.init_shop(&tyc_token, &usdc_token);
+
+    // perk=2 TaxRefund (tiered), strength=2, usdc_price=300
+    let token_id = client.stock_shop(&5, &2, &2, &0, &300);
+
+    let buyer = Address::generate(&env);
+    StellarAssetClient::new(&env, &usdc_token).mint(&buyer, &1000);
+
+    client.buy_collectible_from_shop(&buyer, &token_id, &true);
+
+    assert_eq!(client.balance_of(&buyer, &token_id), 1);
+    // Buyer spent 300 USDC
+    assert_eq!(TokenClient::new(&env, &usdc_token).balance(&buyer), 700);
+}
+
+// ── mint_collectible ──────────────────────────────────────────────────────────
+
+/// `mint_collectible` creates a new token and mints it to the recipient.
+#[test]
+fn test_mint_collectible_creates_token_for_recipient() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let recipient = Address::generate(&env);
+    // perk=3 RentBoost (non-tiered), strength=0
+    let token_id = client.mint_collectible(&admin, &recipient, &3, &0);
+    assert_eq!(client.balance_of(&recipient, &token_id), 1);
+}
+
+/// `mint_collectible` rejects a non-admin, non-minter caller.
+#[test]
+fn test_mint_collectible_rejects_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let attacker = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    // attacker is neither admin nor minter
+    assert!(client
+        .try_mint_collectible(&attacker, &recipient, &3, &0)
+        .is_err());
+}
+
+// ── burn ─────────────────────────────────────────────────────────────────────
+
+/// `burn` reduces the owner's balance by the specified amount.
+#[test]
+fn test_burn_reduces_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonCollectibles, ());
+    let client = TycoonCollectiblesClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let owner = Address::generate(&env);
+    // mint_collectible creates a new token and mints 1 unit to owner
+    let token_id = client.mint_collectible(&admin, &owner, &3, &0);
+    assert_eq!(client.balance_of(&owner, &token_id), 1);
+
+    client.burn(&owner, &token_id, &1);
+    assert_eq!(client.balance_of(&owner, &token_id), 0);
+}

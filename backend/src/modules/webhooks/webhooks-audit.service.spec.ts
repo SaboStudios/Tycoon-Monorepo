@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { WebhooksAuditService, WebhookAuditAction } from './webhooks-audit.service';
+import {
+  WebhooksAuditService,
+  WebhookAuditAction,
+} from './webhooks-audit.service';
 import { WebhookAuditLog } from './entities/webhook-audit-log.entity';
 import { LoggerService } from '../../common/logger/logger.service';
 
@@ -12,7 +15,9 @@ describe('WebhooksAuditService', () => {
   beforeEach(async () => {
     mockRepo = {
       create: jest.fn((entity) => entity),
-      save: jest.fn((entity) => Promise.resolve({ ...entity, id: 'audit-123' })),
+      save: jest.fn((entity) =>
+        Promise.resolve({ ...entity, id: 'audit-123' }),
+      ),
       find: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
@@ -179,7 +184,12 @@ describe('WebhooksAuditService', () => {
 
   describe('auditIdempotencyCheck', () => {
     it('should audit idempotency hit', async () => {
-      await service.auditIdempotencyCheck('wh_123', 'payment.succeeded', 'stripe', true);
+      await service.auditIdempotencyCheck(
+        'wh_123',
+        'payment.succeeded',
+        'stripe',
+        true,
+      );
 
       expect(mockRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -190,7 +200,12 @@ describe('WebhooksAuditService', () => {
     });
 
     it('should audit idempotency check for new webhook', async () => {
-      await service.auditIdempotencyCheck('wh_123', 'payment.succeeded', 'stripe', false);
+      await service.auditIdempotencyCheck(
+        'wh_123',
+        'payment.succeeded',
+        'stripe',
+        false,
+      );
 
       expect(mockRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -203,7 +218,12 @@ describe('WebhooksAuditService', () => {
 
   describe('auditProcessingCompleted', () => {
     it('should audit successful processing', async () => {
-      await service.auditProcessingCompleted('wh_123', 'payment.succeeded', 'stripe', 150);
+      await service.auditProcessingCompleted(
+        'wh_123',
+        'payment.succeeded',
+        'stripe',
+        150,
+      );
 
       expect(mockRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -219,7 +239,13 @@ describe('WebhooksAuditService', () => {
     it('should audit processing failure', async () => {
       const error = new Error('Database connection failed');
 
-      await service.auditProcessingFailed('wh_123', 'payment.succeeded', 'stripe', error, 200);
+      await service.auditProcessingFailed(
+        'wh_123',
+        'payment.succeeded',
+        'stripe',
+        error,
+        200,
+      );
 
       expect(mockRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -264,8 +290,12 @@ describe('WebhooksAuditService', () => {
 
       await service.getFailedOperations('stripe', 50);
 
-      expect(mockQb.where).toHaveBeenCalledWith('audit.success = :success', { success: false });
-      expect(mockQb.andWhere).toHaveBeenCalledWith('audit.source = :source', { source: 'stripe' });
+      expect(mockQb.where).toHaveBeenCalledWith('audit.success = :success', {
+        success: false,
+      });
+      expect(mockQb.andWhere).toHaveBeenCalledWith('audit.source = :source', {
+        source: 'stripe',
+      });
       expect(mockQb.take).toHaveBeenCalledWith(50);
     });
   });
@@ -305,7 +335,11 @@ describe('WebhooksAuditService', () => {
       const startDate = new Date('2024-01-01');
       const endDate = new Date('2024-01-31');
 
-      const stats = await service.getAuditStatistics(startDate, endDate, 'stripe');
+      const stats = await service.getAuditStatistics(
+        startDate,
+        endDate,
+        'stripe',
+      );
 
       expect(stats.totalEvents).toBe(4);
       expect(stats.successfulEvents).toBe(3);

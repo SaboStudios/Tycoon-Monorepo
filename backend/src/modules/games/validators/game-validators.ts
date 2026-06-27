@@ -21,7 +21,7 @@ export class IsGameCodeConstraint implements ValidatorConstraintInterface {
 }
 
 export function IsGameCode(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -62,8 +62,10 @@ export class IsValidGameStatusTransitionConstraint implements ValidatorConstrain
   }
 }
 
-export function IsValidGameStatusTransition(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+export function IsValidGameStatusTransition(
+  validationOptions?: ValidationOptions,
+) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -86,7 +88,7 @@ export class IsValidPlayerCountConstraint implements ValidatorConstraintInterfac
 }
 
 export function IsValidPlayerCount(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -101,7 +103,7 @@ export function IsValidPlayerCount(validationOptions?: ValidationOptions) {
 export class IsValidBlockchainAddressConstraint implements ValidatorConstraintInterface {
   validate(address: string) {
     if (!address) return true; // Optional field
-    
+
     // Basic Ethereum address validation (0x + 40 hex characters)
     const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
     return ethAddressRegex.test(address);
@@ -112,8 +114,10 @@ export class IsValidBlockchainAddressConstraint implements ValidatorConstraintIn
   }
 }
 
-export function IsValidBlockchainAddress(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+export function IsValidBlockchainAddress(
+  validationOptions?: ValidationOptions,
+) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -128,11 +132,11 @@ export function IsValidBlockchainAddress(validationOptions?: ValidationOptions) 
 export class IsValidContractGameIdConstraint implements ValidatorConstraintInterface {
   validate(gameId: string) {
     if (!gameId) return true; // Optional field
-    
+
     // Contract game ID should be a valid hex string or numeric string
     const hexRegex = /^0x[a-fA-F0-9]+$/;
     const numericRegex = /^\d+$/;
-    
+
     return hexRegex.test(gameId) || numericRegex.test(gameId);
   }
 
@@ -142,7 +146,7 @@ export class IsValidContractGameIdConstraint implements ValidatorConstraintInter
 }
 
 export function IsValidContractGameId(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -161,16 +165,21 @@ export class IsValidGamePlacementConstraint implements ValidatorConstraintInterf
     }
 
     const playerIds = Object.keys(placements);
-    
+
     // Check that all player IDs are numbers
-    if (!playerIds.every(id => /^\d+$/.test(id))) {
+    if (!playerIds.every((id) => /^\d+$/.test(id))) {
       return false;
     }
 
     const ranks = Object.values(placements);
-    
+
     // Check that all ranks are positive integers
-    if (!ranks.every((rank) => typeof rank === 'number' && Number.isInteger(rank) && rank > 0)) {
+    if (
+      !ranks.every(
+        (rank) =>
+          typeof rank === 'number' && Number.isInteger(rank) && rank > 0,
+      )
+    ) {
       return false;
     }
 
@@ -185,7 +194,7 @@ export class IsValidGamePlacementConstraint implements ValidatorConstraintInterf
 }
 
 export function IsValidGamePlacement(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,

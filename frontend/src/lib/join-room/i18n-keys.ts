@@ -29,6 +29,8 @@ export const JOIN_ROOM_I18N = {
     alreadyJoined: "join_room.errors.already_joined",
     serverError: "join_room.errors.server_error",
     unexpected: "join_room.errors.unexpected",
+    networkError: "join_room.errors.network_error",
+    timeout: "join_room.errors.timeout",
   },
 } as const;
 

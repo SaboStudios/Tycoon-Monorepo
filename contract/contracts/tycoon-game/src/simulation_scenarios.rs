@@ -614,4 +614,45 @@ mod tests {
             "SIM-20: reward_system must not equal the USDC token address"
         );
     }
+
+    // ── SIM-21 ────────────────────────────────────────────────────────────────
+
+    /// SIM-21: Treasury withdrawal overflow scenario.
+    /// Attempting to withdraw u128 values exceeding i128::MAX must panic.
+    #[test]
+    fn sim_21_treasury_withdrawal_overflow() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_contract_id, client, _owner, tyc_id, _usdc_id) = setup(&env);
+
+        let recipient = Address::generate(&env);
+        let huge_amount = i128::MAX as u128 + 1;
+
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.admin_withdraw_funds(&tyc_id, &recipient, &huge_amount);
+        }));
+        assert!(
+            res.is_err(),
+            "SIM-21: withdrawal exceeding i128::MAX must panic"
+        );
+    }
+
+    // ── SIM-22 ────────────────────────────────────────────────────────────────
+
+    /// SIM-22: Special character username registration scenario.
+    /// Verifies that valid strings containing Unicode/emojis are registered and
+    /// retrieved correctly.
+    #[test]
+    fn sim_22_unicode_username_registration() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        let player = Address::generate(&env);
+        let name = "👾tycoon_👾";
+        client.register_player(&String::from_str(&env, name), &player);
+
+        let user = client.get_user(&player).expect("SIM-22: user should exist");
+        assert_eq!(user.username, String::from_str(&env, name));
+    }
 }

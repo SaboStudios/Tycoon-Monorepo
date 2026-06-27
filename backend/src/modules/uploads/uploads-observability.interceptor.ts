@@ -10,7 +10,10 @@ import {
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { randomBytes } from 'crypto';
-import { UploadsObservabilityService, UploadOutcomeLabel } from './uploads-observability.service';
+import {
+  UploadsObservabilityService,
+  UploadOutcomeLabel,
+} from './uploads-observability.service';
 
 function classifyUploadError(err: unknown): UploadOutcomeLabel {
   if (err instanceof BadRequestException) return 'validation_error';
@@ -27,7 +30,9 @@ function classifyUploadError(err: unknown): UploadOutcomeLabel {
           : res && typeof res === 'object' && 'message' in res
             ? (res as { message?: string | string[] }).message
             : undefined;
-      const flat = Array.isArray(msg) ? msg.join(' ') : String(msg ?? (err as Error).message ?? '');
+      const flat = Array.isArray(msg)
+        ? msg.join(' ')
+        : String(msg ?? (err as Error).message ?? '');
       if (/malware|virus|clamav/i.test(flat)) return 'virus_error';
       return 'storage_error';
     }
@@ -42,7 +47,8 @@ export function uploadsRouteLabel(path: string): string {
   if (path.includes('/signed-url')) return 'signed_url';
   if (path.includes('/download')) return 'download';
   if (path.includes('/batch')) return 'batch';
-  if (path.includes('/uploads-enhanced/stats') || path.endsWith('/stats')) return 'stats';
+  if (path.includes('/uploads-enhanced/stats') || path.endsWith('/stats'))
+    return 'stats';
   if (path.includes('/file')) return 'file_delete';
   if (/\/uploads-enhanced\/?$/i.test(path.split('?')[0] || '')) return 'list';
   return 'other';
@@ -63,12 +69,22 @@ export class UploadsObservabilityInterceptor implements NestInterceptor {
     const route = uploadsRouteLabel(path);
     const traceHeader = req.headers['x-request-id'];
     const traceId =
-      typeof traceHeader === 'string' && traceHeader.length > 0 && traceHeader.length <= 128
+      typeof traceHeader === 'string' &&
+      traceHeader.length > 0 &&
+      traceHeader.length <= 128
         ? traceHeader
         : randomBytes(8).toString('hex');
     (req as { uploadTraceId?: string }).uploadTraceId = traceId;
 
     const t0 = process.hrtime.bigint();
+
+    // Log upload start before the handler runs (SW-BE-037)
+    this.obs.recordUploadStart({
+      route,
+      traceId,
+      mimeType: req.file?.mimetype,
+      sizeBytes: req.file?.size ?? req.file?.buffer?.length,
+    });
 
     return next.handle().pipe(
       tap(() => {

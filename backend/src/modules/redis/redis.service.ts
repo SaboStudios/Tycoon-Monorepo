@@ -94,7 +94,10 @@ export class RedisService {
     });
 
     this.redis.on('error', (err: any) => {
-      this.logger.error(`Redis connection error: ${err.message}`, 'RedisService');
+      this.logger.error(
+        `Redis connection error: ${err.message}`,
+        'RedisService',
+      );
       this.redisErrorsTotal.inc({ operation: 'connection' });
     });
   }
@@ -118,14 +121,19 @@ export class RedisService {
     token: string,
     ttl: number = 604800,
   ): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'set_refresh_token' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'set_refresh_token',
+    });
     try {
       await this.redis.setex(`refresh_token:${userId}`, ttl, token);
       this.redisOperationsTotal.inc({ operation: 'set_refresh_token' });
       this.logger.debug(`Set refresh token for user ${userId}`, 'RedisService');
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'set_refresh_token' });
-      this.logger.error(`Failed to set refresh token for user ${userId}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Failed to set refresh token for user ${userId}: ${error.message}`,
+        'RedisService',
+      );
       throw error;
     } finally {
       endTimer();
@@ -133,15 +141,23 @@ export class RedisService {
   }
 
   async getRefreshToken(userId: string): Promise<string | null> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'get_refresh_token' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'get_refresh_token',
+    });
     try {
       const result = await this.redis.get(`refresh_token:${userId}`);
       this.redisOperationsTotal.inc({ operation: 'get_refresh_token' });
-      this.logger.debug(`Retrieved refresh token for user ${userId}`, 'RedisService');
+      this.logger.debug(
+        `Retrieved refresh token for user ${userId}`,
+        'RedisService',
+      );
       return result;
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'get_refresh_token' });
-      this.logger.error(`Failed to get refresh token for user ${userId}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Failed to get refresh token for user ${userId}: ${error.message}`,
+        'RedisService',
+      );
       return null;
     } finally {
       endTimer();
@@ -149,14 +165,22 @@ export class RedisService {
   }
 
   async deleteRefreshToken(userId: string): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'delete_refresh_token' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'delete_refresh_token',
+    });
     try {
       await this.redis.del(`refresh_token:${userId}`);
       this.redisOperationsTotal.inc({ operation: 'delete_refresh_token' });
-      this.logger.debug(`Deleted refresh token for user ${userId}`, 'RedisService');
+      this.logger.debug(
+        `Deleted refresh token for user ${userId}`,
+        'RedisService',
+      );
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'delete_refresh_token' });
-      this.logger.error(`Failed to delete refresh token for user ${userId}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Failed to delete refresh token for user ${userId}: ${error.message}`,
+        'RedisService',
+      );
       throw error;
     } finally {
       endTimer();
@@ -165,18 +189,26 @@ export class RedisService {
 
   // Rate limiting
   async incrementRateLimit(key: string, ttl: number = 60): Promise<number> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'increment_rate_limit' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'increment_rate_limit',
+    });
     try {
       const current = await this.redis.incr(key);
       if (current === 1) {
         await this.redis.expire(key, ttl);
       }
       this.redisOperationsTotal.inc({ operation: 'increment_rate_limit' });
-      this.logger.debug(`Incremented rate limit for key ${key} to ${current}`, 'RedisService');
+      this.logger.debug(
+        `Incremented rate limit for key ${key} to ${current}`,
+        'RedisService',
+      );
       return current;
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'increment_rate_limit' });
-      this.logger.error(`Failed to increment rate limit for key ${key}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Failed to increment rate limit for key ${key}: ${error.message}`,
+        'RedisService',
+      );
       return 0; // Fallback to 0 if Redis is down
     } finally {
       endTimer();
@@ -185,7 +217,9 @@ export class RedisService {
 
   // Cache operations
   async get<T>(key: string): Promise<T | undefined> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'cache_get' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'cache_get',
+    });
     try {
       const value = await this.cacheManager.get<T>(key);
       if (value !== undefined) {
@@ -199,7 +233,10 @@ export class RedisService {
       return value;
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_get' });
-      this.logger.error(`Cache GET error for ${key}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Cache GET error for ${key}: ${error.message}`,
+        'RedisService',
+      );
       return undefined; // Graceful degradation
     } finally {
       endTimer();
@@ -207,7 +244,9 @@ export class RedisService {
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'cache_set' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'cache_set',
+    });
     try {
       await this.cacheManager.set(key, value, ttl);
       this.redisOperationsTotal.inc({ operation: 'cache_set' });
@@ -218,7 +257,10 @@ export class RedisService {
       });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_set' });
-      this.logger.error(`Cache SET error for ${key}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Cache SET error for ${key}: ${error.message}`,
+        'RedisService',
+      );
       throw error;
     } finally {
       endTimer();
@@ -226,7 +268,9 @@ export class RedisService {
   }
 
   async del(key: string): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'cache_del' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'cache_del',
+    });
     try {
       await this.cacheManager.del(key);
       this.redisOperationsTotal.inc({ operation: 'cache_del' });
@@ -234,7 +278,10 @@ export class RedisService {
       this.emitAudit(AuditAction.CACHE_DEL, { key });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_del' });
-      this.logger.error(`Cache DEL error for ${key}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `Cache DEL error for ${key}: ${error.message}`,
+        'RedisService',
+      );
       throw error;
     } finally {
       endTimer();
@@ -242,7 +289,9 @@ export class RedisService {
   }
 
   async delByPattern(pattern: string): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'del_by_pattern' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'del_by_pattern',
+    });
     try {
       const keys = await this.redis.keys(pattern);
       if (keys.length > 0) {
@@ -252,7 +301,10 @@ export class RedisService {
           `Invalidated ${keys.length} keys with pattern: ${pattern}`,
           'RedisService',
         );
-        this.emitAudit(AuditAction.CACHE_INVALIDATE, { pattern, count: keys.length });
+        this.emitAudit(AuditAction.CACHE_INVALIDATE, {
+          pattern,
+          count: keys.length,
+        });
       }
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'del_by_pattern' });
@@ -267,14 +319,19 @@ export class RedisService {
   }
 
   async reset(): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'cache_reset' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'cache_reset',
+    });
     try {
       // Reset cache by deleting all keys with our prefix
       const keys = await this.redis.keys('cache:*');
       if (keys.length > 0) {
         await this.redis.del(...keys);
         this.redisOperationsTotal.inc({ operation: 'cache_reset' });
-        this.logger.log(`Reset cache: deleted ${keys.length} keys`, 'RedisService');
+        this.logger.log(
+          `Reset cache: deleted ${keys.length} keys`,
+          'RedisService',
+        );
       }
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'cache_reset' });
@@ -298,7 +355,9 @@ export class RedisService {
     cursor: number = 0,
     count: number = 20,
   ): Promise<{ nextCursor: number; keys: string[] }> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'scan_page' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'scan_page',
+    });
     try {
       const [nextCursorStr, keys] = await this.redis.scan(
         cursor,
@@ -312,7 +371,10 @@ export class RedisService {
       return { nextCursor: parseInt(nextCursorStr, 10), keys: sorted };
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'scan_page' });
-      this.logger.error(`scanPage error for ${pattern}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `scanPage error for ${pattern}: ${error.message}`,
+        'RedisService',
+      );
       return { nextCursor: 0, keys: [] };
     } finally {
       endTimer();
@@ -324,13 +386,18 @@ export class RedisService {
    * Used to build stable-sorted collections (e.g. leaderboards, queues).
    */
   async zAdd(key: string, score: number, member: string): Promise<void> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'zadd' });
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'zadd',
+    });
     try {
       await this.redis.zadd(key, score, member);
       this.redisOperationsTotal.inc({ operation: 'zadd' });
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'zadd' });
-      this.logger.error(`zAdd error for ${key}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `zAdd error for ${key}: ${error.message}`,
+        'RedisService',
+      );
       throw error;
     } finally {
       endTimer();
@@ -351,8 +418,13 @@ export class RedisService {
     key: string,
     page: number = 0,
     limit: number = 20,
-  ): Promise<{ items: Array<{ member: string; score: number }>; total: number }> {
-    const endTimer = this.redisOperationDuration.startTimer({ operation: 'get_sorted_page' });
+  ): Promise<{
+    items: Array<{ member: string; score: number }>;
+    total: number;
+  }> {
+    const endTimer = this.redisOperationDuration.startTimer({
+      operation: 'get_sorted_page',
+    });
     try {
       const offset = page * limit;
       const [rawItems, total] = await Promise.all([
@@ -369,7 +441,10 @@ export class RedisService {
       return { items, total };
     } catch (error: any) {
       this.redisErrorsTotal.inc({ operation: 'get_sorted_page' });
-      this.logger.error(`getSortedPage error for ${key}: ${error.message}`, 'RedisService');
+      this.logger.error(
+        `getSortedPage error for ${key}: ${error.message}`,
+        'RedisService',
+      );
       return { items: [], total: 0 };
     } finally {
       endTimer();

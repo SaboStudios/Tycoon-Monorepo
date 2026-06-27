@@ -7,23 +7,22 @@ export type ChartPalette = {
   series: string[];
 };
 
-const chartPalettes: Record<ResolvedTheme, ChartPalette> = {
-  light: {
-    background: "#F7FAFB",
-    foreground: "#12262A",
-    grid: "#BBD4D6",
-    series: ["#006D77", "#00A7B5", "#1D4ED8", "#EA580C"],
-  },
-  dark: {
-    background: "#07181B",
-    foreground: "#E6FEFF",
-    grid: "#2B5C60",
-    series: ["#00F0FF", "#00FFA8", "#8AB4FF", "#FFB86C"],
-  },
+export const LIGHT_CHART_PALETTE: ChartPalette = {
+  background: "#F7FAFB",
+  foreground: "#12262A",
+  grid: "#BBD4D6",
+  series: ["#006D77", "#00A7B5", "#1D4ED8", "#EA580C"],
+};
+
+export const DARK_CHART_PALETTE: ChartPalette = {
+  background: "#07181B",
+  foreground: "#E6FEFF",
+  grid: "#2B5C60",
+  series: ["#00F0FF", "#00FFA8", "#8AB4FF", "#FFB86C"],
 };
 
 export function getChartPalette(theme: ResolvedTheme): ChartPalette {
-  return chartPalettes[theme];
+  return theme === "dark" ? DARK_CHART_PALETTE : LIGHT_CHART_PALETTE;
 }
 
 function hexToRgb(hex: string) {

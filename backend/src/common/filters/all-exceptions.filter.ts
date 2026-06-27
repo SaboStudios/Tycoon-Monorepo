@@ -38,7 +38,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         // ValidationPipe emits message as string[] — preserve the array so
         // callers receive all constraint violations, not just the first one.
         const raw = responseObj.message;
-        message = Array.isArray(raw) ? (raw as string[]).join('; ') : ((raw as string) || exception.message);
+        message = Array.isArray(raw)
+          ? (raw as string[]).join('; ')
+          : (raw as string) || exception.message;
         error = responseObj.error as string | undefined;
       }
       stack = exception.stack;

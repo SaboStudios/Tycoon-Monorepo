@@ -448,6 +448,100 @@ fn sim_s09_underfunded_contract_panics_on_redeem() {
     // — balance check is best-effort; the key invariant is the panic above.
 }
 
+// ── S-11: New season after treasury withdrawal ────────────────────────────────
+
+/// After end-of-season accounting (full treasury drain), admin tops up the
+/// contract and a fresh batch of vouchers is minted for the next season.
+/// Verifies that the contract behaves correctly after a complete drain + refill
+/// cycle and that season-1 player balances are unaffected.
+#[test]
+fn sim_s11_new_season_refill_and_batch_mint() {
+    let sim = Sim::new();
+
+    let player_s1 = Address::generate(&sim.env);
+    let treasury = Address::generate(&sim.env);
+
+    // Season 1: mint and redeem one voucher
+    let tid_s1 = sim
+        .client
+        .mint_voucher(&sim.backend, &player_s1, &TIER_BRONZE);
+    sim.client.redeem_voucher_from(&player_s1, &tid_s1);
+
+    // Drain all remaining TYC to treasury
+    let residual = sim.tyc_balance(&sim.contract_id);
+    sim.client
+        .withdraw_funds(&sim.tyc_id, &treasury, &(residual as u128));
+    assert_eq!(
+        sim.tyc_balance(&sim.contract_id),
+        0,
+        "contract must be empty after drain"
+    );
+
+    // Season 2: admin tops up contract
+    StellarAssetClient::new(&sim.env, &sim.tyc_id).mint(&sim.contract_id, &CONTRACT_FUND);
+    assert_eq!(sim.tyc_balance(&sim.contract_id), CONTRACT_FUND);
+
+    // Season 2 player earns and redeems
+    let player_s2 = Address::generate(&sim.env);
+    let tid_s2 = sim
+        .client
+        .mint_voucher(&sim.backend, &player_s2, &TIER_GOLD);
+    sim.client.redeem_voucher_from(&player_s2, &tid_s2);
+
+    assert_eq!(sim.tyc_balance(&player_s2), TIER_GOLD as i128);
+    // Season 1 player's balance is unchanged
+    assert_eq!(sim.tyc_balance(&player_s1), TIER_BRONZE as i128);
+}
+
+// ── S-12: Partial batch interrupted by pause ──────────────────────────────────
+
+/// Admin pauses the contract mid-batch after some redeems have already
+/// succeeded. Players who redeemed before the pause keep their TYC; remaining
+/// players' vouchers stay intact. After unpause, all remaining players redeem
+/// successfully.
+#[test]
+fn sim_s12_partial_batch_interrupted_by_pause() {
+    let sim = Sim::new();
+
+    let players: Vec<Address> = (0..4).map(|_| Address::generate(&sim.env)).collect();
+    let reward = TIER_BRONZE;
+
+    let token_ids: Vec<u128> = players
+        .iter()
+        .map(|p| sim.client.mint_voucher(&sim.backend, p, &reward))
+        .collect();
+
+    // First two players redeem before the pause
+    sim.client.redeem_voucher_from(&players[0], &token_ids[0]);
+    sim.client.redeem_voucher_from(&players[1], &token_ids[1]);
+
+    // Admin pauses mid-batch
+    sim.client.pause();
+
+    // Players 2 and 3 cannot redeem while paused; vouchers remain intact
+    for i in 2..4usize {
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            sim.client.redeem_voucher_from(&players[i], &token_ids[i]);
+        }));
+        assert!(res.is_err(), "player {i} must not redeem while paused");
+        assert_eq!(
+            sim.client.get_balance(&players[i], &token_ids[i]),
+            1,
+            "player {i} voucher must be intact after blocked redeem"
+        );
+    }
+
+    // Unpause — remaining players can now redeem
+    sim.client.unpause();
+    sim.client.redeem_voucher_from(&players[2], &token_ids[2]);
+    sim.client.redeem_voucher_from(&players[3], &token_ids[3]);
+
+    // All four players hold exactly one reward's worth of TYC
+    for player in &players {
+        assert_eq!(sim.tyc_balance(player), reward as i128);
+    }
+}
+
 // ── S-10: owned_token_count lifecycle ────────────────────────────────────────
 
 /// Verifies that owned_token_count stays consistent across the full lifecycle:

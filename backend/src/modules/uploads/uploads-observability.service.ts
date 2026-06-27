@@ -21,7 +21,8 @@ export class UploadsObservabilityService {
   private readonly virusScanTotal: Counter;
 
   constructor(private readonly config: ConfigService) {
-    this.enabled = this.config.get<boolean>('upload.observabilityEnabled') !== false;
+    this.enabled =
+      this.config.get<boolean>('upload.observabilityEnabled') !== false;
 
     this.requestsTotal = new Counter({
       name: 'tycoon_uploads_requests_total',
@@ -49,6 +50,21 @@ export class UploadsObservabilityService {
     });
   }
 
+  recordUploadStart(params: {
+    route: string;
+    traceId: string;
+    mimeType?: string;
+    sizeBytes?: number;
+  }): void {
+    if (!this.enabled) return;
+    const { route, traceId, mimeType, sizeBytes } = params;
+    this.logger.log('upload_start', {
+      ...this.createTraceContext(route, traceId),
+      mimeType: mimeType ?? 'n/a',
+      sizeBytes: sizeBytes ?? 'n/a',
+    });
+  }
+
   createTraceContext(route: string, traceId?: string) {
     return {
       trace_id: traceId || this.generateTraceId(),
@@ -66,7 +82,8 @@ export class UploadsObservabilityService {
     sizeBytes?: number;
   }): void {
     if (!this.enabled) return;
-    const { route, outcome, durationSeconds, traceId, mimeType, sizeBytes } = params;
+    const { route, outcome, durationSeconds, traceId, mimeType, sizeBytes } =
+      params;
     this.requestsTotal.inc({ route, outcome });
     this.requestDuration.observe({ route, outcome }, durationSeconds);
 
@@ -85,7 +102,9 @@ export class UploadsObservabilityService {
     this.logger.warn(`upload_multer_error code=${code || 'UNKNOWN'}`);
   }
 
-  recordVirusScanOutcome(outcome: 'skipped' | 'clean' | 'infected' | 'error'): void {
+  recordVirusScanOutcome(
+    outcome: 'skipped' | 'clean' | 'infected' | 'error',
+  ): void {
     if (!this.enabled) return;
     this.virusScanTotal.inc({ outcome });
     this.logger.debug(`virus_scan outcome=${outcome}`);

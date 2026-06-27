@@ -45,6 +45,8 @@ export interface RequestOptions {
   retries?: number;
   /** Skip attaching the Authorization header */
   public?: boolean;
+  /** AbortSignal for request cancellation (e.g. form unmount / timeout racing) */
+  signal?: AbortSignal;
 }
 
 async function request<T>(
@@ -65,6 +67,7 @@ async function request<T>(
     method,
     headers,
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
   };
 
   let attempt = 0;

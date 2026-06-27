@@ -9,11 +9,7 @@ import { CommonModule } from '../../common/common.module';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Perk, Boost]),
-    CommonModule,
-    RedisModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Perk, Boost]), CommonModule, RedisModule],
   controllers: [PerksController, PerksAdminController],
   providers: [PerksService],
   exports: [PerksService],

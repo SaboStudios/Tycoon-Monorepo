@@ -7,7 +7,11 @@ import { UploadsObservabilityService } from './uploads-observability.service';
 
 jest.mock('prom-client', () => {
   const noop = () => ({ inc: jest.fn(), observe: jest.fn() });
-  return { Counter: jest.fn(noop), Histogram: jest.fn(noop), Gauge: jest.fn(noop) };
+  return {
+    Counter: jest.fn(noop),
+    Histogram: jest.fn(noop),
+    Gauge: jest.fn(noop),
+  };
 });
 
 describe('UploadsObservabilityService (SW-BE-009)', () => {
@@ -18,7 +22,9 @@ describe('UploadsObservabilityService (SW-BE-009)', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((k: string) => (k === 'upload.observabilityEnabled' ? true : undefined)),
+            get: jest.fn((k: string) =>
+              k === 'upload.observabilityEnabled' ? true : undefined,
+            ),
           },
         },
       ],
@@ -43,7 +49,9 @@ describe('UploadsObservabilityService (SW-BE-009)', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((k: string) => (k === 'upload.observabilityEnabled' ? false : undefined)),
+            get: jest.fn((k: string) =>
+              k === 'upload.observabilityEnabled' ? false : undefined,
+            ),
           },
         },
       ],

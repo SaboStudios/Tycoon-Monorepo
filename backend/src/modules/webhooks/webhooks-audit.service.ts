@@ -32,7 +32,7 @@ export interface WebhookAuditContext {
 /**
  * Audit trail service for webhooks & signatures
  * Provides comprehensive audit logging for compliance and security
- * 
+ *
  * Security: No secrets (signatures, webhook secrets) are stored in audit logs
  * Compliance: Immutable audit trail with retention policies
  */
@@ -298,8 +298,10 @@ export class WebhooksAuditService {
     const logsWithDuration = logs.filter((log) => log.durationMs !== null);
     const averageDurationMs =
       logsWithDuration.length > 0
-        ? logsWithDuration.reduce((sum, log) => sum + (log.durationMs || 0), 0) /
-          logsWithDuration.length
+        ? logsWithDuration.reduce(
+            (sum, log) => sum + (log.durationMs || 0),
+            0,
+          ) / logsWithDuration.length
         : 0;
 
     return {

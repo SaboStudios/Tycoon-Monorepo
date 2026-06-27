@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RedisService } from './redis.service';
 
 export interface IdempotencyRecord {
-  status: 'processing' | 'complete';
+  status: 'processing' | 'complete' | 'failed';
   response?: unknown;
   createdAt: number;
 }
@@ -21,8 +21,14 @@ export class IdempotencyService {
     return this.redis.get<IdempotencyRecord>(this.key(idempotencyKey));
   }
 
-  async markProcessing(idempotencyKey: string, ttl = DEFAULT_TTL): Promise<void> {
-    const record: IdempotencyRecord = { status: 'processing', createdAt: Date.now() };
+  async markProcessing(
+    idempotencyKey: string,
+    ttl = DEFAULT_TTL,
+  ): Promise<void> {
+    const record: IdempotencyRecord = {
+      status: 'processing',
+      createdAt: Date.now(),
+    };
     await this.redis.set(this.key(idempotencyKey), record, ttl * 1000);
   }
 
@@ -34,6 +40,17 @@ export class IdempotencyService {
     const record: IdempotencyRecord = {
       status: 'complete',
       response,
+      createdAt: Date.now(),
+    };
+    await this.redis.set(this.key(idempotencyKey), record, ttl * 1000);
+  }
+
+  async markFailed(
+    idempotencyKey: string,
+    ttl = DEFAULT_TTL,
+  ): Promise<void> {
+    const record: IdempotencyRecord = {
+      status: 'failed',
       createdAt: Date.now(),
     };
     await this.redis.set(this.key(idempotencyKey), record, ttl * 1000);

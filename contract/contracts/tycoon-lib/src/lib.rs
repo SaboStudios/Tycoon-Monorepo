@@ -21,7 +21,7 @@ use soroban_sdk::contracttype;
 /// - `Ongoing`  — Game has started and is currently in progress.
 /// - `Ended`    — Game has finished; a winner has been determined.
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GameStatus {
     /// Game created, accepting players.
     Pending,
@@ -42,7 +42,7 @@ pub enum GameStatus {
 /// - `PublicGame`  — Anyone can discover and join the game.
 /// - `PrivateGame` — Requires a join code to enter.
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GameType {
     /// Open to any registered player.
     PublicGame,
@@ -68,7 +68,7 @@ pub enum GameType {
 /// - `Boot`        — Boot piece.
 /// - `Wheelbarrow` — Wheelbarrow piece.
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PlayerSymbol {
     /// Classic top hat token.
     Hat,

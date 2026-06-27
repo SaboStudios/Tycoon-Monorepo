@@ -13,7 +13,10 @@ import { Coupon } from '../../coupons/entities/coupon.entity';
 
 @Entity({ name: 'purchases' })
 @Index(['user_id', 'created_at'])
-@Index(['user_id', 'idempotency_key'], { unique: true, where: '"idempotency_key" IS NOT NULL' })
+@Index(['user_id', 'idempotency_key'], {
+  unique: true,
+  where: '"idempotency_key" IS NOT NULL',
+})
 @Index(['shop_item_id'])
 @Index(['created_at'])
 export class Purchase {

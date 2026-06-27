@@ -351,4 +351,155 @@ mod tests {
             "registered player must not mint their own voucher"
         );
     }
+
+    // ── Expanded scenarios ────────────────────────────────────────────────────
+
+    /// Multiple vouchers for the same player must each be redeemable exactly once.
+    /// Verifies CEI guard holds across multiple independent vouchers.
+    #[test]
+    fn multiple_vouchers_each_redeemable_once() {
+        let f = Fixture::new();
+        let v1: u128 = 1_000_000_000_000_000_000;
+        let v2: u128 = 2_000_000_000_000_000_000;
+
+        let tid1 = f.reward.mint_voucher(&f.admin, &f.player_a, &v1);
+        let tid2 = f.reward.mint_voucher(&f.admin, &f.player_a, &v2);
+
+        f.reward.redeem_voucher_from(&f.player_a, &tid1);
+        f.reward.redeem_voucher_from(&f.player_a, &tid2);
+
+        assert_eq!(f.tyc_balance(&f.player_a), (v1 + v2) as i128);
+
+        // Both must be double-redeem protected.
+        let r1 = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_a, &tid1);
+        }));
+        let r2 = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_a, &tid2);
+        }));
+        assert!(r1.is_err(), "double-redeem on tid1 must be rejected");
+        assert!(r2.is_err(), "double-redeem on tid2 must be rejected");
+    }
+
+    /// Pause → redeem rejected → unpause → redeem succeeds — full cycle.
+    /// Verifies that the pause/unpause state machine is consistent.
+    #[test]
+    fn pause_unpause_cycle_restores_redemption() {
+        let f = Fixture::new();
+        let value: u128 = 3_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_b, &value);
+
+        f.reward.pause();
+        let paused_res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_b, &tid);
+        }));
+        assert!(paused_res.is_err(), "must be rejected while paused");
+        assert_eq!(f.tyc_balance(&f.player_b), 0, "no TYC moved while paused");
+
+        f.reward.unpause();
+        f.reward.redeem_voucher_from(&f.player_b, &tid);
+        assert_eq!(f.tyc_balance(&f.player_b), value as i128);
+    }
+
+    /// Backend minter can mint vouchers for multiple players independently.
+    /// Verifies that the backend role is correctly scoped to minting.
+    #[test]
+    fn backend_minter_can_mint_for_multiple_players() {
+        let f = Fixture::new();
+        let va: u128 = 1_000_000_000_000_000_000;
+        let vb: u128 = 2_000_000_000_000_000_000;
+
+        let tid_a = f.reward.mint_voucher(&f.backend, &f.player_a, &va);
+        let tid_b = f.reward.mint_voucher(&f.backend, &f.player_b, &vb);
+
+        f.reward.redeem_voucher_from(&f.player_a, &tid_a);
+        f.reward.redeem_voucher_from(&f.player_b, &tid_b);
+
+        assert_eq!(f.tyc_balance(&f.player_a), va as i128);
+        assert_eq!(f.tyc_balance(&f.player_b), vb as i128);
+    }
+
+    /// Redeeming a voucher minted for player_a as player_b must be rejected.
+    /// Verifies that the ownership check in redeem_voucher_from is enforced.
+    #[test]
+    fn voucher_cannot_be_redeemed_by_wrong_player() {
+        let f = Fixture::new();
+        let value: u128 = 5_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+
+        // player_b attempts to redeem player_a's voucher — must be rejected.
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_b, &tid);
+        }));
+        assert!(
+            res.is_err(),
+            "player_b must not redeem a voucher minted for player_a"
+        );
+
+        // player_a's voucher must still be intact.
+        assert_eq!(f.reward.get_balance(&f.player_a, &tid), 1);
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        assert_eq!(f.tyc_balance(&f.player_a), value as i128);
+    }
+
+    /// Attacker cannot set collectible info on the game contract.
+    /// Verifies that the owner-only guard on set_collectible_info is enforced.
+    #[test]
+    fn non_owner_cannot_set_collectible_info() {
+        use soroban_sdk::IntoVal;
+        use tycoon_game::{TycoonContract, TycoonContractClient};
+        let env = soroban_sdk::Env::default();
+        let contract_id = env.register(TycoonContract, ());
+        let client = TycoonContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reward = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&token, &token, &admin, &reward);
+
+        let token_id: u128 = 42;
+        env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &attacker,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "set_collectible_info",
+                args: soroban_sdk::vec![
+                    &env,
+                    token_id.into_val(&env),
+                    1_u32.into_val(&env),
+                    1_u32.into_val(&env),
+                    100_u128.into_val(&env),
+                    50_u128.into_val(&env),
+                    5_u64.into_val(&env)
+                ],
+                sub_invokes: &[],
+            },
+        }]);
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.set_collectible_info(&token_id, &1u32, &1u32, &100u128, &50u128, &5u64);
+        }));
+        assert!(res.is_err(), "non-owner must not set collectible info");
+    }
+
+    /// Redeeming a voucher for a stale/non-existent token_id must panic gracefully.
+    /// Verifies that disconnected state is handled without silent data corruption.
+    #[test]
+    fn redeem_nonexistent_voucher_panics_gracefully() {
+        let f = Fixture::new();
+        let stale_tid: u128 = 0xCAFE_BABE;
+
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_a, &stale_tid);
+        }));
+        assert!(
+            res.is_err(),
+            "redeem_voucher_from on non-existent token_id must panic"
+        );
+        assert_eq!(
+            f.tyc_balance(&f.player_a),
+            0,
+            "no TYC must move for stale voucher"
+        );
+    }
 }

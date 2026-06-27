@@ -19,6 +19,8 @@ import { User } from '../users/entities/user.entity';
 import { Role } from './enums/role.enum';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthAuditEvent } from './audit/auth-audit.events';
+import { ListRefreshTokensDto, SortOrder } from './dto/list-refresh-tokens.dto';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class AuthService {
@@ -125,12 +127,16 @@ export class AuthService {
     return null;
   }
 
-  async login(user: {
-    id: number;
-    email: string;
-    role: string;
-    is_admin: boolean;
-  }, ipAddress?: string, userAgent?: string) {
+  async login(
+    user: {
+      id: number;
+      email: string;
+      role: string;
+      is_admin: boolean;
+    },
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -138,7 +144,11 @@ export class AuthService {
       is_admin: user.is_admin,
     };
     const accessToken = this.jwtService.sign(payload);
-    const refreshToken = await this.createRefreshToken(Number(user.id), ipAddress, userAgent);
+    const refreshToken = await this.createRefreshToken(
+      Number(user.id),
+      ipAddress,
+      userAgent,
+    );
 
     this.authAudit.record(AuthAuditEvent.LOGIN_SUCCESS, {
       userId: user.id,
@@ -153,7 +163,12 @@ export class AuthService {
     };
   }
 
-  async walletLogin(address: string, chain: string, ipAddress?: string, userAgent?: string) {
+  async walletLogin(
+    address: string,
+    chain: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     if (!address || !chain) {
       throw new BadRequestException('Address and chain are required');
     }
@@ -176,7 +191,11 @@ export class AuthService {
       is_admin: user.is_admin,
     };
     const accessToken = this.jwtService.sign(payload);
-    const refreshToken = await this.createRefreshToken(user.id, ipAddress, userAgent);
+    const refreshToken = await this.createRefreshToken(
+      user.id,
+      ipAddress,
+      userAgent,
+    );
 
     this.authAudit.record(AuthAuditEvent.WALLET_LOGIN_SUCCESS, {
       userId: user.id,
@@ -312,7 +331,11 @@ export class AuthService {
     };
   }
 
-  async logout(userId: number, ipAddress?: string, userAgent?: string): Promise<void> {
+  async logout(
+    userId: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
       { isRevoked: true },
@@ -327,6 +350,44 @@ export class AuthService {
   async hashPassword(password: string): Promise<string> {
     const saltRounds = 10;
     return await bcrypt.hash(password, saltRounds);
+  }
+
+  async listRefreshTokens(
+    userId: number,
+    dto: ListRefreshTokensDto,
+  ): Promise<PaginatedResponse<Omit<RefreshToken, 'tokenHash' | 'user'>>> {
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const sortBy = dto.sortBy ?? 'createdAt';
+    const sortOrder = dto.sortOrder ?? SortOrder.DESC;
+
+    const where: Partial<RefreshToken> = { userId };
+    if (dto.isRevoked !== undefined) {
+      where.isRevoked = dto.isRevoked;
+    }
+
+    const [rows, totalItems] = await this.refreshTokenRepository.findAndCount({
+      where,
+      order: { [sortBy]: sortOrder },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    const data = rows.map(({ tokenHash: _tokenHash, user: _user, ...safe }) => safe);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async CreateUser(dto: {

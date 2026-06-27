@@ -6,20 +6,16 @@ const cacheManagerMock = {
 };
 
 export class CacheModule {
-  static register = jest
-    .fn()
-    .mockReturnValue({
-      module: CacheModule,
-      providers: [{ provide: CACHE_MANAGER, useValue: cacheManagerMock }],
-      exports: [CACHE_MANAGER],
-    });
-  static registerAsync = jest
-    .fn()
-    .mockReturnValue({
-      module: CacheModule,
-      providers: [{ provide: CACHE_MANAGER, useValue: cacheManagerMock }],
-      exports: [CACHE_MANAGER],
-    });
+  static register = jest.fn().mockReturnValue({
+    module: CacheModule,
+    providers: [{ provide: CACHE_MANAGER, useValue: cacheManagerMock }],
+    exports: [CACHE_MANAGER],
+  });
+  static registerAsync = jest.fn().mockReturnValue({
+    module: CacheModule,
+    providers: [{ provide: CACHE_MANAGER, useValue: cacheManagerMock }],
+    exports: [CACHE_MANAGER],
+  });
 }
 
 export const CacheInterceptor = class {};

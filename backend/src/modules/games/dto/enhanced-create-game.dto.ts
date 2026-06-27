@@ -14,10 +14,10 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CreateGameSettingsDto } from './create-game-settings.dto';
 import { GameMode } from '../entities/game.entity';
-import { 
-  IsValidPlayerCount, 
-  IsValidBlockchainAddress, 
-  IsValidContractGameId 
+import {
+  IsValidPlayerCount,
+  IsValidBlockchainAddress,
+  IsValidContractGameId,
 } from '../validators/game-validators';
 
 export class EnhancedCreateGameDto {
@@ -26,8 +26,8 @@ export class EnhancedCreateGameDto {
     enum: GameMode,
     description: 'Game mode (PUBLIC or PRIVATE)',
   })
-  @IsEnum(GameMode, { 
-    message: 'mode must be either PUBLIC or PRIVATE' 
+  @IsEnum(GameMode, {
+    message: 'mode must be either PUBLIC or PRIVATE',
   })
   @IsNotEmpty({ message: 'mode is required' })
   mode: GameMode;

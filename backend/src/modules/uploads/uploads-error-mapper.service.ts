@@ -15,7 +15,7 @@ export enum UploadErrorCode {
   EXECUTABLE_NOT_ALLOWED = 'EXECUTABLE_NOT_ALLOWED',
   MAGIC_BYTES_MISMATCH = 'MAGIC_BYTES_MISMATCH',
   FILE_REQUIRED = 'FILE_REQUIRED',
-  
+
   // Multer errors
   LIMIT_FILE_SIZE = 'LIMIT_FILE_SIZE',
   LIMIT_FILE_COUNT = 'LIMIT_FILE_COUNT',
@@ -24,20 +24,20 @@ export enum UploadErrorCode {
   LIMIT_FIELD_VALUE = 'LIMIT_FIELD_VALUE',
   LIMIT_FIELD_COUNT = 'LIMIT_FIELD_COUNT',
   LIMIT_PART_COUNT = 'LIMIT_PART_COUNT',
-  
+
   // Virus scan errors
   VIRUS_DETECTED = 'VIRUS_DETECTED',
   VIRUS_SCAN_FAILED = 'VIRUS_SCAN_FAILED',
-  
+
   // Storage errors
   STORAGE_ERROR = 'STORAGE_ERROR',
   STORAGE_QUOTA_EXCEEDED = 'STORAGE_QUOTA_EXCEEDED',
-  
+
   // Token/URL errors
   INVALID_TOKEN = 'INVALID_TOKEN',
   EXPIRED_TOKEN = 'EXPIRED_TOKEN',
   INVALID_KEY = 'INVALID_KEY',
-  
+
   // DTO validation errors
   VALIDATION_ERROR = 'VALIDATION_ERROR',
 }
@@ -45,7 +45,7 @@ export enum UploadErrorCode {
 /**
  * Service for mapping upload-related errors to standardized HTTP responses
  * Provides consistent error messages and status codes across the uploads module
- * 
+ *
  * Security: No sensitive information (file paths, internal errors) exposed
  * Compliance: Aligns with ERROR_MESSAGE_STANDARDS.md
  */
@@ -68,22 +68,22 @@ export class UploadsErrorMapperService {
     [UploadErrorCode.LIMIT_FIELD_VALUE]: HttpStatus.BAD_REQUEST,
     [UploadErrorCode.LIMIT_FIELD_COUNT]: HttpStatus.BAD_REQUEST,
     [UploadErrorCode.LIMIT_PART_COUNT]: HttpStatus.BAD_REQUEST,
-    
+
     // 401 Unauthorized
     [UploadErrorCode.INVALID_TOKEN]: HttpStatus.UNAUTHORIZED,
     [UploadErrorCode.EXPIRED_TOKEN]: HttpStatus.UNAUTHORIZED,
-    
+
     // 413 Payload Too Large
     [UploadErrorCode.FILE_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
     [UploadErrorCode.LIMIT_FILE_SIZE]: HttpStatus.PAYLOAD_TOO_LARGE,
-    
+
     // 422 Unprocessable Entity
     [UploadErrorCode.VIRUS_DETECTED]: HttpStatus.UNPROCESSABLE_ENTITY,
-    
+
     // 500 Internal Server Error
     [UploadErrorCode.VIRUS_SCAN_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
     [UploadErrorCode.STORAGE_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
-    
+
     // 507 Insufficient Storage
     [UploadErrorCode.STORAGE_QUOTA_EXCEEDED]: HttpStatus.INSUFFICIENT_STORAGE,
   };
@@ -93,21 +93,30 @@ export class UploadsErrorMapperService {
    */
   private readonly messageMap: Record<string, string> = {
     [UploadErrorCode.FILE_REQUIRED]: 'File is required',
-    [UploadErrorCode.FILE_TOO_LARGE]: 'File size exceeds the maximum allowed size of 5MB',
-    [UploadErrorCode.FILE_TYPE_NOT_ALLOWED]: 'File type not permitted. Only JPEG, PNG, GIF, and WebP images are accepted',
-    [UploadErrorCode.EXECUTABLE_NOT_ALLOWED]: 'Executable files are not allowed',
-    [UploadErrorCode.MAGIC_BYTES_MISMATCH]: 'File content does not match the declared file type',
-    [UploadErrorCode.LIMIT_FILE_SIZE]: 'File size exceeds the maximum allowed size of 5MB',
-    [UploadErrorCode.LIMIT_FILE_COUNT]: 'Too many files uploaded. Only 1 file is allowed',
+    [UploadErrorCode.FILE_TOO_LARGE]:
+      'File size exceeds the maximum allowed size of 5MB',
+    [UploadErrorCode.FILE_TYPE_NOT_ALLOWED]:
+      'File type not permitted. Only JPEG, PNG, GIF, and WebP images are accepted',
+    [UploadErrorCode.EXECUTABLE_NOT_ALLOWED]:
+      'Executable files are not allowed',
+    [UploadErrorCode.MAGIC_BYTES_MISMATCH]:
+      'File content does not match the declared file type',
+    [UploadErrorCode.LIMIT_FILE_SIZE]:
+      'File size exceeds the maximum allowed size of 5MB',
+    [UploadErrorCode.LIMIT_FILE_COUNT]:
+      'Too many files uploaded. Only 1 file is allowed',
     [UploadErrorCode.LIMIT_UNEXPECTED_FILE]: 'Unexpected file field in upload',
     [UploadErrorCode.LIMIT_FIELD_KEY]: 'Field name is too long',
     [UploadErrorCode.LIMIT_FIELD_VALUE]: 'Field value is too long',
     [UploadErrorCode.LIMIT_FIELD_COUNT]: 'Too many fields in upload',
     [UploadErrorCode.LIMIT_PART_COUNT]: 'Too many parts in multipart upload',
-    [UploadErrorCode.VIRUS_DETECTED]: 'File contains malicious content and cannot be uploaded',
-    [UploadErrorCode.VIRUS_SCAN_FAILED]: 'Unable to scan file for viruses. Please try again',
+    [UploadErrorCode.VIRUS_DETECTED]:
+      'File contains malicious content and cannot be uploaded',
+    [UploadErrorCode.VIRUS_SCAN_FAILED]:
+      'Unable to scan file for viruses. Please try again',
     [UploadErrorCode.STORAGE_ERROR]: 'Failed to store file. Please try again',
-    [UploadErrorCode.STORAGE_QUOTA_EXCEEDED]: 'Storage quota exceeded. Please delete some files or contact support',
+    [UploadErrorCode.STORAGE_QUOTA_EXCEEDED]:
+      'Storage quota exceeded. Please delete some files or contact support',
     [UploadErrorCode.INVALID_TOKEN]: 'Invalid or malformed download token',
     [UploadErrorCode.EXPIRED_TOKEN]: 'Download token has expired',
     [UploadErrorCode.INVALID_KEY]: 'Invalid file key format',
@@ -119,7 +128,8 @@ export class UploadsErrorMapperService {
    */
   mapError(errorCode: UploadErrorCode, details?: any): MappedError {
     const statusCode = this.statusCodeMap[errorCode] ?? HttpStatus.BAD_REQUEST;
-    const message = this.messageMap[errorCode] ?? 'An error occurred during file upload';
+    const message =
+      this.messageMap[errorCode] ?? 'An error occurred during file upload';
 
     return {
       statusCode,
@@ -167,7 +177,10 @@ export class UploadsErrorMapperService {
 
     if (validatorMessage.includes('Executable')) {
       errorCode = UploadErrorCode.EXECUTABLE_NOT_ALLOWED;
-    } else if (validatorMessage.includes('File type') || validatorMessage.includes('magic')) {
+    } else if (
+      validatorMessage.includes('File type') ||
+      validatorMessage.includes('magic')
+    ) {
       errorCode = UploadErrorCode.MAGIC_BYTES_MISMATCH;
     } else if (validatorMessage.includes('size')) {
       errorCode = UploadErrorCode.FILE_TOO_LARGE;
@@ -181,7 +194,9 @@ export class UploadsErrorMapperService {
   /**
    * Format class-validator errors into a structured format
    */
-  private formatValidationErrors(errors: ValidationError[]): Record<string, string[]> {
+  private formatValidationErrors(
+    errors: ValidationError[],
+  ): Record<string, string[]> {
     const formatted: Record<string, string[]> = {};
 
     for (const error of errors) {
@@ -238,11 +253,14 @@ export class UploadsErrorMapperService {
    */
   private sanitizeMessage(message: string): string {
     // Remove file paths
-    message = message.replace(/\/[^\s]+\.(jpg|png|gif|webp|exe|bin|sh)/gi, '[file]');
-    
+    message = message.replace(
+      /\/[^\s]+\.(jpg|png|gif|webp|exe|bin|sh)/gi,
+      '[file]',
+    );
+
     // Remove potential internal error details
     message = message.replace(/Error: .+/g, 'An error occurred');
-    
+
     // Remove stack traces
     message = message.split('\n')[0];
 

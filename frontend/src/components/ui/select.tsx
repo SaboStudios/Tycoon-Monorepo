@@ -17,12 +17,15 @@ interface SelectProps {
     className?: string
     disabled?: boolean
     id?: string
+    error?: string | null
+    onRetry?: () => void
+    emptyMessage?: string
     "aria-labelledby"?: string
     "aria-label"?: string
 }
 
 const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-    ({ value, onChange, placeholder = "Select...", options, className, disabled, id, "aria-labelledby": ariaLabelledby, "aria-label": ariaLabel }, ref) => {
+    ({ value, onChange, placeholder = "Select...", options, className, disabled, id, error, onRetry, emptyMessage = "No options available", "aria-labelledby": ariaLabelledby, "aria-label": ariaLabel }, ref) => {
         const [isOpen, setIsOpen] = React.useState(false)
         const [activeIndex, setActiveIndex] = React.useState<number>(-1)
         const containerRef = React.useRef<HTMLDivElement>(null)
@@ -98,6 +101,40 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                     setIsOpen(false)
                     break
             }
+        }
+
+        // Render error state
+        if (error) {
+            return (
+                <div className={cn("relative", className)} ref={containerRef}>
+                    <div
+                        role="alert"
+                        className="flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-900/20"
+                    >
+                        <div className="text-red-600 dark:text-red-400">{error}</div>
+                        {onRetry && (
+                            <button
+                                type="button"
+                                onClick={onRetry}
+                                className="w-full rounded-sm bg-red-500 px-2 py-1 text-xs font-medium text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
+                            >
+                                Retry
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )
+        }
+
+        // Render empty state
+        if (options.length === 0) {
+            return (
+                <div className={cn("relative", className)} ref={containerRef}>
+                    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+                        {emptyMessage}
+                    </div>
+                </div>
+            )
         }
 
         return (

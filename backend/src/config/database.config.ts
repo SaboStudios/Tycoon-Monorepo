@@ -43,10 +43,7 @@ function resolvePoolOptions(): {
   const isProd = env === 'production' || env === 'provision';
 
   return {
-    poolSize: parseInt(
-      process.env.DB_POOL_SIZE ?? (isProd ? '20' : '5'),
-      10,
-    ),
+    poolSize: parseInt(process.env.DB_POOL_SIZE ?? (isProd ? '20' : '5'), 10),
     idleTimeoutMs: parseInt(
       process.env.DB_POOL_IDLE_TIMEOUT_MS ?? (isProd ? '30000' : '10000'),
       10,
@@ -55,10 +52,7 @@ function resolvePoolOptions(): {
       process.env.DB_STATEMENT_TIMEOUT_MS ?? (isProd ? '30000' : '0'),
       10,
     ),
-    connectTimeoutMs: parseInt(
-      process.env.DB_CONNECT_TIMEOUT_MS ?? '5000',
-      10,
-    ),
+    connectTimeoutMs: parseInt(process.env.DB_CONNECT_TIMEOUT_MS ?? '5000', 10),
   };
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Bell, Mail, MessageSquare } from 'lucide-react';
+import { Bell, Mail, MessageSquare, AlertCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,17 +14,21 @@ export function NotificationSettings() {
   const [gameUpdates, setGameUpdates] = useState(true);
   const [promotions, setPromotions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveError('');
 
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       toast.success('Notification preferences saved');
     } catch (error) {
-      toast.error('Failed to save preferences');
+      const message = 'Failed to save preferences. Please try again.';
+      toast.error(message);
+      setSaveError(message);
     } finally {
       setIsSaving(false);
     }
@@ -93,12 +97,23 @@ export function NotificationSettings() {
           />
         </div>
 
-        {/* Save Button */}
-        <div className="border-t border-[var(--tycoon-border)] pt-6">
+        {/* Save Button + inline error */}
+        <div className="space-y-3 border-t border-[var(--tycoon-border)] pt-6">
+          {saveError && (
+            <p
+              id="notification-settings-error"
+              role="alert"
+              data-testid="notification-settings-error"
+              className="flex items-center gap-1.5 text-sm text-red-400"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {saveError}
+            </p>
+          )}
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="bg-[var(--tycoon-accent)] text-[#010F10] hover:bg-[var(--tycoon-accent)]/90"
+            className="min-w-[160px] bg-[var(--tycoon-accent)] text-[#010F10] hover:bg-[var(--tycoon-accent)]/90"
           >
             {isSaving ? (
               <>

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
 import { Spinner } from '@/components/ui/spinner';
-import { Share2, Trophy, Medal, User } from 'lucide-react';
+import { Share2, Trophy, Medal, User, AlertCircle } from 'lucide-react';
 
 interface LeaderboardUser {
   id: number;
@@ -20,6 +20,7 @@ export function Leaderboard() {
   const { t } = useTranslation('common');
   const [data, setData] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -29,6 +30,7 @@ export function Leaderboard() {
 
   const fetchLeaderboard = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch(`/api/users/leaderboard?page=${page}&limit=10`);
       if (!response.ok) throw new Error('Failed to fetch leaderboard');
@@ -36,11 +38,18 @@ export function Leaderboard() {
       setData(result.data);
       setTotalPages(result.meta.totalPages);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'An error occurred';
       console.error('Error fetching leaderboard:', error);
+      setError(message);
       toast.error('Could not load leaderboard');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    setPage(1);
+    fetchLeaderboard();
   };
 
   const handleShareProfile = (username: string) => {
@@ -58,6 +67,39 @@ export function Leaderboard() {
     if (rank === 3) return <Medal className="text-amber-600" size={20} />;
     return <span className="text-neutral-500 font-mono text-sm">{rank}</span>;
   };
+
+  // Error state
+  if (error && !loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8 flex items-center justify-center">
+          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+            <Trophy className="text-cyan-400" />
+            {t('leaderboard.title')}
+          </h1>
+        </div>
+
+        <Card className="border-neutral-800 bg-neutral-900/50 backdrop-blur-md overflow-hidden">
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center justify-center gap-4">
+              <AlertCircle className="w-12 h-12 text-red-500" />
+              <div className="text-center">
+                <h2 className="text-lg font-semibold text-white mb-2">Failed to load leaderboard</h2>
+                <p className="text-neutral-400 text-sm mb-6">{error}</p>
+              </div>
+              <Button
+                onClick={handleRetry}
+                className="bg-cyan-500 text-black hover:bg-cyan-400"
+                data-testid="leaderboard-retry-button"
+              >
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -89,7 +131,7 @@ export function Leaderboard() {
                 </tr>
               ) : data.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center text-neutral-500">
+                  <td colSpan={5} className="py-20 text-center text-neutral-500" data-testid="leaderboard-empty">
                     Leaderboard is empty.
                   </td>
                 </tr>

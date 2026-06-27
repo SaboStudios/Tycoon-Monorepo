@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { expect, test, describe, vi } from "vitest";
-import AiPlayGamePage from "./page";
+import AiPlayGamePage, { AiGameContent } from "./page";
 
 vi.mock("@/components/ui/spinner", () => ({
   Spinner: ({ size }: { size: string }) => (
@@ -21,8 +21,7 @@ vi.mock("next/link", () => {
 describe("AI Game Page - TypeScript Strictness", () => {
   describe("Type Safety", () => {
     test("Page component has explicit return type Promise<React.ReactNode>", async () => {
-      const params = Promise.resolve({ id: "TEST123" });
-      const result = render(<AiPlayGamePage params={params} />);
+      const result = render(<AiGameContent id="TEST123" />);
       expect(result).toBeDefined();
       expect(result.container).toBeInTheDocument();
     });
@@ -30,8 +29,7 @@ describe("AI Game Page - TypeScript Strictness", () => {
     test("Page props are properly typed with PageProps interface", async () => {
       // This test validates that the PageProps interface is used correctly
       // TypeScript will catch any type mismatches at compile time
-      const params: Promise<{ id: string }> = Promise.resolve({ id: "TEST123" });
-      const result = render(<AiPlayGamePage params={params} />);
+      const result = render(<AiGameContent id="TEST123" />);
       expect(result).toBeDefined();
     });
   });
@@ -39,22 +37,19 @@ describe("AI Game Page - TypeScript Strictness", () => {
   describe("Null/Undefined Guards", () => {
     test("handles undefined id parameter gracefully", async () => {
       // Test that empty/invalid id is handled properly
-      const params = Promise.resolve({ id: "" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="" />);
       const errorSection = container.querySelector('section[role="alert"]');
       expect(errorSection).toBeInTheDocument();
     });
 
     test("handles whitespace-only id as invalid", async () => {
-      const params = Promise.resolve({ id: "   " });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="   " />);
       const errorSection = container.querySelector('section[role="alert"]');
       expect(errorSection).toBeInTheDocument();
     });
 
     test("handles valid id properly", async () => {
-      const params = Promise.resolve({ id: "ABC123" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="ABC123" />);
       const loadingSection = container.querySelector('section[aria-label="AI game loading"]');
       expect(loadingSection).toBeInTheDocument();
     });
@@ -62,23 +57,20 @@ describe("AI Game Page - TypeScript Strictness", () => {
 
   describe("String Type Safety", () => {
     test("game code is always a string", async () => {
-      const params = Promise.resolve({ id: "test" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="test" />);
       const h1 = container.querySelector("h1");
       // h1 content should be a string "AI Game – TEST"
       expect(typeof h1?.textContent).toBe("string");
     });
 
     test("game code is uppercase", async () => {
-      const params = Promise.resolve({ id: "lowercase" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="lowercase" />);
       const h1 = container.querySelector("h1");
       expect(h1?.textContent).toContain("LOWERCASE");
     });
 
     test("game code strips whitespace", async () => {
-      const params = Promise.resolve({ id: "  spaced  " });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="  spaced  " />);
       const h1 = container.querySelector("h1");
       expect(h1?.textContent).toContain("SPACED");
       expect(h1?.textContent).not.toContain("  ");
@@ -87,20 +79,17 @@ describe("AI Game Page - TypeScript Strictness", () => {
 
   describe("Component Return Types", () => {
     test("AiGameContent returns valid React node for error state", async () => {
-      const params = Promise.resolve({ id: "" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="" />);
       expect(container.firstChild).toBeDefined();
     });
 
     test("AiGameContent returns valid React node for content state", async () => {
-      const params = Promise.resolve({ id: "GAME001" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="GAME001" />);
       expect(container.firstChild).toBeDefined();
     });
 
     test("AiGameLoading returns valid React node", async () => {
-      const params = Promise.resolve({ id: "TEST" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="TEST" />);
       expect(container.firstChild).toBeDefined();
     });
   });
@@ -130,8 +119,7 @@ describe("AI Game Page - TypeScript Strictness", () => {
 
   describe("Async/Await Type Safety", () => {
     test("params Promise is properly awaited", async () => {
-      const params = Promise.resolve({ id: "ASYNC_TEST" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="ASYNC_TEST" />);
       const h1 = container.querySelector("h1");
       expect(h1?.textContent).toContain("ASYNC_TEST");
     });
@@ -139,8 +127,7 @@ describe("AI Game Page - TypeScript Strictness", () => {
 
   describe("Suspense Boundary", () => {
     test("Suspense fallback returns valid React node", async () => {
-      const params = Promise.resolve({ id: "TEST" });
-      const { container } = render(<AiPlayGamePage params={params} />);
+      const { container } = render(<AiGameContent id="TEST" />);
       expect(container).toBeDefined();
     });
   });

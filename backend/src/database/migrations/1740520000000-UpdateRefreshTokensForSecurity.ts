@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class UpdateRefreshTokensForSecurity1740520000000
-  implements MigrationInterface
-{
+export class UpdateRefreshTokensForSecurity1740520000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Rename token column to tokenHash
     await queryRunner.query(

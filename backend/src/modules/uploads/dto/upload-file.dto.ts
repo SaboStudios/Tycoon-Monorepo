@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, MaxLength, Matches } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  MaxLength,
+  Matches,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -28,7 +34,8 @@ export class GetSignedUrlDto {
   @IsString({ message: 'Key must be a string' })
   @MaxLength(500, { message: 'Key must not exceed 500 characters' })
   @Matches(/^[a-zA-Z0-9\/_\-\.]+$/, {
-    message: 'Key contains invalid characters. Only alphanumeric, /, _, -, and . are allowed',
+    message:
+      'Key contains invalid characters. Only alphanumeric, /, _, -, and . are allowed',
   })
   key: string;
 }
@@ -68,7 +75,8 @@ export class UploadMetadataDto {
   @IsString({ message: 'Tags must be a string' })
   @MaxLength(200, { message: 'Tags must not exceed 200 characters' })
   @Matches(/^[a-zA-Z0-9,_\-]+$/, {
-    message: 'Tags contain invalid characters. Only alphanumeric, comma, _, and - are allowed',
+    message:
+      'Tags contain invalid characters. Only alphanumeric, comma, _, and - are allowed',
   })
   tags?: string;
 }

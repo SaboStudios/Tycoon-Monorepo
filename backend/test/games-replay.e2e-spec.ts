@@ -53,7 +53,7 @@ describe('Games Idempotency (e2e)', () => {
 
   it('should create a game and cache the response', async () => {
     const idempotencyKey = 'unique-key-1';
-    
+
     // First request
     const res1 = await request(app.getHttpServer())
       .post('/games')

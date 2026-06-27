@@ -40,7 +40,8 @@ export class RequestLoggerInterceptor implements NestInterceptor {
     }
 
     const correlationId: string =
-      (req.headers[CORRELATION_ID_HEADER] as string | undefined) ?? randomUUID();
+      (req.headers[CORRELATION_ID_HEADER] as string | undefined) ??
+      randomUUID();
 
     // Attach to request so downstream code can read it.
     (req as Request & { correlationId: string }).correlationId = correlationId;
@@ -73,8 +74,7 @@ export class RequestLoggerInterceptor implements NestInterceptor {
             path,
             statusCode: res.statusCode,
             durationMs: Math.round(durationMs),
-            error:
-              err instanceof Error ? err.message : 'Unknown error',
+            error: err instanceof Error ? err.message : 'Unknown error',
           });
         },
       }),

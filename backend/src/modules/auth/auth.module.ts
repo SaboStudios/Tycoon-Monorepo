@@ -29,8 +29,7 @@ import { AuthAuditService } from './audit/auth-audit.service';
           expiresIn: configService.get<number>('jwt.expiresIn') || 900,
         },
         verifyOptions: {
-          clockTolerance:
-            configService.get<number>('jwt.clockTolerance') || 60,
+          clockTolerance: configService.get<number>('jwt.clockTolerance') || 60,
         },
       }),
     }),

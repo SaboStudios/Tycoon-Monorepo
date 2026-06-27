@@ -808,3 +808,103 @@ fn test_set_collectible_info_overwrite() {
         (2, 20, 200, 100, 10)
     );
 }
+
+// ===== IMPROVED / EXTRA COVERAGE TESTS =====
+
+#[test]
+#[should_panic(expected = "amount exceeds i128::MAX")]
+fn test_withdraw_funds_amount_overflow_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let recipient = Address::generate(&env);
+    // i128::MAX + 1
+    let huge_amount = i128::MAX as u128 + 1;
+    client.withdraw_funds(&tyc_token, &recipient, &huge_amount);
+}
+
+#[test]
+#[should_panic(expected = "Invalid address: cannot be the contract itself")]
+fn test_initialize_with_self_address_owner_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonContract, ());
+    let client = TycoonContractClient::new(&env, &contract_id);
+
+    let tyc_token = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    let reward_system = Address::generate(&env);
+
+    // Initial owner set to contract's own ID
+    client.initialize(&tyc_token, &usdc_token, &contract_id, &reward_system);
+}
+
+#[test]
+#[should_panic(expected = "Invalid address: cannot be the contract itself")]
+fn test_initialize_with_self_address_tyc_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonContract, ());
+    let client = TycoonContractClient::new(&env, &contract_id);
+
+    let owner = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    let reward_system = Address::generate(&env);
+
+    // tyc_token set to contract's own ID
+    client.initialize(&contract_id, &usdc_token, &owner, &reward_system);
+}
+
+#[test]
+fn test_register_player_unicode_username() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "👑tycoon👑"); // 8 chars (valid range 3-20)
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_admin_set_collectible_info_zero_values() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let token_id = 999;
+    client.set_collectible_info(&token_id, &0, &0, &0, &0, &0);
+    assert_eq!(client.get_collectible_info(&token_id), (0, 0, 0, 0, 0));
+}
+
+#[test]
+fn test_admin_set_cash_tier_value_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    client.set_cash_tier_value(&99, &0);
+    assert_eq!(client.get_cash_tier_value(&99), 0);
+}

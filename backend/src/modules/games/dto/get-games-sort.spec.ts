@@ -13,7 +13,7 @@ import { GetGamePlayersDto, GamePlayerSortField } from './get-game-players.dto';
 
 async function getErrors(DtoClass: new () => object, plain: object) {
   const instance = plainToInstance(DtoClass as new () => object, plain);
-  const errors = await validate(instance as object);
+  const errors = await validate(instance);
   return errors.flatMap((e) => Object.values(e.constraints ?? {}));
 }
 

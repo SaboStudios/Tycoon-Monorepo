@@ -26,6 +26,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_fee_config_is_valid() {
+        let env = Env::default();
+        let valid_config = cfg(&env, 2500, 2500, 5000);
+        assert!(valid_config.is_valid());
+
+        let invalid_config = cfg(&env, 6000, 6000, 6000);
+        assert!(!invalid_config.is_valid());
+    }
+
+    #[test]
+    fn test_fee_config_is_valid() {
+        let env = Env::default();
+        let valid_config = cfg(&env, 2500, 2500, 5000);
+        assert!(valid_config.is_valid());
+
+        let invalid_config = cfg(&env, 6000, 6000, 6000);
+        assert!(!invalid_config.is_valid());
+    }
+
     /// All fees sum to exactly 10 000 bps — residue must be zero.
     #[test]
     fn test_fees_sum_to_100_pct_no_residue() {
@@ -44,24 +64,20 @@ mod tests {
 
     /// Total fees exceed 10 000 bps — saturating_sub must prevent underflow.
     #[test]
-    fn test_fees_exceed_100_pct_residue_saturates() {
+    fn test_fees_exceed_100_pct_handled_gracefully() {
         let env = Env::default();
-        // 60% + 60% + 60% = 180% — total_distributed > amount
+        // 60% + 60% + 60% = 180% — invalid config
         let config = cfg(&env, 6000, 6000, 6000);
         let split = calculate_fee_split(100, &config);
-        // Each: 100 * 6000 / 10000 = 60
-        assert_eq!(split.platform_amount, 60);
-        assert_eq!(split.creator_amount, 60);
-        assert_eq!(split.pool_amount, 60);
-        // total_distributed = 180 > 100 → saturating_sub → residue = 0
-        assert_eq!(split.residue, 0, "saturating_sub must prevent underflow");
-        // Invariant: sum of all parts must not exceed input
+        
+        // Due to graceful handling of invalid configs, all goes to residue
+        assert_eq!(split.platform_amount, 0);
+        assert_eq!(split.creator_amount, 0);
+        assert_eq!(split.pool_amount, 0);
+        assert_eq!(split.residue, 100, "Invalid fee config must gracefully return amount as residue");
+        
         let sum = split.platform_amount + split.creator_amount + split.pool_amount + split.residue;
-        // sum here is 180 which is > 100 — this is the documented over-allocation case.
-        // The contract's saturating_sub only protects residue from wrapping; callers
-        // must not configure fees > 100%. Flag for security review if bps validation
-        // is not enforced at the call site.
-        let _ = sum; // acknowledged
+        assert_eq!(sum, 100);
     }
 
     /// Large amount near u128 ceiling — multiplication must not overflow.
@@ -151,5 +167,59 @@ mod tests {
                 "invariant failed: p={p} c={c} pool={pool} amount={amount}"
             );
         }
+    #[test]
+    fn test_creator_takes_all() {
+        let env = Env::default();
+        let config = cfg(&env, 0, 10_000, 0);
+        let split = calculate_fee_split(5_000, &config);
+        assert_eq!(split.platform_amount, 0);
+        assert_eq!(split.creator_amount, 5_000);
+        assert_eq!(split.pool_amount, 0);
+        assert_eq!(split.residue, 0);
+    }
+
+    #[test]
+    fn test_pool_takes_all() {
+        let env = Env::default();
+        let config = cfg(&env, 0, 0, 10_000);
+        let split = calculate_fee_split(7_777, &config);
+        assert_eq!(split.platform_amount, 0);
+        assert_eq!(split.creator_amount, 0);
+        assert_eq!(split.pool_amount, 7_777);
+        assert_eq!(split.residue, 0);
+    }
+
+    #[test]
+    fn test_amount_zero_handled_gracefully() {
+        let env = Env::default();
+        let config = cfg(&env, 1000, 2000, 3000);
+        let split = calculate_fee_split(0, &config);
+        assert_eq!(split.platform_amount, 0);
+        assert_eq!(split.creator_amount, 0);
+        assert_eq!(split.pool_amount, 0);
+        assert_eq!(split.residue, 0);
+    }
+
+    #[test]
+    fn test_fees_all_zero_bps() {
+        let env = Env::default();
+        let config = cfg(&env, 0, 0, 0);
+        let split = calculate_fee_split(999, &config);
+        assert_eq!(split.platform_amount, 0);
+        assert_eq!(split.creator_amount, 0);
+        assert_eq!(split.pool_amount, 0);
+        assert_eq!(split.residue, 999);
+    }
+
+    #[test]
+    fn test_fee_config_edge_case_validity() {
+        let env = Env::default();
+        // Exactly 10000 should be valid
+        let config_exact = cfg(&env, 3334, 3333, 3333);
+        assert!(config_exact.is_valid());
+
+        // 10001 should be invalid
+        let config_over = cfg(&env, 3334, 3334, 3333);
+        assert!(!config_over.is_valid());
     }
 }

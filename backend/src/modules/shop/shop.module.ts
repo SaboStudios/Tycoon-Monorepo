@@ -7,6 +7,7 @@ import { ShopService } from './shop.service';
 import { PurchaseService } from './purchase.service';
 import { InventoryService } from './inventory.service';
 import { ShopController } from './shop.controller';
+import { AdminShopController } from './admin-shop.controller';
 import { CouponsModule } from '../coupons/coupons.module';
 import { UsersModule } from '../users/users.module';
 import { GiftsModule } from '../gifts/gifts.module';
@@ -18,7 +19,7 @@ import { GiftsModule } from '../gifts/gifts.module';
     UsersModule,
     GiftsModule,
   ],
-  controllers: [ShopController],
+  controllers: [ShopController, AdminShopController],
   providers: [ShopService, PurchaseService, InventoryService],
   exports: [ShopService, PurchaseService, InventoryService],
 })

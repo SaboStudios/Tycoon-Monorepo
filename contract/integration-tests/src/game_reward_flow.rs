@@ -15,6 +15,12 @@
 /// | `owner_removes_player`                    | admin → game.remove_player_from_game |
 /// | `unauthorized_remove_rejected`            | random address panics |
 /// | `multiple_players_register_independently` | three players, isolated data |
+/// | `export_state_reflects_fixture_wiring`    | export_state cross-contract wiring |
+/// | `game_migrate_is_idempotent`              | migrate no-op at v1 |
+/// | `reward_migrate_is_idempotent`            | reward migrate no-op at v1 |
+/// | `register_then_reward_then_remove`        | full lifecycle: register → reward → remove |
+/// | `admin_set_game_controller_updates_state` | admin_set_game_controller reflected in export_state |
+/// | `remove_player_no_controller_owner_ok`    | owner removes when no controller set |
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -183,5 +189,50 @@ mod tests {
         let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
         f.reward.redeem_voucher_from(&f.player_a, &tid);
         assert_eq!(f.tyc_balance(&f.player_a), value as i128);
+    }
+
+    /// Full lifecycle: register player, mint reward voucher, redeem, then remove from game.
+    #[test]
+    fn register_then_reward_then_remove() {
+        let f = Fixture::new();
+        f.game
+            .register_player(&String::from_str(&f.env, "lifecycle"), &f.player_a);
+        assert!(f.game.get_user(&f.player_a).is_some());
+
+        let value: u128 = 25_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        assert_eq!(f.tyc_balance(&f.player_a), value as i128);
+
+        // Backend removes the player from the game after the session
+        f.game
+            .remove_player_from_game(&f.backend, &1, &f.player_a, &20);
+    }
+
+    /// `admin_set_game_controller` is reflected in `export_state`.
+    #[test]
+    fn admin_set_game_controller_updates_state() {
+        let f = Fixture::new();
+        let new_controller = Address::generate(&f.env);
+        f.game.admin_set_game_controller(&new_controller);
+        let dump = f.game.export_state();
+        assert_eq!(
+            dump.backend_controller,
+            Some(new_controller),
+            "export_state must reflect the new controller"
+        );
+    }
+
+    /// Owner can remove a player when no backend controller has been set.
+    #[test]
+    fn remove_player_no_controller_owner_ok() {
+        let f = Fixture::new();
+        // Override fixture's backend controller by registering a fresh game
+        // without a controller — use the fixture admin directly.
+        f.game
+            .register_player(&String::from_str(&f.env, "solo"), &f.player_b);
+        f.game
+            .remove_player_from_game(&f.admin, &5, &f.player_b, &3);
+        // No panic — owner is always authorized
     }
 }

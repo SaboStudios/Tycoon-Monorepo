@@ -2,15 +2,19 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { AdminAnalyticsService } from './admin-analytics.service';
+import { AdminAnalyticsObservabilityService } from './admin-analytics-observability.service';
 import { User } from '../users/entities/user.entity';
 import { Game } from '../games/entities/game.entity';
 import { GamePlayer } from '../games/entities/game-player.entity';
+import { Transaction } from './entities/transaction.entity';
+import { PlayerActivity } from './entities/player-activity.entity';
 
 describe('AdminAnalyticsService', () => {
   let service: AdminAnalyticsService;
   let userRepo: Repository<User>;
   let gameRepo: Repository<Game>;
   let gamePlayerRepo: Repository<GamePlayer>;
+  let observabilityService: AdminAnalyticsObservabilityService;
 
   const mockUserRepo = {
     count: jest.fn(),
@@ -22,6 +26,20 @@ describe('AdminAnalyticsService', () => {
 
   const mockGamePlayerRepo = {
     count: jest.fn(),
+  };
+
+  const mockTransactionRepo = {
+    createQueryBuilder: jest.fn(),
+    count: jest.fn(),
+  };
+
+  const mockActivityRepo = {
+    createQueryBuilder: jest.fn(),
+  };
+
+  const mockObservabilityService = {
+    recordRequest: jest.fn(),
+    logEndpoint: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -40,6 +58,18 @@ describe('AdminAnalyticsService', () => {
           provide: getRepositoryToken(GamePlayer),
           useValue: mockGamePlayerRepo,
         },
+        {
+          provide: getRepositoryToken(Transaction),
+          useValue: mockTransactionRepo,
+        },
+        {
+          provide: getRepositoryToken(PlayerActivity),
+          useValue: mockActivityRepo,
+        },
+        {
+          provide: AdminAnalyticsObservabilityService,
+          useValue: mockObservabilityService,
+        },
       ],
     }).compile();
 
@@ -48,6 +78,9 @@ describe('AdminAnalyticsService', () => {
     gameRepo = module.get<Repository<Game>>(getRepositoryToken(Game));
     gamePlayerRepo = module.get<Repository<GamePlayer>>(
       getRepositoryToken(GamePlayer),
+    );
+    observabilityService = module.get<AdminAnalyticsObservabilityService>(
+      AdminAnalyticsObservabilityService,
     );
   });
 
@@ -124,6 +157,56 @@ describe('AdminAnalyticsService', () => {
         totalGames: 200,
         totalGamePlayers: 400,
       });
+      expect(observabilityService.recordRequest).toHaveBeenCalledWith(
+        'dashboard',
+        true,
+        expect.any(Number),
+      );
+    });
+  });
+
+  describe('getShopAnalytics', () => {
+    it('should return shop analytics data and record observability metrics', async () => {
+      jest.spyOn(service as any, 'getTotalRevenue').mockResolvedValue(1200);
+      jest.spyOn(service as any, 'getPopularItems').mockResolvedValue([
+        {
+          itemId: 'item-1',
+          itemName: 'Sword',
+          purchaseCount: 10,
+          totalRevenue: 500,
+        },
+      ]);
+      jest.spyOn(service as any, 'getConversionRate').mockResolvedValue(50);
+      jest.spyOn(service as any, 'getRetentionMetrics').mockResolvedValue({
+        day1: 80,
+        day7: 60,
+        day30: 40,
+      });
+
+      const result = await service.getShopAnalytics();
+
+      expect(result).toEqual({
+        totalRevenue: 1200,
+        popularItems: [
+          {
+            itemId: 'item-1',
+            itemName: 'Sword',
+            purchaseCount: 10,
+            totalRevenue: 500,
+          },
+        ],
+        conversionRate: 50,
+        retentionMetrics: {
+          day1: 80,
+          day7: 60,
+          day30: 40,
+        },
+      });
+      expect(observabilityService.recordRequest).toHaveBeenCalledWith(
+        'shop',
+        true,
+        expect.any(Number),
+      );
     });
   });
 });

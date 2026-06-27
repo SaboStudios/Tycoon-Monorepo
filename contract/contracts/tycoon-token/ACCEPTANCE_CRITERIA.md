@@ -142,6 +142,7 @@ Issue: SW-CT-004
 | Error branches | `error_branch_tests` module |
 | Access control | `access_control_tests` module |
 | Deprecation guards | `deprecation_tests` module |
+| Simulation scenarios | `simulation_scenarios` module |
 | Security review | `security_review_tests` module |
 
 ---

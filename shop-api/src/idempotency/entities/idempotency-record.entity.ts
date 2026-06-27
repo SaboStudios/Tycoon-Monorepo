@@ -44,13 +44,13 @@ export class IdempotencyRecord {
   responseBody: string | null;
 
   /** HTTP status code of the cached response. */
-  @Column({ nullable: true })
+  @Column({ type: 'integer', nullable: true })
   responseStatus: number | null;
 
   @CreateDateColumn()
   createdAt: Date;
 
   /** When the record was last updated (used for TTL-based cleanup). */
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   completedAt: Date | null;
 }

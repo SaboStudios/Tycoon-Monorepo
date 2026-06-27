@@ -78,7 +78,12 @@ describe('AdminAuthController', () => {
 
     it('passes ip and userAgent to validateAdmin', async () => {
       const adminLoginDto = { email: 'admin@example.com', password: 'pw' };
-      const mockUser = { id: 1, email: 'admin@example.com', role: Role.ADMIN, is_admin: true };
+      const mockUser = {
+        id: 1,
+        email: 'admin@example.com',
+        role: Role.ADMIN,
+        is_admin: true,
+      };
       (authService.validateAdmin as jest.Mock).mockResolvedValue(mockUser);
       (authService.login as jest.Mock).mockResolvedValue({});
 
@@ -94,14 +99,24 @@ describe('AdminAuthController', () => {
 
     it('passes ip and userAgent to login', async () => {
       const adminLoginDto = { email: 'admin@example.com', password: 'pw' };
-      const mockUser = { id: 1, email: 'admin@example.com', role: Role.ADMIN, is_admin: true };
+      const mockUser = {
+        id: 1,
+        email: 'admin@example.com',
+        role: Role.ADMIN,
+        is_admin: true,
+      };
       (authService.validateAdmin as jest.Mock).mockResolvedValue(mockUser);
       (authService.login as jest.Mock).mockResolvedValue({});
 
       await controller.login(adminLoginDto, mockRequest);
 
       expect(authService.login).toHaveBeenCalledWith(
-        { id: mockUser.id, email: mockUser.email, role: mockUser.role, is_admin: mockUser.is_admin },
+        {
+          id: mockUser.id,
+          email: mockUser.email,
+          role: mockUser.role,
+          is_admin: mockUser.is_admin,
+        },
         '127.0.0.1',
         'jest-agent',
       );
@@ -109,7 +124,12 @@ describe('AdminAuthController', () => {
 
     it('logs a redacted email, not the raw email', async () => {
       const adminLoginDto = { email: 'admin@example.com', password: 'pw' };
-      const mockUser = { id: 1, email: 'admin@example.com', role: Role.ADMIN, is_admin: true };
+      const mockUser = {
+        id: 1,
+        email: 'admin@example.com',
+        role: Role.ADMIN,
+        is_admin: true,
+      };
       (authService.validateAdmin as jest.Mock).mockResolvedValue(mockUser);
       (authService.login as jest.Mock).mockResolvedValue({});
 
@@ -130,9 +150,9 @@ describe('AdminAuthController', () => {
       const adminLoginDto = { email: 'admin@example.com', password: 'wrong' };
       (authService.validateAdmin as jest.Mock).mockResolvedValue(null);
 
-      await expect(controller.login(adminLoginDto, mockRequest)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        controller.login(adminLoginDto, mockRequest),
+      ).rejects.toThrow(UnauthorizedException);
 
       const redacted = AuthAuditService.redactEmail('admin@example.com');
       expect(adminLogsService.createLog).toHaveBeenCalledWith(

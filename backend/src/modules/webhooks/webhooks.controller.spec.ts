@@ -21,7 +21,10 @@ describe('WebhooksController', () => {
       controllers: [WebhooksController],
       providers: [
         { provide: WebhooksService, useValue: mockWebhooksService },
-        { provide: WebhooksObservabilityService, useValue: { getMetricsText: jest.fn() } },
+        {
+          provide: WebhooksObservabilityService,
+          useValue: { getMetricsText: jest.fn() },
+        },
         {
           provide: WebhooksAuditService,
           useValue: {
@@ -51,7 +54,10 @@ describe('WebhooksController', () => {
 
     it('should process valid webhook', async () => {
       service.verifySignature.mockResolvedValue(true);
-      service.processWebhook.mockResolvedValue({ received: true, processed: true });
+      service.processWebhook.mockResolvedValue({
+        received: true,
+        processed: true,
+      });
 
       const result = await controller.handleStripeWebhook(
         'valid_signature',
@@ -69,7 +75,12 @@ describe('WebhooksController', () => {
       service.verifySignature.mockResolvedValue(false);
 
       await expect(
-        controller.handleStripeWebhook('invalid_signature', '1234567890', mockReq as any, mockBody as any),
+        controller.handleStripeWebhook(
+          'invalid_signature',
+          '1234567890',
+          mockReq as any,
+          mockBody as any,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -78,15 +89,34 @@ describe('WebhooksController', () => {
       service.processWebhook.mockRejectedValue(new Error('Processing failed'));
 
       await expect(
-        controller.handleStripeWebhook('valid_signature', '1234567890', mockReq as any, mockBody as any),
+        controller.handleStripeWebhook(
+          'valid_signature',
+          '1234567890',
+          mockReq as any,
+          mockBody as any,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('listEvents', () => {
     const paginatedResult = {
-      data: [{ id: 1, eventId: 'evt_1', eventType: 'payment.succeeded', source: 'stripe' }],
-      meta: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      data: [
+        {
+          id: 1,
+          eventId: 'evt_1',
+          eventType: 'payment.succeeded',
+          source: 'stripe',
+        },
+      ],
+      meta: {
+        page: 1,
+        limit: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     };
 
     it('should return paginated events', async () => {
@@ -101,7 +131,12 @@ describe('WebhooksController', () => {
     it('should forward sortBy and sortOrder to service', async () => {
       service.listEvents.mockResolvedValue(paginatedResult as any);
 
-      await controller.listEvents({ page: 1, limit: 5, sortBy: 'eventType', sortOrder: SortOrder.DESC });
+      await controller.listEvents({
+        page: 1,
+        limit: 5,
+        sortBy: 'eventType',
+        sortOrder: SortOrder.DESC,
+      });
 
       expect(service.listEvents).toHaveBeenCalledWith({
         page: 1,

@@ -21,12 +21,21 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiConsumes,
+  ApiBody,
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { UploadsService, StoredFile } from './uploads.service';
 import { VirusScanService } from './virus-scan.service';
-import { MagicBytesValidator, NoExecutableValidator } from './upload-validators';
+import {
+  MagicBytesValidator,
+  NoExecutableValidator,
+} from './upload-validators';
 import { ConfigService } from '@nestjs/config';
 import { Idempotent } from './idempotency/idempotency.decorator';
 import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
@@ -55,7 +64,7 @@ export class UploadsEnhancedController {
     private readonly uploadsService: UploadsService,
     private readonly virusScan: VirusScanService,
     private readonly config: ConfigService,
-  ) { }
+  ) {}
 
   /**
    * Upload the authenticated user's avatar with idempotency support.
@@ -95,7 +104,12 @@ export class UploadsEnhancedController {
     @Request() req: { user: { id: number } },
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
-    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype, req.user.id);
+    return this.uploadsService.store(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      req.user.id,
+    );
   }
 
   /**
@@ -136,7 +150,12 @@ export class UploadsEnhancedController {
     @Request() req: { user: { id: number } },
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
-    return this.uploadsService.store(file.buffer, file.originalname, file.mimetype, req.user.id);
+    return this.uploadsService.store(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      req.user.id,
+    );
   }
 
   /**
@@ -230,8 +249,8 @@ export class UploadsEnhancedController {
       properties: {
         files: {
           type: 'array',
-          items: { type: 'string', format: 'binary' }
-        }
+          items: { type: 'string', format: 'binary' },
+        },
       },
       required: ['files'],
     },
@@ -240,7 +259,7 @@ export class UploadsEnhancedController {
     FileInterceptor('files', {
       ...buildMulterOptions(),
       limits: { ...buildMulterOptions().limits, files: 10 }, // Allow up to 10 files
-    })
+    }),
   )
   @Idempotent({
     ttl: 1800, // 30 minutes for batch uploads
@@ -269,7 +288,11 @@ export class UploadsEnhancedController {
 
     for (const file of files) {
       await this.virusScan.scan(file.buffer, file.originalname);
-      const result = await this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
+      const result = await this.uploadsService.store(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
       results.push(result);
     }
 

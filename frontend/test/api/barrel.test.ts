@@ -1,11 +1,8 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as apiFacade from "../../src/lib/api";
 import * as apiBarrel from "../../src/lib/api/index";
-
-const dirname = fileURLToPath(new URL(".", import.meta.url));
 
 describe("@/lib/api strict exports", () => {
   it("exposes only the runtime public API from the barrel", () => {
@@ -20,7 +17,7 @@ describe("@/lib/api strict exports", () => {
 
   it("uses explicit named exports instead of wildcard exports", () => {
     const source = readFileSync(
-      resolve(dirname, "../../src/lib/api/index.ts"),
+      resolve(process.cwd(), "src/lib/api/index.ts"),
       "utf8",
     );
 

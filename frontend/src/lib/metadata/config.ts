@@ -45,11 +45,13 @@ export const isStaging = (): boolean => {
  * Generate canonical URL from path
  */
 export const getCanonicalUrl = (path?: string): string => {
-  const baseUrl = siteConfig.url;
+  const baseUrl = siteConfig.url.replace(/\/+$/, "");
   if (!path) return baseUrl;
 
-  // Ensure path starts with /
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const trimmedPath = path.trim();
+  if (trimmedPath.length === 0) return baseUrl;
+
+  const normalizedPath = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
   return `${baseUrl}${normalizedPath}`;
 };
 

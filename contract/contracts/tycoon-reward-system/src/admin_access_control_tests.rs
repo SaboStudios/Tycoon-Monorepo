@@ -255,3 +255,35 @@ fn test_transfer_user_succeeds() {
     assert_eq!(client.get_balance(&alice, &token_id), 0);
     assert_eq!(client.get_balance(&bob, &token_id), 1);
 }
+
+#[test]
+fn test_migrate_requires_admin_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, _tyc, _usdc) = setup(&env);
+    client.migrate();
+}
+
+#[test]
+fn test_clear_backend_minter_requires_admin_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, _tyc, _usdc) = setup(&env);
+    client.clear_backend_minter();
+}
+
+#[test]
+fn test_withdraw_funds_unauthorized_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, tyc_token, _usdc) = setup(&env);
+    let stranger = Address::generate(&env);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.withdraw_funds(&tyc_token, &stranger, &100);
+    }));
+    assert!(res.is_err(), "Non-admin must not withdraw funds");
+}

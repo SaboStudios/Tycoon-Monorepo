@@ -88,9 +88,7 @@ export class GracefulShutdownService implements OnApplicationShutdown {
       await this.dataSource.destroy();
       this.logger.log('Database connection pool closed.');
     } catch (err: unknown) {
-      this.logger.error(
-        `Error closing database: ${(err as Error).message}`,
-      );
+      this.logger.error(`Error closing database: ${(err as Error).message}`);
     }
   }
 

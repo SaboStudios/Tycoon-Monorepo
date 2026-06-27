@@ -39,13 +39,17 @@ describe('MetricsController', () => {
 
   describe('scrape()', () => {
     it('delegates to HttpMetricsService.getMetricsText()', async () => {
-      mockHttpMetricsService.getMetricsText.mockResolvedValue(PROMETHEUS_SAMPLE);
+      mockHttpMetricsService.getMetricsText.mockResolvedValue(
+        PROMETHEUS_SAMPLE,
+      );
       await controller.scrape();
       expect(mockHttpMetricsService.getMetricsText).toHaveBeenCalledTimes(1);
     });
 
     it('returns the Prometheus text payload from the service', async () => {
-      mockHttpMetricsService.getMetricsText.mockResolvedValue(PROMETHEUS_SAMPLE);
+      mockHttpMetricsService.getMetricsText.mockResolvedValue(
+        PROMETHEUS_SAMPLE,
+      );
       const result = await controller.scrape();
       expect(result).toBe(PROMETHEUS_SAMPLE);
     });

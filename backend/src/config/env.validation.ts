@@ -66,10 +66,16 @@ export const validationSchema = Joi.object({
   REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
   REDIS_TTL: Joi.number().default(300),
-  CACHE_AUDIT_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+  CACHE_AUDIT_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
 
   // ─── Uploads observability (SW-BE-009) ───────────────────────────────────────
-  UPLOADS_OBSERVABILITY_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+  UPLOADS_OBSERVABILITY_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
 
   // ─── Logging ────────────────────────────────────────────────────────────────
   LOG_LEVEL: Joi.string()
@@ -81,7 +87,10 @@ export const validationSchema = Joi.object({
   // METRICS_ENABLED: expose /metrics Prometheus scrape endpoint
   METRICS_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
   // REQUEST_LOGGING_ENABLED: emit structured http-level logs per request
-  REQUEST_LOGGING_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+  REQUEST_LOGGING_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
 
   // ─── Payment / Webhooks ─────────────────────────────────────────────────────
   PAYMENT_WEBHOOK_SECRET: Joi.when('NODE_ENV', {

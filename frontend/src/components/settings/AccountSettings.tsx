@@ -13,22 +13,27 @@ export function AccountSettings() {
   const [email, setEmail] = useState('player@tycoon.game');
   const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState(false);
+  const [emailError, setEmailError] = useState('');
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const handleEmailUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsEmailLoading(true);
     setEmailSuccess(false);
+    setEmailError('');
 
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       toast.success('Email updated successfully');
       setEmailSuccess(true);
       setTimeout(() => setEmailSuccess(false), 3000);
     } catch (error) {
-      toast.error('Failed to update email');
+      const message = 'Failed to update email. Please try again.';
+      toast.error(message);
+      setEmailError(message);
     } finally {
       setIsEmailLoading(false);
     }
@@ -36,14 +41,17 @@ export function AccountSettings() {
 
   const handlePasswordReset = async () => {
     setIsPasswordLoading(true);
+    setPasswordError('');
 
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       toast.success('Password reset link sent to your email');
     } catch (error) {
-      toast.error('Failed to send password reset link');
+      const message = 'Failed to send password reset link. Please try again.';
+      toast.error(message);
+      setPasswordError(message);
     } finally {
       setIsPasswordLoading(false);
     }
@@ -73,16 +81,29 @@ export function AccountSettings() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setEmailError(''); }}
                 className="mt-1 border-[var(--tycoon-border)] bg-[#010F10] text-[var(--tycoon-text)]"
                 disabled={isEmailLoading}
+                aria-describedby={emailError ? 'account-settings-email-error' : undefined}
+                aria-invalid={!!emailError}
               />
             </div>
+            {emailError && (
+              <p
+                id="account-settings-email-error"
+                role="alert"
+                data-testid="account-settings-email-error"
+                className="flex items-center gap-1.5 text-sm text-red-400"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {emailError}
+              </p>
+            )}
             <div className="flex gap-2">
               <Button
                 type="submit"
                 disabled={isEmailLoading}
-                className="bg-[var(--tycoon-accent)] text-[#010F10] hover:bg-[var(--tycoon-accent)]/90"
+                className="min-w-[140px] bg-[var(--tycoon-accent)] text-[#010F10] hover:bg-[var(--tycoon-accent)]/90"
               >
                 {isEmailLoading ? (
                   <>
@@ -111,11 +132,22 @@ export function AccountSettings() {
           <p className="text-sm text-[var(--tycoon-text)]/60">
             We'll send a secure link to your email to reset your password.
           </p>
+          {passwordError && (
+            <p
+              id="account-settings-password-error"
+              role="alert"
+              data-testid="account-settings-password-error"
+              className="flex items-center gap-1.5 text-sm text-red-400"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {passwordError}
+            </p>
+          )}
           <Button
             onClick={handlePasswordReset}
             disabled={isPasswordLoading}
             variant="outline"
-            className="border-[var(--tycoon-border)] text-[var(--tycoon-accent)] hover:bg-[var(--tycoon-border)]"
+            className="min-w-[160px] border-[var(--tycoon-border)] text-[var(--tycoon-accent)] hover:bg-[var(--tycoon-border)]"
           >
             {isPasswordLoading ? (
               <>

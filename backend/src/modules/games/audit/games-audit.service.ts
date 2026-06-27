@@ -142,7 +142,12 @@ export interface PlayerActionContext extends BaseAuditContext {
   /** Player ID who performed the action */
   playerId: number;
   /** Type of action performed */
-  actionType: 'roll_dice' | 'pay_rent' | 'pay_tax' | 'buy_property' | 'update_player';
+  actionType:
+    | 'roll_dice'
+    | 'pay_rent'
+    | 'pay_tax'
+    | 'buy_property'
+    | 'update_player';
   /** Additional metadata specific to the action */
   metadata: Record<string, any>;
 }
@@ -215,10 +220,10 @@ export interface PropertyPurchaseContext extends BaseAuditContext {
 
 /**
  * Central service for all game-related audit logging.
- * 
+ *
  * Coordinates between AuditTrailService (persistent database records) and
  * GamesObservabilityService (real-time metrics and structured logging).
- * 
+ *
  * Key features:
  * - Async-first: All audit operations are non-blocking
  * - Privacy by default: Sensitive data is redacted automatically
@@ -255,7 +260,7 @@ export class GamesAuditService {
   /**
    * Create a promise that rejects after the specified timeout.
    * Used to prevent audit operations from hanging indefinitely.
-   * 
+   *
    * @param ms - Timeout in milliseconds
    * @returns Promise that rejects with timeout error
    */
@@ -267,7 +272,7 @@ export class GamesAuditService {
 
   /**
    * Create a base audit context with common fields.
-   * 
+   *
    * @param operation - Operation type
    * @param metadata - Additional metadata
    * @returns Base audit context
@@ -282,10 +287,10 @@ export class GamesAuditService {
 
   /**
    * Log game creation audit trail.
-   * 
+   *
    * Captures: creator ID, game mode, player count, AI status, minipay status,
    * chain, settings, and operation duration.
-   * 
+   *
    * @param context - Game creation context
    */
   async logGameCreation(context: GameCreationContext): Promise<void> {
@@ -357,10 +362,10 @@ export class GamesAuditService {
 
   /**
    * Log game update audit trail.
-   * 
+   *
    * Captures: previous status, new status, fields updated, user who triggered
    * the change, and operation duration.
-   * 
+   *
    * @param context - Game update context
    */
   async logGameUpdate(context: GameUpdateContext): Promise<void> {
@@ -418,10 +423,10 @@ export class GamesAuditService {
 
   /**
    * Log game settings update audit trail.
-   * 
+   *
    * Captures: fields changed, previous values, new values, and user who made
    * the change.
-   * 
+   *
    * @param context - Game settings update context
    */
   async logGameSettingsUpdate(
@@ -479,9 +484,9 @@ export class GamesAuditService {
 
   /**
    * Log game view audit trail (conditional on GAMES_AUDIT_LOG_VIEWS).
-   * 
+   *
    * Captures: game ID, whether found, and query parameters at debug level.
-   * 
+   *
    * @param context - Game view context
    */
   async logGameView(context: GameViewContext): Promise<void> {
@@ -531,10 +536,10 @@ export class GamesAuditService {
 
   /**
    * Log game join audit trail.
-   * 
+   *
    * Captures: user ID, game ID, join result (success/failure), failure reason,
    * and player count after join.
-   * 
+   *
    * @param context - Game join context
    */
   async logGameJoin(context: GameJoinContext): Promise<void> {
@@ -598,10 +603,10 @@ export class GamesAuditService {
 
   /**
    * Log game leave audit trail.
-   * 
+   *
    * Captures: user ID, game ID, player ID, leave reason, and player count
    * after leave.
-   * 
+   *
    * @param context - Game leave context
    */
   async logGameLeave(context: GameLeaveContext): Promise<void> {
@@ -665,9 +670,9 @@ export class GamesAuditService {
 
   /**
    * Log generic player action audit trail.
-   * 
+   *
    * Captures: player ID, game ID, action type, and metadata.
-   * 
+   *
    * @param context - Player action context
    */
   async logPlayerAction(context: PlayerActionContext): Promise<void> {
@@ -701,10 +706,10 @@ export class GamesAuditService {
 
   /**
    * Log dice roll audit trail.
-   * 
+   *
    * Captures: player ID, game ID, dice values, position change, and whether
    * doubles were rolled.
-   * 
+   *
    * @param context - Dice roll context
    */
   async logDiceRoll(context: DiceRollContext): Promise<void> {
@@ -738,9 +743,9 @@ export class GamesAuditService {
 
   /**
    * Log rent payment audit trail.
-   * 
+   *
    * Captures: payer ID, payee ID, base rent, final rent, and modifiers applied.
-   * 
+   *
    * @param context - Rent payment context
    */
   async logRentPayment(context: RentPaymentContext): Promise<void> {
@@ -774,9 +779,9 @@ export class GamesAuditService {
 
   /**
    * Log tax payment audit trail.
-   * 
+   *
    * Captures: player ID, base tax, final tax, and modifiers applied.
-   * 
+   *
    * @param context - Tax payment context
    */
   async logTaxPayment(context: TaxPaymentContext): Promise<void> {
@@ -810,9 +815,9 @@ export class GamesAuditService {
 
   /**
    * Log property purchase audit trail.
-   * 
+   *
    * Captures: player ID, property ID, cost, and balance after purchase.
-   * 
+   *
    * @param context - Property purchase context
    */
   async logPropertyPurchase(context: PropertyPurchaseContext): Promise<void> {

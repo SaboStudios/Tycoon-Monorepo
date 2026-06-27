@@ -36,7 +36,19 @@ export function useJoinRoomTelemetry(route = "/join-room") {
   );
 
   const trackJoinFailed = useCallback(
-    (error_type: "validation" | "not_found" | "room_full" | "server_error" | "unknown") => {
+    (
+      error_type:
+        | "validation"
+        | "not_found"
+        | "room_full"
+        | "server_error"
+        | "unknown"
+        | "rate_limit"
+        | "unauthorized"
+        | "api_error"
+        | "network"
+        | "timeout",
+    ) => {
       track("join_room_failed", { route, error_type });
     },
     [route],

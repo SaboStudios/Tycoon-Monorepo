@@ -122,7 +122,7 @@ describe('Game Validators', () => {
 
     it('should reject invalid placements', async () => {
       const dto = plainToClass(EnhancedUpdateGameDto, {
-        placements: { 'invalid': 1 }, // Non-numeric player ID
+        placements: { invalid: 1 }, // Non-numeric player ID
       });
 
       const errors = await validate(dto);

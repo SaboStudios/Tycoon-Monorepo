@@ -19,6 +19,12 @@
 /// | `game_collectible_update_overwrites`        | set_collectible_info twice, second write wins |
 /// | `cash_tier_independent_slots`              | multiple tiers stored and retrieved independently |
 /// | `player_data_persists_after_game_removal`   | remove_player_from_game is session-scoped; user record survives |
+/// | `double_redeem_rejected`                    | second redeem on same voucher panics |
+/// | `redeem_when_paused_rejected`               | paused contract blocks redemption |
+/// | `redeem_resumes_after_unpause`              | unpause restores redemption flow |
+/// | `withdraw_reduces_game_balance`             | admin withdraw reduces game contract TYC balance |
+/// | `unregistered_player_has_no_user_record`    | get_user returns None for unknown address |
+/// | `voucher_balance_zero_after_redeem`         | voucher balance is burned on redemption |
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -412,6 +418,118 @@ mod tests {
         assert!(
             res.is_err(),
             "re-registration of existing address must be rejected"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 13: Double redeem is rejected
+    //
+    // Redeeming the same voucher twice must panic on the second attempt.
+    // The player's TYC balance must reflect only one redemption.
+    // -------------------------------------------------------------------------
+    #[test]
+    fn double_redeem_rejected() {
+        let f = Fixture::new();
+        let value: u128 = 10_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_a, &tid);
+        }));
+        assert!(res.is_err(), "double redeem must be rejected");
+        assert_eq!(
+            f.tyc_balance(&f.player_a),
+            value as i128,
+            "balance must reflect exactly one redemption"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 14: Redeem when paused is rejected; resumes after unpause
+    //
+    // Pausing blocks redemption; unpausing restores it.
+    // -------------------------------------------------------------------------
+    #[test]
+    fn redeem_when_paused_rejected() {
+        let f = Fixture::new();
+        let value: u128 = 10_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        f.reward.pause();
+
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f.reward.redeem_voucher_from(&f.player_a, &tid);
+        }));
+        assert!(res.is_err(), "redeem while paused must be rejected");
+        assert_eq!(
+            f.tyc_balance(&f.player_a),
+            0,
+            "no TYC must move while paused"
+        );
+    }
+
+    #[test]
+    fn redeem_resumes_after_unpause() {
+        let f = Fixture::new();
+        let value: u128 = 10_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        f.reward.pause();
+        f.reward.unpause();
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        assert_eq!(f.tyc_balance(&f.player_a), value as i128);
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 15: Admin withdraw reduces game contract balance
+    //
+    // withdraw_funds must move exactly the requested amount out of the game
+    // contract and into the recipient.
+    // -------------------------------------------------------------------------
+    #[test]
+    fn withdraw_reduces_game_balance() {
+        let f = Fixture::new();
+        let amount: u128 = 50_000_000_000_000_000_000_000;
+        let game_before = f.tyc_balance(&f.game_id);
+        let admin_before = f.tyc_balance(&f.admin);
+
+        f.game.withdraw_funds(&f.tyc_id, &f.admin, &amount);
+
+        assert_eq!(f.tyc_balance(&f.game_id), game_before - amount as i128);
+        assert_eq!(f.tyc_balance(&f.admin), admin_before + amount as i128);
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 16: Unregistered player has no user record
+    //
+    // get_user on an address that was never registered must return None.
+    // -------------------------------------------------------------------------
+    #[test]
+    fn unregistered_player_has_no_user_record() {
+        let f = Fixture::new();
+        let stranger = Address::generate(&f.env);
+        assert!(
+            f.game.get_user(&stranger).is_none(),
+            "unregistered address must have no user record"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 17: Voucher balance is zero after redemption
+    //
+    // After redeem_voucher_from the voucher balance for the redeemer must be 0.
+    // -------------------------------------------------------------------------
+    #[test]
+    fn voucher_balance_zero_after_redeem() {
+        let f = Fixture::new();
+        let value: u128 = 25_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        assert_eq!(f.reward.get_balance(&f.player_a, &tid), 1);
+
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        assert_eq!(
+            f.reward.get_balance(&f.player_a, &tid),
+            0,
+            "voucher must be burned after redemption"
         );
     }
 }

@@ -208,3 +208,46 @@ fn voucher_id_starts_at_expected_offset() {
         "voucher IDs must start at VOUCHER_ID_START (1_000_000_000), got {first_id}"
     );
 }
+
+/// Transferring a token_id that was never minted panics with "Insufficient balance"
+/// because the sender has a zero balance and _burn rejects it.
+#[test]
+fn transfer_nonexistent_token_panics() {
+    let h = H::new();
+    let sender = Address::generate(&h.env);
+    let receiver = Address::generate(&h.env);
+    let token_id: u128 = 1_000_000_099; // never minted
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        h.client.transfer(&sender, &receiver, &token_id, &1);
+    }));
+    assert!(
+        res.is_err(),
+        "transfer of an unminted token must panic with Insufficient balance"
+    );
+}
+
+/// Transferring to a receiver who already holds the same token_id accumulates
+/// their balance correctly and does not bump owned_token_count a second time.
+#[test]
+fn transfer_receiver_with_existing_balance() {
+    let h = H::new();
+    let sender = Address::generate(&h.env);
+    let receiver = Address::generate(&h.env);
+    let token_id: u128 = 1_000_000_100;
+
+    // Both sides start with some units of the same token
+    h.mint_raw(&sender, token_id, 3);
+    h.mint_raw(&receiver, token_id, 2);
+
+    assert_eq!(h.client.owned_token_count(&receiver), 1);
+
+    // Sender transfers 2 units to receiver
+    h.client.transfer(&sender, &receiver, &token_id, &2);
+
+    assert_eq!(h.client.get_balance(&sender, &token_id), 1);
+    assert_eq!(h.client.get_balance(&receiver, &token_id), 4);
+    // Receiver already had the token — count stays at 1
+    assert_eq!(h.client.owned_token_count(&receiver), 1);
+    assert_eq!(h.client.owned_token_count(&sender), 1);
+}

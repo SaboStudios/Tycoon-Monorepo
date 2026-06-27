@@ -138,9 +138,7 @@ export class NotificationsService {
   /**
    * Marks all unread notifications for a user as read.
    */
-  async markAllAsRead(
-    userId: string,
-  ): Promise<{ modifiedCount: number }> {
+  async markAllAsRead(userId: string): Promise<{ modifiedCount: number }> {
     return this.runSafe('markAllAsRead', { modifiedCount: 0 }, async () => {
       const result = await this.notificationsRepository.update(
         { userId, isRead: false },

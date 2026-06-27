@@ -1,6 +1,10 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { PaginationDto, SortOrder, PAGINATION_MAX_LIMIT } from './pagination.dto';
+import {
+  PaginationDto,
+  SortOrder,
+  PAGINATION_MAX_LIMIT,
+} from './pagination.dto';
 
 async function validateDto(plain: Record<string, unknown>) {
   const dto = plainToInstance(PaginationDto, plain);

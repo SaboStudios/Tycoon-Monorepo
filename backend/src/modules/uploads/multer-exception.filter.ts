@@ -25,7 +25,8 @@ export class MulterExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(MulterExceptionFilter.name);
 
   constructor(
-    @Optional() private readonly uploadsObservability?: UploadsObservabilityService,
+    @Optional()
+    private readonly uploadsObservability?: UploadsObservabilityService,
   ) {}
 
   catch(exception: MulterError, host: ArgumentsHost): void {

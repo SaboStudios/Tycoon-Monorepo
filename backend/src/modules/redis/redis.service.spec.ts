@@ -6,8 +6,17 @@ import { LoggerService } from '../../common/logger/logger.service';
 
 // Prevent duplicate Prometheus metric registration across test runs
 jest.mock('prom-client', () => {
-  const noop = () => ({ inc: jest.fn(), set: jest.fn(), startTimer: jest.fn(() => jest.fn()), observe: jest.fn() });
-  return { Counter: jest.fn(noop), Gauge: jest.fn(noop), Histogram: jest.fn(noop) };
+  const noop = () => ({
+    inc: jest.fn(),
+    set: jest.fn(),
+    startTimer: jest.fn(() => jest.fn()),
+    observe: jest.fn(),
+  });
+  return {
+    Counter: jest.fn(noop),
+    Gauge: jest.fn(noop),
+    Histogram: jest.fn(noop),
+  };
 });
 
 const mockRedisInstance = {
@@ -21,7 +30,9 @@ const mockRedisInstance = {
   on: jest.fn(),
 };
 
-jest.mock('ioredis', () => jest.fn().mockImplementation(() => mockRedisInstance));
+jest.mock('ioredis', () =>
+  jest.fn().mockImplementation(() => mockRedisInstance),
+);
 
 describe('RedisService', () => {
   let service: RedisService;
@@ -32,7 +43,12 @@ describe('RedisService', () => {
     jest.clearAllMocks();
 
     cacheManager = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
-    loggerService = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } as any;
+    loggerService = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -41,7 +57,14 @@ describe('RedisService', () => {
         { provide: LoggerService, useValue: loggerService },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue({ host: 'localhost', port: 6379, db: 0, ttl: 300 }) },
+          useValue: {
+            get: jest.fn().mockReturnValue({
+              host: 'localhost',
+              port: 6379,
+              db: 0,
+              ttl: 300,
+            }),
+          },
         },
       ],
     }).compile();
@@ -55,12 +78,18 @@ describe('RedisService', () => {
     it('sets refresh token', async () => {
       mockRedisInstance.setex.mockResolvedValue('OK');
       await service.setRefreshToken('u1', 'tok');
-      expect(mockRedisInstance.setex).toHaveBeenCalledWith('refresh_token:u1', 604800, 'tok');
+      expect(mockRedisInstance.setex).toHaveBeenCalledWith(
+        'refresh_token:u1',
+        604800,
+        'tok',
+      );
     });
 
     it('throws on set refresh token error', async () => {
       mockRedisInstance.setex.mockRejectedValue(new Error('down'));
-      await expect(service.setRefreshToken('u1', 'tok')).rejects.toThrow('down');
+      await expect(service.setRefreshToken('u1', 'tok')).rejects.toThrow(
+        'down',
+      );
     });
 
     it('gets refresh token', async () => {
@@ -84,13 +113,19 @@ describe('RedisService', () => {
     it('cache hit', async () => {
       cacheManager.get.mockResolvedValue('val');
       expect(await service.get('k')).toBe('val');
-      expect(loggerService.debug).toHaveBeenCalledWith('Cache HIT: k', 'RedisService');
+      expect(loggerService.debug).toHaveBeenCalledWith(
+        'Cache HIT: k',
+        'RedisService',
+      );
     });
 
     it('cache miss', async () => {
       cacheManager.get.mockResolvedValue(undefined);
       expect(await service.get('k')).toBeUndefined();
-      expect(loggerService.debug).toHaveBeenCalledWith('Cache MISS: k', 'RedisService');
+      expect(loggerService.debug).toHaveBeenCalledWith(
+        'Cache MISS: k',
+        'RedisService',
+      );
     });
 
     it('sets cache value', async () => {

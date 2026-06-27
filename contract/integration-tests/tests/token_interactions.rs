@@ -5,12 +5,29 @@
 //! that allowances work correctly, and that events are emitted properly.
 //!
 //! AC2.1 - AC2.3: Token transfers, approvals, and minting
+//! AC2.4 - AC2.6: Burn, edge-case transfers, and allowance expiry (expanded #1094)
+
+extern crate std;
 
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::{Address as _, Events, Ledger, LedgerInfo},
     token::{StellarAssetClient, TokenClient},
     Address, Env,
 };
+use tycoon_token::TycoonToken;
+
+fn set_ledger_seq(env: &Env, seq: u32) {
+    env.ledger().set(LedgerInfo {
+        sequence_number: seq,
+        timestamp: seq as u64 * 5,
+        protocol_version: 23,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 1,
+        min_persistent_entry_ttl: 1,
+        max_entry_ttl: 6_312_000,
+    });
+}
 
 /// Helper: Create a mock token contract
 fn create_token_contract(env: &Env, admin: &Address) -> Address {
@@ -361,4 +378,335 @@ fn test_multi_token_transfers() {
     assert_eq!(usdc_client.balance(&player), 50_000);
     assert_eq!(tyc_client.balance(&admin), 900_000);
     assert_eq!(usdc_client.balance(&admin), 450_000);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for TycoonToken (native contract, not Stellar asset contract)
+// ---------------------------------------------------------------------------
+
+fn register_tycoon_token(env: &Env, admin: &Address, initial_supply: i128) -> Address {
+    let id = env.register(TycoonToken, ());
+    tycoon_token::TycoonTokenClient::new(env, &id).initialize(admin, &initial_supply);
+    id
+}
+
+// ---------------------------------------------------------------------------
+// AC2.4: Burn scenarios
+// ---------------------------------------------------------------------------
+
+/// AC2.4: Burn reduces balance and total supply
+#[test]
+fn test_burn_reduces_balance_and_supply() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    assert_eq!(client.total_supply(), 1_000_000);
+    assert_eq!(client.balance(&admin), 1_000_000);
+
+    client.burn(&admin, &400_000);
+
+    assert_eq!(client.balance(&admin), 600_000);
+    assert_eq!(client.total_supply(), 600_000);
+}
+
+/// AC2.4: Burning the full balance leaves zero balance and zero supply
+#[test]
+fn test_burn_full_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 500_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.burn(&admin, &500_000);
+
+    assert_eq!(client.balance(&admin), 0);
+    assert_eq!(client.total_supply(), 0);
+}
+
+/// AC2.4: Burning more than balance panics
+#[test]
+fn test_burn_exceeds_balance_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 100_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.burn(&admin, &200_000);
+    }));
+    assert!(res.is_err(), "burn exceeding balance must panic");
+}
+
+/// AC2.4: burn_from uses allowance and reduces supply
+#[test]
+fn test_burn_from_uses_allowance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.approve(&admin, &spender, &300_000, &1000);
+    client.burn_from(&spender, &admin, &200_000);
+
+    assert_eq!(client.balance(&admin), 800_000);
+    assert_eq!(client.total_supply(), 800_000);
+    assert_eq!(client.allowance(&admin, &spender), 100_000);
+}
+
+// ---------------------------------------------------------------------------
+// AC2.5: Edge-case transfer scenarios
+// ---------------------------------------------------------------------------
+
+/// AC2.5: Zero-amount transfer is a no-op (no event emitted, balances unchanged)
+#[test]
+fn test_zero_amount_transfer_is_noop() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    // Drain events from initialization
+    let _ = env.events().all();
+
+    client.transfer(&admin, &recipient, &0);
+
+    assert_eq!(client.balance(&admin), 1_000_000);
+    assert_eq!(client.balance(&recipient), 0);
+    // No transfer event should have been emitted
+    assert!(env.events().all().is_empty());
+}
+
+/// AC2.5: Transfer exceeding balance panics
+#[test]
+fn test_transfer_exceeds_balance_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 100_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.transfer(&admin, &recipient, &200_000);
+    }));
+    assert!(res.is_err(), "transfer exceeding balance must panic");
+}
+
+/// AC2.5: Multi-hop transfer (A → B → C) conserves total supply
+#[test]
+fn test_multi_hop_transfer_conserves_supply() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let b = Address::generate(&env);
+    let c = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.transfer(&admin, &b, &600_000);
+    client.transfer(&b, &c, &400_000);
+
+    assert_eq!(client.balance(&admin), 400_000);
+    assert_eq!(client.balance(&b), 200_000);
+    assert_eq!(client.balance(&c), 400_000);
+    assert_eq!(
+        client.balance(&admin) + client.balance(&b) + client.balance(&c),
+        1_000_000
+    );
+}
+
+/// AC2.5: Two independent spenders have separate allowances
+#[test]
+fn test_two_spenders_independent_allowances() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender1 = Address::generate(&env);
+    let spender2 = Address::generate(&env);
+    let dest = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.approve(&admin, &spender1, &300_000, &1000);
+    client.approve(&admin, &spender2, &500_000, &1000);
+
+    client.transfer_from(&spender1, &admin, &dest, &100_000);
+
+    // spender1 allowance decreases; spender2 is unaffected
+    assert_eq!(client.allowance(&admin, &spender1), 200_000);
+    assert_eq!(client.allowance(&admin, &spender2), 500_000);
+}
+
+/// AC2.5: Spending exactly the full allowance leaves zero allowance
+#[test]
+fn test_spend_full_allowance_leaves_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let dest = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.approve(&admin, &spender, &250_000, &1000);
+    client.transfer_from(&spender, &admin, &dest, &250_000);
+
+    assert_eq!(client.allowance(&admin, &spender), 0);
+    assert_eq!(client.balance(&dest), 250_000);
+}
+
+/// AC2.5: Spending more than allowance panics
+#[test]
+fn test_spend_exceeds_allowance_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let dest = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.approve(&admin, &spender, &100_000, &1000);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.transfer_from(&spender, &admin, &dest, &200_000);
+    }));
+    assert!(res.is_err(), "spending more than allowance must panic");
+}
+
+// ---------------------------------------------------------------------------
+// AC2.6: Allowance expiry
+// ---------------------------------------------------------------------------
+
+/// AC2.6: Allowance returns zero after expiration ledger is passed
+#[test]
+fn test_allowance_returns_zero_after_expiry() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    // Approve with expiration at ledger 10
+    client.approve(&admin, &spender, &500_000, &10);
+    assert_eq!(client.allowance(&admin, &spender), 500_000);
+
+    // Advance ledger past expiry
+    set_ledger_seq(&env, 11);
+    assert_eq!(client.allowance(&admin, &spender), 0);
+}
+
+/// AC2.6: transfer_from panics when allowance is expired
+#[test]
+fn test_transfer_from_panics_on_expired_allowance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let dest = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.approve(&admin, &spender, &500_000, &5);
+    set_ledger_seq(&env, 6);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.transfer_from(&spender, &admin, &dest, &100_000);
+    }));
+    assert!(
+        res.is_err(),
+        "transfer_from on expired allowance must panic"
+    );
+}
+
+/// AC2.6: burn_from panics when allowance is expired
+#[test]
+fn test_burn_from_panics_on_expired_allowance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.approve(&admin, &spender, &500_000, &5);
+    set_ledger_seq(&env, 6);
+
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.burn_from(&spender, &admin, &100_000);
+    }));
+    assert!(res.is_err(), "burn_from on expired allowance must panic");
+}
+
+/// AC2.6: Allowance with expiration_ledger == 0 never expires
+#[test]
+fn test_allowance_with_zero_expiry_never_expires() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let spender = Address::generate(&env);
+    let dest = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 1_000_000);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    // expiration_ledger = 0 means no expiry
+    client.approve(&admin, &spender, &300_000, &0);
+
+    // Advance ledger far into the future
+    set_ledger_seq(&env, 999_999);
+    assert_eq!(client.allowance(&admin, &spender), 300_000);
+
+    // Spending still works
+    client.transfer_from(&spender, &admin, &dest, &100_000);
+    assert_eq!(client.balance(&dest), 100_000);
+}
+
+// ---------------------------------------------------------------------------
+// AC2.3 (extended): Total supply invariant across mint + burn
+// ---------------------------------------------------------------------------
+
+/// AC2.3: Total supply stays consistent across interleaved mints and burns
+#[test]
+fn test_total_supply_invariant_across_mint_and_burn() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token_id = register_tycoon_token(&env, &admin, 0);
+    let client = tycoon_token::TycoonTokenClient::new(&env, &token_id);
+
+    client.mint(&user, &500_000);
+    assert_eq!(client.total_supply(), 500_000);
+
+    client.mint(&user, &200_000);
+    assert_eq!(client.total_supply(), 700_000);
+
+    client.burn(&user, &300_000);
+    assert_eq!(client.total_supply(), 400_000);
+    assert_eq!(client.balance(&user), 400_000);
 }

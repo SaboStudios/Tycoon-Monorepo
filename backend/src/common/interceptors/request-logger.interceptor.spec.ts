@@ -1,6 +1,9 @@
 import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
-import { RequestLoggerInterceptor, CORRELATION_ID_HEADER } from './request-logger.interceptor';
+import {
+  RequestLoggerInterceptor,
+  CORRELATION_ID_HEADER,
+} from './request-logger.interceptor';
 import { LoggerService } from '../logger/logger.service';
 
 const mockLogger = {
@@ -12,7 +15,10 @@ const mockLogger = {
   verbose: jest.fn(),
 };
 
-function buildContext(path: string, existingCorrelationId?: string): ExecutionContext {
+function buildContext(
+  path: string,
+  existingCorrelationId?: string,
+): ExecutionContext {
   const req = {
     path,
     method: 'GET',
@@ -36,7 +42,9 @@ describe('RequestLoggerInterceptor', () => {
   let interceptor: RequestLoggerInterceptor;
 
   beforeEach(() => {
-    interceptor = new RequestLoggerInterceptor(mockLogger as unknown as LoggerService);
+    interceptor = new RequestLoggerInterceptor(
+      mockLogger as unknown as LoggerService,
+    );
     jest.clearAllMocks();
   });
 
@@ -85,7 +93,9 @@ describe('RequestLoggerInterceptor', () => {
 
   it('logs http on errored request', (done) => {
     const ctx = buildContext('/api/v1/shop');
-    const handler: CallHandler = { handle: () => throwError(() => new Error('boom')) };
+    const handler: CallHandler = {
+      handle: () => throwError(() => new Error('boom')),
+    };
 
     interceptor.intercept(ctx, handler).subscribe({
       error: () => {
@@ -120,7 +130,10 @@ describe('RequestLoggerInterceptor', () => {
 
     interceptor.intercept(ctx, handler).subscribe({
       complete: () => {
-        const call = mockLogger.http.mock.calls[0] as [string, Record<string, unknown>];
+        const call = mockLogger.http.mock.calls[0] as [
+          string,
+          Record<string, unknown>,
+        ];
         expect(typeof call[1].correlationId).toBe('string');
         expect((call[1].correlationId as string).length).toBeGreaterThan(0);
         done();

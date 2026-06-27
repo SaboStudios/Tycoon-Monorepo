@@ -40,7 +40,20 @@ import { AuditTrailModule } from '../audit-trail/audit-trail.module';
     }),
     AuditTrailModule,
   ],
-  providers: [RedisService, IdempotencyService, IdempotencyInterceptor, ValidatedCacheService, CacheExceptionFilter],
-  exports: [CacheModule, RedisService, IdempotencyService, IdempotencyInterceptor, ValidatedCacheService, CacheExceptionFilter],
+  providers: [
+    RedisService,
+    IdempotencyService,
+    IdempotencyInterceptor,
+    ValidatedCacheService,
+    CacheExceptionFilter,
+  ],
+  exports: [
+    CacheModule,
+    RedisService,
+    IdempotencyService,
+    IdempotencyInterceptor,
+    ValidatedCacheService,
+    CacheExceptionFilter,
+  ],
 })
 export class RedisModule {}

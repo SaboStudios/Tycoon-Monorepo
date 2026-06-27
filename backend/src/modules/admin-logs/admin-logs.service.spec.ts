@@ -54,10 +54,22 @@ describe('AdminLogsService', () => {
 
       await service.findAll(queryDto as any);
 
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith('log.adminId = :adminId', { adminId: 1 });
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith('log.action = :action', { action: 'test_action' });
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith('log.createdAt >= :startDate', { startDate: '2023-01-01' });
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith('log.createdAt <= :endDate', { endDate: '2023-01-31' });
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'log.adminId = :adminId',
+        { adminId: 1 },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'log.action = :action',
+        { action: 'test_action' },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'log.createdAt >= :startDate',
+        { startDate: '2023-01-01' },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'log.createdAt <= :endDate',
+        { endDate: '2023-01-31' },
+      );
       expect(paginationService.paginate).toHaveBeenCalled();
     });
 
@@ -72,7 +84,10 @@ describe('AdminLogsService', () => {
 
       await service.findAll(queryDto as any);
 
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith('log.id < :cursor', { cursor: '100' });
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'log.id < :cursor',
+        { cursor: '100' },
+      );
     });
   });
 
@@ -89,8 +104,12 @@ describe('AdminLogsService', () => {
       };
       const streamMock = {
         [Symbol.asyncIterator]: jest.fn().mockReturnValue({
-          next: jest.fn()
-            .mockResolvedValueOnce({ value: { log_id: 1, log_action: 'export' }, done: false })
+          next: jest
+            .fn()
+            .mockResolvedValueOnce({
+              value: { log_id: 1, log_action: 'export' },
+              done: false,
+            })
             .mockResolvedValueOnce({ done: true }),
         }),
       };
@@ -105,7 +124,10 @@ describe('AdminLogsService', () => {
 
       await service.exportLogs(queryDto as any, resMock as any);
 
-      expect(resMock.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv');
+      expect(resMock.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'text/csv',
+      );
       expect(queryBuilderMock.stream).toHaveBeenCalled();
     });
   });

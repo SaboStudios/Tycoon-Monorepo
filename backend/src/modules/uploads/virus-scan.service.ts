@@ -1,4 +1,9 @@
-import { Injectable, Logger, InternalServerErrorException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as net from 'net';
 import { sanitizeUploadFilename } from './uploads-logging.util';
@@ -18,7 +23,8 @@ export class VirusScanService {
 
   constructor(
     private readonly config: ConfigService,
-    @Optional() private readonly uploadsObservability?: UploadsObservabilityService,
+    @Optional()
+    private readonly uploadsObservability?: UploadsObservabilityService,
   ) {}
 
   async scan(buffer: Buffer, filename: string): Promise<void> {
@@ -40,7 +46,9 @@ export class VirusScanService {
     try {
       await this.instream(buffer, host, port, filename);
       this.uploadsObservability?.recordVirusScanOutcome('clean');
-      this.logger.debug(`"${sanitizeUploadFilename(filename)}" passed virus scan`);
+      this.logger.debug(
+        `"${sanitizeUploadFilename(filename)}" passed virus scan`,
+      );
     } catch (e) {
       this.uploadsObservability?.recordVirusScanOutcome(
         e instanceof InternalServerErrorException &&
@@ -79,12 +87,18 @@ export class VirusScanService {
 
       client.on('end', () => {
         if (response.includes('FOUND')) {
-          reject(new InternalServerErrorException('Malware detected in upload (ClamAV)'));
+          reject(
+            new InternalServerErrorException(
+              'Malware detected in upload (ClamAV)',
+            ),
+          );
         } else if (response.includes('ERROR')) {
           this.logger.error(
             `ClamAV error for "${sanitizeUploadFilename(filename)}": ${response.trim()}`,
           );
-          reject(new InternalServerErrorException('Virus scan returned an error'));
+          reject(
+            new InternalServerErrorException('Virus scan returned an error'),
+          );
         } else {
           resolve();
         }
@@ -92,7 +106,9 @@ export class VirusScanService {
 
       client.on('error', (err) => {
         this.logger.error(`ClamAV connection error: ${err.message}`);
-        reject(new InternalServerErrorException('Virus scan service unavailable'));
+        reject(
+          new InternalServerErrorException('Virus scan service unavailable'),
+        );
       });
 
       client.setTimeout(VirusScanService.SCAN_TIMEOUT_MS, () => {

@@ -25,7 +25,10 @@ import {
 export class ValidatedCacheService {
   constructor(private readonly redis: RedisService) {}
 
-  private async assertValid<T extends object>(DtoClass: new () => T, plain: object): Promise<T> {
+  private async assertValid<T extends object>(
+    DtoClass: new () => T,
+    plain: object,
+  ): Promise<T> {
     const instance = plainToInstance(DtoClass, plain);
     const errors = await validate(instance as object, {
       whitelist: true,

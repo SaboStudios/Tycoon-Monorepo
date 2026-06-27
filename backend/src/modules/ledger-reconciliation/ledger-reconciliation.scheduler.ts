@@ -23,9 +23,7 @@ export class LedgerReconciliationScheduler {
     const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - 1);
 
-    this.logger.log(
-      `Nightly reconciliation triggered. dryRun=${isDryRun}`,
-    );
+    this.logger.log(`Nightly reconciliation triggered. dryRun=${isDryRun}`);
 
     try {
       const report = await this.reconciliationService.reconcile(

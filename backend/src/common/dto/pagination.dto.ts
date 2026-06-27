@@ -11,7 +11,11 @@ export enum SortOrder {
 export const PAGINATION_MAX_LIMIT = 100;
 
 export class PaginationDto {
-  @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    description: 'Page number (1-based)',
+    default: 1,
+    minimum: 1,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -36,7 +40,11 @@ export class PaginationDto {
   @IsString()
   sortBy?: string;
 
-  @ApiPropertyOptional({ enum: SortOrder, description: 'Sort direction', default: SortOrder.DESC })
+  @ApiPropertyOptional({
+    enum: SortOrder,
+    description: 'Sort direction',
+    default: SortOrder.DESC,
+  })
   @IsOptional()
   @IsEnum(SortOrder)
   sortOrder?: SortOrder = SortOrder.DESC;

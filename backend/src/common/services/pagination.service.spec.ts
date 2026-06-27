@@ -74,7 +74,11 @@ describe('PaginationService', () => {
     const stub = qb as unknown as {
       _orderBy: { expr: string; dir: string }[];
     };
-    await service.paginate(qb, { page: 1, sortBy: 'created_at', sortOrder: SortOrder.DESC });
+    await service.paginate(qb, {
+      page: 1,
+      sortBy: 'created_at',
+      sortOrder: SortOrder.DESC,
+    });
 
     expect(stub._orderBy).toHaveLength(2);
     expect(stub._orderBy[0].expr).toBe('entity.created_at');
@@ -124,14 +128,24 @@ describe('PaginationService', () => {
     it('allows a sortBy field that is in the allowlist', async () => {
       const qb = buildQb([], 0);
       await expect(
-        service.paginate(qb, { page: 1, sortBy: 'email' }, [], ['id', 'email', 'created_at']),
+        service.paginate(
+          qb,
+          { page: 1, sortBy: 'email' },
+          [],
+          ['id', 'email', 'created_at'],
+        ),
       ).resolves.toBeDefined();
     });
 
     it('throws BadRequestException for a sortBy field not in the allowlist', async () => {
       const qb = buildQb([], 0);
       await expect(
-        service.paginate(qb, { page: 1, sortBy: 'password' }, [], ['id', 'email']),
+        service.paginate(
+          qb,
+          { page: 1, sortBy: 'password' },
+          [],
+          ['id', 'email'],
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 

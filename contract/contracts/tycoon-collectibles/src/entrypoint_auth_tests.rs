@@ -110,3 +110,41 @@ fn test_set_token_metadata_rejects_without_auth() {
         )
         .is_err());
 }
+
+#[test]
+fn test_set_token_perk_rejects_without_auth() {
+    let (env, client, id) = setup();
+    let token_id = client.stock_shop(&1, &3, &0, &0, &0);
+    env.mock_auths(&[]);
+    let c = TycoonCollectiblesClient::new(&env, &id);
+    assert!(c.try_set_token_perk(&token_id, &Perk::ExtraTurn, &0).is_err());
+}
+
+#[test]
+fn test_set_backend_minter_rejects_without_auth() {
+    let (env, _, id) = setup();
+    env.mock_auths(&[]);
+    let c = TycoonCollectiblesClient::new(&env, &id);
+    let dummy = soroban_sdk::Address::generate(&env);
+    assert!(c.try_set_backend_minter(&dummy).is_err());
+}
+
+#[test]
+fn test_stock_shop_rejects_without_auth() {
+    let (env, _, id) = setup();
+    env.mock_auths(&[]);
+    let c = TycoonCollectiblesClient::new(&env, &id);
+    assert!(c.try_stock_shop(&5, &1, &1, &100, &0).is_err());
+}
+
+#[test]
+fn test_mint_collectible_rejects_non_admin_caller() {
+    let (env, _, id) = setup(); // mock_all_auths is active
+    let c = TycoonCollectiblesClient::new(&env, &id);
+    let attacker = soroban_sdk::Address::generate(&env);
+    let recipient = soroban_sdk::Address::generate(&env);
+    // attacker is not admin or minter — Unauthorized even with mocked auth
+    assert!(c
+        .try_mint_collectible(&attacker, &recipient, &3, &0)
+        .is_err());
+}

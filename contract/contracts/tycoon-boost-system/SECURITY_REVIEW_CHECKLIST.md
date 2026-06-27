@@ -26,7 +26,7 @@
 ## Arithmetic Safety
 
 - [x] `apply_stacking_rules` — multiplicative chain uses `u64` intermediate: `multiplicative_total as u64 * boost.value as u64 / 10000`. Max intermediate value is `u32::MAX * u32::MAX ≈ 1.8 × 10¹⁹` which fits in `u64::MAX ≈ 1.8 × 10¹⁹`. Tight but safe for realistic values; the final `as u32` cast truncates silently if the chain product exceeds `u32::MAX`.
-- [ ] **FINDING SEC-02** — `additive_total += boost.value` uses wrapping addition on `u32`. With 10 boosts each at `value = u32::MAX / 10 + 1` the sum wraps, producing a lower-than-expected total. Covered by test `test_additive_overflow_wraps` in `security_review_tests.rs` (documents current behavior; fix tracked separately).
+- [x] **FINDING SEC-02 (corrected)** — `additive_total += boost.value` uses the checked `+=` operator. This workspace's `[profile.release]` (`contract/Cargo.toml`) explicitly sets `overflow-checks = true`, so exceeding `u32::MAX` **panics** in production, not wraps. With 10 boosts each at `value = u32::MAX / 10 + 1`, `calculate_total_boost` panics for that player. This is a DoS/availability concern (any caller can trigger it on their own data), not a silent-miscalculation one. Covered by test `test_additive_overflow_panics` in `security_review_tests.rs`; fix (e.g. saturating sum or a lower per-boost value cap) tracked separately.
 - [ ] **FINDING SEC-03** — Final mixed formula `(multiplicative_total as u64 * (10000 + additive_total as u64) / 10000) as u32` silently truncates to `u32` if the result exceeds `u32::MAX`. Covered by test `test_mixed_overflow_truncates` (documents current behavior).
 - [x] `prune_expired` — no arithmetic; only ledger sequence comparison.
 - [x] `calculate_total_boost` — delegates entirely to `apply_stacking_rules`; no independent arithmetic.
@@ -77,6 +77,6 @@
 | ID | Severity | Finding | Status |
 |----|----------|---------|--------|
 | SEC-01 | Low | `admin_grant_boost` / `admin_revoke_boost` auth rejection not tested without `mock_all_auths` | Tested in `security_review_tests.rs` |
-| SEC-02 | Low | `additive_total += boost.value` wraps on `u32` overflow | Documented by test; fix tracked |
+| SEC-02 | Low | `additive_total += boost.value` panics on `u32` overflow (corrected from "wraps" — `overflow-checks = true` in release profile) | Documented by test; fix tracked |
 | SEC-03 | Low | Final mixed-stacking cast `as u32` silently truncates | Documented by test; fix tracked |
 | SEC-04 | Info | Admin key is immutable — no rotation path | Accepted for current scope |
