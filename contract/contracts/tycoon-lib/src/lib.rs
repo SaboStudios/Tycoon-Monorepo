@@ -4,6 +4,9 @@
 // See tycoon-main-game/src/storage.rs for pause implementation example
 pub mod fees;
 
+// Formalizes admin-only vs public entrypoint pattern across Tycoon contracts.
+pub mod access_control;
+
 #[cfg(test)]
 mod fees_coverage_tests;
 
