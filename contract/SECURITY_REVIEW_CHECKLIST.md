@@ -17,7 +17,7 @@ crate and are linked below.
 | tycoon-boost-system | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-boost-system/SECURITY_REVIEW_CHECKLIST.md) | ✅ Complete (1 open medium) |
 | tycoon-reward-system | No dedicated checklist | 🔲 Needed before mainnet |
 | tycoon-game | No dedicated checklist | 🔲 Needed before mainnet |
-| tycoon-lib | No public entrypoints | ✅ Library only — no auth surface |
+| tycoon-lib | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-lib/SECURITY_REVIEW_CHECKLIST.md) | ✅ Library only — no auth surface (checklist added #1008) |
 
 ---
 
