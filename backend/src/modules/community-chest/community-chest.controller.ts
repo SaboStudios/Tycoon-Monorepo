@@ -9,12 +9,15 @@ import {
   ParseIntPipe,
   Query,
   UseInterceptors,
+  Patch,
 } from '@nestjs/common';
 import { CommunityChestService } from './community-chest.service';
 import { CommunityChest } from './entities/community-chest.entity';
 import { CreateCommunityChestDto } from './dto/create-community-chest.dto';
+import { UpdateCommunityChestDto } from './dto/update-community-chest.dto';
 import { GetCommunityChestListDto } from './dto/get-community-chest-list.dto';
 import { CommunityChestObservabilityInterceptor } from './community-chest-observability.interceptor';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
 @Controller('community-chest')
 @UseInterceptors(CommunityChestObservabilityInterceptor)
@@ -37,7 +40,7 @@ export class CommunityChestController {
   @Get()
   async findAll(
     @Query() query: GetCommunityChestListDto,
-  ): Promise<CommunityChest[]> {
+  ): Promise<PaginatedResponse<CommunityChest>> {
     return this.communityChestService.findAll(query);
   }
 
@@ -46,5 +49,13 @@ export class CommunityChestController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<CommunityChest | null> {
     return this.communityChestService.findOne(id);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateCommunityChestDto,
+  ): Promise<CommunityChest> {
+    return this.communityChestService.update(id, updateDto);
   }
 }
