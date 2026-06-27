@@ -422,3 +422,6 @@ mod transfer_tests;
 
 #[cfg(test)]
 mod simulation_scenarios;
+
+#[cfg(test)]
+mod security_checklist;
