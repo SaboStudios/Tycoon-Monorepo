@@ -1,7 +1,37 @@
+//! # tycoon-lib
+//!
+//! Shared types and utilities for the Tycoon Soroban smart-contract suite.
+//!
+//! ## Modules
+//!
+//! | Module | Purpose |
+//! |--------|---------|
+//! | *(root)* | Core game enum types: [`GameStatus`], [`GameType`], [`PlayerSymbol`] |
+//! | [`fees`] | Fee configuration and split calculation: [`fees::FeeConfig`], [`fees::FeeSplit`], [`fees::calculate_fee_split`] |
+//!
+//! ## Design notes
+//!
+//! All types derive [`Clone`], [`Copy`], [`Debug`], [`Eq`], and [`PartialEq`] and are
+//! annotated with `#[contracttype]` so they can be used directly in Soroban contract
+//! storage and function signatures.
+//!
+//! The `pause` module that previously lived here has been removed; each downstream
+//! contract now manages its own pause flag for better isolation.
+//! See `tycoon-main-game/src/storage.rs` for the canonical pause implementation.
+//!
+//! ## Acceptance criteria
+//!
+//! - All public items are documented with rustdoc comments.
+//! - [`fees::FeeConfig::is_valid`] rejects any config whose basis-points sum exceeds 10 000.
+//! - [`fees::calculate_fee_split`] guarantees `platform + creator + pool + residue == amount`
+//!   for every valid input.
+//! - An invalid [`fees::FeeConfig`] causes [`fees::calculate_fee_split`] to return the full
+//!   `amount` as `residue` with all fee fields set to zero (graceful degradation).
+
 #![no_std]
 
-// Pause module removed - each contract implements pause locally for better isolation
-// See tycoon-main-game/src/storage.rs for pause implementation example
+// Pause module removed — each contract implements pause locally for better isolation.
+// See tycoon-main-game/src/storage.rs for the canonical pause implementation.
 pub mod fees;
 
 #[cfg(test)]

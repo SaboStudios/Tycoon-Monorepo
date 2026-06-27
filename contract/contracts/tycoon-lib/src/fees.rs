@@ -1,17 +1,57 @@
+//! # fees
+//!
+//! Fee configuration and split-calculation utilities for Tycoon contracts.
+//!
+//! ## Overview
+//!
+//! Every game charges three optional fee components denominated in **basis points** (bps),
+//! where 10 000 bps = 100 %.
+//!
+//! | Component | Field | Recipient |
+//! |-----------|-------|-----------|
+//! | Platform  | [`FeeConfig::platform_fee_bps`] | Protocol treasury (`platform_address`) |
+//! | Creator   | [`FeeConfig::creator_fee_bps`]  | Game creator |
+//! | Pool      | [`FeeConfig::pool_fee_bps`]     | Shared prize pool (`pool_address`) |
+//!
+//! The remainder after all three components are deducted is returned as
+//! [`FeeSplit::residue`] and typically routed to the winner.
+//!
+//! ## Invariants
+//!
+//! - [`FeeConfig::is_valid`] returns `false` if the three bps values sum to more than 10 000.
+//! - [`calculate_fee_split`] guarantees `platform + creator + pool + residue == amount`
+//!   for every `u128` input, including zero and [`u128::MAX`]-range values.
+//! - When the config is invalid, [`calculate_fee_split`] returns the full `amount` as
+//!   residue and zeroes all fee fields — no tokens are ever over-deducted.
+//! - All arithmetic uses integer division (floor), so rounding dust accumulates in residue.
+
 use soroban_sdk::{contracttype, Address};
 
+/// Fee configuration for a Tycoon game.
+///
+/// Store this in contract storage and pass a reference to [`calculate_fee_split`]
+/// each time tokens need to be distributed.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfig {
-    pub platform_fee_bps: u32, // Basis points (100 = 1%)
+    /// Platform fee in basis points (100 bps = 1 %).  Sent to `platform_address`.
+    pub platform_fee_bps: u32,
+    /// Creator fee in basis points.  Sent to the game creator.
     pub creator_fee_bps: u32,
+    /// Pool fee in basis points.  Sent to `pool_address`.
     pub pool_fee_bps: u32,
+    /// Address that receives the platform portion of every fee split.
     pub platform_address: Address,
+    /// Address that receives the pool portion of every fee split.
     pub pool_address: Address,
 }
 
 impl FeeConfig {
-    /// Validates that total fees do not exceed 10,000 bps (100%).
+    /// Returns `true` when the sum of all three fee components does not exceed
+    /// 10 000 bps (100 %).
+    ///
+    /// An invalid config passed to [`calculate_fee_split`] causes the entire
+    /// amount to be returned as residue — no fees are collected.
     pub fn is_valid(&self) -> bool {
         self.platform_fee_bps
             .saturating_add(self.creator_fee_bps)
@@ -20,15 +60,30 @@ impl FeeConfig {
     }
 }
 
+/// Result of a [`calculate_fee_split`] call.
+///
+/// The invariant `platform_amount + creator_amount + pool_amount + residue == input_amount`
+/// holds for every valid input.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeSplit {
+    /// Tokens allocated to the platform treasury.
     pub platform_amount: u128,
+    /// Tokens allocated to the game creator.
     pub creator_amount: u128,
+    /// Tokens allocated to the shared prize pool.
     pub pool_amount: u128,
+    /// Remainder after fee deductions (rounding dust + winner share).
     pub residue: u128,
 }
 
+/// Splits `amount` according to the basis-point rates in `config`.
+///
+/// If `config` is invalid (fees sum > 10 000 bps), the function returns the
+/// full `amount` as `residue` and sets all fee fields to zero, ensuring no
+/// tokens are over-deducted.
+///
+/// All division is integer (floor); rounding dust accumulates in `residue`.
 pub fn calculate_fee_split(amount: u128, config: &FeeConfig) -> FeeSplit {
     if !config.is_valid() {
         return FeeSplit {
