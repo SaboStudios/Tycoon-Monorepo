@@ -4,6 +4,15 @@
 // See tycoon-main-game/src/storage.rs for pause implementation example
 pub mod fees;
 
+// Defines the cross-contract auth matrix vocabulary for Tycoon contracts.
+pub mod auth;
+
+// Platform improvement modules — formalize shared governance patterns
+pub mod access_control;
+pub mod auth;
+pub mod migration;
+pub mod storage_budget;
+
 #[cfg(test)]
 mod fees_coverage_tests;
 
