@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - #1006
+
+### Added
+- `EVENT_SCHEMA_AUDIT.md` — full audit of every `ContractEvent` emitted by
+  `TycoonContract`: schema verification for all five events (`FundsWithdrawn`,
+  `PlayerRemovedFromGame`, `ControllerUpdated`, `PlayerRegistered`,
+  `OwnershipTransferred`), coverage check of all state-changing entrypoints,
+  and six open items (ESA-01 – ESA-06) for future improvements.
+
 ## [Unreleased] - SW-CT-007
 
 ### Added
