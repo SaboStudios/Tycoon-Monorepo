@@ -584,3 +584,180 @@ fn sim_s10_owned_token_count_full_lifecycle() {
     assert_eq!(sim.tyc_balance(&alice), alice_expected);
     assert_eq!(sim.tyc_balance(&bob), bob_expected);
 }
+
+// ── S-13: Admin-direct minting without a backend minter ──────────────────────
+
+/// Verifies the contract works correctly when the admin mints directly without
+/// registering a backend minter at all. Confirms that the two authorization
+/// paths (admin-direct and backend-minter) are fully independent.
+#[test]
+fn sim_s13_admin_direct_mints_without_backend() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let tyc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+    client.initialize(&admin, &tyc_id, &usdc_id);
+
+    // No set_backend_minter call — admin is the sole minter
+    assert_eq!(client.get_backend_minter(), None);
+
+    StellarAssetClient::new(&env, &tyc_id).mint(&contract_id, &CONTRACT_FUND);
+
+    let players: Vec<Address> = (0..3).map(|_| Address::generate(&env)).collect();
+    let rewards = [TIER_BRONZE, TIER_SILVER, TIER_GOLD];
+
+    let token_ids: Vec<u128> = players
+        .iter()
+        .zip(rewards.iter())
+        .map(|(p, &r)| client.mint_voucher(&admin, p, &r))
+        .collect();
+
+    // All vouchers minted; backend minter still None
+    assert_eq!(client.get_backend_minter(), None);
+
+    // All players redeem successfully
+    for (player, &tid) in players.iter().zip(token_ids.iter()) {
+        client.redeem_voucher_from(player, &tid);
+    }
+
+    let tyc = TokenClient::new(&env, &tyc_id);
+    assert_eq!(tyc.balance(&players[0]), TIER_BRONZE as i128);
+    assert_eq!(tyc.balance(&players[1]), TIER_SILVER as i128);
+    assert_eq!(tyc.balance(&players[2]), TIER_GOLD as i128);
+}
+
+// ── S-14: Multi-season with contract migration ────────────────────────────────
+
+/// Simulates a production upgrade path: Season 1 runs normally, admin calls
+/// migrate() between seasons, and Season 2 runs on the migrated contract.
+/// Verifies that migration is a no-op for existing vouchers and that the
+/// Season 2 vouchers are issued with new IDs, not recycled ones.
+#[test]
+fn sim_s14_multi_season_with_migration() {
+    let sim = Sim::new();
+
+    // Season 1: two players earn and redeem vouchers
+    let player_s1_a = Address::generate(&sim.env);
+    let player_s1_b = Address::generate(&sim.env);
+
+    let tid_a = sim.client.mint_voucher(&sim.backend, &player_s1_a, &TIER_BRONZE);
+    let tid_b = sim.client.mint_voucher(&sim.backend, &player_s1_b, &TIER_SILVER);
+    sim.client.redeem_voucher_from(&player_s1_a, &tid_a);
+    sim.client.redeem_voucher_from(&player_s1_b, &tid_b);
+
+    // Admin calls migrate (no-op at v1, but documents the upgrade path)
+    sim.client.migrate();
+
+    // Season 2: new players receive new voucher IDs (no recycling)
+    let player_s2 = Address::generate(&sim.env);
+    let tid_s2 = sim.client.mint_voucher(&sim.backend, &player_s2, &TIER_GOLD);
+
+    // Season 2 ID must be strictly greater than Season 1 IDs
+    assert!(tid_s2 > tid_b, "Season 2 voucher IDs must not be recycled");
+    assert!(tid_s2 > tid_a, "Season 2 voucher IDs must not be recycled");
+
+    sim.client.redeem_voucher_from(&player_s2, &tid_s2);
+    assert_eq!(sim.tyc_balance(&player_s2), TIER_GOLD as i128);
+
+    // Season 1 player balances are unaffected by migration and Season 2
+    assert_eq!(sim.tyc_balance(&player_s1_a), TIER_BRONZE as i128);
+    assert_eq!(sim.tyc_balance(&player_s1_b), TIER_SILVER as i128);
+}
+
+// ── S-15: Batch with zero-value reward entries ────────────────────────────────
+
+/// Some platforms issue zero-value vouchers as "participation badges" alongside
+/// real rewards. Verifies zero-value vouchers coexist with non-zero ones:
+/// they are minted, held, and burned on redeem without errors.
+#[test]
+fn sim_s15_zero_value_vouchers_in_batch() {
+    let sim = Sim::new();
+
+    let winners: Vec<Address> = (0..3).map(|_| Address::generate(&sim.env)).collect();
+    let participants: Vec<Address> = (0..2).map(|_| Address::generate(&sim.env)).collect();
+
+    // Winners get real rewards; participants get zero-value badges
+    let winner_ids: Vec<u128> = winners
+        .iter()
+        .map(|p| sim.client.mint_voucher(&sim.backend, p, &TIER_BRONZE))
+        .collect();
+    let participant_ids: Vec<u128> = participants
+        .iter()
+        .map(|p| sim.client.mint_voucher(&sim.backend, p, &0))
+        .collect();
+
+    let contract_before = sim.tyc_balance(&sim.contract_id);
+
+    // All redeem — winners get TYC, participants get nothing (0 transfer)
+    for (w, &tid) in winners.iter().zip(winner_ids.iter()) {
+        sim.client.redeem_voucher_from(w, &tid);
+        assert_eq!(sim.tyc_balance(w), TIER_BRONZE as i128);
+    }
+    for (p, &tid) in participants.iter().zip(participant_ids.iter()) {
+        sim.client.redeem_voucher_from(p, &tid);
+        assert_eq!(sim.tyc_balance(p), 0); // no TYC transferred
+    }
+
+    // Contract balance reduced only by winner rewards
+    let expected_drain = TIER_BRONZE as i128 * 3;
+    assert_eq!(
+        sim.tyc_balance(&sim.contract_id),
+        contract_before - expected_drain
+    );
+}
+
+// ── S-16: Large player batch (10 players) ────────────────────────────────────
+
+/// Exercises the contract with 10 players all receiving and redeeming vouchers
+/// in the same season. Verifies that the voucher counter, balance tracking, and
+/// TYC disbursement are all correct at scale.
+#[test]
+fn sim_s16_large_player_batch() {
+    let sim = Sim::new();
+
+    const N: usize = 10;
+    let players: Vec<Address> = (0..N).map(|_| Address::generate(&sim.env)).collect();
+    let reward = TIER_BRONZE;
+
+    // Mint one voucher per player
+    let token_ids: Vec<u128> = players
+        .iter()
+        .map(|p| sim.client.mint_voucher(&sim.backend, p, &reward))
+        .collect();
+
+    // All IDs must be distinct and increasing
+    for i in 1..N {
+        assert!(
+            token_ids[i] > token_ids[i - 1],
+            "voucher IDs must be monotonically increasing"
+        );
+    }
+
+    let contract_before = sim.tyc_balance(&sim.contract_id);
+
+    // All players redeem
+    for (player, &tid) in players.iter().zip(token_ids.iter()) {
+        sim.client.redeem_voucher_from(player, &tid);
+    }
+
+    // Each player received exactly TIER_BRONZE TYC
+    for player in &players {
+        assert_eq!(sim.tyc_balance(player), reward as i128);
+        assert_eq!(sim.client.owned_token_count(player), 0);
+    }
+
+    // Contract drained by exactly N × TIER_BRONZE
+    let expected_drain = reward as i128 * N as i128;
+    assert_eq!(
+        sim.tyc_balance(&sim.contract_id),
+        contract_before - expected_drain
+    );
+}

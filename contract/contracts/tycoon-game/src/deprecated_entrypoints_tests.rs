@@ -75,11 +75,7 @@ mod tests {
 
     /// DEP-02: `withdraw_funds` shim transfers the requested amount and emits
     /// a `FundsWithdrawn` event, identical to `admin_withdraw_funds`.
-    // TODO: event assertion disabled — env.events().all() returns empty in this
-    // test module context despite the snapshot confirming emission. Investigate
-    // soroban-sdk v23 event collection behaviour across #[no_std] test modules.
     #[test]
-    #[ignore]
     fn dep_02_withdraw_funds_shim_transfers_tokens() {
         let env = Env::default();
         env.mock_all_auths();

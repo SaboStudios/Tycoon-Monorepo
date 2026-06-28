@@ -18,6 +18,8 @@
 /// | ACT-11  | Deprecated shims still work (backward-compat) |
 /// | ACT-12  | `remove_player_from_game` rejects address that is neither owner nor controller |
 /// | ACT-13  | `remove_player_from_game` accepts backend controller |
+/// | ACT-14  | `admin_transfer_ownership` rejects non-owner |
+/// | ACT-15  | `remove_player_from_game` accepts owner directly (no controller set) |
 #[cfg(test)]
 mod tests {
     use crate::{TycoonContract, TycoonContractClient};
@@ -292,5 +294,42 @@ mod tests {
         let player = Address::generate(&env);
         // Must not panic
         client.remove_player_from_game(&controller, &42, &player, &7);
+    }
+
+    // ── ACT-14: admin_transfer_ownership rejects non-owner ───────────────────
+
+    #[test]
+    #[should_panic]
+    fn act_14_transfer_ownership_rejects_non_owner() {
+        let env = Env::default();
+        let (contract_id, client, _owner, _tyc_id, _usdc_id) = setup(&env);
+
+        let attacker = Address::generate(&env);
+        let new_owner = Address::generate(&env);
+
+        env.mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "admin_transfer_ownership",
+                args: (&new_owner,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }]);
+
+        client.admin_transfer_ownership(&new_owner);
+    }
+
+    // ── ACT-15: remove_player_from_game accepts owner directly ───────────────
+
+    #[test]
+    fn act_15_remove_player_accepts_owner_directly() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, owner, _, _) = setup(&env);
+
+        // No backend controller set — owner must still be accepted.
+        let player = Address::generate(&env);
+        client.remove_player_from_game(&owner, &10, &player, &3);
     }
 }

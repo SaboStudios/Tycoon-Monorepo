@@ -18,6 +18,13 @@
 /// | GCT-08 | `admin_set_cash_tier_value` stores and retrieves multiple tiers |
 /// | GCT-09 | `get_user` returns None for unregistered address |
 /// | GCT-10 | `register_player` emits an event |
+/// | GCT-11 | `initialize` rejects self-address for tyc_token |
+/// | GCT-12 | `register_player` rejects username shorter than 3 chars |
+/// | GCT-13 | `register_player` rejects username longer than 20 chars |
+/// | GCT-14 | `get_collectible_info` panics for nonexistent token_id |
+/// | GCT-15 | `get_cash_tier_value` panics for nonexistent tier |
+/// | GCT-16 | `admin_withdraw_funds` panics for invalid token address |
+/// | GCT-17 | `admin_withdraw_funds` panics when contract balance is insufficient |
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -336,5 +343,116 @@ mod tests {
             !events.is_empty(),
             "GCT-10: register_player must emit at least one event"
         );
+    }
+
+    // ── GCT-11 ───────────────────────────────────────────────────────────────
+
+    /// GCT-11: `initialize` rejects a token address that equals the contract address.
+    #[test]
+    #[should_panic(expected = "Invalid address: cannot be the contract itself")]
+    fn gct_11_initialize_rejects_self_address_as_tyc_token() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(TycoonContract, ());
+        let client = TycoonContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+        let usdc_id = env
+            .register_stellar_asset_contract_v2(Address::generate(&env))
+            .address();
+        let reward = Address::generate(&env);
+
+        // Pass the contract's own address as tyc_token — must panic.
+        client.initialize(&contract_id, &usdc_id, &owner, &reward);
+    }
+
+    // ── GCT-12 ───────────────────────────────────────────────────────────────
+
+    /// GCT-12: `register_player` rejects a username shorter than 3 characters.
+    #[test]
+    #[should_panic(expected = "Username must be 3-20 characters")]
+    fn gct_12_register_player_rejects_short_username() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        let player = Address::generate(&env);
+        client.register_player(&soroban_sdk::String::from_str(&env, "ab"), &player);
+    }
+
+    // ── GCT-13 ───────────────────────────────────────────────────────────────
+
+    /// GCT-13: `register_player` rejects a username longer than 20 characters.
+    #[test]
+    #[should_panic(expected = "Username must be 3-20 characters")]
+    fn gct_13_register_player_rejects_long_username() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        let player = Address::generate(&env);
+        // 21 characters — one over the limit.
+        client.register_player(
+            &soroban_sdk::String::from_str(&env, "abcdefghijklmnopqrstu"),
+            &player,
+        );
+    }
+
+    // ── GCT-14 ───────────────────────────────────────────────────────────────
+
+    /// GCT-14: `get_collectible_info` panics when the token_id has never been set.
+    #[test]
+    #[should_panic(expected = "Collectible does not exist")]
+    fn gct_14_get_collectible_info_nonexistent_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        client.get_collectible_info(&9999);
+    }
+
+    // ── GCT-15 ───────────────────────────────────────────────────────────────
+
+    /// GCT-15: `get_cash_tier_value` panics when the tier has never been set.
+    #[test]
+    #[should_panic(expected = "Cash tier does not exist")]
+    fn gct_15_get_cash_tier_value_nonexistent_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        client.get_cash_tier_value(&9999);
+    }
+
+    // ── GCT-16 ───────────────────────────────────────────────────────────────
+
+    /// GCT-16: `admin_withdraw_funds` panics when the token is not TYC or USDC.
+    #[test]
+    #[should_panic(expected = "Invalid token address")]
+    fn gct_16_withdraw_funds_invalid_token_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        let unknown_token = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        client.admin_withdraw_funds(&unknown_token, &recipient, &100);
+    }
+
+    // ── GCT-17 ───────────────────────────────────────────────────────────────
+
+    /// GCT-17: `admin_withdraw_funds` panics when the contract balance is lower
+    /// than the requested amount.
+    #[test]
+    #[should_panic(expected = "Insufficient contract balance")]
+    fn gct_17_withdraw_funds_insufficient_balance_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (contract_id, client, _, tyc_id, _) = setup(&env);
+
+        // Mint only 100 tokens but try to withdraw 500.
+        fund(&env, &tyc_id, &contract_id, 100);
+        let recipient = Address::generate(&env);
+        client.admin_withdraw_funds(&tyc_id, &recipient, &500);
     }
 }

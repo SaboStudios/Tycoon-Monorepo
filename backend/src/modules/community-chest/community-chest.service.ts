@@ -1,23 +1,30 @@
 import {
   Injectable,
-  ConflictException,
-  InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityChest } from './entities/community-chest.entity';
 import { CreateCommunityChestDto } from './dto/create-community-chest.dto';
+import { UpdateCommunityChestDto } from './dto/update-community-chest.dto';
 import {
   GetCommunityChestListDto,
   CommunityChestSortBy,
+  COMMUNITY_CHEST_MAX_LIMIT,
 } from './dto/get-community-chest-list.dto';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { secureRandomInt } from '../../common/crypto-secure-random';
+import {
+  CommunityChestErrorMapperService,
+  CommunityChestErrorCode,
+} from './community-chest-error-mapper.service';
 
 @Injectable()
 export class CommunityChestService {
   constructor(
     @InjectRepository(CommunityChest)
     private readonly communityChestRepository: Repository<CommunityChest>,
+    private readonly errorMapper: CommunityChestErrorMapperService,
   ) {}
 
   async drawCard(): Promise<CommunityChest | null> {
@@ -35,19 +42,18 @@ export class CommunityChestService {
   }
 
   async create(createDto: CreateCommunityChestDto): Promise<CommunityChest> {
+    const existingCard = await this.communityChestRepository.findOne({
+      where: { instruction: createDto.instruction },
+    });
+
+    if (existingCard) {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.DUPLICATE_INSTRUCTION,
+      );
+      throw new HttpException(mapped, mapped.statusCode);
+    }
+
     try {
-      // Check for duplicate instruction
-      const existingCard = await this.communityChestRepository.findOne({
-        where: { instruction: createDto.instruction },
-      });
-
-      if (existingCard) {
-        throw new ConflictException(
-          'A Community Chest card with this instruction already exists',
-        );
-      }
-
-      // Create and save the new card
       const communityChest = this.communityChestRepository.create({
         instruction: createDto.instruction,
         type: createDto.type,
@@ -57,34 +63,70 @@ export class CommunityChestService {
       });
 
       return await this.communityChestRepository.save(communityChest);
-    } catch (error) {
-      if (error instanceof ConflictException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Failed to create Community Chest card',
+    } catch {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.CREATE_FAILED,
       );
+      throw new HttpException(mapped, mapped.statusCode);
     }
   }
 
-  /**
-   * Get all Community Chest cards with optional filtering and ordering
-   * Supports flexible ordering by any field and type filtering
-   * Optimized query with index on type and createdAt for efficient filtering/sorting
-   */
-  async findAll(query: GetCommunityChestListDto): Promise<CommunityChest[]> {
-    const { sortBy = CommunityChestSortBy.ID, sortOrder = 'ASC', type } = query;
+  async update(
+    id: number,
+    updateDto: UpdateCommunityChestDto,
+  ): Promise<CommunityChest> {
+    const card = await this.communityChestRepository.findOne({ where: { id } });
+
+    if (!card) {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.NOT_FOUND,
+      );
+      throw new HttpException(mapped, mapped.statusCode);
+    }
+
+    if (updateDto.instruction !== undefined) {
+      const duplicate = await this.communityChestRepository.findOne({
+        where: { instruction: updateDto.instruction },
+      });
+      if (duplicate && duplicate.id !== id) {
+        const mapped = this.errorMapper.mapError(
+          CommunityChestErrorCode.DUPLICATE_INSTRUCTION,
+        );
+        throw new HttpException(mapped, mapped.statusCode);
+      }
+    }
+
+    try {
+      Object.assign(card, updateDto);
+      return await this.communityChestRepository.save(card);
+    } catch {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.UPDATE_FAILED,
+      );
+      throw new HttpException(mapped, mapped.statusCode);
+    }
+  }
+
+  async findAll(
+    query: GetCommunityChestListDto,
+  ): Promise<PaginatedResponse<CommunityChest>> {
+    const {
+      page = 1,
+      limit: rawLimit = 10,
+      sortBy = CommunityChestSortBy.ID,
+      sortOrder = 'ASC',
+      type,
+    } = query;
+
+    const limit = Math.min(Math.max(1, rawLimit), COMMUNITY_CHEST_MAX_LIMIT);
 
     const qb =
       this.communityChestRepository.createQueryBuilder('community_chest');
 
-    // Apply type filter if provided
     if (type) {
       qb.andWhere('community_chest.type = :type', { type });
     }
 
-    // Apply ordering - validate sortBy is a valid column
     const validSortColumns = Object.values(CommunityChestSortBy);
     const sortColumn = validSortColumns.includes(sortBy)
       ? sortBy
@@ -92,7 +134,27 @@ export class CommunityChestService {
 
     qb.orderBy(`community_chest.${sortColumn}`, sortOrder);
 
-    return await qb.getMany();
+    if (sortColumn !== CommunityChestSortBy.ID) {
+      qb.addOrderBy('community_chest.id', sortOrder);
+    }
+
+    const skip = (page - 1) * limit;
+    qb.skip(skip).take(limit);
+
+    const [data, totalItems] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async findOne(id: number): Promise<CommunityChest | null> {

@@ -36,16 +36,6 @@ mod tests {
         assert!(!invalid_config.is_valid());
     }
 
-    #[test]
-    fn test_fee_config_is_valid() {
-        let env = Env::default();
-        let valid_config = cfg(&env, 2500, 2500, 5000);
-        assert!(valid_config.is_valid());
-
-        let invalid_config = cfg(&env, 6000, 6000, 6000);
-        assert!(!invalid_config.is_valid());
-    }
-
     /// All fees sum to exactly 10 000 bps — residue must be zero.
     #[test]
     fn test_fees_sum_to_100_pct_no_residue() {
@@ -167,6 +157,8 @@ mod tests {
                 "invariant failed: p={p} c={c} pool={pool} amount={amount}"
             );
         }
+    }
+
     #[test]
     fn test_creator_takes_all() {
         let env = Env::default();
