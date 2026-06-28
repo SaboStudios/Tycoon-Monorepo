@@ -5,6 +5,7 @@ import { CommunityChestService } from './community-chest.service';
 import { CommunityChestController } from './community-chest.controller';
 import { CommunityChestObservabilityService } from './community-chest-observability.service';
 import { CommunityChestObservabilityInterceptor } from './community-chest-observability.interceptor';
+import { CommunityChestErrorMapperService } from './community-chest-error-mapper.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([CommunityChest])],
@@ -12,8 +13,9 @@ import { CommunityChestObservabilityInterceptor } from './community-chest-observ
     CommunityChestService,
     CommunityChestObservabilityService,
     CommunityChestObservabilityInterceptor,
+    CommunityChestErrorMapperService,
   ],
   controllers: [CommunityChestController],
-  exports: [CommunityChestService, TypeOrmModule, CommunityChestObservabilityService],
+  exports: [CommunityChestService, TypeOrmModule, CommunityChestObservabilityService, CommunityChestErrorMapperService],
 })
 export class CommunityChestModule {}

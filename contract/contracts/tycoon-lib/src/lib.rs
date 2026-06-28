@@ -9,6 +9,22 @@ pub mod fees;
 /// All items in this module emit `#[deprecated]` compiler warnings.
 /// See the module documentation for the replacement path of each item.
 pub mod legacy;
+// Pause module removed - each contract implements pause locally for better isolation
+// See tycoon-main-game/src/storage.rs for pause implementation example
+pub mod events;
+pub mod fees;
+
+// Admin-only vs public entrypoint formalization (SW-LIB-001)
+pub mod admin;
+
+// Storage rent budget review and TTL helpers (SW-LIB-002)
+pub mod storage_rent;
+
+// Cross-contract auth matrix types (SW-LIB-003)
+pub mod auth;
+
+// Upgrade / migration key governance (SW-LIB-004)
+pub mod migration;
 
 #[cfg(test)]
 mod fees_coverage_tests;
