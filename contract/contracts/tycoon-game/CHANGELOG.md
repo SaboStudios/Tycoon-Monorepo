@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - #1007
+
+### Added
+- `UPGRADE_MIGRATION_KEY_GOVERNANCE.md` — governance policy for contract
+  upgrades, state schema migrations (`StateVersion`), and key rotation
+  (`Owner`, `BackendGameController`). Covers authorised callers, on-chain
+  evidence requirements, WASM upgrade procedure, rollback policy, and
+  deprecated entrypoint sunset schedule.
 ## [Unreleased] - #1006
 
 ### Added
