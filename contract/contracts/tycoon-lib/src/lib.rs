@@ -61,6 +61,9 @@ pub mod migration;
 #[cfg(test)]
 mod fees_coverage_tests;
 
+#[cfg(test)]
+mod simulation_tests;
+
 use soroban_sdk::contracttype;
 
 // ============================================================
