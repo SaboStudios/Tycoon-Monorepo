@@ -1,11 +1,68 @@
+//! # tycoon-lib
+//!
+//! Shared types and utilities for the Tycoon Soroban smart-contract suite.
+//!
+//! ## Modules
+//!
+//! | Module | Purpose |
+//! |--------|---------|
+//! | *(root)* | Core game enum types: [`GameStatus`], [`GameType`], [`PlayerSymbol`] |
+//! | [`fees`] | Fee configuration and split calculation: [`fees::FeeConfig`], [`fees::FeeSplit`], [`fees::calculate_fee_split`] |
+//!
+//! ## Design notes
+//!
+//! All types derive [`Clone`], [`Copy`], [`Debug`], [`Eq`], and [`PartialEq`] and are
+//! annotated with `#[contracttype]` so they can be used directly in Soroban contract
+//! storage and function signatures.
+//!
+//! The `pause` module that previously lived here has been removed; each downstream
+//! contract now manages its own pause flag for better isolation.
+//! See `tycoon-main-game/src/storage.rs` for the canonical pause implementation.
+//!
+//! ## Acceptance criteria
+//!
+//! - All public items are documented with rustdoc comments.
+//! - [`fees::FeeConfig::is_valid`] rejects any config whose basis-points sum exceeds 10 000.
+//! - [`fees::calculate_fee_split`] guarantees `platform + creator + pool + residue == amount`
+//!   for every valid input.
+//! - An invalid [`fees::FeeConfig`] causes [`fees::calculate_fee_split`] to return the full
+//!   `amount` as `residue` with all fee fields set to zero (graceful degradation).
+
 #![no_std]
 
+// Pause module removed — each contract implements pause locally for better isolation.
+// See tycoon-main-game/src/storage.rs for the canonical pause implementation.
+// Pause module removed - each contract implements pause locally for better isolation.
+// See tycoon-main-game/src/storage.rs for the canonical pause implementation.
+pub mod fees;
+
+/// Deprecated re-exports for consumers using pre-0.2.0 import paths.
+///
+/// All items in this module emit `#[deprecated]` compiler warnings.
+/// See the module documentation for the replacement path of each item.
+pub mod legacy;
 // Pause module removed - each contract implements pause locally for better isolation
 // See tycoon-main-game/src/storage.rs for pause implementation example
+pub mod events;
 pub mod fees;
+
+// Admin-only vs public entrypoint formalization (SW-LIB-001)
+pub mod admin;
+
+// Storage rent budget review and TTL helpers (SW-LIB-002)
+pub mod storage_rent;
+
+// Cross-contract auth matrix types (SW-LIB-003)
+pub mod auth;
+
+// Upgrade / migration key governance (SW-LIB-004)
+pub mod migration;
 
 #[cfg(test)]
 mod fees_coverage_tests;
+
+#[cfg(test)]
+mod simulation_tests;
 
 use soroban_sdk::contracttype;
 

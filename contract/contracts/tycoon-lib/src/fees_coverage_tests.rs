@@ -141,6 +141,31 @@ mod tests {
         assert_eq!(split.residue, 0);
     }
 
+    /// Table-driven: invariant holds for a range of amounts and fee configs.
+    #[test]
+    fn test_invariant_sum_equals_input_table() {
+        let env = Env::default();
+        let cases: &[(u32, u32, u32, u128)] = &[
+            (100, 200, 300, 0),
+            (100, 200, 300, 1),
+            (100, 200, 300, 9999),
+            (100, 200, 300, 10_000),
+            (100, 200, 300, 1_000_000),
+            (0, 0, 0, 999_999_999),
+            (5000, 3000, 2000, 10_000), // exactly 100%
+        ];
+        for &(p, c, pool, amount) in cases {
+            let config = cfg(&env, p, c, pool);
+            let split = calculate_fee_split(amount, &config);
+            let sum =
+                split.platform_amount + split.creator_amount + split.pool_amount + split.residue;
+            assert_eq!(
+                sum, amount,
+                "invariant failed: p={p} c={c} pool={pool} amount={amount}"
+            );
+        }
+    }
+
     #[test]
     fn test_creator_takes_all() {
         let env = Env::default();
