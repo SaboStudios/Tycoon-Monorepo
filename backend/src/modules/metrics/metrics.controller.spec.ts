@@ -1,8 +1,9 @@
 /**
- * SW-BE-028 — MetricsController: DTO validation and error mapping tests.
+ * SW-BE-025 — MetricsController: observability tests.
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { MetricsController } from './metrics.controller';
 import { HttpMetricsService } from './http-metrics.service';
 import { AuditTrailService } from '../audit-trail/audit-trail.service';
@@ -16,6 +17,13 @@ const mockHttpMetricsService = {
   getMetricsText: jest.fn(),
 };
 
+const mockConfigService = {
+  get: jest.fn((key: string, defaultValue?: unknown) => {
+    if (key === 'METRICS_ENABLED') return true;
+    return defaultValue;
+  }),
+};
+
 describe('MetricsController', () => {
   let controller: MetricsController;
 
@@ -26,6 +34,7 @@ describe('MetricsController', () => {
         { provide: HttpMetricsService, useValue: mockHttpMetricsService },
         { provide: AuditTrailService, useValue: { log: jest.fn() } },
         { provide: Reflector, useValue: { get: jest.fn() } },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 

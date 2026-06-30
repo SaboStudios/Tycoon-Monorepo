@@ -91,6 +91,8 @@ export const validationSchema = Joi.object({
     .truthy('true')
     .falsy('false')
     .default(true),
+  // TRACING_ENABLED: enable OpenTelemetry distributed tracing
+  TRACING_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
 
   // ─── Payment / Webhooks ─────────────────────────────────────────────────────
   PAYMENT_WEBHOOK_SECRET: Joi.when('NODE_ENV', {

@@ -1,5 +1,5 @@
 /**
- * SW-BE-028 — route-group: DTO validation and error mapping tests.
+ * SW-BE-025 — route-group: low-cardinality HTTP route classification for metrics.
  */
 import { classifyHttpRouteGroup, httpStatusClass } from './route-group';
 

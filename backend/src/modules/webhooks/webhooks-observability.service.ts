@@ -40,7 +40,8 @@ export interface WebhookLogContext {
 }
 
 /**
- * Observability service for webhooks & signatures
+ * WebhooksObservabilityService — SW-BE-025
+ *
  * Provides structured logging, metrics, and traces for webhook operations
  *
  * Security: No secrets (signatures, webhook secrets) are logged
