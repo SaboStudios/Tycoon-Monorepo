@@ -17,13 +17,38 @@ async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs: number,
+  callerSignal?: AbortSignal,
 ): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  // If the caller supplied a signal, abort our internal controller when it fires
+  // so both the timeout and the caller's cancellation are honoured.
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      clearTimeout(id);
+      throw new TycoonApiError({
+        code: 'NETWORK_ERROR',
+        statusCode: 0,
+        message: 'Request cancelled',
+      });
+    }
+    callerSignal.addEventListener('abort', onCallerAbort);
+  }
+
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (err) {
+    // Distinguish a caller-initiated abort from a timeout abort.
     if ((err as Error).name === 'AbortError') {
+      if (callerSignal?.aborted) {
+        throw new TycoonApiError({
+          code: 'NETWORK_ERROR',
+          statusCode: 0,
+          message: 'Request cancelled',
+        });
+      }
       throw new TycoonApiError({
         code: 'TIMEOUT',
         statusCode: 408,
@@ -37,6 +62,9 @@ async function fetchWithTimeout(
     });
   } finally {
     clearTimeout(id);
+    if (callerSignal) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+    }
   }
 }
 
@@ -67,12 +95,11 @@ async function request<T>(
     method,
     headers,
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    ...(opts.signal ? { signal: opts.signal } : {}),
   };
 
   let attempt = 0;
   while (true) {
-    const res = await fetchWithTimeout(url, init, timeoutMs);
+    const res = await fetchWithTimeout(url, init, timeoutMs, opts.signal);
 
     if (res.ok) {
       // 204 No Content

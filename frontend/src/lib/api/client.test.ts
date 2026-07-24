@@ -229,6 +229,177 @@ describe('API Client Retry Logic (#799)', () => {
   });
 });
 
+// ── AbortSignal / RequestOptions.signal (#1255) ───────────────────────────────
+
+describe('RequestOptions.signal — AbortSignal end-to-end coverage (#1255)', () => {
+  const originalFetch = global.fetch;
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.clearAllMocks();
+  });
+
+  it('passes the caller signal so an in-flight request can be cancelled', async () => {
+    const controller = new AbortController();
+
+    // Simulate a pending fetch that never resolves — abort it during the test
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init.signal as AbortSignal).addEventListener('abort', () => {
+            const err = new DOMException('The operation was aborted.', 'AbortError');
+            reject(err);
+          });
+        }),
+    );
+
+    const promise = apiClient.post('/rooms/join', { roomCode: 'ABC123' }, {
+      signal: controller.signal,
+    });
+
+    // Cancel immediately (simulates component unmount)
+    controller.abort();
+
+    await expect(promise).rejects.toBeInstanceOf(TycoonApiError);
+    const err = await promise.catch((e: TycoonApiError) => e);
+    expect(err.code).toBe('NETWORK_ERROR');
+    expect(err.message).toBe('Request cancelled');
+  });
+
+  it('throws NETWORK_ERROR with "Request cancelled" message when signal fires', async () => {
+    const controller = new AbortController();
+    controller.abort(); // pre-aborted signal
+
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          if ((init.signal as AbortSignal).aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+          }
+        }),
+    );
+
+    try {
+      await apiClient.post('/rooms/join', { roomCode: 'XYZ' }, {
+        signal: controller.signal,
+      });
+      expect.fail('Should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(TycoonApiError);
+      expect((err as TycoonApiError).code).toBe('NETWORK_ERROR');
+      expect((err as TycoonApiError).message).toBe('Request cancelled');
+    }
+  });
+
+  it('throws immediately when a pre-aborted signal is supplied', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    // fetch should not even be called for a pre-aborted signal
+    try {
+      await apiClient.post('/rooms/join', { roomCode: 'PRE' }, {
+        signal: controller.signal,
+      });
+      expect.fail('Should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(TycoonApiError);
+      expect((err as TycoonApiError).code).toBe('NETWORK_ERROR');
+      expect((err as TycoonApiError).message).toBe('Request cancelled');
+      // fetch must NOT be called when the signal was pre-aborted
+      expect(mockFetch).not.toHaveBeenCalled();
+    }
+  });
+
+  it('completes successfully when signal is provided but not aborted', async () => {
+    const controller = new AbortController();
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ roomId: '1' }), { status: 200 }),
+    );
+
+    const result = await apiClient.post<{ roomId: string }>(
+      '/rooms/join',
+      { roomCode: 'OK' },
+      { signal: controller.signal },
+    );
+
+    expect(result).toEqual({ roomId: '1' });
+  });
+
+  it('does not retry after an AbortSignal cancellation', async () => {
+    const controller = new AbortController();
+
+    mockFetch.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init.signal as AbortSignal).addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+
+    const promise = apiClient.post('/rooms/join', {}, {
+      signal: controller.signal,
+      retries: 2,
+    });
+
+    controller.abort();
+
+    await expect(promise).rejects.toBeInstanceOf(TycoonApiError);
+    // Abort must not trigger retries — fetch is called only once
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('signal is forwarded to fetch via the internal AbortController', async () => {
+    const controller = new AbortController();
+
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) => {
+      // Confirm fetch received a signal
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+    });
+
+    await apiClient.get('/test', { signal: controller.signal });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('timeout abort is independent of caller signal — timeout throws TIMEOUT', async () => {
+    // Simulate a fetch that only resolves when the internal timeout fires,
+    // without any caller abort. We use a very short timeout.
+    vi.useFakeTimers();
+
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init.signal as AbortSignal).addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+
+    // No caller signal — only the internal timeout should fire
+    const promise = apiClient.get('/slow', { timeoutMs: 100, retries: 0 });
+
+    vi.advanceTimersByTime(200);
+
+    try {
+      await promise;
+      expect.fail('Should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(TycoonApiError);
+      expect((err as TycoonApiError).code).toBe('TIMEOUT');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('Type Guards (#799)', () => {
   const { isApiError, isValidationError, isUnauthorized } = await import('./errors');
 

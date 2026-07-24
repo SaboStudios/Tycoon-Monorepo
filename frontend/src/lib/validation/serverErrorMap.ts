@@ -86,12 +86,16 @@ export function mapServerErrors(error: unknown): FieldErrors {
   }
   if (body.statusCode === 404) return { _form: "Room not found. Check the code and try again." };
   if (body.statusCode === 409) {
-    const conflictMessage = formatMessages(body.message).find(
+    // Prefer "already-joined" over "room-full" when both cues are present in
+    // the message payload. Scan all messages for the higher-priority signal
+    // first, then fall back to "room-full".
+    const msgs = formatMessages(body.message);
+    const alreadyJoined = msgs.some(
       (msg) =>
         msg.toLowerCase().includes("already joined") ||
         msg.toLowerCase().includes("already in this"),
     );
-    if (conflictMessage) {
+    if (alreadyJoined) {
       return { _form: "You're already in this room." };
     }
     return { _form: "Room is full. Try a different room." };
@@ -104,14 +108,23 @@ export function mapServerErrors(error: unknown): FieldErrors {
   }
 
   // Priority 4: NestJS class-validator messages array
-  // Infer field from message text using keyword matching
+  // Infer field from message text using keyword matching.
+  // "already-joined" is checked first across all messages before "full" so
+  // that when a response contains both cues the user-facing copy is correct.
   const messages = formatMessages(body.message);
+
+  // Fast path: already-joined wins over room-full regardless of message order.
+  const hasAlreadyJoined = messages.some(
+    (m) =>
+      m.toLowerCase().includes("already joined") ||
+      m.toLowerCase().includes("already in this"),
+  );
+  if (hasAlreadyJoined) {
+    return { _form: "You're already in this room." };
+  }
 
   for (const msg of messages) {
     const lower = msg.toLowerCase();
-    if (lower.includes("already joined") || lower.includes("already in this")) {
-      return { _form: "You're already in this room." };
-    }
     if (lower.includes("expired") && lower.includes("invite")) {
       return { _form: "This invite link has expired. Ask the host for a new one." };
     }

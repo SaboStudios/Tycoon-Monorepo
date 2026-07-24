@@ -150,6 +150,31 @@ describe('mapServerErrors', () => {
       });
     });
 
+    it('maps 409 with already-joined message to already-joined (not room-full)', () => {
+      expect(
+        mapServerErrors({ statusCode: 409, message: 'User has already joined this game' }),
+      ).toEqual({ _form: "You're already in this room." });
+    });
+
+    it('prefers already-joined over room-full when 409 message contains both cues', () => {
+      // "full" appears first; "already joined" must still win
+      expect(
+        mapServerErrors({
+          statusCode: 409,
+          message: ['Room is full', 'User already joined this game'],
+        }),
+      ).toEqual({ _form: "You're already in this room." });
+    });
+
+    it('prefers already-joined when message array order is reversed', () => {
+      expect(
+        mapServerErrors({
+          statusCode: 409,
+          message: ['User already joined this game', 'Room is full'],
+        }),
+      ).toEqual({ _form: "You're already in this room." });
+    });
+
     it('maps 410 statusCode to expired invite message', () => {
       expect(mapServerErrors({ statusCode: 410 })).toEqual({
         _form: 'This invite link has expired. Ask the host for a new one.',
@@ -336,6 +361,15 @@ describe('mapServerErrors', () => {
       expect(mapServerErrors(err)).toEqual({
         _form: 'Room not found. Check the code and try again.',
       });
+    });
+
+    it('prefers already-joined over room-full in message keywords (no statusCode)', () => {
+      // Without a 409 statusCode the Priority 4 path is used.
+      // "full" appears first in the array — already-joined must still win.
+      const err = {
+        message: ['Room is full', 'Player already joined this game'],
+      };
+      expect(mapServerErrors(err)).toEqual({ _form: "You're already in this room." });
     });
 
     it('uses message keywords when status code is not recognized', () => {
