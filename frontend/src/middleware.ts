@@ -18,8 +18,8 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   const { pathname } = request.nextUrl;
 
-  // Protected routes
-  const protectedRoutes = ["/game-play", "/ai-play", "/game-settings", "/join-room", "/play-ai"];
+  // Protected routes — both /play-ai and /trade-demo require authentication
+  const protectedRoutes = ["/game-play", "/ai-play", "/game-settings", "/join-room", "/play-ai", "/trade-demo"];
 
   const isProtected = protectedRoutes.some((route) =>
     pathname.startsWith(route)
