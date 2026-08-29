@@ -9,6 +9,7 @@
 
 import { useCallback, useState } from "react";
 import { sanitizeError, type SanitizedError } from "@/lib/errors/types";
+import { captureError, type ErrorTrackingReport } from "@/lib/errors/tracking";
 
 export interface ErrorReportOptions {
   /** Additional context (non-sensitive) */
@@ -79,7 +80,7 @@ export function useErrorReporting(): UseErrorReportingReturn {
 
       // In production, send to error tracking service
       if (process.env.NODE_ENV === "production") {
-        sendToErrorTracking(report);
+        sendToErrorTracking(error, report);
       }
     },
     [],
@@ -147,21 +148,18 @@ function sanitizeUrl(url: string): string {
 }
 
 /**
- * Send error to tracking service
- * Replace with your actual error tracking implementation
+ * Send a sanitized error report to the tracking backend.
+ *
+ * Primary path is the error-tracking SDK (`@sentry/browser`, configured via
+ * `NEXT_PUBLIC_SENTRY_DSN` — see `lib/errors/tracking.ts`). When no DSN is set,
+ * fall back to a plain POST to `NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT` if one is
+ * configured. Both paths no-op when neither is configured, so tests never make
+ * a network call.
  */
-function sendToErrorTracking(report: {
-  errorCode?: string;
-  category: string;
-  timestamp: string;
-  component?: string;
-  action?: string;
-  context?: Record<string, string | number | boolean>;
-  userAgent?: string;
-  url?: string;
-}) {
-  // Example: Send to Sentry, Datadog, or custom endpoint
-  // This is a placeholder - implement based on your error tracking service
+function sendToErrorTracking(error: unknown, report: ErrorTrackingReport) {
+  if (captureError(error, report)) {
+    return;
+  }
 
   const endpoint = process.env.NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT;
 

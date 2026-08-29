@@ -27,14 +27,39 @@ npm run dev             # start the dev server
 npm run build            # production build (also type-checks via `next build`)
 npm run typecheck        # tsc --noEmit
 npm run lint              # eslint
-npm run lint:ci           # non-mutating lint for files changed in the commit
 npm test -- --run         # run the Vitest suite once (CI mode)
 npm run test:coverage     # Vitest with coverage
+npm run test:e2e          # Playwright end-to-end suite (all browsers)
+npm run test:e2e:smoke    # Playwright: join-room smoke path only (chromium)
+npm run test:e2e:critical # Playwright: critical-journeys only (chromium)
 npm run storybook         # Storybook dev server
 npm run build-storybook   # static Storybook build
 ```
 
 Before opening a PR that touches `frontend/`, make sure `npm test -- --run`, `npm run typecheck`, and `npm run build` all pass locally — these are the checks enforced by [Frontend CI](.github/workflows/frontend-ci.yml).
+
+### Continuous integration
+
+[Frontend CI](.github/workflows/frontend-ci.yml) runs three jobs on every PR:
+
+| Job | What it runs | Blocking? |
+| --- | --- | --- |
+| `frontend-checks` | `npm test -- --run`, `npm run build` | yes |
+| `frontend-lint` | `npm run lint` | **advisory** — the existing tree still has violations. New code must not add any ESLint **errors or warnings**; run `npm run lint` before pushing. Once the backlog reaches zero this job flips to blocking. |
+| `frontend-e2e` | Playwright: `test:e2e:smoke` (blocking) + `test:e2e:critical` (advisory) | smoke blocks |
+
+The E2E job installs Chromium (`npx playwright install --with-deps chromium`),
+boots the app via Playwright's `webServer` with the MSW browser worker forced on
+(`NEXT_PUBLIC_API_MOCKING=enabled`), and uploads the HTML report plus
+traces/screenshots as artifacts on failure.
+
+To run the E2E suite locally:
+
+```bash
+cd frontend
+npx playwright install chromium   # first time only
+npm run test:e2e:smoke            # or: npm run test:e2e
+```
 
 ## Workflow
 

@@ -4,7 +4,15 @@ import { useEffect } from "react";
 
 export function MSWProvider() {
   useEffect(() => {
-    if (typeof window === "undefined" || process.env.NODE_ENV !== "development") {
+    // Run the browser worker in local development, or whenever mocking is
+    // explicitly forced on (e.g. the Playwright E2E run, which needs a
+    // deterministic backend without spinning up the Nest API).
+    const mockingForced =
+      process.env.NEXT_PUBLIC_API_MOCKING === "enabled";
+    if (
+      typeof window === "undefined" ||
+      (process.env.NODE_ENV !== "development" && !mockingForced)
+    ) {
       return;
     }
 

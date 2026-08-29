@@ -35,7 +35,17 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Protected routes
-  const protectedRoutes = ["/game-play", "/ai-play", "/game-settings", "/join-room", "/play-ai"];
+  const protectedRoutes = [
+    "/game-play",
+    "/ai-play",
+    "/game-settings",
+    "/join-room",
+    "/play-ai",
+    // Demo of an in-game feature — keep it behind the same auth gate as the
+    // real game routes (it is also flag-gated + 404s in prod, see
+    // app/trade-demo/page.tsx).
+    "/trade-demo",
+  ];
 
   const isProtected = protectedRoutes.some((route) =>
     pathname.startsWith(route)

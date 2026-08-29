@@ -18,6 +18,17 @@ test.describe("Smoke: home -> join-room -> invalid code", () => {
       window.localStorage.setItem("access_token", "smoke-test-token");
     });
 
+    // The `/join-room` route is auth-gated in middleware.ts (redirects to
+    // /login when the `auth-token` cookie is absent). Seed the cookie so the
+    // authenticated-visitor path under test is actually exercised.
+    await page.context().addCookies([
+      {
+        name: "auth-token",
+        value: "smoke-test-token",
+        url: "http://localhost:3000",
+      },
+    ]);
+
     // Stub the join endpoint to behave like an invalid/non-existent room code.
     await page.route("**/api/v1/games/*/join", async (route) => {
       await route.fulfill({
