@@ -25,6 +25,12 @@ export const analyticsEventSchema = {
   near_tx_submitted: ["network_id", "method_name"],
   near_tx_confirmed: ["network_id", "method_name"],
   near_tx_failed: ["network_id", "method_name", "error_type"],
+  // Onboarding tour telemetry
+  // Intentionally omits user_id (PII). step_id and total_steps are safe metadata.
+  tour_started: ["step_id", "total_steps"],
+  tour_step_viewed: ["step_id", "total_steps"],
+  tour_completed: ["total_steps"],
+  tour_skipped: ["step_id", "total_steps"],
 } as const;
 
 export type AnalyticsEventName = keyof typeof analyticsEventSchema;
