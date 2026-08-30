@@ -17,7 +17,7 @@ A monorepo containing the Tycoon backend (NestJS), frontend (Next.js), smart con
 
 - **`contract/`** — Soroban smart contracts
 
-See [ADR-001](backend/docs/ADR-001-shop-purchase-ownership.md) for the purchase write path architecture.
+See [ADR-001](backend/docs/ADR-001-shop-purchase-ownership.md) for the purchase write path architecture and [docs/SHOP_ARCHITECTURE.md](docs/SHOP_ARCHITECTURE.md) ([ADR-003](backend/docs/ADR-003-shop-purchase-field-mapping.md)) for the field-by-field mapping between the two `Purchase` entities.
 
 ---
 
