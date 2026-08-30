@@ -11,6 +11,7 @@ A monorepo containing the Tycoon backend (NestJS), frontend (Next.js), smart con
 - **`shop-api/`** — Shop microservice (NestJS)
   - Purchases API: `shop-api/src/purchases/` (authoritative purchase writes)
   - Uses its own PostgreSQL database
+  - Docker: `shop-api/Dockerfile` + `shop-api/docker-compose.yml`
 
 - **`frontend/`** — Next.js client (React 19)
 
@@ -20,83 +21,50 @@ See [ADR-001](backend/docs/ADR-001-shop-purchase-ownership.md) for the purchase 
 
 ---
 
-## Git Workflow (Manual Step Required)
+## Running shop-api locally
 
-The Kiro shell is frozen and cannot execute git commands. **You need to run these 5 commands manually:**
+### Via Docker Compose (recommended)
 
 ```bash
-cd TYNS-Monorepo
-
-# 1. Create feature branch
-git checkout -b feat/SW-001-purchases-idempotency
-
-# 2. Clean up nested duplicate
-rm -rf shop-api/shop-api
-
-# 3. Stage all files
-git add .
-
-# 4. Commit
-git commit -m "feat(shop-api): add idempotency + replay protection [SW-001]
-
-- Idempotency keys prevent duplicate purchases
-- Concurrent request protection (409 on in-flight keys)
-- Replay cached responses for completed keys
-- Transaction-safe with PostgreSQL
-- Full test coverage (unit + e2e)
-- Clean error shapes, no secret leakage
-
-Closes SW-001"
-
-# 5. Push
-git push -u origin feat/SW-001-purchases-idempotency
+cd shop-api
+docker compose up --build
 ```
 
----
+This starts:
 
-## Create PR
+| Service | Port | Notes |
+|---|---|---|
+| `shop-api` | `3000` | Non-root container; healthcheck on `GET /health` |
+| `shop-postgres` | `5433` (host) → `5432` (container) | Isolated from the `backend` Postgres on `5432` |
 
-### Option A: GitHub CLI
+Wait for `docker compose ps` to show `shop-api` as `healthy`, then:
+
 ```bash
-gh pr create \
-  --title "feat(shop-api): idempotency + replay protection [SW-001]" \
-  --body-file shop-api/PR-NOTES.md \
-  --base main \
-  --head feat/SW-001-purchases-idempotency
+curl http://localhost:3000/health
 ```
 
-### Option B: GitHub Web UI
-1. Go to https://github.com/marvelousufelix/Tycoon-Monorepo
-2. Click "Compare & pull request" (appears after push)
-3. Copy-paste content from `shop-api/PR-NOTES.md` into the PR description
-4. Submit
-
-**PR URL will be:** `https://github.com/marvelousufelix/Tycoon-Monorepo/pull/<number>`
-
----
-
-## What's Implemented
-
-✅ **Idempotency Service** — claim/complete/fail key lifecycle  
-✅ **Purchases API** — POST /purchases with `Idempotency-Key` header  
-✅ **Transaction Safety** — QueryRunner wraps purchase creation  
-✅ **Replay Protection** — 409 on concurrent, cached response on completed  
-✅ **Security** — masked keys in logs, no secrets in HTTP responses  
-✅ **Tests** — 4 suites (unit + e2e), all scenarios covered  
-✅ **Migration** — PostgreSQL schema for `purchases` + `idempotency_records`  
-✅ **PR Notes** — rollout plan, API contract, test instructions  
-
----
-
-## Run Tests Locally
+### Without Docker
 
 ```bash
 cd shop-api
 npm install
-npm test          # all tests (in-memory SQLite, no Postgres needed)
-npm run test:cov  # with coverage
+cp .env.example .env   # point DB_* at a local Postgres
+npm run start:dev
+```
+
+See [`shop-api/README.md`](shop-api/README.md) for logging, cleanup jobs, and test instructions.
+
+---
+
+## Running backend locally
+
+```bash
+cd backend
+docker compose up -d   # Postgres + Redis + pgAdmin, ports 5432/6379/5050
+npm install
+npm run start:dev
 ```
 
 ---
 
-## Project: Stellar Wave | Issue: SW-001
+## Project: Stellar Wave

@@ -4,8 +4,10 @@ import { PurchasesModule } from './purchases/purchases.module';
 import { Purchase } from './purchases/entities/purchase.entity';
 import { IdempotencyRecord } from './idempotency/entities/idempotency-record.entity';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { HealthController } from './health/health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
