@@ -24,7 +24,7 @@
   "dependencies": {
     "@near-wallet-selector/core": "^8.10.2",
     "@near-wallet-selector/modal-ui": "^8.10.2",
-    "@near-wallet-selector/my-near-wallet": "^8.10.2",
+    "@near-wallet-selector/my-near-wallet": "^10.1.4",
     "@sentry/browser": "^8.55.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
