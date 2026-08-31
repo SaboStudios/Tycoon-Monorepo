@@ -23,6 +23,7 @@ export enum IdempotencyStatus {
 }
 
 @Entity('idempotency_records')
+@Index(['status', 'createdAt'])
 export class IdempotencyRecord {
   /** The client-supplied idempotency key (UUID recommended). */
   @PrimaryColumn({ length: 255 })

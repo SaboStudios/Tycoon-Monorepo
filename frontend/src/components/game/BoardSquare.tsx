@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 export type SquareType = 
   | 'property' 
@@ -16,6 +17,7 @@ export interface BoardSquareProps {
   color: string;
   isFocused?: boolean;
   onFocus?: () => void;
+  imageUrl?: string;
 }
 
 export const BoardSquare: React.FC<BoardSquareProps> = ({
@@ -25,6 +27,7 @@ export const BoardSquare: React.FC<BoardSquareProps> = ({
   color,
   isFocused = false,
   onFocus,
+  imageUrl,
 }) => {
   if (!name || !color) return null;
   // Type-based styling
@@ -82,9 +85,20 @@ export const BoardSquare: React.FC<BoardSquareProps> = ({
       data-position={position}
       data-type={type}
     >
-      {/* Property color header - only for property type */}
+      {/* Property color header with optional image - only for property type */}
       {type === 'property' && (
-        <div className={`h-6 w-full border-b-2 border-gray-800 ${color}`} />
+        <div className={`relative h-6 w-full border-b-2 border-gray-800 overflow-hidden ${color}`}>
+          {imageUrl && (
+            <Image
+              src={imageUrl}
+              alt={name}
+              fill
+              sizes="120px"
+              className="object-cover"
+              loading="lazy"
+            />
+          )}
+        </div>
       )}
 
       {/* Main content area */}

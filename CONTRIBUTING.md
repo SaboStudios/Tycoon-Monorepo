@@ -14,12 +14,13 @@ Thanks for contributing! This guide covers local setup and the workflow we use f
 
 Use the package manager and runtime versions that are already pinned for each workspace:
 
-- `frontend/`: Node 20 (`npm`)
-- `backend/`: Node 20 (`npm`)
-- `shop-api/`: Node 20 (`npm`)
-- `contract/`: Rust toolchain + `make` + `cargo`
+Requirements: **Node 20** (matches the version pinned in `.github/workflows/frontend-ci.yml` and `.nvmrc`).
 
-## Frontend setup
+If you use [nvm](https://github.com/nvm-sh/nvm), run `nvm use` from the repository root to automatically switch to the correct version:
+
+```bash
+nvm use   # reads .nvmrc → switches to Node 20
+```
 
 ```bash
 cd frontend
@@ -77,27 +78,36 @@ npm run start:dev
 npm run migration:run
 ```
 
-## Contract setup
+## Shop API setup
 
-The contracts directory is Rust-based and is expected to be built with the workspace toolchain. Do not claim the contract CI is passing until the commands below run successfully in `contract/`.
-
-```bash
-cd contract
-make help
-make fmt
-make clippy
-make test
-make build-wasm
-```
-
-If you need the full local CI parity check:
+Requirements: **Node 20**.
 
 ```bash
-cd contract
-make ci
+cd shop-api
+npm ci
 ```
 
-This is intentionally documented as the workflow that matches CI. If the repository's true contract CI is not green yet, say so plainly in the PR rather than marking it as passing.
+Common commands, run from `shop-api/`:
+
+```bash
+npm run start:dev       # start the dev server (default port 3002)
+npm run build            # production build
+npm test                 # Jest unit + e2e suite (runs with --runInBand)
+```
+
+The shop-api runs on **port 3002** by default. It must not be started on
+`3000` (frontend dev server) or `3001` (backend API). Local runtime requires
+PostgreSQL; the test suite uses an in-memory SQLite database
+(`src/test/test-db.module.ts`) and needs no external services or secrets.
+
+From the repo root, `npm run install:all`, `npm run test:all`, and
+`npm run dev:all` all include `shop-api/` alongside `backend/` and `frontend/`.
+
+### Continuous integration
+
+[Shop API CI](.github/workflows/shop-api-ci.yml) runs on every PR that touches
+`shop-api/**`: Node 20, `npm ci`, `npm run build`, and
+`npm test -- --runInBand`. Failures block the PR. No secrets are required.
 
 ## Workflow
 
