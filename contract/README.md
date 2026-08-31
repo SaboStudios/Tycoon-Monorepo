@@ -24,6 +24,7 @@ contract/
 ├── Cargo.toml              # Workspace configuration
 ├── README.md               # This file
 ├── deploy/                 # wasm-hashes.txt, wasm-size-report.md (pipeline / local make)
+├── integration-tests/      # Cross-contract smoke tests (tycoon-integration-tests)
 ├── archive/                # Archived/experimental contracts (excluded from workspace)
 │   ├── README.md
 │   └── hello-world/        # Sample contract (reference only)
@@ -61,7 +62,7 @@ That runs the same **release WASM** build as GitHub Actions (`cargo build --targ
 make ci
 ```
 
-Full parity with `contract-build.yml` (adds integration tests):
+Full parity with `contract-ci.yml` (adds integration tests):
 
 ```bash
 make ci-full
@@ -124,7 +125,7 @@ Paths are stable for CI and local builds. Use these when wiring uploads or verif
 | Release WASM (all binaries) | `target/wasm32-unknown-unknown/release/*.wasm` | Primary deploy inputs |
 | WASM size report | `deploy/wasm-size-report.md` | Created by `make wasm-check` / CI |
 | WASM SHA-256 list | `deploy/wasm-hashes.txt` | `make wasm-hashes` locally; CI generates in `contract-build.yml` |
-| CI artifact upload | `contract/target/**/release/*.wasm`, `contract/deploy/wasm-hashes.txt`, `contract/deploy/wasm-size-report.md` | See `.github/workflows/contract-build.yml` |
+| CI artifact upload | `contract/target/**/release/*.wasm`, `contract/deploy/wasm-hashes.txt`, `contract/deploy/wasm-size-report.md` | See `.github/workflows/contract-ci.yml` |
 
 Example filenames: `tycoon_main_game.wasm`, `tycoon_game.wasm`, `tycoon_token.wasm`, etc. (see `ci/wasm-size-budget.json`).
 
