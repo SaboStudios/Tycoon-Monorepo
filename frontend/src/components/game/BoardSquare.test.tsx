@@ -2,6 +2,14 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BoardSquare, SquareType } from "./BoardSquare";
 
+// Mock next/image to render a plain img tag in tests
+vi.mock("next/image", () => ({
+  default: (props: Record<string, unknown>) => {
+    const { fill, sizes, loading, ...rest } = props;
+    return <img {...rest} data-testid="next-image" />;
+  },
+}));
+
 describe("BoardSquare", () => {
   const defaultProps = {
     name: "Park Place",
@@ -117,5 +125,38 @@ describe("BoardSquare", () => {
     );
     const gridcell = container.querySelector("[role='gridcell']");
     expect(gridcell?.className).toContain("ring-2");
+  });
+
+  // --- Image lazy-loading tests ---
+  describe("image support", () => {
+    it("renders an image when imageUrl is provided for property type", () => {
+      render(
+        <BoardSquare {...defaultProps} imageUrl="/tiles/park-place.png" />
+      );
+      const img = screen.getByTestId("next-image");
+      expect(img).toBeInTheDocument();
+      expect(img).toHaveAttribute("src", "/tiles/park-place.png");
+      expect(img).toHaveAttribute("alt", "Park Place");
+    });
+
+    it("does not render an image when imageUrl is not provided", () => {
+      render(<BoardSquare {...defaultProps} />);
+      expect(screen.queryByTestId("next-image")).toBeNull();
+    });
+
+    it("does not render an image for non-property types even with imageUrl", () => {
+      render(
+        <BoardSquare {...defaultProps} type="chance" imageUrl="/tiles/chance.png" />
+      );
+      expect(screen.queryByTestId("next-image")).toBeNull();
+    });
+
+    it("keeps color strip as background behind image", () => {
+      const { container } = render(
+        <BoardSquare {...defaultProps} imageUrl="/tiles/park-place.png" />
+      );
+      const header = container.querySelector(".bg-blue-700");
+      expect(header).toBeInTheDocument();
+    });
   });
 });

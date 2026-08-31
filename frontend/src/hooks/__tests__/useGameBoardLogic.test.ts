@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useGameBoardLogic, GameBoardState } from '../useGameBoardLogic';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -27,11 +27,17 @@ describe('useGameBoardLogic', () => {
       expect(result.current.players[1].name).toBe('Player 2');
     });
 
-    it('initializes with default board tiles', () => {
+    it('initializes with the canonical 40-tile board mapping', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      expect(result.current.board).toHaveLength(8);
+      expect(result.current.board).toHaveLength(40);
       expect(result.current.board[0].name).toBe('GO');
       expect(result.current.board[0].type).toBe('corner');
+      expect(result.current.board[7].name).toBe('Chance');
+      expect(result.current.board[17].name).toBe('Community Chest');
+      expect(result.current.board[22].name).toBe('Chance');
+      expect(result.current.board[33].name).toBe('Community Chest');
+      expect(result.current.board.filter((tile) => tile.type === 'chance')).toHaveLength(3);
+      expect(result.current.board.filter((tile) => tile.type === 'community')).toHaveLength(3);
     });
 
     it('sets currentPlayer to the first player', () => {
@@ -57,11 +63,19 @@ describe('useGameBoardLogic', () => {
   });
 
   describe('board state', () => {
-    it('board tiles have correct indices', () => {
+    it('board tiles have correct indices and stable property IDs', () => {
       const { result } = renderHook(() => useGameBoardLogic());
       result.current.board.forEach((tile, idx) => {
         expect(tile.index).toBe(idx);
       });
+
+      expect(result.current.board[1].propertyId).toBe(1);
+      expect(result.current.board[3].propertyId).toBe(2);
+      expect(result.current.board[5].propertyId).toBe(3);
+      expect(result.current.board[39].propertyId).toBe(28);
+      expect(result.current.board[2].propertyId).toBeNull();
+      expect(result.current.board[7].propertyId).toBeNull();
+      expect(result.current.board[17].propertyId).toBeNull();
     });
 
     it('board tiles have valid types', () => {
@@ -89,41 +103,40 @@ describe('useGameBoardLogic', () => {
       }).not.toThrow();
     });
 
-    it('logs dice roll to console', () => {
+    it('sets lastRoll after rolling', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      result.current.rollDice();
-      expect(console.log).toHaveBeenCalled();
+      act(() => { result.current.rollDice(); });
+      expect(result.current.lastRoll).not.toBeNull();
+      expect(result.current.lastRoll?.die1).toBeGreaterThanOrEqual(1);
+      expect(result.current.lastRoll?.die1).toBeLessThanOrEqual(6);
+      expect(result.current.lastRoll?.die2).toBeGreaterThanOrEqual(1);
+      expect(result.current.lastRoll?.die2).toBeLessThanOrEqual(6);
+      expect(result.current.lastRoll?.total).toBe(
+        (result.current.lastRoll?.die1 ?? 0) + (result.current.lastRoll?.die2 ?? 0)
+      );
     });
 
     it('generates dice values between 1 and 6', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      const logCalls: string[] = [];
-      vi.mocked(console.log).mockImplementation((msg: string) => {
-        logCalls.push(msg);
-      });
 
       for (let i = 0; i < 10; i++) {
-        result.current.rollDice();
+        act(() => { result.current.rollDice(); });
+        expect(result.current.lastRoll?.die1).toBeGreaterThanOrEqual(1);
+        expect(result.current.lastRoll?.die1).toBeLessThanOrEqual(6);
+        expect(result.current.lastRoll?.die2).toBeGreaterThanOrEqual(1);
+        expect(result.current.lastRoll?.die2).toBeLessThanOrEqual(6);
       }
-
-      logCalls.forEach((call) => {
-        const match = call.match(/rolled (\d+) \+ (\d+)/);
-        if (match) {
-          const die1 = parseInt(match[1], 10);
-          const die2 = parseInt(match[2], 10);
-          expect(die1).toBeGreaterThanOrEqual(1);
-          expect(die1).toBeLessThanOrEqual(6);
-          expect(die2).toBeGreaterThanOrEqual(1);
-          expect(die2).toBeLessThanOrEqual(6);
-        }
-      });
     });
 
-    it('includes current player name in dice roll log', () => {
+    it('advances current player position after rolling', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      result.current.rollDice();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining(result.current.currentPlayer.name)
+      const initialPosition = result.current.players[0].position;
+      act(() => { result.current.rollDice(); });
+      // After rolling, either position advanced or total was set
+      expect(result.current.lastRoll).not.toBeNull();
+      const newPosition = result.current.players[0].position;
+      expect(newPosition).toBe(
+        (initialPosition + (result.current.lastRoll?.total ?? 0)) % 40
       );
     });
   });
@@ -181,19 +194,18 @@ describe('useGameBoardLogic', () => {
 
     it('rollDice function maintains consistent behavior across multiple calls', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      const logCalls: any[] = [];
-      vi.mocked(console.log).mockImplementation((msg) => {
-        logCalls.push(msg);
-      });
 
-      result.current.rollDice();
-      result.current.rollDice();
-      result.current.rollDice();
+      // rollDice can be called 3 times without throwing
+      expect(() => {
+        act(() => { result.current.rollDice(); });
+        act(() => { result.current.rollDice(); });
+        act(() => { result.current.rollDice(); });
+      }).not.toThrow();
 
-      expect(logCalls).toHaveLength(3);
-      logCalls.forEach((call) => {
-        expect(call).toContain('rolled');
-      });
+      // lastRoll is populated after 3 rolls
+      expect(result.current.lastRoll).not.toBeNull();
+      expect(result.current.lastRoll?.total).toBeGreaterThanOrEqual(2);
+      expect(result.current.lastRoll?.total).toBeLessThanOrEqual(12);
     });
   });
 
@@ -217,15 +229,16 @@ describe('useGameBoardLogic', () => {
       expect(result.current.board).toHaveLength(originalBoardLength);
     });
 
-    it('board and players data remain unchanged after rollDice', () => {
+    it('board tiles remain unchanged after rollDice, player positions may change', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      const originalPlayers = JSON.stringify(result.current.players);
       const originalBoard = JSON.stringify(result.current.board);
 
-      result.current.rollDice();
+      act(() => { result.current.rollDice(); });
 
-      expect(JSON.stringify(result.current.players)).toBe(originalPlayers);
+      // Board tiles are never mutated by rollDice
       expect(JSON.stringify(result.current.board)).toBe(originalBoard);
+      // Player positions advance after a roll
+      expect(result.current.lastRoll).not.toBeNull();
     });
   });
 

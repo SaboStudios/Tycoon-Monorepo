@@ -14,4 +14,6 @@ export {
   PWA_OFFLINE_FALLBACK_URL,
   PWA_SHELL_PATHS,
   isShellAssetPath,
+  PWA_CACHE_EXCLUDED_PATTERNS,
+  isCacheExcludedPath,
 } from "./constants";
