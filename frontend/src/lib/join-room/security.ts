@@ -38,7 +38,20 @@ export function sanitizeJoinRoomErrorMessage(msg: string, maxLen = 200): string 
 
 export function hasJoinAuthToken(): boolean {
   if (typeof window === "undefined") return false;
-  // Canonical key is 'accessToken' (camelCase), matching backend DTO.
+
+  const sessionToken = (globalThis as typeof globalThis & {
+    __TYCOON_SESSION__?: { accessToken?: string };
+  }).__TYCOON_SESSION__?.accessToken;
+  if (sessionToken && sessionToken.trim().length > 0) {
+    return true;
+  }
+
+  const cookiePair = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith("auth-token="));
+  const cookieToken = cookiePair ? decodeURIComponent(cookiePair.split("=")[1] ?? "") : "";
+  if (cookieToken.trim().length > 0) return true;
+
   let token = localStorage.getItem("accessToken");
   if (!token) token = localStorage.getItem("access_token");
   return typeof token === "string" && token.trim().length > 0;

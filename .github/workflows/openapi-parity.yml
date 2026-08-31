@@ -1,0 +1,126 @@
+name: OpenAPI ↔ Client Parity
+
+# Issue #1514 — catch drift between the backend OpenAPI spec and the
+# frontend API client / DTO types before it reaches main.
+#
+# Flow:
+#   1. Build the NestJS app and regenerate openapi.json from source.
+#   2. Run check-openapi-parity.mjs — fails PR if any mismatch is found.
+#   3. Upload openapi.json as a workflow artifact for manual inspection.
+#
+# The check is intentionally fast (< 2 min) because it only builds the
+# NestJS reflection layer; it does NOT run the full test suite.
+
+on:
+  pull_request:
+    paths:
+      # Regenerate whenever backend source, DTOs, or the spec itself changes
+      - 'backend/src/**'
+      - 'backend/scripts/generate-openapi.ts'
+      - 'backend/scripts/check-openapi-parity.mjs'
+      - 'backend/openapi.json'
+      # Also run when the frontend client/DTO drifts
+      - 'frontend/src/lib/api/client.ts'
+      - 'frontend/src/lib/api/types/dto.ts'
+      # Always run on workflow file changes
+      - '.github/workflows/openapi-parity.yml'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'backend/src/**'
+      - 'backend/scripts/generate-openapi.ts'
+      - 'backend/scripts/check-openapi-parity.mjs'
+      - 'backend/openapi.json'
+      - 'frontend/src/lib/api/client.ts'
+      - 'frontend/src/lib/api/types/dto.ts'
+      - '.github/workflows/openapi-parity.yml'
+  # Allow manual run regardless of path filters
+  workflow_dispatch:
+
+jobs:
+  openapi-parity:
+    name: OpenAPI spec vs client parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+
+    # Minimal database service: the NestJS bootstrap for Swagger generation
+    # only needs the connection config to be valid — it does not run migrations.
+    # We still spin up a real Postgres so TypeORM's data-source validation passes.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tycoon_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: tycoon_test
+      DB_SYNCHRONIZE: false
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      # Minimal secrets required for NestJS bootstrap
+      JWT_SECRET: ci-openapi-parity-secret
+      STELLAR_NETWORK: testnet
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Build backend (compile TypeScript)
+        run: npm run build
+
+      - name: Regenerate openapi.json
+        run: npm run codegen
+
+      - name: Check for spec drift vs committed openapi.json
+        run: |
+          if ! git diff --exit-code openapi.json; then
+            echo ""
+            echo "❌ openapi.json is out of date."
+            echo "   Run 'cd backend && npm run build:openapi' locally,"
+            echo "   then commit the updated openapi.json."
+            exit 1
+          fi
+          echo "✅ openapi.json matches generated spec."
+
+      - name: Run OpenAPI ↔ client parity checks
+        run: node scripts/check-openapi-parity.mjs
+
+      - name: Upload openapi.json artifact
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: backend/openapi.json
+          retention-days: 14

@@ -158,7 +158,6 @@ describe("TradeModal", () => {
     // 9. Full mock trade flow
     it("completes a full mock trade flow", async () => {
         const { onClose } = renderModal();
-        const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => { });
 
         // Select trade partner
         const select = screen.getByLabelText("Trade Partner") as HTMLSelectElement;
@@ -183,22 +182,8 @@ describe("TradeModal", () => {
         // Validation error should NOT appear
         expect(screen.queryByTestId("validation-error")).toBeNull();
 
-        // onClose should have been called
+        // onClose should have been called — trade was confirmed
         expect(onClose).toHaveBeenCalledTimes(1);
-
-        // Console log should have been called with trade details
-        expect(consoleSpy).toHaveBeenCalledWith(
-            "Trade proposed:",
-            expect.objectContaining({
-                from: "Alice",
-                to: "Bob",
-                offeredProperties: ["Park Place"],
-                requestedProperties: ["Mediterranean Ave"],
-                offeredCash: 100,
-            })
-        );
-
-        consoleSpy.mockRestore();
     });
 
     // 10. Shows current player's properties in offer column

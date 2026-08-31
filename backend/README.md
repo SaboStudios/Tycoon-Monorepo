@@ -1,439 +1,262 @@
-# Tycoon Backend - NestJS TypeScript Boilerplate
+# Tycoon Backend
 
-A production-ready NestJS backend boilerplate with TypeScript, TypeORM, and PostgreSQL integration. This project provides a solid foundation for building scalable and maintainable REST APIs.
+NestJS 10 · TypeScript · TypeORM · PostgreSQL · Redis
 
-## 🚀 Features
+Production-grade REST + WebSocket API for the Tycoon gaming platform. Runs on
+**port 3000** (`http://localhost:3000`). API routes are versioned under
+`/api/v1/*`.
 
-- **NestJS Framework** - Progressive Node.js framework for building efficient and scalable server-side applications
-- **TypeScript** - Strongly typed programming language that builds on JavaScript
-- **TypeORM** - Advanced ORM for TypeScript and JavaScript
-- **PostgreSQL** - Powerful, open-source relational database
-- **Docker Support** - Docker Compose configuration for easy database setup
-- **Validation** - Built-in request validation using class-validator
-- **Configuration Management** - Environment-based configuration using @nestjs/config
-- **CORS Support** - Cross-Origin Resource Sharing enabled
-- **Modular Architecture** - Well-organized, scalable folder structure
+---
 
-## 📋 Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
-- **npm** (v9 or higher) - Comes with Node.js
-- **Docker** (optional, for running PostgreSQL) - [Download](https://www.docker.com/)
-- **PostgreSQL** (if not using Docker) - [Download](https://www.postgresql.org/)
-
-## 🛠️ Installation
-
-### 1. Clone the repository
+## Quick start
 
 ```bash
 cd backend
-```
 
-### 2. Install dependencies
-
-```bash
+# 1. Install dependencies
 npm install
-```
 
-### 3. Configure environment variables
-
-Copy the example environment file and update the values:
-
-```bash
+# 2. Copy and edit env
 cp .env.example .env
-```
 
-Edit `.env` file with your configuration:
-
-```env
-# Application Configuration
-NODE_ENV=development
-PORT=3000
-API_PREFIX=api
-API_DEFAULT_VERSION=1
-API_ENABLE_LEGACY_UNVERSIONED=true
-API_LEGACY_UNVERSIONED_SUNSET=
-
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=postgres
-DB_DATABASE=tycoon_db
-DB_SYNCHRONIZE=false
-DB_LOGGING=true
-
-# JWT Configuration (for future authentication)
-JWT_SECRET=your-secret-key-change-this-in-production
-JWT_EXPIRATION=1d
-
-# CORS Configuration
-CORS_ORIGIN=http://localhost:3000
-```
-
-### 4. Start the database
-
-#### Option A: Using Docker (Recommended)
-
-```bash
+# 3. Start database (Docker — recommended)
 docker-compose up -d
-```
 
-This will start:
+# 4. Apply migrations
+npm run migration:run
 
-- PostgreSQL database on port 5432
-- pgAdmin on port 5050 (access at http://localhost:5050)
-  - Email: admin@tycoon.com
-  - Password: admin
-
-#### Option B: Using local PostgreSQL
-
-Ensure PostgreSQL is running and create a database:
-
-```sql
-CREATE DATABASE tycoon_db;
-```
-
-## 🚀 Running the Application
-
-### Development mode
-
-```bash
+# 5. Start in dev mode (hot-reload)
 npm run start:dev
 ```
 
-The application will start on `http://localhost:3000`
+API: `http://localhost:3000/api/v1`  
+pgAdmin: `http://localhost:5050` (admin@tycoon.com / admin)  
+Metrics: `http://localhost:3000/metrics` (Prometheus)  
+Health: `http://localhost:3000/health`
 
-API endpoints are available at: `http://localhost:3000/api/v1`
+---
 
-## Observability (Prometheus)
-
-- **Scrape URL**: `GET /metrics` (root path — not under `/api`; health and metrics are excluded from the global prefix).
-- **Series** (low cardinality only; **no user ids**):
-  - `tycoon_http_requests_total` — labels `method`, `route_group` (`admin` \| `public` \| `internal`), `status_class` (`2xx`–`5xx`).
-  - `tycoon_http_request_duration_seconds` — histogram (tuned buckets for API latency); observed for `admin` and `public` only (internal paths such as `/metrics` and `/health/*` are counted on the request counter but omitted from duration to reduce scrape noise).
-- **Route groups**: any path containing an `/admin/` segment is `admin`; otherwise `public`; `/metrics` and `/health` are `internal`.
-- **Grafana**: import `grafana/dashboards/tycoon-http-overview.json` and select your Prometheus datasource (template variable `datasource`). The dashboard highlights **traffic split admin vs public** (request rate and pie panel).
-
-## 🔀 API Versioning & Deprecation Strategy
-
-- **Current stable version path**: `/api/v1/*`
-- **Unversioned compatibility path**: `/api/*` is supported temporarily and internally routed to `/api/v1/*`
-- **Deprecation signaling**: compatibility responses include `Deprecation: true`
-- **Optional sunset policy**: set `API_LEGACY_UNVERSIONED_SUNSET` (ISO date) to emit an RFC-compliant `Sunset` header
-
-### Breaking Changes Policy
-
-- Breaking API changes require a **new major API version** (for example: `v2`)
-- `v1` behavior remains stable until announced deprecation window ends
-- Unversioned compatibility (`/api/*`) is considered transitional and should not be used for new clients
-
-### Client Migration Plan
-
-- New and existing clients should call versioned paths (`/api/v1/*`) explicitly
-- Monitor `Deprecation`/`Sunset` headers on `/api/*` responses and migrate before the sunset date
-
-### Production mode
-
-```bash
-npm run build
-npm run start:prod
-```
-
-### Debug mode
-
-```bash
-npm run start:debug
-```
-
-## 📁 Project Structure
+## Project structure
 
 ```
 backend/
 ├── src/
-│   ├── config/                 # Configuration files
-│   │   ├── app.config.ts      # Application configuration
-│   │   └── database.config.ts # Database configuration
-│   ├── modules/               # Feature modules
-│   │   └── users/            # Users module
-│   │       ├── dto/          # Data Transfer Objects
-│   │       │   ├── create-user.dto.ts
-│   │       │   └── update-user.dto.ts
-│   │       ├── entities/     # Database entities
-│   │       │   └── user.entity.ts
-│   │       ├── users.controller.ts
-│   │       ├── users.service.ts
-│   │       └── users.module.ts
-│   ├── app.controller.ts      # Root controller
-│   ├── app.service.ts         # Root service
-│   ├── app.module.ts          # Root module
-│   └── main.ts                # Application entry point
-├── test/                      # Test files
-├── .env                       # Environment variables
-├── .env.example              # Environment variables example
-├── docker-compose.yml        # Docker configuration
-├── package.json              # Dependencies and scripts
-└── tsconfig.json            # TypeScript configuration
+│   ├── app.module.ts              # Root module — wires all feature modules
+│   ├── main.ts                    # Bootstrap (port, versioning, CORS, shutdown)
+│   ├── config/                    # app.config.ts, database.config.ts
+│   ├── common/                    # Guards, interceptors, pipes, decorators, filters
+│   ├── health/                    # /health endpoint (Terminus)
+│   ├── observability/             # Prometheus middleware wiring
+│   ├── database/
+│   │   ├── migrations/            # Versioned TypeORM migrations (run in order)
+│   │   └── seeds/                 # Idempotent seed scripts (board tiles, games)
+│   └── modules/                   # 30 feature modules (see below)
+├── docs/                          # Runbooks, ADRs, security guides
+├── test/                          # E2E and integration tests
+├── scripts/                       # smoke-test.sh, seed-test-db.sh, verify-admin-guards
+├── k8s/                           # Kubernetes deployment manifests
+├── grafana/dashboards/            # Prometheus/Grafana dashboard JSON
+├── docker-compose.yml
+└── .env.example
 ```
-
-## 🔌 API Endpoints
-
-### Users Module
-
-| Method | Endpoint            | Description       |
-| ------ | ------------------- | ----------------- |
-| POST   | `/api/v1/users`     | Create a new user |
-| GET    | `/api/v1/users`     | Get all users     |
-| GET    | `/api/v1/users/:id` | Get user by ID    |
-| PATCH  | `/api/v1/users/:id` | Update user       |
-| DELETE | `/api/v1/users/:id` | Delete user       |
-
-### Example Requests
-
-#### Create User
-
-```bash
-curl -X POST http://localhost:3000/api/v1/users \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "john@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "password": "securePassword123"
-  }'
-```
-
-#### Get All Users
-
-```bash
-curl http://localhost:3000/api/v1/users
-```
-
-#### Get User by ID
-
-```bash
-curl http://localhost:3000/api/v1/users/{user-id}
-```
-
-#### Update User
-
-```bash
-curl -X PATCH http://localhost:3000/api/v1/users/{user-id} \
-  -H "Content-Type: application/json" \
-  -d '{
-    "firstName": "Jane"
-  }'
-```
-
-#### Delete User
-
-```bash
-curl -X DELETE http://localhost:3000/api/v1/users/{user-id}
-```
-
-## 🧪 Testing
-
-```bash
-# Unit tests
-npm run test
-
-# E2E tests
-npm run test:e2e
-
-# Test coverage
-npm run test:cov
-```
-
-## 📦 Game Defaults & Idempotency (#400)
-
-**Default Game Settings** (from game.config.ts):
-- auction: true
-- rentInPrison: false
-- mortgage: true
-- evenBuild: true
-- randomizePlayOrder: true
-- startingCash: 1500
-
-**Init Hardened:**
-- Seeds (admin-seed.ts, game-seed.ts) idempotent: safe double-run.
-- View helpers: GamesService.getSafeGameView(id) returns defaults on empty/missing.
-
-**Migration Notes:** No schema changes. Rerun seeds safe.
-
-**Upgrade Policy:** Use /api/v1, monitor Deprecation headers.
-
-## 🎲 Board Tile Seeding & Idempotency (#1437)
-
-**Board Structure:**
-- **40-tile Monopoly-style board** — properties, chance, community chest, special tiles.
-- **Seed tables:** `properties`, `chances`, `community_chests`.
-- **Unique constraint:** `position` field enforces one tile per position, enabling idempotent seeding.
-
-**Seed Script:**
-```bash
-cd backend
-npm run seed -- src/database/seeds/seed-board-tiles.ts
-```
-
-The seed script is **fully idempotent** — running it multiple times will not create duplicates due to `ON CONFLICT (position) DO UPDATE` clauses in the SQL.
-
-**Idempotency Test:**
-```bash
-cd backend
-npm test -- src/database/seeds/seed-board-tiles.spec.ts
-```
-
-This test runs the seed twice and verifies row counts remain stable (no duplicate creation).
-
-**Frontend Tile Mapping:**
-- Tiles are indexed by `position` (0–39).
-- Position maps directly to board grid coordinates (via `grid_row` and `grid_col` in properties).
-- Ensure frontend uses the same tile count and position ordering.
-
-## 📦 Building for Production
-
-```bash
-npm run build
-```
-
-The compiled output will be in the `dist/` directory.
-
-
-## 🔧 Available Scripts
-
-| Script                | Description                               |
-| --------------------- | ----------------------------------------- |
-| `npm run start`       | Start the application                     |
-| `npm run start:dev`   | Start in development mode with hot-reload |
-| `npm run start:debug` | Start in debug mode                       |
-| `npm run start:prod`  | Start in production mode                  |
-| `npm run build`       | Build the application                     |
-| `npm run format`      | Format code using Prettier                |
-| `npm run lint`        | Lint code using ESLint                    |
-| `npm run test`        | Run unit tests                            |
-| `npm run test:e2e`    | Run end-to-end tests                      |
-| `npm run test:cov`    | Run tests with coverage                   |
-| `npm run migration:generate` | Generate a migration from entity drift (dev) |
-| `npm run migration:run` | Apply pending migrations                  |
-| `npm run migration:revert` | Revert the last applied migration (one step) |
-| `npm run migration:show` | List migration status (pending / executed) |
-
-## 🗄️ Database management
-
-### Production and provision
-
-- **Schema changes are applied only via versioned migrations** in `src/database/migrations/`.
-- **`DB_SYNCHRONIZE` is ignored** when `NODE_ENV` is `production` or `provision` (the app will not auto-sync even if the flag is set).
-- **Environment validation** rejects `DB_SYNCHRONIZE=true` together with `NODE_ENV=production` or `provision`, so production cannot accidentally enable sync at startup.
-
-### Local development
-
-- Optional: set `DB_SYNCHRONIZE=true` in `.env` for fast iteration against a throwaway database. Prefer migrations when sharing schema changes with the team.
-
-### Fresh database + migrations (acceptance)
-
-1. Create an empty PostgreSQL database (e.g. `CREATE DATABASE tycoon_db;`).
-2. Configure `.env` with `DB_*` pointing at that database and **`DB_SYNCHRONIZE=false`**.
-3. Run migrations:
-
-```bash
-cd backend
-npm run migration:run
-```
-
-4. Start the app (`npm run start:dev` or `npm run start:prod`). The schema matches what production uses.
-
-### Migration scripts (documented)
-
-| Command | Purpose |
-| ------- | ------- |
-| `npm run migration:generate -- src/database/migrations/DescriptiveName` | Compare entities to the current DB and emit a new migration file. **Run only in dev** with a DB that reflects the previous state (or empty + prior migrations). |
-| `npm run migration:run` | Execute all pending migrations in order. |
-| `npm run migration:show` | Show which migrations have run vs pending. |
-| `npm run migration:revert` | Undo **one** migration (the last applied). Run repeatedly to step back multiple versions. |
-
-Data source for the CLI: `src/config/database.config.ts` (exports `AppDataSource` + `default`).
-
-### Rollback strategy
-
-- **Single step:** `npm run migration:revert` runs the `down` method of the latest migration only. Repeat to roll back further.
-- **Production:** prefer forward-fix migrations when possible. For incidents, restore from backup or revert in a controlled window after testing `down` in staging.
-- **CI:** [`backend-ci.yml`](../.github/workflows/backend-ci.yml) applies migrations to an ephemeral PostgreSQL instance and fails if any remain pending.
-
-### pgAdmin Access
-
-If using Docker, access pgAdmin at http://localhost:5050
-
-1. Login with:
-   - Email: admin@tycoon.com
-   - Password: admin
-
-2. Add a new server:
-   - Host: postgres (or localhost if accessing from host machine)
-   - Port: 5432
-   - Username: postgres
-   - Password: postgres
-
-## 🏗️ Creating New Modules
-
-To create a new module, use the NestJS CLI:
-
-```bash
-# Generate a complete CRUD module
-nest g resource modules/products
-
-# Generate individual components
-nest g module modules/products
-nest g controller modules/products
-nest g service modules/products
-```
-
-## 🔐 Environment Variables
-
-| Variable         | Description                          | Default                 |
-| ---------------- | ------------------------------------ | ----------------------- |
-| `NODE_ENV`       | Environment (development/production) | `development`           |
-| `PORT`           | Application port                     | `3000`                  |
-| `API_PREFIX`     | Base API prefix (version excluded)   | `api`                   |
-| `API_DEFAULT_VERSION` | Default URI API version         | `1`                     |
-| `API_ENABLE_LEGACY_UNVERSIONED` | Enable `/api/*` compatibility route | `true` |
-| `API_LEGACY_UNVERSIONED_SUNSET` | Optional sunset ISO date for unversioned route | - |
-| `DB_HOST`        | Database host                        | `localhost`             |
-| `DB_PORT`        | Database port                        | `5432`                  |
-| `DB_USERNAME`    | Database username                    | `postgres`              |
-| `DB_PASSWORD`    | Database password                    | `postgres`              |
-| `DB_DATABASE`    | Database name                        | `tycoon_db`             |
-| `DB_SYNCHRONIZE` | Auto-sync entities (never in prod/provision) | `false`           |
-| `DB_LOGGING`     | Enable SQL logging                   | `true`                  |
-| `JWT_SECRET`     | JWT secret key                       | -                       |
-| `JWT_EXPIRATION` | JWT expiration time                  | `1d`                    |
-| `CORS_ORIGIN`    | Allowed CORS origin                  | `http://localhost:3000` |
-
-## 📚 Additional Resources
-
-- [NestJS Documentation](https://docs.nestjs.com/)
-- [TypeORM Documentation](https://typeorm.io/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
-## 👥 Support
-
-For support, email support@tycoon.com or open an issue in the repository.
 
 ---
 
-**Happy Coding! 🎉**
+## Module tree
+
+All 30 feature modules live in `src/modules/`:
+
+| Module | Path | What it does |
+|--------|------|--------------|
+| **admin-analytics** | `src/modules/admin-analytics/` | Aggregated metrics and analytics for admin dashboards. [README](src/modules/admin-analytics/README.md) · [Architecture](src/modules/admin-analytics/ARCHITECTURE.md) |
+| **admin-logs** | `src/modules/admin-logs/` | Admin action log — stores and queries operator audit entries |
+| **audit-trail** | `src/modules/audit-trail/` | Cross-module audit interceptor; writes structured events for compliance |
+| **auth** | `src/modules/auth/` | JWT authentication, refresh tokens, admin auth controller. [Runbook](docs/AUTH_JWT_RUNBOOK.md) |
+| **board-styles** | `src/modules/board-styles/` | Manages visual board skin catalog and user-selected styles |
+| **chance** | `src/modules/chance/` | Chance card deck — draw, apply, and observe card effects |
+| **community-chest** | `src/modules/community-chest/` | Community Chest card deck with observability and DTO validation |
+| **coupons** | `src/modules/coupons/` | Coupon creation, validation, usage tracking, and idempotency |
+| **email** | `src/modules/email/` | Transactional email via Bull queue processor and provider abstraction |
+| **fetch-notification** | `src/modules/fetch-notification/` | Long-poll / server-sent notification delivery for in-game events |
+| **games** | `src/modules/games/` | Core game lifecycle: create, join, start, rounds, WebSocket gateway. [Matchmaking runbook](docs/GAMES_MATCHMAKING_RUNBOOK.md) |
+| **gifts** | `src/modules/gifts/` | Player-to-player gift sending with security and rate-limit guards. [README](src/modules/gifts/README.md) |
+| **jobs** | `src/modules/jobs/` | Background job processors (Bull); metrics for queue depth and throughput |
+| **ledger-reconciliation** | `src/modules/ledger-reconciliation/` | Scheduled reconciliation of internal ledger vs transaction records. [Runbook](docs/LEDGER_RECONCILIATION_RUNBOOK.md) |
+| **metrics** | `src/modules/metrics/` | Prometheus HTTP metrics middleware (`tycoon_http_requests_total`, `tycoon_http_request_duration_seconds`) |
+| **monetization** | `src/modules/monetization/` | Reward distribution, coupon webhooks, and payment event routing |
+| **mux-protocol** | `src/modules/mux-protocol/` | Multiplexes WebSocket message frames; audit service for protocol events |
+| **near** | `src/modules/near/` | NEAR Protocol integration — wallet validation and on-chain calls |
+| **perks** | `src/modules/perks/` | Player perk catalog — CRUD, admin management, user entitlement |
+| **perks-boosts** | `src/modules/perks-boosts/` | Active boost lifecycle: apply, expire, WebSocket gateway for real-time updates |
+| **privacy** | `src/modules/privacy/` | GDPR data export (async job + download) and erasure flows |
+| **properties** | `src/modules/properties/` | Board property catalog — seeding, pricing, ownership helpers |
+| **redis** | `src/modules/redis/` | Redis cache service, validated cache, idempotency interceptor. [Runbook](docs/REDIS_CACHE_RUNBOOK.md) |
+| **shop** | `src/modules/shop/` | Client-facing shop: item catalog, purchase endpoint, inventory, cache invalidation. [Runbook](docs/SHOP_PURCHASES_RUNBOOK.md) · [ADR-001](docs/ADR-001-shop-purchase-ownership.md) |
+| **skins** | `src/modules/skins/` | Player avatar / board skin ownership and assignment |
+| **tour-analytics** | `src/modules/tour-analytics/` | Tracks onboarding tour steps and completion rates |
+| **uploads** | `src/modules/uploads/` | File upload pipeline: virus scan, validation, storage, observability |
+| **users** | `src/modules/users/` | User accounts, preferences, suspension, admin management |
+| **waitlist** | `src/modules/waitlist/` | Pre-launch waitlist — sign-up, admin management, bulk import |
+| **webhooks** | `src/modules/webhooks/` | Outbound webhook dispatch, retries, audit, observability. [Runbook](docs/webhooks-runbook.md) |
+
+---
+
+## API versioning & deprecation
+
+- **Stable path**: `/api/v1/*`
+- **Compat path**: `/api/*` (routes to v1, returns `Deprecation: true` header)
+- **Sunset**: set `API_LEGACY_UNVERSIONED_SUNSET` (ISO date) to emit an RFC `Sunset` header
+- **Breaking changes**: bump to a new major version (`/api/v2/*`); `v1` stays stable until announced window closes
+- **New clients**: always use versioned paths
+
+---
+
+## Observability (Prometheus + Grafana)
+
+- **Scrape**: `GET /metrics` (not under `/api` prefix)
+- **Series**:
+  - `tycoon_http_requests_total` — labels `method`, `route_group` (`admin` | `public` | `internal`), `status_class`
+  - `tycoon_http_request_duration_seconds` — histogram; `admin` and `public` only
+- **Grafana**: import `grafana/dashboards/tycoon-http-overview.json`
+
+---
+
+## Database management
+
+Schema changes are **migrations-only** in production. `DB_SYNCHRONIZE` is
+ignored when `NODE_ENV=production` or `NODE_ENV=provision`.
+
+| Command | Purpose |
+|---------|---------|
+| `npm run migration:generate -- src/database/migrations/Name` | Generate migration from entity drift (dev only) |
+| `npm run migration:run` | Apply all pending migrations |
+| `npm run migration:show` | List pending vs applied |
+| `npm run migration:revert` | Roll back the last applied migration |
+
+### Fresh database setup
+
+```bash
+# 1. Create database
+psql -U postgres -c "CREATE DATABASE tycoon_db;"
+
+# 2. Set DB_SYNCHRONIZE=false in .env
+
+# 3. Run migrations
+npm run migration:run
+
+# 4. (optional) Seed board tiles
+npm run seed -- src/database/seeds/seed-board-tiles.ts
+```
+
+### Rollback policy
+
+Prefer forward-fix migrations. For incidents: `npm run migration:revert` (one
+step at a time). Restore from backup if multiple steps are needed. Test `down`
+methods in staging before applying in production.
+
+---
+
+## Testing
+
+```bash
+npm run test          # unit tests
+npm run test:e2e      # end-to-end (requires running Postgres + Redis)
+npm run test:cov      # coverage report
+```
+
+E2E tests spin up the full NestJS app. See `test/README.md` for the integration
+DB helper and env requirements.
+
+---
+
+## Available scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run start:dev` | Dev mode with hot-reload |
+| `npm run start:debug` | Debug mode |
+| `npm run start:prod` | Production mode (requires `npm run build` first) |
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier |
+| `npm run migration:run` | Apply pending migrations |
+| `npm run migration:generate` | Generate migration from entity diff |
+| `npm run migration:revert` | Revert last migration |
+| `npm run migration:show` | List migration status |
+
+---
+
+## Key environment variables
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `NODE_ENV` | `development` | `production` / `provision` disables DB_SYNCHRONIZE |
+| `PORT` | `3000` | API listen port |
+| `API_PREFIX` | `api` | URL prefix |
+| `API_DEFAULT_VERSION` | `1` | URI version segment |
+| `API_ENABLE_LEGACY_UNVERSIONED` | `true` | Enable `/api/*` compat route |
+| `API_LEGACY_UNVERSIONED_SUNSET` | — | ISO date for Sunset header |
+| `DB_HOST` | `localhost` | |
+| `DB_PORT` | `5432` | |
+| `DB_USERNAME` | `postgres` | |
+| `DB_PASSWORD` | `postgres` | |
+| `DB_DATABASE` | `tycoon_db` | |
+| `DB_SYNCHRONIZE` | `false` | Never `true` in prod |
+| `REDIS_HOST` | `localhost` | |
+| `REDIS_PORT` | `6379` | |
+| `JWT_SECRET` | — | Required |
+| `JWT_EXPIRATION` | `1d` | |
+| `CORS_ORIGIN` | `http://localhost:3000` | |
+| `SHOP_API_URL` | — | URL of the shop-api microservice (see ADR-001) |
+| `SHOP_PURCHASES_BACKEND_PROXY_ENABLED` | `false` | Feature flag: proxy purchase writes to shop-api |
+
+Full list in `.env.example`.
+
+---
+
+## Documentation index
+
+| Doc | Location |
+|-----|----------|
+| Auth & JWT runbook | [`docs/AUTH_JWT_RUNBOOK.md`](docs/AUTH_JWT_RUNBOOK.md) |
+| Shop purchases runbook | [`docs/SHOP_PURCHASES_RUNBOOK.md`](docs/SHOP_PURCHASES_RUNBOOK.md) |
+| Shop architecture (ADR-001) | [`docs/ADR-001-shop-purchase-ownership.md`](docs/ADR-001-shop-purchase-ownership.md) |
+| Shop architecture overview | [`../docs/SHOP_ARCHITECTURE.md`](../docs/SHOP_ARCHITECTURE.md) |
+| Redis cache runbook | [`docs/REDIS_CACHE_RUNBOOK.md`](docs/REDIS_CACHE_RUNBOOK.md) |
+| Redis idempotency tests | [`docs/SW-BE-033-redis-idempotency-replay-tests.md`](docs/SW-BE-033-redis-idempotency-replay-tests.md) |
+| Ledger reconciliation runbook | [`docs/LEDGER_RECONCILIATION_RUNBOOK.md`](docs/LEDGER_RECONCILIATION_RUNBOOK.md) |
+| Games matchmaking runbook | [`docs/GAMES_MATCHMAKING_RUNBOOK.md`](docs/GAMES_MATCHMAKING_RUNBOOK.md) |
+| Webhooks runbook | [`docs/webhooks-runbook.md`](docs/webhooks-runbook.md) |
+| Graceful shutdown | [`docs/GRACEFUL_SHUTDOWN.md`](docs/GRACEFUL_SHUTDOWN.md) |
+| Database pool | [`docs/DATABASE_POOL.md`](docs/DATABASE_POOL.md) |
+| Token refresh security | [`docs/TOKEN_REFRESH_SECURITY_GUIDE.md`](docs/TOKEN_REFRESH_SECURITY_GUIDE.md) |
+| CORS security guide | [`docs/CORS_SECURITY_GUIDE.md`](docs/CORS_SECURITY_GUIDE.md) |
+| Admin routes matrix | [`docs/ADMIN_ROUTES_MATRIX.md`](docs/ADMIN_ROUTES_MATRIX.md) |
+| Adding admin capabilities | [`docs/ADDING_ADMIN_CAPABILITIES.md`](docs/ADDING_ADMIN_CAPABILITIES.md) |
+| Observability (SW-BE-025) | [`docs/SW-BE-025-observability.md`](docs/SW-BE-025-observability.md) |
+| Games ADR-002 (realtime) | [`docs/ADR-002-games-realtime-transport.md`](docs/ADR-002-games-realtime-transport.md) |
+
+---
+
+## Game defaults & idempotency
+
+Default game settings (from `game.config.ts`):
+
+| Setting | Default |
+|---------|---------|
+| auction | `true` |
+| rentInPrison | `false` |
+| mortgage | `true` |
+| evenBuild | `true` |
+| randomizePlayOrder | `true` |
+| startingCash | `1500` |
+
+Seeds (`admin-seed.ts`, `game-seed.ts`) are idempotent — safe to run multiple
+times. Board tile seeding uses `ON CONFLICT (position) DO UPDATE`.
+
+---
+
+## Support
+
+Backend team: **#team-backend** on Slack.  
+For shop microservice issues see [`../shop-api/PR-NOTES.md`](../shop-api/PR-NOTES.md) and [`../docs/SHOP_ARCHITECTURE.md`](../docs/SHOP_ARCHITECTURE.md).
