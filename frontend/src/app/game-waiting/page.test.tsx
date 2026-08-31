@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { expect, test, describe, vi } from "vitest";
+import { expect, test, describe, vi, beforeEach } from "vitest";
 import GameWaitingPage from "./page";
 
 vi.mock("@/clients/GameWaitingClient", () => ({
@@ -10,6 +10,21 @@ vi.mock("@/clients/GameWaitingClient", () => ({
   ),
 }));
 
+// Mock fetchGameRoom so these a11y / format tests don't make real HTTP calls.
+// The backend-validation scenarios are covered in page.backend-validation.test.tsx.
+vi.mock("@/lib/api/games", () => ({
+  fetchGameRoom: vi.fn().mockResolvedValue({
+    found: true,
+    game: {
+      id: 1,
+      code: "ABC123",
+      status: "PENDING",
+      mode: "PUBLIC",
+      numberOfPlayers: 4,
+    },
+  }),
+}));
+
 async function renderPage(
   searchParams?: Promise<Record<string, string | string[] | undefined>>,
 ) {
@@ -17,6 +32,22 @@ async function renderPage(
 }
 
 describe("Game Waiting Page - Accessibility", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Re-mock for each test: valid codes get a 200 response
+    const { fetchGameRoom } = vi.mocked(await import("@/lib/api/games"));
+    fetchGameRoom.mockResolvedValue({
+      found: true,
+      game: {
+        id: 1,
+        code: "ABC123",
+        status: "PENDING",
+        mode: "PUBLIC",
+        numberOfPlayers: 4,
+      },
+    });
+  });
+
   describe("Landmarks and ARIA", () => {
     test("renders main landmark with aria-label", async () => {
       const { container } = await renderPage(
@@ -161,6 +192,19 @@ describe("Game Waiting Page - Accessibility", () => {
     });
 
     test("handles array gameCode param — uses first value", async () => {
+      // Re-mock for XYZ789
+      const { fetchGameRoom } = vi.mocked(await import("@/lib/api/games"));
+      fetchGameRoom.mockResolvedValue({
+        found: true,
+        game: {
+          id: 2,
+          code: "XYZ789",
+          status: "PENDING",
+          mode: "PUBLIC",
+          numberOfPlayers: 2,
+        },
+      });
+
       const { container } = await renderPage(
         Promise.resolve({ gameCode: ["XYZ789", "OTHER1"] }),
       );

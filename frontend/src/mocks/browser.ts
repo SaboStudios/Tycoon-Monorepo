@@ -2,7 +2,7 @@
 /// <reference lib="dom.iterable" />
 
 import { setupWorker } from 'msw/browser';
-import { userHandlers, shopHandlers, authHandlers, heroHandlers, joinRoomHandlers } from './handlers';
+import { userHandlers, shopHandlers, authHandlers, heroHandlers, joinRoomHandlers, gamesHandlers } from './handlers';
 
 export const worker = setupWorker(
   ...userHandlers,
@@ -10,4 +10,5 @@ export const worker = setupWorker(
   ...authHandlers,
   ...heroHandlers,
   ...joinRoomHandlers,
+  ...gamesHandlers,
 );
