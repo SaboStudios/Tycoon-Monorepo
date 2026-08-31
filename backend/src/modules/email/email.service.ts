@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { EmailProvider } from './providers/email.provider';
 
 export interface EmailOptions {
   to: string;
@@ -13,13 +14,17 @@ export interface EmailOptions {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(@InjectQueue('email-queue') private readonly emailQueue: Queue) {}
+  constructor(
+    @InjectQueue('email-queue') private readonly emailQueue: Queue,
+    private readonly emailProvider: EmailProvider,
+  ) {}
 
   /**
    * Send an email by adding it to the background queue
    */
   async sendEmail(options: EmailOptions): Promise<void> {
-    this.logger.log(`Queueing ${options.template} email to ${options.to}`);
+    // Log only non-sensitive metadata: template type and job queue action
+    this.logger.log(`Queueing ${options.template} email`);
 
     await this.emailQueue.add('send-transactional', options, {
       attempts: 3,
@@ -34,21 +39,38 @@ export class EmailService {
 
   /**
    * Actually send the email (called by the worker)
+   * Does not log full HTML or PII; logs only non-sensitive metadata
    */
   async processEmailJob(options: EmailOptions): Promise<void> {
-    this.logger.log(`Processing email job for ${options.to}`);
-
-    // In a real implementation, this would use a provider like SendGrid or Mailgun.
-    // For staging/dev, we can log it or send to a mail catcher.
     const html = this.renderTemplate(options.template, options.context);
 
-    this.logger.log(`
-      --- EMAIL SENT ---
-      To: ${options.to}
-      Subject: ${options.subject}
-      Body: ${html.substring(0, 50)}...
-      ------------------
-    `);
+    try {
+      const result = await this.emailProvider.send({
+        to: options.to,
+        subject: options.subject,
+        template: options.template,
+        html,
+        context: options.context,
+      });
+
+      if (result.success) {
+        // Log only non-PII metadata: template, message ID, status
+        this.logger.log(
+          `Email sent successfully: template=${options.template}, messageId=${result.messageId}`,
+        );
+      } else {
+        this.logger.error(
+          `Email send failed: template=${options.template}, error=${result.error}`,
+        );
+        throw new Error(result.error || 'Email provider returned failure');
+      }
+    } catch (error) {
+      // Log error but not the full email content
+      this.logger.error(
+        `Failed to send email: template=${options.template}, error=${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
   }
 
   private renderTemplate(

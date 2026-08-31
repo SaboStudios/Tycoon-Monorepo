@@ -14,6 +14,11 @@ jobs:
     defaults:
       run:
         working-directory: contract
+    env:
+      # Explicitly unset — integration tests must use Env::default() only.
+      # Any test that reads STELLAR_NETWORK to connect to staging will fail
+      # fast here rather than mutating shared contract state. (#1359)
+      STELLAR_NETWORK: ""
 
     steps:
       - name: Checkout repository
@@ -22,6 +27,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          components: rustfmt, clippy
           targets: wasm32-unknown-unknown
 
       - name: Setup Rust cache
@@ -29,8 +35,17 @@ jobs:
         with:
           workspaces: contract
 
-      - name: Install wasm-opt
-        run: sudo apt-get update && sudo apt-get install -y binaryen
+      # binaryen provides wasm-opt, which is used in the build-wasm Makefile target
+      # to run a size-optimisation pass (wasm-opt -Oz) on every release WASM artifact.
+      # This shrinks bytecode before the wasm-size-budget check and before deployment,
+      # reducing on-chain storage rent on Soroban/Stellar.
+      - name: Install wasm-opt (binaryen)
+        run: sudo apt-get update -qq && sudo apt-get install -y binaryen
+
+      - name: Verify wasm-opt presence
+        run: |
+          wasm-opt --version
+          echo "wasm-opt path: $(command -v wasm-opt)"
 
       - name: Run contract CI checks
         run: make ci

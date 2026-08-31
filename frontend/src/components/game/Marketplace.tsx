@@ -73,11 +73,13 @@ export function Marketplace() {
     try {
       const response = await fetch('/api/shop/purchase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          shop_item_id: selectedItem.id, 
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify({
+          shop_item_id: selectedItem.id,
           quantity: 1,
-          idempotency_key: idempotencyKey 
         }),
       });
 

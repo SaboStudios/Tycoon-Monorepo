@@ -19,6 +19,7 @@ import { User } from '../users/entities/user.entity';
 import { Role } from './enums/role.enum';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthAuditEvent } from './audit/auth-audit.events';
+import { AuthObservabilityService } from './auth-observability.service';
 import { ListRefreshTokensDto, SortOrder } from './dto/list-refresh-tokens.dto';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
@@ -35,6 +36,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly authAudit: AuthAuditService,
+    private readonly authObservability: AuthObservabilityService,
   ) {}
 
   async validateUser(
@@ -57,6 +59,7 @@ export class AuthService {
         ipAddress,
         userAgent,
       });
+      this.authObservability.recordFailedLogin('suspended');
       return null;
     }
 
@@ -76,6 +79,9 @@ export class AuthService {
       ipAddress,
       userAgent,
     });
+    this.authObservability.recordFailedLogin(
+      user ? 'invalid_password' : 'unknown_user',
+    );
     return null;
   }
 
@@ -100,6 +106,7 @@ export class AuthService {
         userAgent,
         meta: { isAdmin: true },
       });
+      this.authObservability.recordFailedLogin('suspended');
       return null;
     }
 
@@ -124,6 +131,9 @@ export class AuthService {
       userAgent,
       meta: { isAdmin: true },
     });
+    this.authObservability.recordFailedLogin(
+      user ? 'invalid_credentials' : 'unknown_user',
+    );
     return null;
   }
 

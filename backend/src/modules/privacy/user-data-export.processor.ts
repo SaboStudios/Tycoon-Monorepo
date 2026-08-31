@@ -38,7 +38,8 @@ export class UserDataExportProcessor extends WorkerHost {
       return;
     }
 
-    row.status = 'processing';
+    row.status = 'running';
+    row.startedAt = new Date();
     await this.jobs.save(row);
 
     const ttlHours = this.config.get<number>('app.dataExportTtlHours') ?? 24;
@@ -56,7 +57,7 @@ export class UserDataExportProcessor extends WorkerHost {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + ttlHours);
 
-      row.status = 'ready';
+      row.status = 'done';
       row.filePath = filePath;
       row.completedAt = new Date();
       row.expiresAt = expiresAt;
@@ -64,7 +65,7 @@ export class UserDataExportProcessor extends WorkerHost {
       await this.jobs.save(row);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      this.logger.error(`Export job ${jobId} failed: ${msg}`);
+      this.logger.error(`Export job ${jobId} failed`);
       row.status = 'failed';
       row.errorMessage = msg;
       await this.jobs.save(row);

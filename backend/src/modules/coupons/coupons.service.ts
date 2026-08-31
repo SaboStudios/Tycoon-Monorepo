@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Coupon } from './entities/coupon.entity';
 import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
@@ -34,6 +34,7 @@ export class CouponsService {
     private readonly couponRepository: Repository<Coupon>,
     @InjectRepository(CouponUsageLog)
     private readonly couponUsageLogRepository: Repository<CouponUsageLog>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createCouponDto: CreateCouponDto): Promise<Coupon> {
@@ -278,6 +279,69 @@ export class CouponsService {
     await this.incrementUsage(validation.coupon.id);
 
     return validation.discount_amount || 0;
+  }
+
+  /**
+   * Idempotently redeem a coupon for a user.
+   * Same (userId, couponId) pair is rejected with 409 so the coupon can't double-apply.
+   */
+  async redeemCoupon(
+    userId: number,
+    code: string,
+    purchaseAmount: number,
+    shopItemId?: number,
+    purchaseId?: number,
+  ): Promise<{ discountAmount: number; log: CouponUsageLog }> {
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      const coupon = await qr.manager.findOne(Coupon, { where: { code } });
+      if (!coupon) {
+        throw new BadRequestException('Invalid coupon code');
+      }
+
+      const existing = await qr.manager.findOne(CouponUsageLog, {
+        where: { coupon_id: coupon.id, user_id: userId },
+      });
+      if (existing) {
+        throw new ConflictException('Coupon already redeemed by this user');
+      }
+
+      const validation = await this.validateCoupon({
+        code,
+        shop_item_id: shopItemId,
+        purchase_amount: purchaseAmount,
+      });
+      if (!validation.valid) {
+        throw new BadRequestException(validation.message);
+      }
+
+      const discountAmount = validation.discount_amount ?? 0;
+      const finalAmount = purchaseAmount - discountAmount;
+
+      await qr.manager.increment(Coupon, { id: coupon.id }, 'current_usage', 1);
+
+      const log = qr.manager.create(CouponUsageLog, {
+        coupon_id: coupon.id,
+        user_id: userId,
+        purchase_id: purchaseId,
+        coupon_code: code,
+        original_amount: String(purchaseAmount),
+        discount_amount: String(discountAmount),
+        final_amount: String(finalAmount),
+      });
+      const savedLog = await qr.manager.save(log);
+
+      await qr.commitTransaction();
+      return { discountAmount, log: savedLog };
+    } catch (err) {
+      await qr.rollbackTransaction();
+      throw err;
+    } finally {
+      await qr.release();
+    }
   }
 
   /**

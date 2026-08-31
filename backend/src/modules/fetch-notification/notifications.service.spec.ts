@@ -5,6 +5,7 @@ import { SelectQueryBuilder } from 'typeorm';
 import { NotificationsService } from './notifications.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { GetNotificationsQueryDto } from './dto/get-notifications-query.dto';
+import { encodeNotificationCursor } from './dto/notification-cursor.util';
 
 // ─── Factory Helpers ─────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ const createMockQueryBuilder = (
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
     getManyAndCount: jest.fn().mockResolvedValue([results, count]),
@@ -95,6 +97,7 @@ describe('NotificationsService', () => {
         totalPages: 3,
         hasNextPage: true,
         hasPreviousPage: false,
+        nextCursor: null,
       });
     });
 
@@ -213,6 +216,81 @@ describe('NotificationsService', () => {
       expect(dto.title).toBe('Token Received');
       expect(dto.isRead).toBe(true);
       expect(dto.createdAt).toBeInstanceOf(Date);
+    });
+
+    // ── Stability + cursor (issue #1312) ────────────────────────────────────
+
+    it('tie-breaks the sort on id for a deterministic order', async () => {
+      const qb = createMockQueryBuilder([], 0);
+      mockRepository.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAllForUser(userId, { page: 1, limit: 20 });
+
+      expect(qb.orderBy).toHaveBeenCalledWith(
+        'notification.createdAt',
+        'DESC',
+      );
+      expect(qb.addOrderBy).toHaveBeenCalledWith('notification.id', 'DESC');
+    });
+
+    it('uses a keyset WHERE clause instead of skip() when a cursor is given', async () => {
+      const qb = createMockQueryBuilder([], 0);
+      mockRepository.createQueryBuilder.mockReturnValue(qb);
+      const cursor = encodeNotificationCursor(
+        new Date('2024-01-01T00:00:00.000Z'),
+        'notif-uuid-1',
+      );
+
+      await service.findAllForUser(userId, { page: 1, limit: 20, cursor });
+
+      expect(qb.skip).not.toHaveBeenCalled();
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('notification.createdAt <'),
+        expect.objectContaining({ cId: 'notif-uuid-1' }),
+      );
+    });
+
+    it('ignores an invalid cursor and falls back to offset pagination', async () => {
+      const qb = createMockQueryBuilder([], 0);
+      mockRepository.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAllForUser(userId, {
+        page: 2,
+        limit: 10,
+        cursor: 'not-a-valid-cursor!!',
+      });
+
+      expect(qb.skip).toHaveBeenCalledWith(10);
+    });
+
+    it('returns a nextCursor when a full page is returned', async () => {
+      const last = makeNotification({
+        id: 'notif-last',
+        createdAt: new Date('2024-01-02T00:00:00.000Z'),
+      });
+      const qb = createMockQueryBuilder([makeNotification(), last], 50);
+      mockRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.findAllForUser(userId, {
+        page: 1,
+        limit: 2,
+      });
+
+      expect(result.meta.nextCursor).toBe(
+        encodeNotificationCursor(last.createdAt, last.id),
+      );
+    });
+
+    it('returns nextCursor=null on a partial (final) page', async () => {
+      const qb = createMockQueryBuilder([makeNotification()], 1);
+      mockRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.meta.nextCursor).toBeNull();
     });
   });
 
@@ -368,6 +446,7 @@ describe('NotificationsService', () => {
         totalPages: 0,
         hasNextPage: false,
         hasPreviousPage: false,
+        nextCursor: null,
       });
     });
   });

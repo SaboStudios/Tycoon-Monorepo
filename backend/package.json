@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -13,6 +16,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint:ci": "eslint $(git -C .. diff --name-only --diff-filter=ACM HEAD^ -- 'backend/**/*.ts' | sed 's#^backend/##') --no-fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
@@ -36,7 +40,6 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "^2.1.0",
-    "@nestjs/mongoose": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.1.14",
@@ -58,7 +61,6 @@
     "ioredis": "^5.9.2",
     "joi": "^18.0.2",
     "keyv": "^5.6.0",
-    "mongoose": "^8.0.0",
     "nest-winston": "^1.10.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

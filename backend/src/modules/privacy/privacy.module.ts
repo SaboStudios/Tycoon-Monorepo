@@ -24,9 +24,11 @@ import { AuthModule } from '../auth/auth.module';
 import { UserDataExportJob } from './entities/user-data-export-job.entity';
 import { UserDataCollectorService } from './user-data-collector.service';
 import { UserDataExportService } from './user-data-export.service';
+import { UserDataErasureService } from './user-data-erasure.service';
 import { UserDataExportProcessor } from './user-data-export.processor';
 import { UserMeDataExportController } from './user-me-data-export.controller';
 import { DataExportDownloadController } from './data-export-download.controller';
+import { UserDataErasureController } from './user-data-erasure.controller';
 
 @Module({
   imports: [
@@ -55,12 +57,17 @@ import { DataExportDownloadController } from './data-export-download.controller'
       UserDataExportJob,
     ]),
   ],
-  controllers: [UserMeDataExportController, DataExportDownloadController],
+  controllers: [
+    UserMeDataExportController,
+    DataExportDownloadController,
+    UserDataErasureController,
+  ],
   providers: [
     UserDataCollectorService,
     UserDataExportService,
+    UserDataErasureService,
     UserDataExportProcessor,
   ],
-  exports: [UserDataExportService],
+  exports: [UserDataExportService, UserDataErasureService],
 })
 export class PrivacyModule {}

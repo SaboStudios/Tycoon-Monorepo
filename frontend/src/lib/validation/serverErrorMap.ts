@@ -81,8 +81,11 @@ export function mapServerErrors(error: unknown): FieldErrors {
   // Priority 3: Status-code shortcuts for well-known HTTP errors
   // Map status codes to actionable messages before attempting keyword extraction,
   // so users never see raw server strings.
-  if (body.statusCode === 401 || body.statusCode === 403) {
-    return { _form: "Please sign in to join a room." };
+  if (body.statusCode === 401) {
+    return { _form: "Invalid email or password. Please try again." };
+  }
+  if (body.statusCode === 403) {
+    return { _form: "You don't have permission to access this. Please sign in again." };
   }
   if (body.statusCode === 404) return { _form: "Room not found. Check the code and try again." };
   if (body.statusCode === 409) {

@@ -4,6 +4,7 @@ import {
   Column,
   BeforeInsert,
   BeforeUpdate,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity('properties')
@@ -63,6 +64,9 @@ export class Property {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   icon: string;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
 
   // Validation hooks for position and grid coordinates
   @BeforeInsert()

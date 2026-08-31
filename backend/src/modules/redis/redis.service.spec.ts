@@ -50,22 +50,26 @@ describe('RedisService', () => {
       debug: jest.fn(),
     } as any;
 
+    const configService = {
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'test';
+        if (key === 'redis')
+          return {
+            host: 'localhost',
+            port: 6379,
+            db: 0,
+            ttl: 300,
+          };
+        return undefined;
+      }),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RedisService,
         { provide: CACHE_MANAGER, useValue: cacheManager },
         { provide: LoggerService, useValue: loggerService },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue({
-              host: 'localhost',
-              port: 6379,
-              db: 0,
-              ttl: 300,
-            }),
-          },
-        },
+        { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 
@@ -75,11 +79,11 @@ describe('RedisService', () => {
   it('should be defined', () => expect(service).toBeDefined());
 
   describe('Session management', () => {
-    it('sets refresh token', async () => {
+    it('sets refresh token with environment namespace', async () => {
       mockRedisInstance.setex.mockResolvedValue('OK');
       await service.setRefreshToken('u1', 'tok');
       expect(mockRedisInstance.setex).toHaveBeenCalledWith(
-        'refresh_token:u1',
+        'test:refresh_token:u1',
         604800,
         'tok',
       );
@@ -92,9 +96,10 @@ describe('RedisService', () => {
       );
     });
 
-    it('gets refresh token', async () => {
+    it('gets refresh token with environment namespace', async () => {
       mockRedisInstance.get.mockResolvedValue('tok');
-      expect(await service.getRefreshToken('u1')).toBe('tok');
+      await service.getRefreshToken('u1');
+      expect(mockRedisInstance.get).toHaveBeenCalledWith('test:refresh_token:u1');
     });
 
     it('returns null on get refresh token error', async () => {
@@ -102,42 +107,44 @@ describe('RedisService', () => {
       expect(await service.getRefreshToken('u1')).toBeNull();
     });
 
-    it('deletes refresh token', async () => {
+    it('deletes refresh token with environment namespace', async () => {
       mockRedisInstance.del.mockResolvedValue(1);
       await service.deleteRefreshToken('u1');
-      expect(mockRedisInstance.del).toHaveBeenCalledWith('refresh_token:u1');
+      expect(mockRedisInstance.del).toHaveBeenCalledWith('test:refresh_token:u1');
     });
   });
 
   describe('Cache operations', () => {
-    it('cache hit', async () => {
+    it('cache hit with environment namespace', async () => {
       cacheManager.get.mockResolvedValue('val');
       expect(await service.get('k')).toBe('val');
+      expect(cacheManager.get).toHaveBeenCalledWith('test:k');
       expect(loggerService.debug).toHaveBeenCalledWith(
         'Cache HIT: k',
         'RedisService',
       );
     });
 
-    it('cache miss', async () => {
+    it('cache miss with environment namespace', async () => {
       cacheManager.get.mockResolvedValue(undefined);
       expect(await service.get('k')).toBeUndefined();
+      expect(cacheManager.get).toHaveBeenCalledWith('test:k');
       expect(loggerService.debug).toHaveBeenCalledWith(
         'Cache MISS: k',
         'RedisService',
       );
     });
 
-    it('sets cache value', async () => {
+    it('sets cache value with environment namespace', async () => {
       cacheManager.set.mockResolvedValue(undefined);
       await service.set('k', 'v', 300);
-      expect(cacheManager.set).toHaveBeenCalledWith('k', 'v', 300);
+      expect(cacheManager.set).toHaveBeenCalledWith('test:k', 'v', 300);
     });
 
-    it('deletes cache key', async () => {
+    it('deletes cache key with environment namespace', async () => {
       cacheManager.del.mockResolvedValue(undefined);
       await service.del('k');
-      expect(cacheManager.del).toHaveBeenCalledWith('k');
+      expect(cacheManager.del).toHaveBeenCalledWith('test:k');
     });
   });
 
@@ -162,11 +169,12 @@ describe('RedisService', () => {
   });
 
   describe('delByPattern', () => {
-    it('deletes matched keys', async () => {
-      mockRedisInstance.keys.mockResolvedValue(['a', 'b']);
+    it('deletes matched keys with environment namespace', async () => {
+      mockRedisInstance.keys.mockResolvedValue(['test:a', 'test:b']);
       mockRedisInstance.del.mockResolvedValue(2);
       await service.delByPattern('prefix:*');
-      expect(mockRedisInstance.del).toHaveBeenCalledWith('a', 'b');
+      expect(mockRedisInstance.keys).toHaveBeenCalledWith('test:prefix:*');
+      expect(mockRedisInstance.del).toHaveBeenCalledWith('test:a', 'test:b');
     });
 
     it('no-ops when no keys match', async () => {

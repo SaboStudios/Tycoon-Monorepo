@@ -4,8 +4,10 @@ import { Redis } from 'ioredis';
 import { createHash } from 'crypto';
 import {
   IdempotencyOptions,
+  IdempotencyStatus,
   IDEMPOTENCY_HEADER,
   DEFAULT_IDEMPOTENCY_TTL,
+  IDEMPOTENCY_IN_FLIGHT_TTL,
   IDEMPOTENCY_KEY_PREFIX,
 } from './idempotency.constants';
 import { Request } from 'express';
@@ -19,6 +21,8 @@ export interface CapturedHttpResponse {
 
 export interface IdempotencyRecord {
   key: string;
+  /** 'in_flight' while the handler is running; 'complete' after storeResponse() */
+  status: IdempotencyStatus;
   response?: {
     statusCode: number;
     headers: Record<string, string>;
@@ -55,6 +59,42 @@ export class IdempotencyService {
     this.redis.on('error', (err) => {
       this.logger.error('Redis connection error for idempotency', err);
     });
+  }
+
+  /**
+   * Atomically mark a key as in-flight (NX) before the handler runs.
+   * Returns true when this caller owns the lock, false when another request
+   * is already in-flight for the same key (caller should return 409).
+   */
+  async markInFlight(
+    req: Request,
+    options: IdempotencyOptions = {},
+  ): Promise<boolean> {
+    const key = this.generateKey(req, options);
+    const sentinel: IdempotencyRecord = {
+      key,
+      status: 'in_flight',
+      timestamp: Date.now(),
+      ttl: IDEMPOTENCY_IN_FLIGHT_TTL,
+      requestHash: this.createRequestHash(req, options),
+    };
+
+    try {
+      // SET key value EX ttl NX — succeeds only when key does not yet exist
+      const result = await this.redis.set(
+        key,
+        JSON.stringify(sentinel),
+        'EX',
+        IDEMPOTENCY_IN_FLIGHT_TTL,
+        'NX',
+      );
+      return result === 'OK';
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error marking idempotency in-flight', { key, error: msg });
+      // Fail open: let the request through
+      return true;
+    }
   }
 
   /**
@@ -140,6 +180,7 @@ export class IdempotencyService {
 
     const record: IdempotencyRecord = {
       key,
+      status: 'complete',
       timestamp: Date.now(),
       ttl,
       requestHash,

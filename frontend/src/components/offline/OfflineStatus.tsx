@@ -57,12 +57,12 @@ export default function OfflineStatus() {
         </div>
 
         <div>
-          <p
+          <h2
             id="offline-status-title"
             className="text-sm font-semibold uppercase tracking-[0.14em] text-[#F0F7F7]"
           >
             Connection status
-          </p>
+          </h2>
           <p
             className="mt-2 text-sm leading-6 text-[#F0F7F7]/75"
             aria-live="polite"

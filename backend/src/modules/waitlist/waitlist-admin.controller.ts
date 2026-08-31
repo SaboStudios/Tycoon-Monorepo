@@ -171,7 +171,7 @@ export class WaitlistAdminController {
   @Patch(':id')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
-    summary: 'Update a waitlist entry',
+    summary: 'Update a waitlist entry (at least one field required; 30 req/min)',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -180,7 +180,8 @@ export class WaitlistAdminController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid data or entry not found.',
+    description:
+      'Invalid data, entry not found, or no field provided (at least one of wallet_address, email_address, telegram_username is required).',
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,

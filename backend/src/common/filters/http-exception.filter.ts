@@ -7,21 +7,34 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { StandardResponse } from '../interfaces/standard-response.interface';
 import { LoggerService } from '../logger/logger.service';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Global exception filter that wraps all error responses in the standardized format.
- * Also logs all errors with contextual information.
+ * Canonical API error response shape (used across all modules).
  *
- * Response format:
+ * All error responses conform to:
  * {
- *   "success": false,
- *   "message": "Error message",
- *   "data": null,
- *   "statusCode": 400
+ *   "statusCode": 400,
+ *   "message": "Human-readable error message",
+ *   "errors": { "field": ["constraint message"] } or null,
+ *   "correlationId": "req_..." (unique per request for debugging)
  * }
+ *
+ * Rules:
+ * - statusCode: Always included, maps to HTTP status
+ * - message: Always included, user-facing message
+ * - errors: Object<string, string[]> for 400/422 validation errors, null otherwise
+ * - correlationId: Always included, generated if missing from request headers
+ * - Stack traces: Never included in response body (logged server-side instead)
  */
+export interface CanonicalErrorResponse {
+  statusCode: number;
+  message: string;
+  errors: Record<string, string[]> | null;
+  correlationId: string;
+}
+
 @Catch()
 @Injectable()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -33,7 +46,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let statusCode: number;
-    let message: string | string[];
+    let message: string;
+    let errors: Record<string, string[]> | null = null;
     let stack: string | undefined;
 
     if (exception instanceof HttpException) {
@@ -47,65 +61,83 @@ export class HttpExceptionFilter implements ExceptionFilter {
         exceptionResponse !== null
       ) {
         const responseObj = exceptionResponse as Record<string, unknown>;
-        // Handle validation errors (which have an array of messages)
         message =
-          (responseObj.message as string | string[]) || exception.message;
+          (responseObj.message as string) || exception.message || 'Error occurred';
+
+        // Extract validation errors for 400 responses
+        if (statusCode === 400) {
+          // Support both 'errors' and 'error' fields (for backward compat during migration)
+          errors = (responseObj.errors as Record<string, string[]>) ||
+                   (responseObj.error && typeof responseObj.error === 'object'
+                     ? (responseObj.error as Record<string, string[]>)
+                     : null);
+        }
       } else {
-        message = exception.message;
+        message = exception.message || 'Error occurred';
       }
       stack = exception.stack;
     } else if (exception instanceof Error) {
-      // Handle standard Error objects
       statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = exception.message || 'Internal server error';
+      message = 'Internal server error';
       stack = exception.stack;
     } else {
-      // Handle completely unknown exceptions
       statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Internal server error';
       stack = undefined;
     }
 
-    // Format message as a single string if it's an array
-    const formattedMessage = Array.isArray(message)
-      ? message.join(', ')
-      : message;
+    // Generate or retrieve correlationId from request headers
+    const correlationId = this.getOrGenerateCorrelationId(request);
 
-    // Log the error with context
+    // Log the error with full context (including stack on server side)
     const logContext = {
       statusCode,
       method: request.method,
       url: request.url,
       ip: request.ip,
       userAgent: request.headers['user-agent'],
-      errorMessage: formattedMessage,
-      stack: stack,
+      errorMessage: message,
+      correlationId,
+      stack,
     };
 
     if (statusCode >= 500) {
-      // Server errors (5xx) - log as error
       this.logger.error(
-        `${request.method} ${request.url} - ${statusCode} - ${formattedMessage}`,
+        `[${correlationId}] ${request.method} ${request.url} - ${statusCode} - ${message}`,
         stack,
         'HttpExceptionFilter',
       );
       this.logger.logWithMeta('error', 'Server Error Details', logContext);
     } else if (statusCode >= 400) {
-      // Client errors (4xx) - log as warning
       this.logger.warn(
-        `${request.method} ${request.url} - ${statusCode} - ${formattedMessage}`,
+        `[${correlationId}] ${request.method} ${request.url} - ${statusCode} - ${message}`,
         'HttpExceptionFilter',
       );
       this.logger.logWithMeta('warn', 'Client Error Details', logContext);
     }
 
-    const standardResponse: StandardResponse<null> = {
-      success: false,
-      message: formattedMessage,
-      data: null,
+    // Build canonical error response (no stack trace in body)
+    const errorResponse: CanonicalErrorResponse = {
       statusCode,
+      message,
+      errors,
+      correlationId,
     };
 
-    response.status(statusCode).json(standardResponse);
+    response.status(statusCode).json(errorResponse);
+  }
+
+  /**
+   * Get correlationId from request headers or generate a new one.
+   * Allows correlation of errors across client→server logs.
+   */
+  private getOrGenerateCorrelationId(request: Request): string {
+    const headerValue = request.headers['x-correlation-id'];
+    if (typeof headerValue === 'string' && headerValue.trim()) {
+      return headerValue.trim();
+    }
+
+    // Generate new correlation ID with "req_" prefix for easy filtering
+    return `req_${uuidv4()}`;
   }
 }

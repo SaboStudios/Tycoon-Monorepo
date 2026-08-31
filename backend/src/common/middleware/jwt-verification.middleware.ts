@@ -26,8 +26,10 @@ export class JwtVerificationMiddleware implements NestMiddleware {
     }
 
     try {
-      const secret =
-        this.configService.get<string>('jwt.secret') || 'default-secret';
+      const secret = this.configService.get<string>('jwt.secret');
+      if (!secret) {
+        throw new Error('JWT_SECRET must be set in environment variables');
+      }
       const decoded = jwt.verify(token, secret) as unknown as JwtPayload;
       (req as Request & { user?: JwtPayload }).user = decoded;
       next();

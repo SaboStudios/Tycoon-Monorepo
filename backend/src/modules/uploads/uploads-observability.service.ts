@@ -50,6 +50,21 @@ export class UploadsObservabilityService {
     });
   }
 
+  recordUploadStart(params: {
+    route: string;
+    traceId: string;
+    mimeType?: string;
+    sizeBytes?: number;
+  }): void {
+    if (!this.enabled) return;
+    const { route, traceId, mimeType, sizeBytes } = params;
+    this.logger.log('upload_start', {
+      ...this.createTraceContext(route, traceId),
+      mimeType: mimeType ?? 'n/a',
+      sizeBytes: sizeBytes ?? 'n/a',
+    });
+  }
+
   createTraceContext(route: string, traceId?: string) {
     return {
       trace_id: traceId || this.generateTraceId(),

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test, describe } from "vitest";
+import { expect, test, describe, vi } from "vitest";
 import { Select } from "./select";
 
 const OPTIONS = [
@@ -199,6 +199,53 @@ describe("Select - Accessibility", () => {
       trigger.focus();
       await user.keyboard("{Enter}");
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Empty state", () => {
+    test("renders empty message when options array is empty", () => {
+      render(<Select options={[]} />);
+      expect(screen.getByText("No options available")).toBeInTheDocument();
+    });
+
+    test("renders custom empty message", () => {
+      render(<Select options={[]} emptyMessage="Please add options" />);
+      expect(screen.getByText("Please add options")).toBeInTheDocument();
+    });
+
+    test("does not render combobox button when empty", () => {
+      render(<Select options={[]} />);
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Error state", () => {
+    test("renders error message when error prop is set", () => {
+      render(<Select options={OPTIONS} error="Failed to load options" />);
+      expect(screen.getByText("Failed to load options")).toBeInTheDocument();
+    });
+
+    test("error state has role=alert", () => {
+      const { container } = render(<Select options={OPTIONS} error="Error loading" />);
+      expect(container.querySelector('[role="alert"]')).toBeInTheDocument();
+    });
+
+    test("renders retry button when onRetry callback is provided", () => {
+      render(<Select options={OPTIONS} error="Failed to load" onRetry={() => {}} />);
+      expect(screen.getByText("Retry")).toBeInTheDocument();
+    });
+
+    test("retry button calls onRetry callback when clicked", () => {
+      const onRetry = vi.fn();
+      render(<Select options={OPTIONS} error="Error" onRetry={onRetry} />);
+      const retryBtn = screen.getByText("Retry");
+      fireEvent.click(retryBtn);
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    test("does not render combobox button when error is set", () => {
+      render(<Select options={OPTIONS} error="Error occurred" />);
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     });
   });
 });

@@ -9,6 +9,10 @@ import {
   PaginationMetaDto,
 } from './dto/paginated-notifications-response.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
+import {
+  decodeNotificationCursor,
+  encodeNotificationCursor,
+} from './dto/notification-cursor.util';
 
 const EMPTY_PAGINATED = (
   page: number,
@@ -22,6 +26,7 @@ const EMPTY_PAGINATED = (
     totalPages: 0,
     hasNextPage: false,
     hasPreviousPage: false,
+    nextCursor: null,
   },
 });
 
@@ -57,19 +62,21 @@ export class NotificationsService {
     userId: string,
     query: GetNotificationsQueryDto,
   ): Promise<PaginatedNotificationsResponseDto> {
-    const { page = 1, limit = 20, isRead, type } = query;
+    const { page = 1, limit = 20, isRead, type, cursor } = query;
 
     return this.runSafe(
       'findAllForUser',
       EMPTY_PAGINATED(page, limit),
       async () => {
-        const skip = (page - 1) * limit;
-
         const qb = this.notificationsRepository
           .createQueryBuilder('notification')
           .where('notification.userId = :userId', { userId })
+          // Sorting on createdAt alone is not stable: rows inserted in the
+          // same millisecond (common with bulk notifications) can be
+          // returned in a different order on each fetch, causing
+          // duplicate/skipped rows across pages. Tie-break on id.
           .orderBy('notification.createdAt', 'DESC')
-          .skip(skip)
+          .addOrderBy('notification.id', 'DESC')
           .take(limit);
 
         if (isRead !== undefined) {
@@ -80,8 +87,24 @@ export class NotificationsService {
           qb.andWhere('notification.type = :type', { type });
         }
 
+        // Keyset (cursor) pagination avoids the row drift offset pagination
+        // suffers from when notifications are inserted concurrently.
+        const decodedCursor = cursor ? decodeNotificationCursor(cursor) : null;
+        if (decodedCursor) {
+          qb.andWhere(
+            '(notification.createdAt < :cCreatedAt OR (notification.createdAt = :cCreatedAt AND notification.id < :cId))',
+            {
+              cCreatedAt: decodedCursor.createdAt,
+              cId: decodedCursor.id,
+            },
+          );
+        } else {
+          qb.skip((page - 1) * limit);
+        }
+
         const [notifications, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
+        const lastRow = notifications[notifications.length - 1];
 
         const meta: PaginationMetaDto = {
           page,
@@ -90,6 +113,10 @@ export class NotificationsService {
           totalPages,
           hasNextPage: page < totalPages,
           hasPreviousPage: page > 1,
+          nextCursor:
+            notifications.length === limit && lastRow
+              ? encodeNotificationCursor(lastRow.createdAt, lastRow.id)
+              : null,
         };
 
         return {

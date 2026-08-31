@@ -27,4 +27,12 @@ describe('env.validation — uploads observability (SW-BE-009)', () => {
     expect(error).toBeUndefined();
     expect(value.UPLOADS_OBSERVABILITY_ENABLED).toBe(false);
   });
+
+  it('fails validation on an invalid (non-boolean) value, so boot fails fast', () => {
+    const { error } = validationSchema.validate(
+      minimalDevEnv({ UPLOADS_OBSERVABILITY_ENABLED: 'maybe' }),
+    );
+    expect(error).toBeDefined();
+    expect(error?.message).toMatch(/UPLOADS_OBSERVABILITY_ENABLED/);
+  });
 });

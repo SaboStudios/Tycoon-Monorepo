@@ -203,7 +203,7 @@ describe('Validation Library - Strict Exports', () => {
       const { mapServerErrors } = validation;
 
       expect(mapServerErrors({ statusCode: 401 })).toEqual({
-        _form: 'Please sign in to join a room.',
+        _form: 'Invalid email or password. Please try again.',
       });
 
       expect(mapServerErrors({ statusCode: 409 })).toEqual({

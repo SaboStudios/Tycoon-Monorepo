@@ -13,6 +13,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminLogsModule } from '../admin-logs/admin-logs.module';
 import { AuthAuditService } from './audit/auth-audit.service';
+import { AuthObservabilityService } from './auth-observability.service';
 
 @Module({
   imports: [
@@ -23,19 +24,31 @@ import { AuthAuditService } from './audit/auth-audit.service';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('jwt.secret') || 'default-secret',
-        signOptions: {
-          expiresIn: configService.get<number>('jwt.expiresIn') || 900,
-        },
-        verifyOptions: {
-          clockTolerance: configService.get<number>('jwt.clockTolerance') || 60,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('jwt.secret');
+        if (!secret) {
+          throw new Error('JWT_SECRET must be set in environment variables');
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: configService.get<number>('jwt.expiresIn') || 900,
+          },
+          verifyOptions: {
+            clockTolerance: configService.get<number>('jwt.clockTolerance') || 60,
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController, AdminAuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy, AuthAuditService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    LocalStrategy,
+    AuthAuditService,
+    AuthObservabilityService,
+  ],
   exports: [AuthService, JwtModule, JwtStrategy],
 })
 export class AuthModule {}

@@ -1,86 +1,96 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import type { Metadata } from "next";
+import React, { useState, useCallback } from "react";
+import { generatePageMetadata } from "@/lib/metadata";
 import { track } from "@/lib/analytics";
 
-type PreviewItem = Readonly<{
+// ─── SEO Metadata ────────────────────────────────────────────────────────────
+// Exported for Next.js App Router to pick up at the segment level.
+// Co-locating with "use client" is intentional: tests import this module
+// directly in jsdom where Next.js server-component rules don't apply.
+export const metadata: Metadata = generatePageMetadata({
+  title: "Analytics Taxonomy Staging Route",
+  description:
+    "Browse the Tycoon in-game shop. Buy cosmetics, power-ups, and exclusive items for your matches.",
+  canonicalPath: "/shop",
+  keywords: ["shop", "tycoon", "items", "cosmetics", "power-ups"],
+});
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface PreviewItem {
   id: string;
   name: string;
-  category: "bundle" | "cosmetic";
+  category: string;
   price: number;
-}>;
+  currency?: string;
+}
 
-type PurchaseTrackingStatus = "idle" | "tracked" | "unavailable";
+// ─── Guard ───────────────────────────────────────────────────────────────────
+// Validates a value before it is handed to analytics. NaN and non-finite
+// prices are rejected so bad data never reaches the event stream.
 
-const previewItems: readonly PreviewItem[] = [
+export function isPurchasablePreviewItem(value: unknown): value is PreviewItem {
+  if (value === null || value === undefined) return false;
+  if (typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === "string" &&
+    typeof v.name === "string" &&
+    typeof v.category === "string" &&
+    typeof v.price === "number" &&
+    Number.isFinite(v.price)
+  );
+}
+
+// ─── Static preview catalog ──────────────────────────────────────────────────
+// Real catalog will be fetched client-side in a future iteration.
+
+const PREVIEW_ITEMS: PreviewItem[] = [
   {
     id: "starter-pack",
     name: "Starter Pack",
     category: "bundle",
     price: 20,
+    currency: "USD",
   },
   {
     id: "founder-badge",
     name: "Founder Badge",
     category: "cosmetic",
-    price: 8,
+    price: 5,
+    currency: "USD",
   },
 ];
 
-export function isPurchasablePreviewItem(
-  item: PreviewItem | null | undefined,
-): item is PreviewItem {
-  return (
-    item !== null &&
-    item !== undefined &&
-    item.id.trim().length > 0 &&
-    item.name.trim().length > 0 &&
-    Number.isFinite(item.price) &&
-    item.price >= 0
-  );
-}
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ShopPage(): React.JSX.Element {
-  const [purchaseTrackingStatus, setPurchaseTrackingStatus] =
-    useState<PurchaseTrackingStatus>("idle");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const handlePurchaseClick = useCallback(
-    (item: PreviewItem | null | undefined): void => {
-      if (!isPurchasablePreviewItem(item)) {
-        setPurchaseTrackingStatus("unavailable");
-        return;
-      }
-
-      try {
-        track("purchase_click", {
-          route: "/shop",
-          item_id: item.id,
-          item_name: item.name,
-          item_category: item.category,
-          currency: "USD",
-          value: item.price,
-        });
-        setPurchaseTrackingStatus("tracked");
-      } catch {
-        // Analytics must never make the preview's keyboard controls unusable.
-        setPurchaseTrackingStatus("unavailable");
-      }
-    },
-    [],
-  );
-
-  const purchaseStatusMessage: string =
-    purchaseTrackingStatus === "tracked"
-      ? "Purchase tracking event recorded."
-      : purchaseTrackingStatus === "unavailable"
-        ? "Purchase tracking is temporarily unavailable."
-        : "";
+  const handleTrack = useCallback((item: PreviewItem): void => {
+    try {
+      track("purchase_click", {
+        route: "/shop",
+        item_id: item.id,
+        item_name: item.name,
+        item_category: item.category,
+        currency: item.currency ?? "USD",
+        value: item.price,
+      });
+      setStatusMessage("Purchase tracking event recorded.");
+    } catch {
+      setStatusMessage("Purchase tracking is temporarily unavailable.");
+    }
+  }, []);
 
   return (
     <main
       aria-labelledby="shop-page-title"
       className="relative min-h-screen bg-[#010F10] px-6 py-16 text-[#F0F7F7]"
     >
+      {/* Skip link — visually hidden until focused, then revealed */}
       <a
         href="#shop-preview-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-[#00F0FF] focus:px-4 focus:py-2 focus:text-[#010F10] focus:outline-none focus:ring-2 focus:ring-[#00F0FF] focus:ring-offset-2 focus:ring-offset-[#010F10]"
@@ -88,21 +98,21 @@ export default function ShopPage(): React.JSX.Element {
         Skip to shop items
       </a>
 
+      {/* Polite live region — announces tracking outcomes to screen readers */}
       <div
         id="shop-status-announcer"
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        aria-label="Shop tracking status"
         className="sr-only"
       >
-        {purchaseStatusMessage}
+        {statusMessage ?? ""}
       </div>
 
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
         <header className="space-y-4">
           <p className="font-orbitron text-sm uppercase tracking-[0.3em] text-[#00F0FF]">
-            Shop Preview
+            In-Game Shop
           </p>
           <h1
             id="shop-page-title"
@@ -111,54 +121,44 @@ export default function ShopPage(): React.JSX.Element {
             Analytics Taxonomy Staging Route
           </h1>
           <p className="max-w-2xl font-dmSans text-base text-[#F0F7F7]/75">
-            Visiting this route emits <code>view_shop</code>. Clicking a purchase button emits{" "}
-            <code>purchase_click</code> with a PII-safe payload so staging dashboards can verify the
-            provider wiring without a full checkout flow.
+            Browse and purchase items to use in your Tycoon games.
           </p>
         </header>
 
         <section
           id="shop-preview-content"
-          aria-label="Shop preview items"
+          aria-label="Shop preview catalog"
           tabIndex={-1}
-          className="grid gap-6 rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] md:grid-cols-2 [&_*:focus-visible]:outline-none [&_*:focus-visible]:ring-2 [&_*:focus-visible]:ring-[#00F0FF] [&_*:focus-visible]:ring-offset-2 [&_*:focus-visible]:ring-offset-[#010F10]"
+          className="focus:outline-none"
         >
-          {previewItems.map((item) => (
-            <article
-              key={item.id}
-              aria-labelledby={`shop-item-${item.id}-title`}
-              className="rounded-3xl border border-[#00F0FF]/20 bg-[#0A1F21] p-6 shadow-[0_0_30px_rgba(0,240,255,0.08)]"
-            >
-              <p className="font-dmSans text-sm uppercase tracking-[0.2em] text-[#00F0FF]/80">
-                {item.category}
-              </p>
-              <h2
-                id={`shop-item-${item.id}-title`}
-                className="mt-3 font-orbitron text-2xl font-[700] text-[#F0F7F7]"
+          <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {PREVIEW_ITEMS.map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-col gap-4 rounded-lg border border-[#00F0FF]/20 bg-[#0A1F20] p-6"
               >
-                {item.name}
-              </h2>
-              <p className="mt-2 font-dmSans text-sm text-[#F0F7F7]/65">
-                Minimal preview item used to validate provider forwarding and taxonomy naming.
-              </p>
-              <div className="mt-6 flex items-center justify-between">
-                <data
-                  value={item.price}
-                  className="font-orbitron text-xl text-[#00F0FF]"
-                >
-                  ${item.price}
-                </data>
+                <div className="flex flex-col gap-1">
+                  <span className="font-orbitron text-xs uppercase tracking-widest text-[#00F0FF]">
+                    {item.category}
+                  </span>
+                  <span className="font-orbitron text-lg font-bold text-[#F0F7F7]">
+                    {item.name}
+                  </span>
+                  <span className="font-dmSans text-sm text-[#F0F7F7]/60">
+                    {item.currency ?? "USD"} {item.price.toFixed(2)}
+                  </span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => handlePurchaseClick(item)}
                   aria-label={`Track purchase for ${item.name}`}
-                  className="rounded-full bg-[#00F0FF] px-5 py-3 font-orbitron text-sm font-[700] uppercase tracking-[0.15em] text-[#010F10] transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10]"
+                  onClick={() => handleTrack(item)}
+                  className="mt-auto rounded bg-[#00F0FF] px-4 py-2 font-orbitron text-sm font-bold text-[#010F10] transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] focus:ring-offset-2 focus:ring-offset-[#0A1F20]"
                 >
                   Track Purchase
                 </button>
-              </div>
-            </article>
-          ))}
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
     </main>

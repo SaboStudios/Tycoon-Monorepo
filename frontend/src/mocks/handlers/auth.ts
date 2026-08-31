@@ -14,4 +14,16 @@ export const authHandlers = [
       },
     });
   }),
+  http.post('/auth/login', () => {
+    return HttpResponse.json({
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token',
+    });
+  }),
+  http.post('/auth/refresh', () => {
+    return HttpResponse.json({
+      accessToken: 'mock-new-access-token',
+      refreshToken: 'mock-new-refresh-token',
+    });
+  }),
 ];

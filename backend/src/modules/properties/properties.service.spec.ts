@@ -278,10 +278,12 @@ describe('PropertiesService', () => {
     });
 
     it('should support partial updates (only one field)', async () => {
+      const updatedAt = new Date('2026-08-25T08:00:00Z');
       mockRepository.findOne.mockResolvedValue(mockProperty);
       mockRepository.save.mockResolvedValue({
         ...mockProperty,
         cost_of_house: 300,
+        updated_at: updatedAt,
       });
 
       const result = await service.updateRentStructure(1, {
@@ -289,6 +291,7 @@ describe('PropertiesService', () => {
       });
 
       expect(result.cost_of_house).toBe(300);
+      expect(result.updated_at).toBe(updatedAt);
       // Other fields should remain unchanged
       expect(result.rent_site_only).toBe(mockProperty.rent_site_only);
     });
@@ -412,6 +415,72 @@ describe('PropertiesService', () => {
       await expect(service.getPropertyRentStructure(999)).rejects.toThrow(
         'Property with ID 999 not found',
       );
+    });
+  });
+
+  describe('calculateRent', () => {
+    const mockProperty = {
+      id: 1,
+      name: 'Park Place',
+      rent_site_only: 35,
+      rent_one_house: 175,
+      rent_two_houses: 500,
+      rent_three_houses: 1100,
+      rent_four_houses: 1300,
+      rent_hotel: 2000,
+      is_mortgaged: false,
+    } as Property;
+
+    it('should return rent_site_only when property has 0 houses', () => {
+      const rent = service.calculateRent(mockProperty, 0);
+      expect(rent).toBe(35);
+    });
+
+    it('should return rent_one_house when property has 1 house', () => {
+      const rent = service.calculateRent(mockProperty, 1);
+      expect(rent).toBe(175);
+    });
+
+    it('should return rent_two_houses when property has 2 houses', () => {
+      const rent = service.calculateRent(mockProperty, 2);
+      expect(rent).toBe(500);
+    });
+
+    it('should return rent_three_houses when property has 3 houses', () => {
+      const rent = service.calculateRent(mockProperty, 3);
+      expect(rent).toBe(1100);
+    });
+
+    it('should return rent_four_houses when property has 4 houses', () => {
+      const rent = service.calculateRent(mockProperty, 4);
+      expect(rent).toBe(1300);
+    });
+
+    it('should return rent_hotel when property has 5 houses (hotel)', () => {
+      const rent = service.calculateRent(mockProperty, 5);
+      expect(rent).toBe(2000);
+    });
+
+    it('should return 0 rent when property is mortgaged (edge case)', () => {
+      const mortgagedProperty = { ...mockProperty, is_mortgaged: true };
+      const rent = service.calculateRent(mortgagedProperty, 0);
+      expect(rent).toBe(0);
+    });
+
+    it('should return 0 rent even with hotel when property is mortgaged', () => {
+      const mortgagedProperty = { ...mockProperty, is_mortgaged: true };
+      const rent = service.calculateRent(mortgagedProperty, 5);
+      expect(rent).toBe(0);
+    });
+
+    it('should return 0 for invalid house count', () => {
+      const rent = service.calculateRent(mockProperty, 10);
+      expect(rent).toBe(0);
+    });
+
+    it('should return 0 for negative house count', () => {
+      const rent = service.calculateRent(mockProperty, -1);
+      expect(rent).toBe(0);
     });
   });
 });

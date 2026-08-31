@@ -45,13 +45,39 @@ import {
 import { UploadValidationPipe } from './pipes/upload-validation.pipe';
 import { UploadExceptionFilter } from './filters/upload-exception.filter';
 import { UploadsErrorMapperService } from './uploads-error-mapper.service';
+import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
+import { Idempotent } from './idempotency/idempotency.decorator';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB – also enforced in multer limits below
+
+/** Allowed image MIME types for the multer fileFilter. */
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+]);
 
 function buildMulterOptions() {
   return {
     storage: memoryStorage(),
     limits: { fileSize: MAX_FILE_SIZE, files: 1 },
+    fileFilter: (
+      _req: unknown,
+      file: { mimetype: string },
+      callback: (error: Error | null, accept: boolean) => void,
+    ) => {
+      if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        callback(null, true);
+      } else {
+        callback(
+          new BadRequestException(
+            'File type not permitted. Only JPEG, PNG, GIF, and WebP images are accepted.',
+          ),
+          false,
+        );
+      }
+    },
   };
 }
 
@@ -75,6 +101,8 @@ export class UploadsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Idempotent()
+  @UseInterceptors(IdempotencyInterceptor)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -91,6 +119,10 @@ export class UploadsController {
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid file or validation error',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Identical upload in-flight (409) or already completed (replayed)',
   })
   @ApiResponse({
     status: HttpStatus.PAYLOAD_TOO_LARGE,
@@ -130,6 +162,8 @@ export class UploadsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
+  @Idempotent()
+  @UseInterceptors(IdempotencyInterceptor)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -137,6 +171,19 @@ export class UploadsController {
       properties: { file: { type: 'string', format: 'binary' } },
       required: ['file'],
     },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Admin asset uploaded successfully',
+    type: UploadResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid file or validation error',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Identical upload in-flight (409) or already completed (replayed)',
   })
   @UseInterceptors(FileInterceptor('file', buildMulterOptions()))
   async uploadAdminAsset(

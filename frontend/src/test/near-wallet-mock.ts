@@ -7,6 +7,8 @@ export function createMockNearWalletValue(
   return {
     ready: true,
     initError: null,
+    connectError: null,
+    disconnectError: null,
     networkId: "testnet",
     contractId: "guest-book.testnet",
     accountId: null,
@@ -14,6 +16,7 @@ export function createMockNearWalletValue(
     transactions: [],
     connect: () => {},
     disconnect: async () => {},
+    clearError: () => {},
     callContractMethod: async () => undefined,
     clearTransactions: () => {},
     ...overrides,

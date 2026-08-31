@@ -16,9 +16,11 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  error: string | null;
   login: (accessToken: string, refreshToken: string) => void;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const clearStoredSession = () => {
@@ -72,14 +75,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const clearError = () => setError(null);
+
   const login = (accessToken: string, refreshToken: string) => {
     const decodedUser = decodeToken(accessToken);
 
     if (!decodedUser) {
       clearStoredSession();
-      throw new Error("Invalid authentication token");
+      const msg = "Invalid authentication token";
+      setError(msg);
+      throw new Error(msg);
     }
 
+    setError(null);
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
     setUser(decodedUser);
@@ -125,6 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       login(data.accessToken, data.refreshToken);
     } catch (e) {
       console.error("Session refresh failed", e);
+      setError(e instanceof Error ? e.message : "Session refresh failed");
       logout();
     } finally {
       setLoading(false);
@@ -151,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, logout, refreshSession }}
+      value={{ user, loading, error, login, logout, refreshSession, clearError }}
     >
       {children}
     </AuthContext.Provider>

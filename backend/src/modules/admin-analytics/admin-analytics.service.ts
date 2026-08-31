@@ -129,7 +129,10 @@ export class AdminAnalyticsService {
       .select('SUM(transaction.amount)', 'total')
       .getRawOne();
 
-    return parseFloat(result?.total || '0');
+    // SUM returns NULL when the table is empty; coerce to 0
+    const raw = result?.total ?? null;
+    const value = raw !== null ? parseFloat(raw) : 0;
+    return isNaN(value) ? 0 : value;
   }
 
   private async getPopularItems(): Promise<PopularItemDto[]> {
@@ -145,12 +148,17 @@ export class AdminAnalyticsService {
       .limit(10)
       .getRawMany();
 
-    return rawItems.map((item: any) => ({
-      itemId: item.itemId,
-      itemName: item.itemName,
-      purchaseCount: parseInt(item.purchaseCount, 10),
-      totalRevenue: parseFloat(item.totalRevenue),
-    }));
+    // Empty table returns [] — map defensively so null values become 0
+    return (rawItems ?? []).map((item: any) => {
+      const purchaseCount = parseInt(item.purchaseCount, 10);
+      const totalRevenue = parseFloat(item.totalRevenue);
+      return {
+        itemId: item.itemId,
+        itemName: item.itemName,
+        purchaseCount: isNaN(purchaseCount) ? 0 : purchaseCount,
+        totalRevenue: isNaN(totalRevenue) ? 0 : totalRevenue,
+      };
+    });
   }
 
   private async getConversionRate(): Promise<number> {
@@ -164,10 +172,12 @@ export class AdminAnalyticsService {
       .select('COUNT(DISTINCT transaction.playerId)', 'count')
       .getRawOne();
 
-    const total = parseInt(totalPlayersRaw?.count || '0', 10);
-    const purchased = parseInt(purchasedPlayersRaw?.count || '0', 10);
+    const total = parseInt(totalPlayersRaw?.count ?? '0', 10);
+    const purchased = parseInt(purchasedPlayersRaw?.count ?? '0', 10);
 
-    return total > 0 ? (purchased / total) * 100 : 0;
+    // Guard against NaN and division-by-zero when DB is empty
+    if (!total || isNaN(total) || isNaN(purchased)) return 0;
+    return (purchased / total) * 100;
   }
 
   private async getRetentionMetrics(): Promise<{

@@ -15,6 +15,14 @@ The barrel uses explicit named exports. DTO types are listed individually instea
 
 `src/lib/api.ts` remains as a compatibility facade for existing `apiRequest` callers and re-exports the same typed client/error/DTO surface.
 
+## Authentication Token Storage
+
+The access token is stored in `localStorage` under the key **`accessToken`** (camelCase), matching the backend's `AuthTokensResponse` DTO.
+
+### Migration Note (temporary)
+
+The client includes a migration fallback: if a token is not found under `accessToken`, it checks for the legacy `access_token` key (snake_case) used in earlier versions. If found, it automatically migrates the token to `accessToken` for future reads. This fallback ensures no existing sessions are silently logged out during the rollout. **This fallback is temporary and may be removed after a reasonable rollout window** (monitor login success rates to confirm all sessions have been migrated).
+
 ## Error Codes
 
 `parseErrorResponse` maps HTTP failures to `ApiErrorCode`:

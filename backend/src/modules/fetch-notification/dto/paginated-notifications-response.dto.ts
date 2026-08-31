@@ -19,6 +19,15 @@ export class PaginationMetaDto {
 
   @ApiProperty({ example: false })
   hasPreviousPage: boolean;
+
+  @ApiProperty({
+    example: 'MjAyNC0wMS0wMVQwMDowMDowMC4wMDBafHV1aWQtMTIz',
+    nullable: true,
+    description:
+      'Opaque cursor for the next page (keyset pagination). Pass back as ' +
+      '`cursor` on the next request for stable ordering. Null on the last page.',
+  })
+  nextCursor: string | null;
 }
 
 export class PaginatedNotificationsResponseDto {

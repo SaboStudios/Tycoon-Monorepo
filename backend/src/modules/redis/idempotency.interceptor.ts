@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
-import { IdempotencyService } from './idempotency.service';
+import { IdempotencyHelper } from '@/common/idempotency';
 
 const IDEMPOTENCY_HEADER = 'idempotency-key';
 const REPLAY_HEADER = 'x-idempotency-replayed';
@@ -17,7 +17,7 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
-  constructor(private readonly idempotency: IdempotencyService) {}
+  constructor(private readonly idempotency: IdempotencyHelper) {}
 
   async intercept(
     context: ExecutionContext,
@@ -35,14 +35,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const idempotencyKey = req.headers[IDEMPOTENCY_HEADER];
+    const idempotencyKey =
+      req.headers[IDEMPOTENCY_HEADER] ?? req.headers['x-idempotency-key'];
     if (!idempotencyKey) {
       return next.handle();
     }
 
     const existing = await this.idempotency.get(idempotencyKey);
 
-    if (existing?.status === 'processing') {
+    if (existing?.status === 'in_flight') {
       throw new ConflictException('Request is still being processed');
     }
 
@@ -54,14 +55,17 @@ export class IdempotencyInterceptor implements NestInterceptor {
       });
     }
 
-    await this.idempotency.markProcessing(idempotencyKey);
+    const claimed = await this.idempotency.claim(idempotencyKey);
+    if (!claimed) {
+      throw new ConflictException('Request is still being processed');
+    }
 
     return next.handle().pipe(
       tap(async (response: unknown) => {
-        await this.idempotency.markComplete(idempotencyKey, response);
+        await this.idempotency.complete(idempotencyKey, response);
       }),
       catchError((err: unknown) => {
-        void this.idempotency.delete(idempotencyKey);
+        void this.idempotency.fail(idempotencyKey);
         return throwError(() =>
           err instanceof HttpException
             ? err

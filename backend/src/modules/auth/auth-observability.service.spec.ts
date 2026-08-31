@@ -143,9 +143,35 @@ describe('AuthObservabilityService (#872)', () => {
   // Metric registration — counters and histograms are created
   // -------------------------------------------------------------------------
 
+  describe('recordFailedLogin (#1299)', () => {
+    it.each([
+      'unknown_user',
+      'invalid_password',
+      'invalid_credentials',
+      'suspended',
+    ] as const)('increments failed-login counter for reason=%s', (reason) => {
+      const { incMock } = getPromMocks();
+      service.recordFailedLogin(reason);
+      expect(incMock).toHaveBeenCalledWith({ reason });
+    });
+
+    it('log message contains only the reason code, never PII', () => {
+      service.recordFailedLogin('unknown_user');
+      const logArgs = logSpy.mock.calls.flat().join(' ');
+      expect(logArgs).toMatch(/reason=unknown_user/);
+      expect(logArgs).not.toMatch(/@|password|email/i);
+    });
+  });
+
   describe('metric registration', () => {
-    it('creates 3 Counter instances', () => {
-      expect(Counter).toHaveBeenCalledTimes(3);
+    it('creates 4 Counter instances', () => {
+      expect(Counter).toHaveBeenCalledTimes(4);
+    });
+
+    it('failed_logins counter has correct name', () => {
+      const calls = (Counter as jest.Mock).mock.calls as [{ name: string }][];
+      const names = calls.map((c) => c[0].name);
+      expect(names).toContain('tycoon_auth_failed_logins_total');
     });
 
     it('creates 1 Histogram instance', () => {

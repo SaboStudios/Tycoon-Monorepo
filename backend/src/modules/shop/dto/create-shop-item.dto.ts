@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -8,6 +9,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUrl,
   Matches,
   MaxLength,
   Min,
@@ -84,11 +86,12 @@ export class CreateShopItemDto {
   active?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Image URLs for the shop item',
+    description: 'Image URLs for the shop item (max 5)',
     type: [String],
   })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
+  @ArrayMaxSize(5)
+  @IsUrl({}, { each: true })
   images?: string[];
 }

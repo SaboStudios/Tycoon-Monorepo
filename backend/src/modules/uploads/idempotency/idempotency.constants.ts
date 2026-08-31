@@ -3,6 +3,10 @@ export const IDEMPOTENCY_HEADER = 'X-Idempotency-Key';
 export const DEFAULT_IDEMPOTENCY_TTL = 86400; // 24 hours in seconds
 export const IDEMPOTENCY_KEY_PREFIX = 'idempotency:';
 
+/** Sentinel placed in Redis while a request is still being processed. */
+export const IDEMPOTENCY_IN_FLIGHT_TTL = 30; // seconds – auto-expires stale locks
+export type IdempotencyStatus = 'in_flight' | 'complete';
+
 export interface IdempotencyOptions {
   /**
    * Time-to-live for idempotency key in seconds

@@ -1,17 +1,22 @@
-# Tycoon Monorepo
+# TYNS Monorepo
 
-## ⚠️ Setup Required
+A monorepo containing the Tycoon backend (NestJS), frontend (Next.js), smart contracts (Soroban), and shop microservice.
 
-The `shop-api` folder has a nested duplicate (`shop-api/shop-api/`) from a failed copy operation.
+## Repository Structure
 
-**Before committing, run this cleanup:**
+- **`backend/`** — NestJS API server
+  - Shop module: `backend/src/modules/shop/` (client-facing purchase endpoint)
+  - Docs: `backend/docs/` (runbooks, guides, ADRs)
 
-```bash
-# From the Tycoon-Monorepo root:
-rm -rf shop-api/shop-api
-```
+- **`shop-api/`** — Shop microservice (NestJS)
+  - Purchases API: `shop-api/src/purchases/` (authoritative purchase writes)
+  - Uses its own PostgreSQL database
 
-Then proceed with the git workflow below.
+- **`frontend/`** — Next.js client (React 19)
+
+- **`contract/`** — Soroban smart contracts
+
+See [ADR-001](backend/docs/ADR-001-shop-purchase-ownership.md) for the purchase write path architecture.
 
 ---
 
@@ -20,7 +25,7 @@ Then proceed with the git workflow below.
 The Kiro shell is frozen and cannot execute git commands. **You need to run these 5 commands manually:**
 
 ```bash
-cd Tycoon-Monorepo
+cd TYNS-Monorepo
 
 # 1. Create feature branch
 git checkout -b feat/SW-001-purchases-idempotency

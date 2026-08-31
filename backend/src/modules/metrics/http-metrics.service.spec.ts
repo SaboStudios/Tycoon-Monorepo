@@ -1,5 +1,5 @@
 /**
- * SW-BE-028 — HttpMetricsService: DTO validation and error mapping tests.
+ * SW-BE-025 — HttpMetricsService: observability tests.
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';

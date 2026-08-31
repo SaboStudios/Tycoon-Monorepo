@@ -14,6 +14,11 @@ import {
 } from './create-purchase.dto';
 import { FilterShopItemsDto } from './filter-shop-items.dto';
 import { PurchaseAndGiftDto } from './purchase-and-gift.dto';
+import { UpdateShopPriceDto } from './update-shop-price.dto';
+import {
+  BulkUpdateShopItemsDto,
+  MAX_BULK_UPDATE_ITEMS,
+} from './bulk-update-shop-items.dto';
 import { ShopItemType, ShopItemRarity } from '../enums/shop-item-type.enum';
 
 async function getErrors(DtoClass: new () => object, plain: object) {
@@ -235,5 +240,110 @@ describe('PurchaseAndGiftDto validation (SW-BE-010)', () => {
         message: 'x'.repeat(500),
       }),
     ).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UpdateShopPriceDto (#1282)
+// ---------------------------------------------------------------------------
+
+describe('UpdateShopPriceDto validation (#1282)', () => {
+  const valid = { price: 19.99 };
+
+  it('passes with minimal valid payload', async () => {
+    expect(await getErrors(UpdateShopPriceDto, valid)).toHaveLength(0);
+  });
+
+  it('rejects zero price', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, { price: 0 });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects negative price', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, { price: -5 });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects price with more than 2 decimal places', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, { price: 19.999 });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts a valid 3-letter uppercase ISO 4217 currency', async () => {
+    expect(
+      await getErrors(UpdateShopPriceDto, { ...valid, currency: 'EUR' }),
+    ).toHaveLength(0);
+  });
+
+  it('rejects a 2-letter currency code', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, {
+      ...valid,
+      currency: 'US',
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a 4-letter currency code', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, {
+      ...valid,
+      currency: 'USDD',
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a lowercase currency code', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, {
+      ...valid,
+      currency: 'usd',
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a numeric/non-alphabetic currency code', async () => {
+    const errors = await getErrors(UpdateShopPriceDto, {
+      ...valid,
+      currency: '123',
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('omitting currency is valid (falls back to item default)', async () => {
+    expect(await getErrors(UpdateShopPriceDto, valid)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BulkUpdateShopItemsDto (#1281)
+// ---------------------------------------------------------------------------
+
+describe('BulkUpdateShopItemsDto validation (#1281)', () => {
+  it('passes with a single valid item', async () => {
+    expect(
+      await getErrors(BulkUpdateShopItemsDto, {
+        items: [{ id: 1, price: 9.99 }],
+      }),
+    ).toHaveLength(0);
+  });
+
+  it('rejects an empty items array', async () => {
+    const errors = await getErrors(BulkUpdateShopItemsDto, { items: [] });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it(`rejects a batch exceeding MAX_BULK_UPDATE_ITEMS (${MAX_BULK_UPDATE_ITEMS})`, async () => {
+    const items = Array.from({ length: MAX_BULK_UPDATE_ITEMS + 1 }, (_, i) => ({
+      id: i + 1,
+      active: true,
+    }));
+    const errors = await getErrors(BulkUpdateShopItemsDto, { items });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it(`accepts a batch at exactly MAX_BULK_UPDATE_ITEMS (${MAX_BULK_UPDATE_ITEMS})`, async () => {
+    const items = Array.from({ length: MAX_BULK_UPDATE_ITEMS }, (_, i) => ({
+      id: i + 1,
+      active: true,
+    }));
+    expect(await getErrors(BulkUpdateShopItemsDto, { items })).toHaveLength(0);
   });
 });

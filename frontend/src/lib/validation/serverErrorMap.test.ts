@@ -126,15 +126,15 @@ describe('mapServerErrors', () => {
   });
 
   describe('status code shortcuts (Priority 3)', () => {
-    it('maps 401 statusCode to sign-in message', () => {
+    it('maps 401 statusCode to invalid credentials message', () => {
       expect(mapServerErrors({ statusCode: 401 })).toEqual({
-        _form: 'Please sign in to join a room.',
+        _form: 'Invalid email or password. Please try again.',
       });
     });
 
-    it('maps 403 statusCode to sign-in message', () => {
+    it('maps 403 statusCode to permission denied message', () => {
       expect(mapServerErrors({ statusCode: 403 })).toEqual({
-        _form: 'Please sign in to join a room.',
+        _form: "You don't have permission to access this. Please sign in again.",
       });
     });
 

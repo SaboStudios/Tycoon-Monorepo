@@ -66,11 +66,20 @@ export class GamePlayersService {
   /**
    * Unlock funds when trade is cancelled or completed.
    */
-  async unlockBalance(playerId: number, amount: number): Promise<GamePlayer> {
+  async unlockBalance(
+    playerId: number,
+    amount: number,
+    requesterId?: number,
+  ): Promise<GamePlayer> {
     if (amount <= 0) {
       throw new BadRequestException('Unlock amount must be positive');
     }
     const player = await this.findOne(playerId);
+    if (requesterId !== undefined && player.user_id !== requesterId) {
+      throw new ForbiddenException(
+        'You can only unlock balance for your own player',
+      );
+    }
     const currentLocked = parseFloat(player.trade_locked_balance ?? '0');
     if (amount > currentLocked) {
       throw new BadRequestException(
@@ -485,9 +494,14 @@ export class GamePlayersService {
     payerId: number,
     payeeId: number,
     baseRent: number,
+    requesterId?: number,
   ): Promise<{ payer: GamePlayer; payee: GamePlayer; finalRent: number }> {
     const payer = await this.findByGameAndPlayer(gameId, payerId);
     const payee = await this.findByGameAndPlayer(gameId, payeeId);
+
+    if (requesterId !== undefined && payer.user_id !== requesterId) {
+      throw new ForbiddenException('You can only pay rent as your own player');
+    }
 
     // Hook into Boost Engine: Rent modifier - Reduce rent for payer, or Increase rent for payee
     // The game design normally dictates rent multipliers apply to the payee's earnings, but we can evaluate it for both.

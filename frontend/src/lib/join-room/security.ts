@@ -38,7 +38,9 @@ export function sanitizeJoinRoomErrorMessage(msg: string, maxLen = 200): string 
 
 export function hasJoinAuthToken(): boolean {
   if (typeof window === "undefined") return false;
-  const token = localStorage.getItem("access_token");
+  // Canonical key is 'accessToken' (camelCase), matching backend DTO.
+  let token = localStorage.getItem("accessToken");
+  if (!token) token = localStorage.getItem("access_token");
   return typeof token === "string" && token.trim().length > 0;
 }
 

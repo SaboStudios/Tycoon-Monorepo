@@ -264,6 +264,34 @@ npm run test:cov
 
 **Upgrade Policy:** Use /api/v1, monitor Deprecation headers.
 
+## 🎲 Board Tile Seeding & Idempotency (#1437)
+
+**Board Structure:**
+- **40-tile Monopoly-style board** — properties, chance, community chest, special tiles.
+- **Seed tables:** `properties`, `chances`, `community_chests`.
+- **Unique constraint:** `position` field enforces one tile per position, enabling idempotent seeding.
+
+**Seed Script:**
+```bash
+cd backend
+npm run seed -- src/database/seeds/seed-board-tiles.ts
+```
+
+The seed script is **fully idempotent** — running it multiple times will not create duplicates due to `ON CONFLICT (position) DO UPDATE` clauses in the SQL.
+
+**Idempotency Test:**
+```bash
+cd backend
+npm test -- src/database/seeds/seed-board-tiles.spec.ts
+```
+
+This test runs the seed twice and verifies row counts remain stable (no duplicate creation).
+
+**Frontend Tile Mapping:**
+- Tiles are indexed by `position` (0–39).
+- Position maps directly to board grid coordinates (via `grid_row` and `grid_col` in properties).
+- Ensure frontend uses the same tile count and position ordering.
+
 ## 📦 Building for Production
 
 ```bash
@@ -332,7 +360,7 @@ Data source for the CLI: `src/config/database.config.ts` (exports `AppDataSource
 
 - **Single step:** `npm run migration:revert` runs the `down` method of the latest migration only. Repeat to roll back further.
 - **Production:** prefer forward-fix migrations when possible. For incidents, restore from backup or revert in a controlled window after testing `down` in staging.
-- **CI:** the pipeline applies migrations to an ephemeral PostgreSQL instance so bad migrations fail before deploy.
+- **CI:** [`backend-ci.yml`](../.github/workflows/backend-ci.yml) applies migrations to an ephemeral PostgreSQL instance and fails if any remain pending.
 
 ### pgAdmin Access
 

@@ -16,13 +16,21 @@ The backend uses two primary guards for admin access control:
 **Controller**: `AdminAnalyticsController`  
 **Guards**: `JwtAuthGuard`, `AdminGuard`
 
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| GET | `/admin/analytics/dashboard` | Get dashboard analytics overview | AdminGuard |
-| GET | `/admin/analytics/users/total` | Get total users count | AdminGuard |
-| GET | `/admin/analytics/users/active` | Get active users count | AdminGuard |
-| GET | `/admin/analytics/games/total` | Get total games count | AdminGuard |
-| GET | `/admin/analytics/games/players/total` | Get total game players count | AdminGuard |
+| HTTP Method | Path | Purpose | Guard Used | Rate Limit |
+|-------------|------|---------|------------|------------|
+| GET | `/admin/analytics/dashboard` | Get dashboard analytics overview | AdminGuard | 5 req/min |
+| GET | `/admin/analytics/shop` | Get shop sales & conversion analytics | AdminGuard | 5 req/min |
+| GET | `/admin/analytics/users/total` | Get total users count | AdminGuard | 20 req/min |
+| GET | `/admin/analytics/users/active` | Get active users count | AdminGuard | 20 req/min |
+| GET | `/admin/analytics/games/total` | Get total games count | AdminGuard | 20 req/min |
+| GET | `/admin/analytics/games/players/total` | Get total game players count | AdminGuard | 20 req/min |
+
+**Rate Limiting Policy**:
+- **Expensive aggregations** (dashboard, shop): 5 requests per minute — Postgres aggregation queries are resource-intensive
+- **Simple count queries** (users/games): 20 requests per minute — Direct count() operations with lighter index scans
+- Global default: 100 requests per minute
+- Health check endpoints (`/health/*`) remain unthrottled
+- Exceeding limits returns 429 Too Many Requests
 
 ---
 
@@ -109,6 +117,12 @@ The backend uses two primary guards for admin access control:
 | DELETE | `/admin/waitlist/:id` | Soft delete a waitlist entry | AdminGuard |
 | DELETE | `/admin/waitlist/:id/permanent` | Permanently delete a waitlist entry | AdminGuard |
 
+**Bulk Import Limits** (`POST /admin/waitlist/bulk-import`):
+- **Maximum file size**: 10 MB (exceeding returns HTTP 413 Payload Too Large)
+- **Maximum rows**: 10,000 data rows (exceeding returns HTTP 400 Bad Request)
+- Limits are enforced early in the streaming pipeline before database processing to prevent OOM or DoS attacks
+- Error responses include the specific limit exceeded and its configured value
+
 ---
 
 ### 7. Chance Module
@@ -120,6 +134,34 @@ The backend uses two primary guards for admin access control:
 | HTTP Method | Path | Purpose | Guard Used |
 |-------------|------|---------|------------|
 | POST | `/chances` | Create a new chance card | RolesGuard + @Roles(Role.ADMIN) |
+
+---
+
+### 8. Admin Shop Module
+
+**Base Path**: `/admin/shop`  
+**Controller**: `AdminShopController` (`src/modules/shop/admin-shop.controller.ts`)  
+**Guards**: `JwtAuthGuard`, `AdminGuard`
+
+| HTTP Method | Path | Purpose | Guard Used |
+|-------------|------|---------|------------|
+| PATCH | `/admin/shop/:id/price` | Update a shop item's price (ISO 4217 currency, min 0.01) | AdminGuard |
+| PATCH | `/admin/shop/:id/status` | Toggle a shop item's active status | AdminGuard |
+| POST | `/admin/shop/:id/upload` | Upload up to 5 images for a shop item | AdminGuard |
+| POST | `/admin/shop/bulk/update` | Bulk update 1-100 shop items (partial-success — see below) | AdminGuard |
+
+**Note (#1280 — orphan Express tree audit)**: admin shop management was fully migrated
+from an earlier, pre-Nest implementation into `AdminShopController` under `ShopModule`
+(see commit `22adf0d`, #858). This audit re-confirmed there is no remaining
+standalone/orphan Express router, controller, or app instance for shop management
+anywhere in the repository — `AdminShopController` registered in `ShopModule` is the
+single source of truth for these routes, fully covered by
+`admin-shop.controller.spec.ts`.
+
+**Partial-success policy (#1281)**: `POST /admin/shop/bulk/update` requires 1-100 items
+(`400` if empty or over the limit — see `BulkUpdateShopItemsDto`). Each item is applied
+independently; a failure on one item (e.g. unknown id) is logged and skipped rather than
+aborting the batch, so the response may contain fewer items than were requested.
 
 ---
 

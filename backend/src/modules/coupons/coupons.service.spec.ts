@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CouponsService } from './coupons.service';
 import { Coupon } from './entities/coupon.entity';
 import { CouponUsageLog } from './entities/coupon-usage-log.entity';
@@ -75,6 +75,10 @@ describe('CouponsService', () => {
         {
           provide: getRepositoryToken(CouponUsageLog),
           useValue: mockUsageLogRepository,
+        },
+        {
+          provide: DataSource,
+          useValue: { createQueryRunner: jest.fn() },
         },
       ],
     }).compile();

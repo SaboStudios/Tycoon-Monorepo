@@ -8,27 +8,66 @@ import {
   Delete,
   Query,
   UseInterceptors,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import { BoardStylesService } from './board-styles.service';
 import { AdvancedCacheInterceptor } from '../../common/interceptors/advanced-cache.interceptor';
 import { CacheOptions } from '../../common/decorators/cache-options.decorator';
+import { RequireAdmin } from '../../common/decorators/admin.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateBoardStyleDto } from './dto/create-board-style.dto';
 import { UpdateBoardStyleDto } from './dto/update-board-style.dto';
+import { BoardStylesPaginationDto } from './dto/board-styles-pagination.dto';
+import { PaginatedResponse } from '../../common';
+import { BoardStyle } from './entities/board-style.entity';
+import { IdempotencyInterceptor } from '../redis/idempotency.interceptor';
 
 @ApiTags('board-styles')
 @Controller('board-styles')
+@UseInterceptors(IdempotencyInterceptor)
 export class BoardStylesController {
   constructor(private readonly boardStylesService: BoardStylesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new board style (Admin)' })
+  @HttpCode(HttpStatus.CREATED)
+  @RequireAdmin()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create a new board style (Admin only)' })
+  @ApiHeader({
+    name: 'X-Idempotency-Key',
+    required: false,
+    description:
+      'Optional idempotency key; duplicate POSTs with the same key return the cached response',
+  })
   create(@Body() createBoardStyleDto: CreateBoardStyleDto) {
     return this.boardStylesService.create(createBoardStyleDto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all board styles' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    example: 'created_at',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['ASC', 'DESC'],
+    example: 'DESC',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name or description',
+  })
   @ApiQuery({
     name: 'is_premium',
     required: false,
@@ -37,12 +76,10 @@ export class BoardStylesController {
   })
   @UseInterceptors(AdvancedCacheInterceptor)
   @CacheOptions({ ttl: 600, keyPrefix: 'board-styles', useUserPrefix: false })
-  findAll(@Query('is_premium') is_premium?: string) {
-    let isPremiumBool: boolean | undefined;
-    if (is_premium !== undefined) {
-      isPremiumBool = is_premium === 'true';
-    }
-    return this.boardStylesService.findAll(isPremiumBool);
+  findAll(
+    @Query() paginationDto: BoardStylesPaginationDto,
+  ): Promise<PaginatedResponse<BoardStyle>> {
+    return this.boardStylesService.findAll(paginationDto);
   }
 
   @Get(':id')
@@ -54,7 +91,9 @@ export class BoardStylesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a board style (Admin)' })
+  @RequireAdmin()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update a board style (Admin only)' })
   update(
     @Param('id') id: string,
     @Body() updateBoardStyleDto: UpdateBoardStyleDto,
@@ -63,7 +102,9 @@ export class BoardStylesController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a board style (Admin)' })
+  @RequireAdmin()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Delete a board style (Admin only)' })
   remove(@Param('id') id: string) {
     return this.boardStylesService.remove(+id);
   }

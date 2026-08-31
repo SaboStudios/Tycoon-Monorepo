@@ -7,6 +7,7 @@ import { WebhookEvent } from './entities/webhook-event.entity';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
 import * as crypto from 'crypto';
 
 describe('Webhooks Observability Integration', () => {
@@ -50,6 +51,17 @@ describe('Webhooks Observability Integration', () => {
             auditWebhookPersisted: jest.fn(),
             auditProcessingCompleted: jest.fn(),
             auditProcessingFailed: jest.fn(),
+          },
+        },
+        {
+          provide: WebhookAuditHooksService,
+          useValue: {
+            onReceived: jest.fn(),
+            onSignatureVerified: jest.fn(),
+            onSignatureFailed: jest.fn(),
+            onDuplicate: jest.fn(),
+            onProcessed: jest.fn(),
+            onFailed: jest.fn(),
           },
         },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },
@@ -107,5 +119,83 @@ describe('Webhooks Observability Integration', () => {
 
     const metricsText = await observability.getMetricsText();
     expect(metricsText).toContain('tycoon_webhook_idempotency_hits_total');
+  });
+
+  it('rejects webhook with invalid signature and emits failure metric', async () => {
+    const payload = {
+      id: 'evt_test_invalid_sig_123',
+      type: 'payment.succeeded',
+    };
+    const body = Buffer.from(JSON.stringify(payload));
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const invalidSignature = 'definitely_not_a_valid_signature';
+
+    const valid = await service.verifySignature(
+      invalidSignature,
+      timestamp,
+      body,
+      'stripe',
+    );
+    expect(valid).toBe(false);
+
+    const metricsText = await observability.getMetricsText();
+    expect(metricsText).toContain('tycoon_webhook_signature_verification_total');
+    expect(metricsText).toContain('result="invalid"');
+  });
+
+  it('rejects webhook with tampered signature', async () => {
+    const payload = {
+      id: 'evt_test_tampered_sig_456',
+      type: 'charge.refunded',
+    };
+    const body = Buffer.from(JSON.stringify(payload));
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const correctSignature = crypto
+      .createHmac('sha256', 'test_webhook_secret_for_integration')
+      .update(`${timestamp}.${body.toString()}`)
+      .digest('hex');
+
+    const tamperedSignature = correctSignature
+      .split('')
+      .reverse()
+      .join('');
+
+    const valid = await service.verifySignature(
+      tamperedSignature,
+      timestamp,
+      body,
+      'stripe',
+    );
+    expect(valid).toBe(false);
+  });
+
+  it('handles idempotent replay of same event as safe no-op', async () => {
+    const payload = {
+      id: 'evt_test_replay_123',
+      type: 'payment.succeeded',
+    };
+    const body = Buffer.from(JSON.stringify(payload));
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = crypto
+      .createHmac('sha256', 'test_webhook_secret_for_integration')
+      .update(`${timestamp}.${body.toString()}`)
+      .digest('hex');
+
+    const valid = await service.verifySignature(
+      signature,
+      timestamp,
+      body,
+      'stripe',
+    );
+    expect(valid).toBe(true);
+
+    const result1 = await service.processWebhook(payload, 'stripe');
+    expect(result1).toEqual({ received: true, processed: true });
+
+    const result2 = await service.processWebhook(payload, 'stripe');
+    expect(result2).toEqual({ received: true, idempotent: true });
+
+    const metricsText = await observability.getMetricsText();
+    expect(metricsText).toContain('tycoon_webhook_idempotency_hits_total{source="stripe",event_type="payment.succeeded"} 1');
   });
 });

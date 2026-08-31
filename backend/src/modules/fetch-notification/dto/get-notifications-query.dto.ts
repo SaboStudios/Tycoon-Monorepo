@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsString,
   Min,
   Max,
 } from 'class-validator';
@@ -43,4 +44,14 @@ export class GetNotificationsQueryDto {
   @IsOptional()
   @IsEnum(NotificationType)
   type?: NotificationType;
+
+  @ApiPropertyOptional({
+    description:
+      'Opaque keyset cursor from a previous response\'s meta.nextCursor. ' +
+      'When provided, takes precedence over `page` and paginates stably ' +
+      'even if new notifications arrive between requests.',
+  })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

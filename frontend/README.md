@@ -1,5 +1,7 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+For local setup (Node version, install command, test/build scripts) and the contribution workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## Analytics
 
 The frontend includes a small analytics taxonomy layer for staging validation.

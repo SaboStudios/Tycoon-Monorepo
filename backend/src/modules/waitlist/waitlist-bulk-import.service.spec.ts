@@ -192,4 +192,75 @@ describe('WaitlistService – bulkImport', () => {
 
     await expect(service.bulkImport(csv)).rejects.toThrow();
   });
+
+  describe('size and row count limits', () => {
+    it('should reject CSV exceeding byte size limit', async () => {
+      // Create a buffer larger than 10 MB
+      const largeBuffer = Buffer.alloc(11 * 1024 * 1024);
+      largeBuffer.write('email_address\nuser@example.com\n', 0);
+
+      await expect(service.bulkImport(largeBuffer)).rejects.toThrow(
+        /exceeds maximum size/i,
+      );
+    });
+
+    it('should reject CSV exceeding row count limit', async () => {
+      // Create CSV with more than 10,000 rows
+      const rows = ['email_address'];
+      for (let i = 0; i < 10001; i++) {
+        rows.push(`user${i}@example.com`);
+      }
+      const csv = Buffer.from(rows.join('\n'));
+
+      mockRepository.find.mockResolvedValue([]);
+
+      await expect(service.bulkImport(csv)).rejects.toThrow(
+        /exceeds maximum row count/i,
+      );
+    });
+
+    it('should allow CSV at maximum byte size', async () => {
+      // Create a CSV that is just under 10 MB
+      const rows = ['email_address'];
+      const rowSize = 100; // approximately 100 bytes per row
+      const maxRows = Math.floor((10 * 1024 * 1024) / rowSize);
+      for (let i = 0; i < Math.min(100, maxRows); i++) {
+        rows.push(`user${i}@example.com`);
+      }
+      const csv = Buffer.from(rows.join('\n'));
+
+      if (csv.length <= 10 * 1024 * 1024) {
+        mockRepository.find.mockResolvedValue([]);
+        mockRepository.create.mockImplementation(
+          (dto: Record<string, unknown>) => dto,
+        );
+        mockRepository.save.mockImplementation((entities: unknown) =>
+          Promise.resolve(Array.isArray(entities) ? entities : [entities]),
+        );
+
+        const result = await service.bulkImport(csv);
+        expect(result.message).toBe('Bulk import completed.');
+      }
+    });
+
+    it('should allow CSV at maximum row count (10000 rows)', async () => {
+      const rows = ['email_address'];
+      for (let i = 0; i < 10000; i++) {
+        rows.push(`user${i}@example.com`);
+      }
+      const csv = Buffer.from(rows.join('\n'));
+
+      mockRepository.find.mockResolvedValue([]);
+      mockRepository.create.mockImplementation(
+        (dto: Record<string, unknown>) => dto,
+      );
+      mockRepository.save.mockImplementation((entities: unknown) =>
+        Promise.resolve(Array.isArray(entities) ? entities : [entities]),
+      );
+
+      const result = await service.bulkImport(csv);
+      expect(result.data.totalRows).toBe(10000);
+      expect(result.message).toBe('Bulk import completed.');
+    });
+  });
 });

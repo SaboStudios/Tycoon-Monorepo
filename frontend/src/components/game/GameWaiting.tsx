@@ -82,8 +82,21 @@ const DUMMY_GAME_CONFIG = {
 export default function GameWaiting(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawGameCode = searchParams.get("gameCode") ?? DUMMY_GAME_CONFIG.code;
-  const gameCode = rawGameCode.trim().toUpperCase();
+
+  // Derive gameCode with fallback to sessionStorage
+  const rawGameCode = (() => {
+    const fromParams = searchParams.get("gameCode");
+    if (fromParams) return fromParams;
+
+    // Fall back to saved room code
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("tycoon.lastJoinCode") ?? null;
+    }
+    return null;
+  })();
+
+  const gameCode = rawGameCode ? rawGameCode.trim().toUpperCase() : "";
+  const hasValidCode = gameCode.length > 0;
 
   const [gamePlayers, setGamePlayers] = useState<GamePlayer[]>(DUMMY_PLAYERS);
   const [playerSymbol, setPlayerSymbol] = useState<PlayerSymbol | null>(null);
@@ -99,6 +112,13 @@ export default function GameWaiting(): React.JSX.Element {
   const isHost = true; // Mock: current user is host
 
   const mountedRef = useRef(true);
+
+  // Save gameCode to sessionStorage when it's valid
+  useEffect(() => {
+    if (hasValidCode && typeof window !== "undefined") {
+      sessionStorage.setItem("tycoon.lastJoinCode", gameCode);
+    }
+  }, [gameCode, hasValidCode]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -179,6 +199,24 @@ export default function GameWaiting(): React.JSX.Element {
 
   // Responsive MediaQuery
   const isMobile = useMediaQuery({ query: "(max-width: 768px)" });
+
+  // Show invalid code message when no code is available
+  if (!loading && !hasValidCode) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#010F10] px-6 py-16 text-[#F0F7F7]">
+        <div className="w-full max-w-md rounded-lg border border-[#00F0FF]/20 bg-[#07181B] p-8 text-center">
+          <h1 className="text-xl font-bold uppercase tracking-wide">Room code is missing or invalid</h1>
+          <p className="mt-4 text-sm text-[#F0F7F7]/75">Please provide a valid game code to join.</p>
+          <button
+            onClick={() => router.push("/")}
+            className="mt-6 rounded-md bg-[#00F0FF] px-4 py-2 font-semibold text-[#010F10] hover:bg-[#86F8FF]"
+          >
+            Retry join
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Handler functions
   const handleCopyLink = useCallback(async () => {
