@@ -47,16 +47,16 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^15.1.2",
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^8.0.0",
     "@storybook/addon-essentials": "^8.0.0",
     "@storybook/addon-interactions": "^8.0.0",
     "@storybook/nextjs": "^8.0.0",
     "@storybook/test": "^8.0.0",
     "@tailwindcss/postcss": "^4",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -71,6 +71,6 @@
     "storybook": "^8.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.0.17"
+    "vitest": "^4.1.11"
   }
 }
