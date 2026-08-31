@@ -3,6 +3,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import {
+  clearSessionTokens,
+  readSessionTokens,
+  writeSessionTokens,
+} from "@/lib/session";
 
 interface User {
   id: number;
@@ -34,14 +39,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const router = useRouter();
 
   const clearStoredSession = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
+    clearSessionTokens();
     document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     setUser(null);
   };
 
   const clearExpiredSession = () => {
-    localStorage.removeItem("accessToken");
+    clearSessionTokens();
     document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     setUser(null);
   };
@@ -88,16 +92,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     setError(null);
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
+    writeSessionTokens({ accessToken, refreshToken });
     setUser(decodedUser);
 
-    // Set cookie for middleware
+    // Transitional middleware cookie until the backend issues an httpOnly session cookie.
     document.cookie = `auth-token=${accessToken}; path=/; max-age=3600; SameSite=Lax`;
   };
 
   const logout = async () => {
-    const token = localStorage.getItem("accessToken");
+    const token = readSessionTokens().accessToken;
     if (token) {
       try {
         await apiRequest("/auth/logout", {
@@ -108,15 +111,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         console.error("Logout failed", e);
       }
     }
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
+    clearSessionTokens();
     document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     setUser(null);
     router.push("/");
   };
 
   const refreshSession = async () => {
-    const refreshToken = localStorage.getItem("refreshToken");
+    const refreshToken = readSessionTokens().refreshToken;
     if (!refreshToken) {
       setLoading(false);
       return;
@@ -141,13 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    const session = readSessionTokens();
+    const token = session.accessToken;
     if (token) {
       const decodedUser = decodeToken(token);
       if (decodedUser) {
         setUser(decodedUser);
       } else {
-        const hasRefreshToken = Boolean(localStorage.getItem("refreshToken"));
+        const hasRefreshToken = Boolean(session.refreshToken);
         clearExpiredSession();
         if (hasRefreshToken) {
           refreshSession();

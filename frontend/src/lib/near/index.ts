@@ -33,6 +33,9 @@ export {
   MAX_DEPOSIT_YOCTO,
   isDepositSafe,
   sanitizeErrorMessage,
+  isLikelyMainnetId,
+  isLikelyTestnetId,
+  assertContractIdForNetwork,
 } from "./security";
 
 export {

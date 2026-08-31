@@ -181,16 +181,6 @@ export function TradeModal({
       return;
     }
 
-    // Mock: log trade details and close
-    console.log("Trade proposed:", {
-      from: currentPlayer.name,
-      to: partner?.name,
-      offeredProperties: [...offeredProperties],
-      requestedProperties: [...requestedProperties],
-      offeredCash: cashOffer,
-      requestedCash: cashRequest,
-    });
-
     onClose();
   };
 

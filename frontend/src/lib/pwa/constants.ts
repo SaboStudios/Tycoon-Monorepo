@@ -18,12 +18,18 @@ export const PWA_SHELL_PATHS = Object.freeze([
  * Paths explicitly excluded from offline caching to prevent stale live game state.
  * These paths are network-only or require real-time synchronization.
  * The service worker checks these patterns in the fetch handler to skip caching.
+ *
+ * Note: WebSocket upgrades (wss://) are inherently excluded from the fetch handler
+ * because the browser does not fire fetch events for WebSocket connections — only
+ * for HTTP/HTTPS requests. The `/socket.io/` entry below covers Socket.IO's
+ * HTTP long-polling fallback transport, which does go through the fetch handler.
  */
 export const PWA_CACHE_EXCLUDED_PATTERNS = Object.freeze([
   "/api/",
   "/game-",
   "/ai-play/",
   "/join-room",
+  "/socket.io/",
 ] as const);
 
 export function isShellAssetPath(pathname: string): boolean {
