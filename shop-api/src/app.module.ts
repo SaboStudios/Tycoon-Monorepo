@@ -1,9 +1,12 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PurchasesModule } from './purchases/purchases.module';
 import { HealthModule } from './health/health.module';
 import { Purchase } from './purchases/entities/purchase.entity';
 import { IdempotencyRecord } from './idempotency/entities/idempotency-record.entity';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { HealthController } from './health/health.controller';
 
 /**
  * TypeORM `synchronize` is only allowed in the Jest test environment, which uses
@@ -27,6 +30,7 @@ function resolveSynchronize(): boolean {
 }
 
 @Module({
+  controllers: [HealthController],
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -38,8 +42,13 @@ function resolveSynchronize(): boolean {
       entities: [Purchase, IdempotencyRecord],
       synchronize: resolveSynchronize(),
     }),
+    ScheduleModule.forRoot(),
     PurchasesModule,
     HealthModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
