@@ -17,6 +17,41 @@ export default defineConfig({
                 inline: ['msw'],
             },
         },
+        // Coverage configuration (used when running `vitest run --coverage`).
+        // Provider: @vitest/coverage-v8 (installed as devDependency).
+        // Global thresholds are moderate to avoid flakiness; per-path thresholds
+        // below are stricter to catch regressions on high-risk shop and auth code.
+        coverage: {
+            provider: 'v8',
+            reporter: ['text', 'lcov', 'json-summary'],
+            include: ['src/**/*.{ts,tsx}'],
+            exclude: [
+                'src/**/*.stories.{ts,tsx}',
+                'src/test/**',
+                'src/mocks/**',
+                'e2e/**',
+            ],
+            thresholds: {
+                // Global safety net — don't drop below these.
+                lines: 60,
+                functions: 60,
+                branches: 55,
+                statements: 60,
+                // Critical paths: shop and auth client-side modules.
+                'src/lib/shop/**': {
+                    lines: 70,
+                    functions: 70,
+                    branches: 65,
+                    statements: 70,
+                },
+                'src/lib/auth/**': {
+                    lines: 70,
+                    functions: 70,
+                    branches: 65,
+                    statements: 70,
+                },
+            },
+        },
     },
     resolve: {
         alias: {

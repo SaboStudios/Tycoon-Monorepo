@@ -4,7 +4,8 @@
   "description": "Tycoon Gaming Platform Monorepo",
   "scripts": {
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install --legacy-peer-deps",
-    "dev:all": "concurrently \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\"",
+    "dev:all": "concurrently --names \"backend,shop-api,frontend\" --prefix-colors \"cyan,yellow,magenta\" \"cd backend && npm run start:dev\" \"cd shop-api && npm run start:dev\" \"cd frontend && npm run dev\"",
+    "smoke": "bash scripts/smoke-monorepo.sh",
     "test:all": "cd backend && npm run test && cd ../frontend && npm run test",
     "build:all": "cd backend && npm run build && cd ../frontend && npm run build",
     "backend": "cd backend && npm run start:dev",

@@ -20,6 +20,53 @@ See [ADR-001](backend/docs/ADR-001-shop-purchase-ownership.md) for the purchase 
 
 ---
 
+## Local Development
+
+### Port layout
+
+| Service       | Default port | Notes                          |
+|---------------|-------------|--------------------------------|
+| Next.js (frontend) | **3000** | `npm run dev` in `frontend/`   |
+| NestJS (backend)   | **3001** | Set `PORT=3001` in `backend/.env` |
+| shop-api           | **3002** | Set in `shop-api/.env`         |
+
+> Backend defaults to **3001** (not 3000) to avoid colliding with the Next.js dev
+> server. Both `.env.example` files are pre-configured with these ports.
+
+### Quick start
+
+```bash
+# 1. Copy env examples (once per machine)
+cp backend/.env.example   backend/.env
+cp frontend/.env.example  frontend/.env
+cp shop-api/.env.example  shop-api/.env
+
+# 2. Start backing services
+docker compose up -d          # postgres + redis
+
+# 3. Start all three apps in one terminal (concurrently)
+npm run dev:all
+#   → backend  → http://localhost:3001
+#   → shop-api → http://localhost:3002
+#   → frontend → http://localhost:3000
+
+# 4. (Optional) Verify all health endpoints are responding
+npm run smoke
+```
+
+`npm run dev:all` uses **concurrently** and labels each process
+(`backend`, `shop-api`, `frontend`) so you can tell streams apart.
+
+### Environment variables
+
+| File | Key | Description |
+|------|-----|-------------|
+| `backend/.env` | `PORT` | Must be `3001` in dev (avoid Next.js collision) |
+| `frontend/.env` | `NEXT_PUBLIC_API_URL` | Must be `http://localhost:3001` in dev |
+| `shop-api/.env` | `PORT` | Must be `3002` in dev |
+
+---
+
 ## Git Workflow (Manual Step Required)
 
 The Kiro shell is frozen and cannot execute git commands. **You need to run these 5 commands manually:**
