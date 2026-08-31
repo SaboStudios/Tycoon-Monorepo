@@ -61,6 +61,37 @@ npx playwright install chromium   # first time only
 npm run test:e2e:smoke            # or: npm run test:e2e
 ```
 
+## Shop API setup
+
+Requirements: **Node 20**.
+
+```bash
+cd shop-api
+npm ci
+```
+
+Common commands, run from `shop-api/`:
+
+```bash
+npm run start:dev       # start the dev server (default port 3002)
+npm run build            # production build
+npm test                 # Jest unit + e2e suite (runs with --runInBand)
+```
+
+The shop-api runs on **port 3002** by default. It must not be started on
+`3000` (frontend dev server) or `3001` (backend API). Local runtime requires
+PostgreSQL; the test suite uses an in-memory SQLite database
+(`src/test/test-db.module.ts`) and needs no external services or secrets.
+
+From the repo root, `npm run install:all`, `npm run test:all`, and
+`npm run dev:all` all include `shop-api/` alongside `backend/` and `frontend/`.
+
+### Continuous integration
+
+[Shop API CI](.github/workflows/shop-api-ci.yml) runs on every PR that touches
+`shop-api/**`: Node 20, `npm ci`, `npm run build`, and
+`npm test -- --runInBand`. Failures block the PR. No secrets are required.
+
 ## Workflow
 
 1. Create a branch off `main`: `feature/<issue-number>-short-description` or `fix/<issue-number>-short-description`.

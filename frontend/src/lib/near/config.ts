@@ -1,4 +1,5 @@
 import type { NetworkId } from "@near-wallet-selector/core";
+import { assertContractIdForNetwork } from "./security";
 
 const DEFAULT_CONTRACT: Record<NetworkId, string> = {
   testnet: "guest-book.testnet",
@@ -34,6 +35,8 @@ export function getNearContractId(networkId: NetworkId = getNearNetworkId()): st
       }
       return DEFAULT_CONTRACT[networkId];
     }
+    // Guard: reject mainnet contract IDs when the app is configured for testnet.
+    assertContractIdForNetwork(fromEnv, networkId);
     return fromEnv;
   }
   return DEFAULT_CONTRACT[networkId];

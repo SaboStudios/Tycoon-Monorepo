@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 export interface PropertyCardProps {
     name: string;
@@ -12,6 +13,7 @@ export interface PropertyCardProps {
     onSelect?: () => void;
     variant?: 'compact' | 'expanded';
     type?: 'property' | 'railroad' | 'utility';
+    imageUrl?: string;
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({
@@ -26,6 +28,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     onSelect,
     variant = 'expanded',
     type = 'property',
+    imageUrl,
 }) => {
     const isCompact = variant === 'compact';
 
@@ -51,10 +54,23 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
                 }
             }}
         >
-            {/* Property Color Header (for 'property' type) */}
+            {/* Property Color Header with optional image (for 'property' type) */}
             {!isSpecial && (
-                <div className={`h-1/4 w-full border-b-2 border-gray-800 flex items-center justify-center p-1 ${color}`}>
-                    {/* Empty or small decoration can go here */}
+                <div className={`relative aspect-[3/4] w-full border-b-2 border-gray-800 flex items-center justify-center overflow-hidden ${color}`}>
+                    {imageUrl ? (
+                        <Image
+                            src={imageUrl}
+                            alt={name}
+                            fill
+                            sizes="192px"
+                            className="object-cover"
+                            loading="lazy"
+                        />
+                    ) : (
+                        <span className="text-2xl font-bold text-white/70 select-none" aria-hidden="true">
+                            {name.charAt(0).toUpperCase()}
+                        </span>
+                    )}
                 </div>
             )}
 

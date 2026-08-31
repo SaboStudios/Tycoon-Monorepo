@@ -1,58 +1,57 @@
 # shop-api
 
-Shop Purchases microservice (NestJS) with idempotency and replay protection.
-See the [root README](../README.md) for how this service fits into the monorepo,
-and [ADR-001](../backend/docs/ADR-001-shop-purchase-ownership.md) for the
-purchase write-path ownership decision between `backend` and `shop-api`.
-
-## Logging
-
-- All requests get a request ID: the incoming `x-request-id` header is reused
-  when present, otherwise a UUID is generated (`RequestIdMiddleware`). The ID
-  is echoed back on the response `x-request-id` header and attached to every
-  structured log line for that request, so a purchase incident can be traced
-  across services (matching the backend's `x-correlation-id` pattern).
-- In `NODE_ENV=production`, logs are emitted as single-line JSON
-  (`StructuredLoggerService`); outside production they use Nest's readable
-  console format for local development.
-- Idempotency keys are **never logged in raw form** — `IdempotencyService`
-  masks all but the last 4 characters (e.g. `****ab12`) before any log call.
-
-### Example log line (production JSON)
-
-```json
-{"timestamp":"2026-08-30T12:00:00.123Z","level":"info","message":"HTTP request completed","context":"HTTP","requestId":"5b1f6e2a-2b7b-4e9a-9b7b-2b7b4e9a9b7b","method":"POST","path":"/purchases","statusCode":201,"durationMs":42}
-```
+Shop Purchases API with idempotency and replay protection.
 
 ## Running locally
 
 ```bash
-cd shop-api
 npm install
+npm run migration:run   # create the schema — synchronize is disabled outside tests
 npm run start:dev
 ```
 
-Or via Docker Compose (see [`docker-compose.yml`](./docker-compose.yml)):
+> TypeORM `synchronize` is **only** enabled in the Jest test environment
+> (`NODE_ENV=test`, in-memory SQLite). Staging, production, and local
+> development use migrations (`npm run migration:run`). The app refuses to boot
+> if `DB_SYNCHRONIZE=true` is forced in a staging environment.
+
+## Configuration
+
+See `.env.example`:
+
+| Variable         | Description |
+|------------------|-------------|
+| `PORT`           | HTTP port (default `3000`) |
+| `NODE_ENV`       | `development` / `test` / `staging` / `production` |
+| `DB_HOST` …      | PostgreSQL connection settings |
+| `SHOP_API_KEY`   | API key for `POST /purchases` — clients send it as `x-api-key` |
+| `JWT_SECRET`     | Secret that enables Bearer JWT auth for `POST /purchases` |
+| `ENABLE_SWAGGER` | `true` forces Swagger on in production (default: on outside production) |
+
+**Key rotation** — rotate `SHOP_API_KEY` by setting a new value in the
+environment and redeploying. Keys/tokens are never logged.
+
+## Endpoints
+
+| Method | Path                | Auth              | Description |
+|--------|---------------------|-------------------|-------------|
+| GET    | `/health`           | —                 | Liveness: 200 while the process is up |
+| GET    | `/ready`            | —                 | Readiness: 200 when Postgres answers `SELECT 1`, 503 otherwise |
+| POST   | `/purchases`        | `x-api-key` **or** Bearer JWT | Create a purchase (requires `Idempotency-Key` header) |
+| GET    | `/purchases/:id`    | —                 | Public read of a single purchase |
+| GET    | `/docs`             | —                 | Swagger UI (non-production by default) |
+
+Readiness responses contain no connection strings, credentials, or PII.
+
+## Migrations
 
 ```bash
-cd shop-api
-docker compose up --build
+npm run migration:run     # apply pending migrations
+npm run migration:revert  # revert the last migration
 ```
-
-This starts `shop-api` on port `3000` alongside its own PostgreSQL instance,
-matching the `DB_*` variables in `.env.example`.
-
-## Idempotency record cleanup
-
-`idempotency_records` rows with `status=COMPLETED` are purged periodically by
-a scheduled job — see `IdempotencyCleanupService` in
-`src/idempotency/idempotency-cleanup.service.ts`. `PROCESSING` and recent
-`FAILED` rows are never purged. Configure the retention window with
-`IDEMPOTENCY_TTL_DAYS` (default `7`).
 
 ## Tests
 
 ```bash
-npm test          # all tests (in-memory SQLite, no Postgres needed)
-npm run test:cov  # with coverage
+npm test   # in-memory SQLite — no Postgres needed
 ```
