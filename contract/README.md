@@ -164,10 +164,14 @@ The `archive/` directory contains experimental or sample contracts that are **no
 
 See [docs/STORAGE_ECONOMICS.md](docs/STORAGE_ECONOMICS.md) for:
 
-- Per-user and per-item state size estimates for every contract
+- Per-key rent sketch (rent per key per year, and upfront write costs) for every contract
+- What belongs on-chain vs backend (Postgres) placement guidance
 - Refund patterns when keys are removed
 - Product implications and recommended item limits
 - Links to Stellar storage fee documentation
+
+The tycoon-game storage section is preserved in that doc (from the pre-cleanup source) and will
+link back to `contracts/tycoon-game/src/storage.rs` when the contract is restored.
 
 ## 🔗 Dependencies
 
