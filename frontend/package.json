@@ -67,7 +67,7 @@
     "eslint-config-next": "16.1.2",
     "happy-dom": "^20.8.8",
     "jsdom": "^27.4.0",
-    "msw": "^2.7.0",
+    "msw": "^2.12.14",
     "storybook": "^8.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",

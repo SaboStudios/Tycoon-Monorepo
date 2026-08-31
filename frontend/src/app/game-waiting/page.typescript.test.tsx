@@ -1,12 +1,43 @@
 import { render, screen } from "@testing-library/react";
-import { expect, test, describe, vi } from "vitest";
+import { expect, test, describe, vi, beforeEach } from "vitest";
 import GameWaitingPage from "./page";
 
 vi.mock("@/clients/GameWaitingClient", () => ({
   default: () => <div data-testid="game-waiting-client">Waiting...</div>,
 }));
 
+vi.mock("@/lib/api/games", () => ({
+  fetchGameRoom: vi.fn().mockResolvedValue({
+    found: true,
+    game: {
+      id: 1,
+      code: "ABC123",
+      status: "PENDING",
+      mode: "PUBLIC",
+      numberOfPlayers: 4,
+    },
+  }),
+}));
+
 describe("GameWaitingPage - TypeScript Strictness", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const { fetchGameRoom } = vi.mocked(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require("@/lib/api/games") as typeof import("@/lib/api/games"),
+    );
+    vi.mocked(fetchGameRoom).mockResolvedValue({
+      found: true,
+      game: {
+        id: 1,
+        code: "ABC123",
+        status: "PENDING",
+        mode: "PUBLIC",
+        numberOfPlayers: 4,
+      },
+    });
+  });
+
   describe("Return types", () => {
     test("page resolves to a valid React element", async () => {
       const { container } = render(
@@ -50,6 +81,21 @@ describe("GameWaitingPage - TypeScript Strictness", () => {
     });
 
     test("handles array gameCode — uses first value", async () => {
+      const { fetchGameRoom } = vi.mocked(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("@/lib/api/games") as typeof import("@/lib/api/games"),
+      );
+      vi.mocked(fetchGameRoom).mockResolvedValueOnce({
+        found: true,
+        game: {
+          id: 2,
+          code: "XYZ789",
+          status: "PENDING",
+          mode: "PUBLIC",
+          numberOfPlayers: 2,
+        },
+      });
+
       const { container } = render(
         await GameWaitingPage({
           searchParams: Promise.resolve({ gameCode: ["XYZ789", "OTHER1"] }),
@@ -90,5 +136,3 @@ describe("GameWaitingPage - TypeScript Strictness", () => {
     });
   });
 });
-
-

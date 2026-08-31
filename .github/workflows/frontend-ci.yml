@@ -40,6 +40,13 @@ jobs:
       - name: Run frontend tests
         run: npm test -- --run
 
+      # #1462 — Assert MSW is tree-shaken from production bundles.
+      # Runs the source-level audit that verifies msw/browser is never
+      # statically imported outside src/mocks/ and that msw-provider.tsx
+      # only dynamically imports the worker behind NODE_ENV guards.
+      - name: MSW tree-shake audit
+        run: npm test -- --run src/mocks/msw-tree-shake.test.ts
+
       - name: Build frontend
         run: npm run build
 
