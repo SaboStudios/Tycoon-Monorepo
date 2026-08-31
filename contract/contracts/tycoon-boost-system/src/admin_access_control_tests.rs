@@ -7,6 +7,7 @@
 //! - `add_boost` / `clear_boosts` require the *player's* auth, not admin.
 //! - Read-only views (`get_active_boosts`, `calculate_total_boost`, `admin`)
 //!   require no auth.
+//!   require no auth.
 
 extern crate std;
 use super::*;
