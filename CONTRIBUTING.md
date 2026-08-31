@@ -67,7 +67,8 @@ npm run test:e2e:smoke            # or: npm run test:e2e
 2. Implement the change, adding or updating tests alongside it.
 3. Run the relevant checks for the part of the repo you touched (see above for frontend; `backend/` and `contract/` have their own `npm`/`make` scripts).
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) (`feat(...)`, `fix(...)`, `docs(...)`, etc.).
-5. Open a PR against `main` using the PR template, referencing the issue with `closes #<issue-number>`.
+5. **Update [CHANGELOG.md](CHANGELOG.md)** — add a bullet under `[Unreleased]` in the section for the package you changed (`Backend`, `Frontend`, `Shop API`, or `Contract`). Use the category that fits: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`. Breaking changes must include a `⚠ Breaking change` callout. Contract hash bumps must include old and new SHA-256 hashes.
+6. Open a PR against `main` using the PR template, referencing the issue with `closes #<issue-number>`.
 
 ## Shop Purchase Write Path
 
