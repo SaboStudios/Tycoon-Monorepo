@@ -19,6 +19,64 @@ function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/**
+ * Single-flight refresh gate.
+ *
+ * When the first 401 arrives we kick off a token refresh; any concurrent
+ * requests that also see 401 wait on the same promise instead of firing
+ * parallel refresh calls (which would race and invalidate each other).
+ */
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) return false;
+
+    try {
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) return false;
+
+      const data: { accessToken: string; refreshToken: string } =
+        await res.json();
+
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+
+      // Sync the middleware cookie so server-side checks stay current.
+      document.cookie = `auth-token=${data.accessToken}; path=/; max-age=3600; SameSite=Lax`;
+
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  document.cookie =
+    'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+  // Redirect to login — use assign so the navigation is visible in tests.
+  if (typeof window !== 'undefined') {
+    window.location.assign('/login');
+  }
+}
+
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -64,26 +122,44 @@ async function request<T>(
   const { timeoutMs = DEFAULT_TIMEOUT_MS, retries = MAX_RETRIES } = opts;
   const url = `${BASE_URL}${path}`;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(opts.public ? {} : getAuthHeaders()),
-  };
-
-  const init: RequestInit = {
-    method,
-    headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    ...(opts.signal ? { signal: opts.signal } : {}),
+  const buildInit = (): RequestInit => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(opts.public ? {} : getAuthHeaders()),
+    };
+    return {
+      method,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    };
   };
 
   let attempt = 0;
   while (true) {
-    const res = await fetchWithTimeout(url, init, timeoutMs);
+    const res = await fetchWithTimeout(url, buildInit(), timeoutMs);
 
     if (res.ok) {
       // 204 No Content
       if (res.status === 204) return undefined as T;
       return res.json() as Promise<T>;
+    }
+
+    // --- 401 handling: refresh token and retry once ---
+    if (res.status === 401 && !opts.public) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        // Retry the original request with the fresh token.
+        const retryRes = await fetchWithTimeout(url, buildInit(), timeoutMs);
+        if (retryRes.ok) {
+          if (retryRes.status === 204) return undefined as T;
+          return retryRes.json() as Promise<T>;
+        }
+      }
+
+      // Refresh failed or retried request still unauthorized — log out.
+      clearSession();
+      throw await parseErrorResponse(res);
     }
 
     if (RETRYABLE_STATUSES.has(res.status) && attempt < retries) {
