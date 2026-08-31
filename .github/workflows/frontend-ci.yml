@@ -2,10 +2,18 @@ name: Frontend CI
 
 on:
   pull_request:
+    paths:
+      - 'frontend/**'
+      - 'package-lock.json'
+      - '.github/workflows/frontend-ci.yml'
   push:
     branches:
       - main
       - master
+    paths:
+      - 'frontend/**'
+      - 'package-lock.json'
+      - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
 jobs:
@@ -110,3 +118,45 @@ jobs:
           name: playwright-results
           path: frontend/test-results/
           retention-days: 7
+
+  # ── Chromatic visual regression ─────────────────────────────────────────────
+  # Runs only when frontend source files change.
+  # Fork PRs: CHROMATIC_PROJECT_TOKEN will be empty → step is skipped, not failed.
+  # Merge to main: full snapshot run; diffs surface in the Chromatic UI.
+  chromatic:
+    name: Chromatic visual regression
+    runs-on: ubuntu-latest
+    needs: frontend-checks
+    # Only run when frontend files are touched.
+    if: |
+      contains(toJson(github.event.commits.*.modified), 'frontend/') ||
+      contains(toJson(github.event.commits.*.added), 'frontend/') ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Chromatic needs full git history to detect changed stories correctly.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Skip on forks (no access to repo secrets) without failing the build.
+      - name: Publish to Chromatic
+        if: ${{ env.CHROMATIC_PROJECT_TOKEN != '' }}
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+        run: npm run chromatic -- --project-token=$CHROMATIC_PROJECT_TOKEN

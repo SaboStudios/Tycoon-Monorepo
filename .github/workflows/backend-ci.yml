@@ -2,27 +2,35 @@ name: Backend CI
 
 on:
   pull_request:
+    paths:
+      # Run on any backend source or config change
+      - 'backend/**'
+      # Root-level package lockfile (shared deps may affect backend)
+      - 'package-lock.json'
+      # CI workflow changes always re-run this workflow
+      - '.github/workflows/backend-ci.yml'
   push:
     branches:
       - main
       - master
+    paths:
+      - 'backend/**'
+      - 'package-lock.json'
+      - '.github/workflows/backend-ci.yml'
+  # Allow manual runs regardless of path filters
   workflow_dispatch:
 
+# ─── Job: unit tests + lint + build ──────────────────────────────────────────
+# Runs fast (<10 min). Uses mocked TypeORM/Redis — no external services needed.
+# Pool-load test is intentionally excluded; it runs nightly only.
 jobs:
   backend-checks:
+    name: Unit tests, lint & build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: tycoon_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s --health-timeout 5s --health-retries 5
+      # Redis is still needed for the cache/throttler modules that are imported
+      # even in unit-test mode (rate-limit guards, etc.)
       redis:
         image: redis:7-alpine
         ports: ['6379:6379']
@@ -70,22 +78,104 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Verify migrations on empty database
+      - name: Run unit tests (mocked DB/Redis)
+        run: npm test -- --runInBand
+
+      - name: Upload failing unit test coverage
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-coverage
+          path: backend/coverage
+          if-no-files-found: ignore
+
+# ─── Job: integration tests ───────────────────────────────────────────────────
+# Runs against real Postgres 16 + Redis 7.
+# Targets *.integration.spec.ts (DB-touching unit specs, e.g. redis.integration)
+# and all *.e2e-spec.ts (full app bootstrap, migrations, HTTP layer).
+#
+# Pool-load spec is excluded here — it runs nightly via
+# backend-pool-load-nightly.yml to avoid PR slowdown.
+  backend-integration:
+    name: Integration & E2E tests (real Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Integration tests require the build to succeed first
+    needs: backend-checks
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tycoon_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      NODE_ENV: test
+      # Database credentials matching the service defined above
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: tycoon_test
+      DB_SYNCHRONIZE: false
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: ci-only-jwt-secret
+      STELLAR_NETWORK: testnet
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Run migrations (verify schema on clean DB)
         run: |
           npm run migration:run
           ! npm run migration:show | grep -q '\[ \]'
 
-      - name: Run backend tests
-        run: npm test -- --runInBand
+      - name: Run integration specs (*.integration.spec.ts)
+        # Covers specs that touch the real DB/Redis, e.g. redis.integration.spec.ts.
+        # New integration specs must follow the *.integration.spec.ts naming convention
+        # so they are automatically picked up here. See test/jest-integration.json.
+        run: npm run test:integration
 
-      - name: Run backend end-to-end tests
-        run: npm run test:e2e -- --runInBand
+      - name: Run E2E tests (*.e2e-spec.ts)
+        # Full application bootstrap + HTTP layer against real Postgres.
+        # Pool-load test is intentionally excluded here; it runs nightly.
+        run: |
+          npm run test:e2e -- --runInBand \
+            --testPathIgnorePatterns='pool-load\\.spec\\.ts'
 
-      - name: Upload failing e2e diagnostics
+      - name: Upload failing integration/e2e diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-e2e-diagnostics
+          name: backend-integration-diagnostics
           path: |
             backend/coverage
             backend/logs

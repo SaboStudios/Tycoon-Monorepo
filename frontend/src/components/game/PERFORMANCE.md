@@ -113,3 +113,29 @@ When implementing actual image loading:
 
 **Last Updated**: 2026-06-24  
 **Components Audited**: ActionLog, BoardSquare, Marketplace, Leaderboard, DiceAnimation, PropertyCard, GameBoard, TradeModal
+
+## Lazy-Loaded Image Support (Added 2026-08-29)
+
+### PropertyCard
+
+- **Prop**: `imageUrl?: string`
+- **Aspect Ratio**: `3:4` reserved via `aspect-[3/4]` container
+- **Dimensions**: 192x256px (as recommended above)
+- **Loading**: `lazy` (Next.js `<Image>` default)
+- **Fallback**: First letter of property name rendered as text placeholder
+- **CLS Impact**: None — aspect ratio container reserves space before image loads
+
+### BoardSquare
+
+- **Prop**: `imageUrl?: string`
+- **Header**: Fixed `h-6` container with `overflow-hidden`
+- **Dimensions**: 120px wide (responsive)
+- **Loading**: `lazy` (Next.js `<Image>` default)
+- **Fallback**: Color strip (existing behavior preserved)
+- **CLS Impact**: None — header height is fixed regardless of image presence
+
+### Notes
+
+- Both components use `fill` layout with `object-cover` to prevent distortion
+- Images are only rendered for `property` type squares (railroads/utilities keep icon placeholders)
+- For boards with 40+ tiles, lazy loading ensures only visible tiles fetch images
