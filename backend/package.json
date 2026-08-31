@@ -50,7 +50,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.1.14",
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.11.1",
     "bullmq": "^5.71.0",
     "cache-manager": "^7.2.8",
     "cache-manager-ioredis-yet": "^2.1.2",
