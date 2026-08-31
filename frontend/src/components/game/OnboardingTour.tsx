@@ -5,8 +5,9 @@
  */
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { track } from "@/lib/analytics/client";
 
 interface TourStep {
   id: string;
@@ -66,6 +67,26 @@ interface OnboardingTourProps {
   onSkip?: () => void;
 }
 
+/**
+ * Fire-and-forget POST to the backend analytics endpoint.
+ * Never throws — a network failure must not block the UI.
+ */
+async function postTourEvent(event: string, data: Record<string, unknown>): Promise<void> {
+  try {
+    const response = await fetch("/api/analytics/tour", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, data }),
+    });
+    // Log non-2xx in dev only; swallow in production.
+    if (!response.ok && process.env.NODE_ENV !== "production") {
+      console.warn(`[tour] backend POST returned ${response.status}`);
+    }
+  } catch {
+    // Backend unavailable — analytics is best-effort, never block UI.
+  }
+}
+
 export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourProps) {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
@@ -73,6 +94,9 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+
+  // Guards to ensure complete/skip events fire exactly once per mount.
+  const completedRef = useRef(false);
 
   const getStorageKey = useCallback(() => {
     return user?.id ? `onboarding_tour_completed_${user.id}` : "onboarding_tour_completed_guest";
@@ -85,26 +109,37 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
   useEffect(() => {
     const completed = localStorage.getItem(getStorageKey());
     const dontShow = localStorage.getItem(getDontShowKey());
-    
+
     if (!completed && dontShow !== "true") {
       // Delay showing tour to ensure DOM is ready
       const timer = setTimeout(() => {
         setIsVisible(true);
+        // Emit tour_started once the tour becomes visible.
+        track("tour_started", { step_id: TOUR_STEPS[0].id, total_steps: TOUR_STEPS.length });
+        void postTourEvent("tour_started", { step_id: TOUR_STEPS[0].id, total_steps: TOUR_STEPS.length });
       }, 1000);
       return () => clearTimeout(timer);
     }
   }, [getStorageKey, getDontShowKey]);
+
+  // Track step views whenever the current step changes while the tour is visible.
+  useEffect(() => {
+    if (!isVisible || currentStep >= TOUR_STEPS.length) return;
+    const step = TOUR_STEPS[currentStep];
+    track("tour_step_viewed", { step_id: step.id, total_steps: TOUR_STEPS.length });
+    void postTourEvent("tour_step_viewed", { step_id: step.id, total_steps: TOUR_STEPS.length });
+  }, [isVisible, currentStep]);
 
   useEffect(() => {
     if (!isVisible || currentStep >= TOUR_STEPS.length) return;
 
     const step = TOUR_STEPS[currentStep];
     const element = document.querySelector(step.targetSelector) as HTMLElement;
-    
+
     if (element) {
       setTargetElement(element);
       updateTooltipPosition(element, step.position);
-      
+
       // Add highlight to target element
       element.style.position = "relative";
       element.style.zIndex = "60";
@@ -176,49 +211,42 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = useCallback(() => {
     if (dontShowAgain) {
       localStorage.setItem(getDontShowKey(), "true");
     }
     setIsVisible(false);
-    trackAnalyticsEvent("tour_skipped", { step: currentStep });
+    // Idempotent: only fire once per mount lifecycle.
+    if (!completedRef.current) {
+      completedRef.current = true;
+      track("tour_skipped", { step_id: TOUR_STEPS[currentStep]?.id ?? "unknown", total_steps: TOUR_STEPS.length });
+      void postTourEvent("tour_skipped", { step_id: TOUR_STEPS[currentStep]?.id ?? "unknown", total_steps: TOUR_STEPS.length });
+    }
     onSkip?.();
-  };
+  }, [dontShowAgain, getDontShowKey, currentStep, onSkip]);
 
-  const completeTour = () => {
+  const completeTour = useCallback(() => {
     localStorage.setItem(getStorageKey(), "true");
     if (dontShowAgain) {
       localStorage.setItem(getDontShowKey(), "true");
     }
     setIsVisible(false);
-    trackAnalyticsEvent("tour_completed", { totalSteps: TOUR_STEPS.length });
+    // Idempotent: only fire once per mount lifecycle.
+    if (!completedRef.current) {
+      completedRef.current = true;
+      track("tour_completed", { total_steps: TOUR_STEPS.length });
+      void postTourEvent("tour_completed", { total_steps: TOUR_STEPS.length });
+    }
     onComplete?.();
-  };
-
-  const trackAnalyticsEvent = (eventName: string, data: Record<string, unknown>) => {
-    // Analytics tracking - can be integrated with any analytics provider
-    console.log(`[Analytics] ${eventName}`, {
-      ...data,
-      userId: user?.id || "guest",
-      timestamp: new Date().toISOString(),
-    });
-    
-    // Send to backend analytics endpoint
-    fetch("/api/analytics/tour", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: eventName,
-        data,
-        userId: user?.id,
-      }),
-    }).catch((err) => console.error("Analytics error:", err));
-  };
+  }, [getStorageKey, getDontShowKey, dontShowAgain, onComplete]);
 
   if (!isVisible) return null;
 
   const step = TOUR_STEPS[currentStep];
   const progress = ((currentStep + 1) / TOUR_STEPS.length) * 100;
+
+  // Suppress unused-variable warning for targetElement (kept for future anchor logic).
+  void targetElement;
 
   return (
     <>
@@ -285,7 +313,7 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
             onChange={(e) => setDontShowAgain(e.target.checked)}
             className="w-4 h-4 rounded border-[#00F0FF]/30 bg-[#0A1A1B] text-[#00F0FF] focus:ring-[#00F0FF]/50"
           />
-          <span className="text-xs text-[#00F0FF]/70">Don't show this tour again</span>
+          <span className="text-xs text-[#00F0FF]/70">Don&apos;t show this tour again</span>
         </label>
 
         {/* Navigation buttons */}
