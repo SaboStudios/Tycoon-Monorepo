@@ -9,13 +9,30 @@ const RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504]);
 
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  // Canonical key is 'accessToken' (camelCase), matching backend DTO.
-  // Migration fallback: if not found, try legacy snake_case key for existing sessions.
+
+  const sessionToken = (globalThis as typeof globalThis & {
+    __TYCOON_SESSION__?: { accessToken?: string };
+  }).__TYCOON_SESSION__?.accessToken;
+
+  if (sessionToken) {
+    return { Authorization: `Bearer ${sessionToken}` };
+  }
+
+  const cookiePair = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith('auth-token='));
+
+  if (cookiePair) {
+    const token = decodeURIComponent(cookiePair.slice('auth-token='.length));
+    if (token) return { Authorization: `Bearer ${token}` };
+  }
+
   let token = localStorage.getItem('accessToken');
   if (!token) {
     token = localStorage.getItem('access_token');
     if (token) localStorage.setItem('accessToken', token);
   }
+
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

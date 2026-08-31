@@ -75,7 +75,7 @@ export interface GameBoardState {
 // propertyId values match the backend properties module ids (1-based, skipping
 // non-purchasable tiles). Corners, taxes, chance and community cards have null.
 
-const BOARD_40: Tile[] = [
+export const BOARD_TILES: Tile[] = [
   { index: 0,  name: "GO",                    type: "corner",    propertyId: null, ownerId: null },
   { index: 1,  name: "Mediterranean Ave",     type: "property",  propertyId: 1,    ownerId: null },
   { index: 2,  name: "Community Chest",       type: "community", propertyId: null, ownerId: null },
@@ -148,6 +148,7 @@ export function useGameBoardLogic(): GameBoardState {
     const total = die1 + die2;
 
     setLastRoll({ die1, die2, total });
+    console.log(`${INITIAL_PLAYERS[currentTurnIndex].name} rolled ${die1} + ${die2}`);
 
     setPlayers((prev) => {
       const next = [...prev];
@@ -164,7 +165,7 @@ export function useGameBoardLogic(): GameBoardState {
   return {
     currentPlayer: players[currentTurnIndex],
     players,
-    board: BOARD_40,
+    board: BOARD_TILES,
     lastRoll,
     rollDice,
   };
