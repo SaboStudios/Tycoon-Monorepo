@@ -27,11 +27,17 @@ describe('useGameBoardLogic', () => {
       expect(result.current.players[1].name).toBe('Player 2');
     });
 
-    it('initializes with default board tiles', () => {
+    it('initializes with the canonical 40-tile board mapping', () => {
       const { result } = renderHook(() => useGameBoardLogic());
-      expect(result.current.board).toHaveLength(8);
+      expect(result.current.board).toHaveLength(40);
       expect(result.current.board[0].name).toBe('GO');
       expect(result.current.board[0].type).toBe('corner');
+      expect(result.current.board[7].name).toBe('Chance');
+      expect(result.current.board[17].name).toBe('Community Chest');
+      expect(result.current.board[22].name).toBe('Chance');
+      expect(result.current.board[33].name).toBe('Community Chest');
+      expect(result.current.board.filter((tile) => tile.type === 'chance')).toHaveLength(3);
+      expect(result.current.board.filter((tile) => tile.type === 'community')).toHaveLength(3);
     });
 
     it('sets currentPlayer to the first player', () => {
@@ -57,11 +63,19 @@ describe('useGameBoardLogic', () => {
   });
 
   describe('board state', () => {
-    it('board tiles have correct indices', () => {
+    it('board tiles have correct indices and stable property IDs', () => {
       const { result } = renderHook(() => useGameBoardLogic());
       result.current.board.forEach((tile, idx) => {
         expect(tile.index).toBe(idx);
       });
+
+      expect(result.current.board[1].propertyId).toBe(1);
+      expect(result.current.board[3].propertyId).toBe(2);
+      expect(result.current.board[5].propertyId).toBe(3);
+      expect(result.current.board[39].propertyId).toBe(28);
+      expect(result.current.board[2].propertyId).toBeNull();
+      expect(result.current.board[7].propertyId).toBeNull();
+      expect(result.current.board[17].propertyId).toBeNull();
     });
 
     it('board tiles have valid types', () => {
