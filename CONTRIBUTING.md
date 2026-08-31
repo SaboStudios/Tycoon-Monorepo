@@ -11,7 +11,13 @@ Thanks for contributing! This guide covers local setup and the workflow we use f
 
 ## Frontend setup
 
-Requirements: **Node 20** (matches the version pinned in `.github/workflows/frontend-ci.yml`).
+Requirements: **Node 20** (matches the version pinned in `.github/workflows/frontend-ci.yml` and `.nvmrc`).
+
+If you use [nvm](https://github.com/nvm-sh/nvm), run `nvm use` from the repository root to automatically switch to the correct version:
+
+```bash
+nvm use   # reads .nvmrc → switches to Node 20
+```
 
 ```bash
 cd frontend

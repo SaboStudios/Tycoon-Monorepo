@@ -1,0 +1,68 @@
+name: Scheduled Security Audit
+
+# Runs every Monday at 08:00 UTC, and can be triggered manually.
+# Policy: npm audit failures at --audit-level=high block the run (exit non-zero).
+#         cargo audit failures are also blocking.
+#         Results are printed to the log; no secrets are echoed.
+#
+# Exceptions: add a `.cargo/audit.toml` (advisory-db ignore list) for known
+#             false-positives in the Rust workspace. For npm packages document
+#             exceptions as inline comments in this file with a linked issue.
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Every Monday 08:00 UTC
+  workflow_dispatch:        # Manual trigger for ad-hoc runs
+
+jobs:
+  npm-audit:
+    name: npm audit (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - '.'         # root
+          - backend
+          - frontend
+          - shop-api
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (${{ matrix.package }})
+        working-directory: ${{ matrix.package }}
+        run: npm ci --ignore-scripts
+        continue-on-error: true   # Some workspaces may not have a lock file; audit still runs
+
+      - name: Run npm audit (${{ matrix.package }})
+        working-directory: ${{ matrix.package }}
+        # --audit-level=high: informational/moderate advisories are logged but
+        # do not fail the build. High and critical CVEs fail immediately.
+        # No secret env vars are needed or printed for this step.
+        run: npm audit --audit-level=high
+
+  cargo-audit:
+    name: cargo audit (contract)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        working-directory: contract
+        # Fails on any vulnerability level by default (cargo-audit default).
+        # Add `.cargo/audit.toml` in the contract/ directory to ignore known
+        # false-positives with a linked tracking issue.
+        run: cargo audit
