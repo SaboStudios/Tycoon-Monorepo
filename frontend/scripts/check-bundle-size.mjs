@@ -81,14 +81,20 @@ async function main() {
 
   // Match glob-style path patterns (simple wildcard support)
   function matchFiles(pattern) {
-    if (!pattern) return files;
-    const re = new RegExp(
-      pattern
-        .replace(/\./g, '\\.')
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*'),
-    );
-    return files.filter((f) => re.test(f.replace(/\\/g, '/')));
+    const patterns = Array.isArray(pattern) ? pattern : [pattern];
+    return files.filter((f) => {
+      const normalized = f.replace(/\\/g, '/');
+      return patterns.some((p) => {
+        if (!p) return false;
+        const re = new RegExp(
+          String(p)
+            .replace(/\./g, '\\.')
+            .replace(/\*\*/g, '.*')
+            .replace(/\*/g, '[^/]*'),
+        );
+        return re.test(normalized);
+      });
+    });
   }
 
   const results = [];

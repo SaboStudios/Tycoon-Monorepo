@@ -57,6 +57,34 @@ describe("sanitizeAnalyticsPayload", () => {
       item_name: "Starter Pack",
     });
   });
+
+  it("blocks room codes even when schema allows them", () => {
+    expect(
+      sanitizeAnalyticsPayload("join_room_attempted", {
+        route: "/play",
+        source: "link",
+        room_code: "ABC123",
+        room: "secret-room",
+      }),
+    ).toEqual({
+      route: "/play",
+      source: "link",
+    });
+  });
+
+  it("blocks error types and case-insensitive PII keys", () => {
+    expect(
+      sanitizeAnalyticsPayload("join_room_failed", {
+        route: "/play",
+        error_type: "invalid_room",
+        USER_ID: "player123",
+        EMAIL: "user@example.com",
+      }),
+    ).toEqual({
+      route: "/play",
+      error_type: "invalid_room",
+    });
+  });
 });
 
 describe("getViewEventForPath", () => {

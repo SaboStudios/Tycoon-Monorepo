@@ -25,7 +25,10 @@ export class UserSkinsController {
   }
 
   @Post('unlock')
-  @ApiOperation({ summary: 'Unlock a skin for the current user' })
+  @ApiOperation({
+    summary: 'Unlock a skin for the current user',
+    description: 'Idempotent operation. If the skin is already unlocked for this user, returns the existing unlock record. Safe to retry.',
+  })
   async unlockSkin(@Request() req: any, @Body() dto: UnlockSkinDto) {
     return this.userSkinsService.unlockSkin(req.user.id, dto.skinId);
   }

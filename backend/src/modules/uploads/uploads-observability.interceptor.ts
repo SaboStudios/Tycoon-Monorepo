@@ -78,6 +78,14 @@ export class UploadsObservabilityInterceptor implements NestInterceptor {
 
     const t0 = process.hrtime.bigint();
 
+    // Log upload start before the handler runs (SW-BE-037)
+    this.obs.recordUploadStart({
+      route,
+      traceId,
+      mimeType: req.file?.mimetype,
+      sizeBytes: req.file?.size ?? req.file?.buffer?.length,
+    });
+
     return next.handle().pipe(
       tap(() => {
         const dur = Number(process.hrtime.bigint() - t0) / 1e9;

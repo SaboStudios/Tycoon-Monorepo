@@ -2,12 +2,22 @@ import React from 'react';
 import WhatIsTycoon from '@/components/guest/WhatIsTycoon';
 import HeroSection from '@/components/guest/HeroSection';
 import { BoardSquare } from '@/components/game/BoardSquare';
+import { ShopGrid } from '@/components/game/ShopGrid';
 import JoinRoomForm from '@/components/settings/JoinRoomForm';
 import type { ShopItemData } from '@/components/game/ShopItem';
 import { JOIN_ROOM_I18N } from '@/lib/join-room/i18n-keys';
 
 export default {
   title: 'Visual Regression/Baseline',
+  parameters: {
+    // Chromatic baseline: these stories are captured on every push to main
+    // (see .github/workflows/frontend-ci.yml's chromatic job). To update a
+    // baseline after an intentional visual change, run
+    // `npm run chromatic` from `frontend/` with CHROMATIC_PROJECT_TOKEN set,
+    // then accept the new snapshots in the Chromatic UI.
+    chromatic: { disableSnapshot: false },
+  },
+  tags: ['visual-regression'],
 };
 
 const sampleItems: ShopItemData[] = [
@@ -47,6 +57,15 @@ export const HUDBoardSquares = () => (
 );
 
 HUDBoardSquares.storyName = 'HUD board squares (stable)';
+
+export const HUDShopGrid = () => (
+  <div className="min-h-screen bg-[#010F10] p-8 text-white">
+    <h2 className="mb-4 text-2xl font-bold">HUD: Shop Grid</h2>
+    <ShopGrid items={sampleItems} />
+  </div>
+);
+
+HUDShopGrid.storyName = 'HUD shop grid (stable)';
 
 /** Chromatic baseline — join room flow error / loading states (#843). */
 export const JoinRoomIdle = () => (

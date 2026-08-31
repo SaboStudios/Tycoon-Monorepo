@@ -19,8 +19,8 @@ export function SkeletonCard({
   return (
     <Card className={cn("overflow-hidden", className)}>
       {showImage && (
-        <div className="h-40 bg-neutral-200 dark:bg-neutral-800">
-          <Skeleton className="w-full h-full" />
+        <div className="h-40 min-h-40 overflow-hidden bg-neutral-200 dark:bg-neutral-800">
+          <Skeleton className="h-full w-full" />
         </div>
       )}
       <CardHeader>
@@ -49,8 +49,8 @@ export function SkeletonList({ count = 3, className }: SkeletonListProps) {
     <div className={cn("space-y-4", className)}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="space-y-2">
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-6 min-h-6 w-full" />
+          <Skeleton className="h-4 min-h-4 w-5/6" />
         </div>
       ))}
     </div>
@@ -65,14 +65,14 @@ export function SkeletonDetail({ className }: SkeletonDetailProps) {
   return (
     <div className={cn("space-y-6", className)}>
       <div className="space-y-2">
-        <Skeleton className="h-8 w-1/2" />
-        <Skeleton className="h-4 w-1/3" />
+        <Skeleton className="h-8 min-h-8 w-1/2" />
+        <Skeleton className="h-4 min-h-4 w-1/3" />
       </div>
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="space-y-2">
-            <Skeleton className="h-4 w-1/4" />
-            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-4 min-h-4 w-1/4" />
+            <Skeleton className="h-6 min-h-6 w-full" />
           </div>
         ))}
       </div>

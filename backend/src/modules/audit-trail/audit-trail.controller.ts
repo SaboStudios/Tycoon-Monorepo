@@ -45,6 +45,27 @@ export class AuditTrailController {
     return this.auditTrailService.findAll(query);
   }
 
+  /**
+   * GET /admin/audit-trail/export
+   * Admin export: returns all matching logs as a JSON array.
+   * Optional query filters: userId, action (same as findAll).
+   * Retention policy: logs older than 90 days are purged nightly at 02:00 UTC.
+   */
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export audit trail logs as JSON (admin, compliance)',
+    description:
+      'Returns all matching audit log entries. Retention policy: entries older than 90 days are purged nightly.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Audit log export',
+    type: [AuditTrail],
+  })
+  async exportLogs(@Query() query: QueryAuditTrailDto) {
+    return this.auditTrailService.exportLogs(query);
+  }
+
   @Get('user/:userId')
   @ApiOperation({ summary: 'Retrieve audit trail logs for a specific user' })
   @ApiResponse({

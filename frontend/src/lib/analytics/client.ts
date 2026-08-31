@@ -45,6 +45,22 @@ function publishDebugEvent(debugEvent: DebugEvent) {
   console.debug("[analytics]", debugEvent);
 }
 
+function dispatchTelemetryEvent(event: AnalyticsEventName, payload: AnalyticsEventPayload) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!isAnalyticsEnabled()) {
+    return;
+  }
+
+  const customEvent = new CustomEvent("tycoon:telemetry", {
+    detail: { event, payload },
+  });
+
+  window.dispatchEvent(customEvent);
+}
+
 export function track(
   event: AnalyticsEventName,
   payload: Record<string, unknown> = {},
@@ -60,6 +76,8 @@ export function track(
       provider.track(event, safePayload);
     }
   });
+
+  dispatchTelemetryEvent(event, safePayload);
 
   publishDebugEvent({
     event,

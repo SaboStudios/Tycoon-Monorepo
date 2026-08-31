@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -139,6 +141,23 @@ export class AdminShopController {
     }),
   )
   @ApiOperation({ summary: 'Upload images for a shop item (admin only)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Up to 5 image files',
+        },
+      },
+      required: ['images'],
+    },
+  })
   @ApiParam({ name: 'id', type: Number, description: 'Shop item ID' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -161,7 +180,9 @@ export class AdminShopController {
     @Param('id', ParseIntPipe) id: number,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<ShopItem> {
-    const imageUrls = files.map((file) => `/uploads/shop-items/${file.filename}`);
+    const imageUrls = files.map(
+      (file) => `/uploads/shop-items/${file.filename}`,
+    );
     return this.shopService.update(id, {
       images: imageUrls,
     });
@@ -170,19 +191,27 @@ export class AdminShopController {
   /**
    * POST /admin/shop/bulk/update
    * Bulk update multiple shop items (price, status, etc.)
+   *
+   * Batch size must be between 1 and MAX_BULK_UPDATE_ITEMS (enforced by
+   * BulkUpdateShopItemsDto, 400 on empty/oversized). Partial-success policy:
+   * per-item failures (e.g. unknown id) are skipped and logged rather than
+   * failing the whole batch — see ShopService.bulkUpdate for details.
    */
   @Post('bulk/update')
   @AuditLog(AuditAction.SHOP_ITEM_UPDATED)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Bulk update shop items (admin only)' })
+  @ApiBody({ type: BulkUpdateShopItemsDto })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Items updated successfully.',
+    description:
+      'Items updated successfully (may be a subset of the request; see partial-success policy).',
     type: [ShopItem],
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid bulk update request.',
+    description:
+      'items is empty, exceeds the batch size limit, or fails item-level validation.',
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,

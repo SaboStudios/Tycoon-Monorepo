@@ -120,4 +120,27 @@ describe('AdminAnalyticsController', () => {
       expect(service.getTotalGamePlayers).toHaveBeenCalled();
     });
   });
+
+  describe('Rate Limiting', () => {
+    it('should have strict throttle limits on dashboard endpoint', async () => {
+      const metadata = Reflect.getMetadata('throttler', controller.getDashboardAnalytics);
+      expect(metadata).toBeDefined();
+      expect(metadata[0].default.limit).toBe(5);
+      expect(metadata[0].default.ttl).toBe(60000);
+    });
+
+    it('should have strict throttle limits on shop endpoint', async () => {
+      const metadata = Reflect.getMetadata('throttler', controller.getShopAnalytics);
+      expect(metadata).toBeDefined();
+      expect(metadata[0].default.limit).toBe(5);
+      expect(metadata[0].default.ttl).toBe(60000);
+    });
+
+    it('should have moderate throttle limits on count endpoints', async () => {
+      const dashboardMetadata = Reflect.getMetadata('throttler', controller.getTotalUsers);
+      expect(dashboardMetadata).toBeDefined();
+      expect(dashboardMetadata[0].default.limit).toBe(20);
+      expect(dashboardMetadata[0].default.ttl).toBe(60000);
+    });
+  });
 });

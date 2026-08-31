@@ -12,3 +12,4 @@ export * from './middleware/http-logger.middleware';
 export * from './middleware/health-check.middleware';
 export * from './middleware/jwt-verification.middleware';
 export * from './guards/app-throttler.guard';
+export * from './random-provider';

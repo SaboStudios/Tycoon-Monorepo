@@ -40,7 +40,8 @@ export interface WebhookLogContext {
 }
 
 /**
- * Observability service for webhooks & signatures
+ * WebhooksObservabilityService — SW-BE-025
+ *
  * Provides structured logging, metrics, and traces for webhook operations
  *
  * Security: No secrets (signatures, webhook secrets) are logged
@@ -55,6 +56,7 @@ export class WebhooksObservabilityService {
   private readonly signatureVerificationTotal: Counter;
   private readonly webhookProcessingDuration: Histogram;
   private readonly idempotencyHitsTotal: Counter;
+  private readonly webhookSigFailTotal: Counter;
 
   constructor(private readonly logger: LoggerService) {
     // Total webhook events by source and event type
@@ -96,6 +98,14 @@ export class WebhooksObservabilityService {
       name: 'tycoon_webhook_idempotency_hits_total',
       help: 'Number of duplicate webhooks detected via idempotency',
       labelNames: ['source', 'event_type'],
+      registers: [this.registry],
+    });
+
+    // Signature verification failures
+    this.webhookSigFailTotal = new Counter({
+      name: 'webhook_sig_fail',
+      help: 'Total signature verification failures by source',
+      labelNames: ['source'],
       registers: [this.registry],
     });
   }
@@ -164,6 +174,10 @@ export class WebhooksObservabilityService {
       result,
       failure_reason: failureReason || 'none',
     });
+
+    if (!success) {
+      this.webhookSigFailTotal.inc({ source });
+    }
 
     // Log structured event
     this.logger.logWithMeta(

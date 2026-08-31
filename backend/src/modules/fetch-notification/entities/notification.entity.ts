@@ -14,6 +14,7 @@ export enum NotificationType {
   SYSTEM = 'system',
   ALERT = 'alert',
   BOOST_EXPIRED = 'boost_expired',
+  GIFT_RECEIVED = 'gift_received',
 }
 
 @Entity('notifications')

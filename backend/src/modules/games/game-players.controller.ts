@@ -5,7 +5,10 @@ import {
   Param,
   Post,
   ParseIntPipe,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { GamePlayersService } from './game-players.service';
 import { LockBalanceDto } from './dto/lock-balance.dto';
 import { UnlockBalanceDto } from './dto/unlock-balance.dto';
@@ -13,6 +16,7 @@ import { RollDiceDto } from './dto/roll-dice.dto';
 import { PayRentDto } from './dto/pay-rent.dto';
 import { PayTaxDto } from './dto/pay-tax.dto';
 import { BuyPropertyDto } from './dto/buy-property.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('game-players')
 export class GamePlayersController {
@@ -40,11 +44,17 @@ export class GamePlayersController {
   }
 
   @Post(':id/unlock-balance')
+  @UseGuards(JwtAuthGuard)
   async unlockBalance(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UnlockBalanceDto,
+    @Req() req: Request & { user: { id: number } },
   ) {
-    const player = await this.gamePlayersService.unlockBalance(id, dto.amount);
+    const player = await this.gamePlayersService.unlockBalance(
+      id,
+      dto.amount,
+      req.user.id,
+    );
     return {
       playerId: player.id,
       balance: player.balance,
@@ -54,16 +64,19 @@ export class GamePlayersController {
   }
 
   @Post(':id/pay-rent/:gameId')
+  @UseGuards(JwtAuthGuard)
   async payRent(
     @Param('id', ParseIntPipe) id: number,
     @Param('gameId', ParseIntPipe) gameId: number,
     @Body() dto: PayRentDto,
+    @Req() req: Request & { user: { id: number } },
   ) {
     return this.gamePlayersService.payRent(
       gameId,
       id,
       dto.payeeId,
       dto.baseRent,
+      req.user.id,
     );
   }
 

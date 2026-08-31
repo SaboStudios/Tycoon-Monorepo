@@ -20,6 +20,7 @@ import {
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
+  ApiHeader,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ShopService, PaginatedShopItems } from './shop.service';
@@ -40,6 +41,7 @@ import { CacheOptions } from '../../common/decorators/cache-options.decorator';
 import { AuditLog } from '../audit-trail/audit-log.decorator';
 import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
+import { IdempotencyInterceptor } from '../redis/idempotency.interceptor';
 
 @ApiTags('shop')
 @Controller('shop')
@@ -151,7 +153,15 @@ export class ShopController {
   @Post('purchase')
   @AuditLog(AuditAction.PURCHASE_CREATED)
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   @ApiBearerAuth()
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    description:
+      'Unique identifier for idempotent purchase requests. Required to ensure exactly-once semantics. On duplicate requests, returns the original response with X-Idempotency-Replayed: true header. Max 255 characters.',
+    required: true,
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Purchase a shop item with optional coupon' })
   @ApiResponse({
@@ -162,6 +172,11 @@ export class ShopController {
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid purchase or coupon.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description:
+      'Duplicate request still processing. Same Idempotency-Key request is in-flight. Retry after a delay.',
   })
   createPurchase(
     @CurrentUser() user: { id: number },
@@ -185,6 +200,7 @@ export class ShopController {
   @Post('gift')
   @AuditLog(AuditAction.GIFT_SENT)
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Purchase and gift an item to another user' })

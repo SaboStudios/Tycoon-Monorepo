@@ -36,8 +36,9 @@ export interface AdminLoginDto {
 }
 
 export interface AuthTokensResponse {
-  access_token: string;
-  refresh_token: string;
+  /** camelCase keys matching the backend auth.service DTO. */
+  accessToken: string;
+  refreshToken: string;
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────

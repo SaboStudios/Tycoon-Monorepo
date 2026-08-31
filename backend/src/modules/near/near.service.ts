@@ -1,5 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+/** Circuit breaker states */
+enum CircuitState {
+  CLOSED = 'CLOSED',   // Normal operation
+  OPEN = 'OPEN',       // Fail-fast: all requests rejected immediately
+  HALF_OPEN = 'HALF_OPEN', // One probe request allowed through
+}
+
+/** How many consecutive failures open the circuit */
+const FAILURE_THRESHOLD = 3;
+/** How long (ms) the circuit stays OPEN before moving to HALF_OPEN */
+const RECOVERY_TIMEOUT_MS = 30_000;
+/** Clear error code returned to callers when circuit is open */
+const CIRCUIT_OPEN_ERROR_CODE = 'NEAR_SERVICE_UNAVAILABLE';
 
 @Injectable()
 export class NearService {
@@ -7,6 +21,11 @@ export class NearService {
   private rpcEndpoints: string[];
   private timeoutMs: number;
   private currentRpcIndex = 0;
+
+  // Circuit breaker state
+  private circuitState: CircuitState = CircuitState.CLOSED;
+  private consecutiveFailures = 0;
+  private openedAt: number | null = null;
 
   constructor(private configService: ConfigService) {
     this.rpcEndpoints = this.configService.get<string[]>(
@@ -23,6 +42,13 @@ export class NearService {
   }
 
   /**
+   * Exposes the current circuit state (for health checks / tests).
+   */
+  get circuit(): CircuitState {
+    return this.circuitState;
+  }
+
+  /**
    * Rotates to the next RPC endpoint in the list.
    */
   private rotateRpc(reason: string) {
@@ -34,10 +60,60 @@ export class NearService {
     );
   }
 
+  /** Called on a successful RPC call — resets the circuit. */
+  private onSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.circuitState = CircuitState.CLOSED;
+    this.openedAt = null;
+  }
+
+  /** Called on a transient RPC failure — may open the circuit. */
+  private onFailure(): void {
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= FAILURE_THRESHOLD) {
+      this.circuitState = CircuitState.OPEN;
+      this.openedAt = Date.now();
+      this.logger.error(
+        `[${CIRCUIT_OPEN_ERROR_CODE}] Circuit opened after ${this.consecutiveFailures} consecutive failures.`,
+      );
+    }
+  }
+
   /**
-   * Core RPC call method handling retries, rotation, and timeout.
+   * Returns true if the circuit allows a call through.
+   * Transitions OPEN → HALF_OPEN after RECOVERY_TIMEOUT_MS.
+   */
+  private allowCall(): boolean {
+    if (this.circuitState === CircuitState.CLOSED) return true;
+
+    if (this.circuitState === CircuitState.OPEN) {
+      const elapsed = Date.now() - (this.openedAt ?? 0);
+      if (elapsed >= RECOVERY_TIMEOUT_MS) {
+        this.circuitState = CircuitState.HALF_OPEN;
+        this.logger.log('Circuit moved to HALF_OPEN — probing NEAR RPC.');
+        return true; // Allow the probe
+      }
+      return false; // Still open, fail-fast
+    }
+
+    // HALF_OPEN: allow exactly one call through
+    return true;
+  }
+
+  /**
+   * Core RPC call method handling timeout, rotation, and circuit breaker.
+   *
+   * @throws {ServiceUnavailableException} with code NEAR_SERVICE_UNAVAILABLE
+   *   when the circuit is open (fail-closed behaviour).
    */
   async rpcCall(method: string, params: any): Promise<any> {
+    if (!this.allowCall()) {
+      throw new ServiceUnavailableException({
+        message: 'NEAR RPC service is temporarily unavailable. Please retry later.',
+        code: CIRCUIT_OPEN_ERROR_CODE,
+      });
+    }
+
     const maxRetries = this.rpcEndpoints.length;
     let attempts = 0;
     let lastError: any;
@@ -67,28 +143,25 @@ export class NearService {
         const data = await response.json();
 
         if (data.error) {
-          // A JSON-RPC error means the node is active but the request or contract failed.
-          // In this case, there's no need to rotate to another RPC node.
+          // JSON-RPC error: node is healthy, request/contract failed — don't penalise circuit.
           throw new Error(data.error.message || JSON.stringify(data.error));
         }
 
+        this.onSuccess();
         return data.result;
       } catch (err: any) {
         lastError = err;
 
-        // Always rotate on fetch failure (network issue, timeout, 5xx).
-        // If it's a 400 or JSON-RPC error, we might not want to rotate,
-        // but simple assumption: if we hit catch, it's mostly network/timeout.
-        // Wait, if we threw from data.error above, it's a JSON-RPC error. We shouldn't rotate.
         if (
           err.message &&
           (err.message.includes('FunctionCallError') ||
             err.message.includes('does not exist'))
         ) {
-          // contract error, just rethrow
+          // Contract-level error — not a connectivity issue; don't trip circuit.
           throw err;
         }
 
+        this.onFailure();
         this.rotateRpc(err.message);
         attempts++;
       }
@@ -102,9 +175,6 @@ export class NearService {
 
   /**
    * Calls a view method on a NEAR smart contract.
-   * @param contractId The NEAR account id of the smart contract.
-   * @param methodName The view method to call.
-   * @param args Optional arguments to pass to the method.
    */
   async view(
     contractId: string,
@@ -135,8 +205,6 @@ export class NearService {
 
   /**
    * Broadcasts a signed transaction to the NEAR network.
-   * Typically, frontend apps handle signing, so the backend just forwards the signed tx.
-   * @param signedTransactionBase64 The base64-encoded signed transaction.
    */
   async broadcastTx(signedTransactionBase64: string): Promise<any> {
     return this.rpcCall('broadcast_tx_commit', [signedTransactionBase64]);

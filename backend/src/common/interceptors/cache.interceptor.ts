@@ -22,12 +22,13 @@ export class CacheInterceptor implements NestInterceptor {
       query: Record<string, unknown>;
       user?: { id: string };
     }>();
-    const cacheKey = this.generateCacheKey(request);
 
     // Only cache GET requests
     if (request.method !== 'GET') {
       return next.handle();
     }
+
+    const cacheKey = await this.generateCacheKey(request);
 
     // Check cache first
     const cachedResult = await this.redisService.get(cacheKey);
@@ -43,14 +44,27 @@ export class CacheInterceptor implements NestInterceptor {
     );
   }
 
-  private generateCacheKey(request: {
+  /**
+   * Generate a cache key with optional version component.
+   * For versioned resources (e.g., shop catalog), includes the current cache version
+   * so that when the version increments, old cached entries are naturally missed.
+   */
+  private async generateCacheKey(request: {
     method: string;
     url: string;
     query: Record<string, unknown>;
     user?: { id: string };
-  }): string {
+  }): Promise<string> {
     const { method, url, query, user } = request;
     const userId = user?.id || 'anonymous';
-    return `cache:${method}:${url}:${userId}:${JSON.stringify(query)}`;
+
+    // Include cache version for shop catalog endpoints
+    let versionComponent = '';
+    if (url.includes('/shop/items') && !url.includes('/admin')) {
+      const version = await this.redisService.getCacheVersion('shop:catalog');
+      versionComponent = `:v${version}`;
+    }
+
+    return `cache:${method}:${url}:${userId}:${JSON.stringify(query)}${versionComponent}`;
   }
 }

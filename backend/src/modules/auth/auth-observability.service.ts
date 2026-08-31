@@ -9,6 +9,7 @@ export class AuthObservabilityService {
   private readonly authOperationDuration: Histogram;
   private readonly tokenRefreshTotal: Counter;
   private readonly tokenReuseTotal: Counter;
+  private readonly failedLoginsTotal: Counter;
 
   constructor() {
     this.authAttemptsTotal = new Counter({
@@ -34,6 +35,12 @@ export class AuthObservabilityService {
       name: 'tycoon_auth_token_reuse_detected_total',
       help: 'Total token reuse / replay attack detections',
     });
+
+    this.failedLoginsTotal = new Counter({
+      name: 'tycoon_auth_failed_logins_total',
+      help: 'Total failed login attempts by reason code (no PII)',
+      labelNames: ['reason'],
+    });
   }
 
   recordAuthAttempt(
@@ -58,5 +65,16 @@ export class AuthObservabilityService {
 
   startTimer(operation: string): () => void {
     return this.authOperationDuration.startTimer({ operation });
+  }
+
+  /**
+   * Records a failed login by reason code only — never pass email, IP,
+   * or any user-identifying value here.
+   */
+  recordFailedLogin(
+    reason: 'unknown_user' | 'invalid_password' | 'suspended' | 'invalid_credentials',
+  ): void {
+    this.failedLoginsTotal.inc({ reason });
+    this.logger.log(`[METRIC] auth_failed_login reason=${reason}`);
   }
 }

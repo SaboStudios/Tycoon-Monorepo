@@ -85,15 +85,14 @@ export class UploadExceptionFilter implements ExceptionFilter {
       mappedError = this.errorMapper.mapFileValidatorError(validatorMessage);
       this.logger.warn(`File validation error: ${validatorMessage}`);
     }
-    // Handle generic errors
+    // Handle generic errors – strip stack from HTTP body, log it server-side only
     else if (exception instanceof Error) {
-      mappedError = this.errorMapper.mapError(
-        UploadErrorCode.STORAGE_ERROR,
-        process.env.NODE_ENV === 'development' ? exception.message : undefined,
-      );
       this.logger.error(
         `Unexpected error: ${exception.message}`,
         exception.stack,
+      );
+      mappedError = this.errorMapper.mapError(
+        UploadErrorCode.STORAGE_ERROR,
       );
     }
     // Handle unknown errors

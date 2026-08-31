@@ -5,12 +5,16 @@ export type ThemePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
 export const THEME_BOOTSTRAP_SCRIPT = `(() => {
+  if (typeof document === "undefined") return;
   const root = document.documentElement;
   const fallbackTheme = "light";
 
   try {
-    const storedPreference = localStorage.getItem("${THEME_STORAGE_KEY}");
+    const storedPreference = typeof localStorage !== "undefined"
+      ? localStorage.getItem("${THEME_STORAGE_KEY}")
+      : null;
     const hasSystemDarkMode =
+      typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolvedTheme =

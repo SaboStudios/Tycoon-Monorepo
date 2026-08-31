@@ -18,8 +18,9 @@ import {
   mapJoinRoomErrors,
   sanitiseRoomCode,
 } from "@/lib/join-room/security";
+import { getLastJoinCode, saveLastJoinCode } from "@/lib/join-room/storage";
 import { apiClient } from "@/lib/api/client";
-import type { GameResponse } from "@/lib/api/types/dto";
+import type { GamePlayerResponse, GameResponse } from "@/lib/api/types/dto";
 import { useJoinRoomTelemetry } from "@/hooks/useJoinRoomTelemetry";
 
 function parseZodErrors(error: ZodError): FieldErrors {
@@ -65,7 +66,7 @@ export default function JoinRoomForm({
 }: JoinRoomFormProps = {}): React.JSX.Element {
   const { t } = useTranslation("common");
   const router = useRouter();
-  const [code, setCode] = useState(previewState?.code ?? "");
+  const [code, setCode] = useState(previewState?.code ?? getLastJoinCode() ?? "");
   const [errors, setErrors] = useState<FieldErrors>(previewState?.errors ?? {});
   const [isLoading, setIsLoading] = useState(previewState?.isLoading ?? false);
   const [connectionError, setConnectionError] = useState<ConnectionErrorType | null>(null);
@@ -168,10 +169,20 @@ export default function JoinRoomForm({
           }, REQUEST_TIMEOUT_MS);
         });
 
+        // Resolve the 6-char room code to a numeric game id first: the live
+        // Nest join route is POST /games/:id/join (numeric id), not a code.
+        const game = await Promise.race([
+          apiClient.get<GameResponse>(
+            `/games/code/${encodeURIComponent(result.data.roomCode)}`,
+            { signal: abortControllerRef.current.signal }
+          ),
+          timeoutPromise,
+        ]);
+
         // Race between actual request and timeout
-        const response = await Promise.race([
-          apiClient.post<GameResponse>(
-            `/games/${encodeURIComponent(result.data.roomCode)}/join`,
+        await Promise.race([
+          apiClient.post<GamePlayerResponse>(
+            `/games/${game.id}/join`,
             {},
             { signal: abortControllerRef.current.signal }
           ),
@@ -182,6 +193,9 @@ export default function JoinRoomForm({
 
         // Track successful join
         trackJoinSucceeded();
+
+        // Persist the room code for session resumption
+        saveLastJoinCode(result.data.roomCode);
 
         // Report performance metrics (non-blocking)
         if (typeof window !== "undefined" && "requestIdleCallback" in window) {
@@ -274,6 +288,7 @@ export default function JoinRoomForm({
           aria-required="true"
           aria-describedby={errors.roomCode ? errorId : undefined}
           aria-invalid={!!errors.roomCode}
+          aria-keyshortcuts="Escape"
           className="bg-[var(--tycoon-bg)] border-[var(--tycoon-border)] text-[var(--tycoon-text)] placeholder:text-[var(--tycoon-text)]/40 focus-visible:ring-[var(--tycoon-accent)] font-orbitron tracking-widest uppercase"
         />
       </FormField>
@@ -283,6 +298,7 @@ export default function JoinRoomForm({
         disabled={!isValid || isLoading}
         aria-busy={isLoading}
         aria-disabled={!isValid || isLoading}
+        aria-keyshortcuts="ctrl+Return meta+Return"
         className="w-full bg-[var(--tycoon-accent)] text-[var(--tycoon-bg)] font-orbitron font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-[var(--tycoon-accent)] focus-visible:ring-offset-2"
       >
         <span className="inline-block min-w-[4.5rem] text-center">

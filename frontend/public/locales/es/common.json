@@ -91,6 +91,9 @@
       "unexpected": "An unexpected error occurred",
       "network_error": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
       "timeout": "La solicitud ha caducado. Inténtalo de nuevo."
-    }
+    },
+    "network_error": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
+    "timeout": "La solicitud expiró. Por favor, inténtalo de nuevo.",
+    "service_unavailable": "El servicio no está disponible. Inténtalo más tarde."
   }
 }

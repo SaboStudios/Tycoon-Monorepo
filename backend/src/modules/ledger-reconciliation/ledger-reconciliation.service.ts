@@ -9,6 +9,7 @@ import {
   DiscrepancyStatus,
 } from './entities/ledger-discrepancy.entity';
 import type { IPaymentProviderClient } from './interfaces/payment-provider.interface';
+import { LedgerReconciliationObservabilityService } from './ledger-reconciliation-observability.service';
 
 export interface ReconciliationReport {
   runId: string;
@@ -45,6 +46,7 @@ export class LedgerReconciliationService {
     private readonly discrepancyRepo: Repository<LedgerDiscrepancy>,
     @Inject('IPaymentProviderClient')
     private readonly providerClient: IPaymentProviderClient,
+    private readonly observability: LedgerReconciliationObservabilityService,
   ) {}
 
   /**
@@ -160,9 +162,22 @@ export class LedgerReconciliationService {
       (discrepancies.length / ledgerPurchases.length) * 100 >
         ALERT_THRESHOLD_PERCENT;
 
+    const driftPercent =
+      ledgerPurchases.length > 0
+        ? (discrepancies.length / ledgerPurchases.length) * 100
+        : 0;
+
+    // Export Prometheus metrics for observability
+    this.observability.recordReconciliation({
+      driftPercent,
+      dryRun,
+      discrepancyCount: discrepancies.length,
+      ledgerCount: ledgerPurchases.length,
+    });
+
     if (alertThresholdBreached) {
       this.logger.warn(
-        `[${runId}] ALERT: discrepancy rate ${((discrepancies.length / ledgerPurchases.length) * 100).toFixed(1)}% ` +
+        `[${runId}] ALERT: discrepancy rate ${driftPercent.toFixed(1)}% ` +
           `exceeds threshold of ${ALERT_THRESHOLD_PERCENT}%`,
       );
     }
@@ -189,7 +204,7 @@ export class LedgerReconciliationService {
     this.logger.log(
       `[${runId}] Reconciliation complete. ` +
         `ledger=${ledgerPurchases.length} provider=${providerOrders.length} ` +
-        `discrepancies=${discrepancies.length} dryRun=${dryRun}`,
+        `discrepancies=${discrepancies.length} drift=${driftPercent.toFixed(2)}% dryRun=${dryRun}`,
     );
 
     return {

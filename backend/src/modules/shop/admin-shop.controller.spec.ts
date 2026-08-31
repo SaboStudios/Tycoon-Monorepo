@@ -3,6 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { AdminShopController } from './admin-shop.controller';
 import { ShopService } from './shop.service';
 import { AuditTrailService } from '../audit-trail/audit-trail.service';
+import { AuditTrailInterceptor, AUDIT_ACTION_KEY } from '../audit-trail/audit-trail.interceptor';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 import { UpdateShopPriceDto } from './dto/update-shop-price.dto';
 import { UpdateShopItemStatusDto } from './dto/update-shop-item-status.dto';
 import { BulkUpdateShopItemsDto } from './dto/bulk-update-shop-items.dto';
@@ -38,6 +40,13 @@ describe('AdminShopController', () => {
           provide: ShopService,
           useValue: mockShopService,
         },
+        // --- AuditTrailInterceptor Mock Pattern ---
+        // Controllers using @UseInterceptors(AuditTrailInterceptor) must always provide
+        // AuditTrailService and Reflector in their testing modules. Even though
+        // unit tests often bypass interceptors (by calling methods directly), providing
+        // these ensures NestJS dependency injection works smoothly during test compilation
+        // and when instantiating the controller for e2e/integration specs.
+        // ----------------------------------------
         { provide: AuditTrailService, useValue: { log: jest.fn() } },
         { provide: Reflector, useValue: { get: jest.fn() } },
       ],
@@ -49,6 +58,30 @@ describe('AdminShopController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  describe('AuditTrailInterceptor mock pattern & decorators', () => {
+    it('should have AuditTrailInterceptor applied to the controller', () => {
+      const interceptors = Reflect.getMetadata(
+        '__interceptors__',
+        AdminShopController,
+      );
+      expect(interceptors).toContain(AuditTrailInterceptor);
+    });
+
+    it('should apply @AuditLog decorator with correct AuditAction to all state-mutating endpoints', () => {
+      const endpoints = [
+        controller.updatePrice,
+        controller.updateStatus,
+        controller.bulkUpdate,
+        controller.uploadImages,
+      ];
+
+      for (const endpoint of endpoints) {
+        const action = Reflect.getMetadata(AUDIT_ACTION_KEY, endpoint);
+        expect(action).toBe(AuditAction.SHOP_ITEM_UPDATED);
+      }
+    });
   });
 
   describe('updatePrice', () => {
@@ -112,15 +145,9 @@ describe('AdminShopController', () => {
       expect(result).toEqual([mockShopItem]);
     });
 
-    it('should handle empty bulk update list', async () => {
-      const bulkUpdateDto: BulkUpdateShopItemsDto = {
-        items: [],
-      };
-
-      await controller.bulkUpdate(bulkUpdateDto);
-
-      expect(service.bulkUpdate).toHaveBeenCalledWith([]);
-    });
+    // Empty/oversized batch rejection (400) is enforced by
+    // BulkUpdateShopItemsDto validation and ShopService.bulkUpdate —
+    // see shop-dto-validation.spec.ts and shop.service.spec.ts.
   });
 
   describe('uploadImages', () => {

@@ -33,6 +33,18 @@ describe("theme constants", () => {
   it("THEME_BOOTSTRAP_SCRIPT falls back to light theme on error", () => {
     expect(THEME_BOOTSTRAP_SCRIPT).toContain("light");
   });
+
+  it("THEME_BOOTSTRAP_SCRIPT is SSR-safe (checks for document)", () => {
+    expect(THEME_BOOTSTRAP_SCRIPT).toContain('typeof document === "undefined"');
+  });
+
+  it("THEME_BOOTSTRAP_SCRIPT is SSR-safe (checks for localStorage)", () => {
+    expect(THEME_BOOTSTRAP_SCRIPT).toContain('typeof localStorage !== "undefined"');
+  });
+
+  it("THEME_BOOTSTRAP_SCRIPT is SSR-safe (checks for window)", () => {
+    expect(THEME_BOOTSTRAP_SCRIPT).toContain('typeof window !== "undefined"');
+  });
 });
 
 describe("ThemePreference type", () => {

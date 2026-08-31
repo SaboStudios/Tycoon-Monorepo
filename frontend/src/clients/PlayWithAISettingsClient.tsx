@@ -26,7 +26,7 @@ export default function PlayWithAISettingsClient() {
             <div className="flex h-screen w-full items-center justify-center bg-white dark:bg-neutral-950">
                 <div className="flex flex-col items-center gap-4">
                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent dark:border-indigo-400"></div>
-                    <p className="animate-pulse text-sm font-medium text-neutral-500 dark:text-neutral-400">Connecting to Stellar Network...</p>
+                    <p className="animate-pulse text-sm font-medium text-neutral-500 dark:text-neutral-400">Checking NEAR wallet…</p>
                 </div>
             </div>
         )
@@ -37,7 +37,7 @@ export default function PlayWithAISettingsClient() {
             <div className="flex h-screen w-full items-center justify-center bg-white p-4 dark:bg-neutral-950">
                 <div className="text-center">
                     <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Access Denied</h2>
-                    <p className="mt-2 text-neutral-500 dark:text-neutral-400">You must be registered to enter the AI Battle Arena.</p>
+                    <p className="mt-2 text-neutral-500 dark:text-neutral-400">You must connect your NEAR wallet to enter the AI Battle Arena.</p>
                 </div>
             </div>
         )

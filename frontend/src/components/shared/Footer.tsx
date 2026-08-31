@@ -3,14 +3,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { FiFacebook, FiGithub } from "react-icons/fi";
 import { RiTwitterXFill } from "react-icons/ri";
-import { RxDiscordLogo } from "react-icons/rx";
+import { PiTelegramLogoLight } from "react-icons/pi";
 
 const Footer = () => {
   return (
     <footer className="w-full px-4 pb-8 md:pb-12 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center gap-4 rounded-2xl bg-[#0B191A] p-5 md:flex-row md:justify-between md:gap-0">
         <Link href="/" className="md:w-[60px] w-[55px] block">
-          <Image src="/footerLogo.svg" alt="Tycoon" width={60} height={55} className="md:w-[60px] w-[55px] h-auto" unoptimized />
+          <Image src="/footerLogo.svg" alt="Tycoon" width={60} height={55} className="md:w-[60px] w-[55px] h-auto" unoptimized loading="lazy" />
         </Link>
 
         <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400]">
@@ -55,9 +55,7 @@ const Footer = () => {
             className="text-[#F0F7F7] hover:text-[#00F0FF] transition-colors duration-300 ease-in-out text-[20px]"
             aria-label="Telegram"
           >
-            {/* Note: react-icons doesn't have a Telegram icon in the free set, so keeping Discord as placeholder */}
-            {/* If you install react-icons/tg or use a custom SVG, replace RxDiscordLogo with the correct icon */}
-            <RxDiscordLogo />
+            <PiTelegramLogoLight />
           </Link>
         </div>
       </div>

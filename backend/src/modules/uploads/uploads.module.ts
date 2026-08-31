@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -12,6 +13,8 @@ import { UploadsObservabilityInterceptor } from './uploads-observability.interce
 import { UploadsErrorMapperService } from './uploads-error-mapper.service';
 import { UploadValidationPipe } from './pipes/upload-validation.pipe';
 import { UploadExceptionFilter } from './filters/upload-exception.filter';
+import { IdempotencyService } from './idempotency/idempotency.service';
+import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
 import { AuthModule } from '../auth/auth.module';
 import { Upload } from './entities/upload.entity';
 import { AuditTrailModule } from '../audit-trail/audit-trail.module';
@@ -32,12 +35,15 @@ import { AuditTrailModule } from '../audit-trail/audit-trail.module';
   ],
   controllers: [UploadsController],
   providers: [
+    Reflector,
     UploadsObservabilityService,
     UploadsObservabilityInterceptor,
     UploadsErrorMapperService,
     UploadValidationPipe,
     UploadsService,
     VirusScanService,
+    IdempotencyService,
+    IdempotencyInterceptor,
     {
       provide: APP_FILTER,
       useClass: MulterExceptionFilter,

@@ -6,6 +6,8 @@ import { InventoryService } from './inventory.service';
 import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 import { RedisService } from '../redis/redis.service';
 import { AuditTrailService } from '../audit-trail/audit-trail.service';
+import { IdempotencyInterceptor } from '../redis/idempotency.interceptor';
+import { IdempotencyService } from '../redis/idempotency.service';
 
 describe('ShopController', () => {
   let controller: ShopController;
@@ -44,6 +46,14 @@ describe('ShopController', () => {
 
   const mockAuditTrailService = { log: jest.fn() };
 
+  const mockIdempotencyService = {
+    get: jest.fn(),
+    markProcessing: jest.fn(),
+    markComplete: jest.fn(),
+    markFailed: jest.fn(),
+    delete: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ShopController],
@@ -68,6 +78,11 @@ describe('ShopController', () => {
           provide: AuditTrailService,
           useValue: mockAuditTrailService,
         },
+        {
+          provide: IdempotencyService,
+          useValue: mockIdempotencyService,
+        },
+        IdempotencyInterceptor,
       ],
     }).compile();
 

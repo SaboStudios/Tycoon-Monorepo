@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { Purchase } from '../../shop/entities/purchase.entity';
 import { RewardEngine } from '../rewards/rewardEngine';
+import { WebhookEvent } from '../../webhooks/entities/webhook-event.entity';
 
 export type PaymentWebhookEventType =
   | 'payment.success'
@@ -37,16 +38,27 @@ export class PaymentWebhook {
   constructor(
     @InjectRepository(Purchase)
     private readonly purchaseRepository: Repository<Purchase>,
+    @InjectRepository(WebhookEvent)
+    private readonly webhookEventRepo: Repository<WebhookEvent>,
     private readonly rewardEngine: RewardEngine,
     private readonly configService: ConfigService,
   ) {}
 
-  handlePaymentWebhook(
+  async handlePaymentWebhook(
     payload: string,
     signature: string | undefined,
     event: PaymentWebhookEvent,
   ) {
     this.verifySignature(payload, signature);
+
+    // Enforce idempotency at webhook level using webhook_events table
+    const isDuplicate = await this.checkAndRecordWebhookEvent(event);
+    if (isDuplicate) {
+      this.logger.debug(
+        `Duplicate webhook event detected: ${event.id || 'unknown'} (${event.type})`,
+      );
+      return { ok: true, status: 'idempotent' as const };
+    }
 
     switch (event.type) {
       case 'payment.success':
@@ -57,6 +69,42 @@ export class PaymentWebhook {
         return this.handleRefundIssued(event);
       default:
         throw new BadRequestException('Unsupported webhook event type');
+    }
+  }
+
+  private async checkAndRecordWebhookEvent(
+    event: PaymentWebhookEvent,
+  ): Promise<boolean> {
+    if (!event.id) {
+      this.logger.warn(
+        'Webhook event missing ID field; skipping idempotency check',
+      );
+      return false;
+    }
+
+    try {
+      await this.webhookEventRepo.save(
+        this.webhookEventRepo.create({
+          eventId: event.id,
+          eventType: event.type,
+          source: 'payment',
+          payload: event.data,
+        }),
+      );
+      return false;
+    } catch (error) {
+      // Check if error is due to unique constraint violation (duplicate event)
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error.code === '23505' ||
+          (error as any).message?.includes('duplicate key') ||
+          (error as any).message?.includes('UNIQUE constraint failed'))
+      ) {
+        return true;
+      }
+      throw error;
     }
   }
 

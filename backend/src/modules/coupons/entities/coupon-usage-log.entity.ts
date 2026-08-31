@@ -15,6 +15,7 @@ import { Purchase } from '../../shop/entities/purchase.entity';
 @Index(['coupon_id', 'created_at'])
 @Index(['user_id', 'created_at'])
 @Index(['purchase_id'])
+@Index(['user_id', 'coupon_id'], { unique: true })
 export class CouponUsageLog {
   @PrimaryGeneratedColumn()
   id: number;

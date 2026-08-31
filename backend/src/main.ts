@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggerService } from './common/logger/logger.service';
 import { configureApiVersioning } from './common/versioning/api-versioning';
+import { isOriginAllowed } from './common/security/cors-origin-validator';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -154,48 +155,17 @@ async function bootstrap() {
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void,
   ) => {
-    // Allow requests with no origin (e.g., mobile apps, Postman, server-to-server)
-    if (!origin) {
-      return callback(null, true);
+    const allowed = isOriginAllowed(origin, {
+      allowedOrigins: corsAllowedOrigins,
+      isDevelopment,
+      devWildcard: corsDevWildcard,
+    });
+
+    if (!allowed) {
+      loggerService.warn(`CORS: Rejected origin: ${origin}`, 'CORS');
     }
 
-    // Check against explicit allowlist
-    if (corsAllowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    // Apply development wildcard rules
-    if (isDevelopment && corsDevWildcard) {
-      try {
-        const url = new URL(origin);
-        const hostname = url.hostname;
-
-        // Allow localhost (any port)
-        if (hostname === 'localhost') {
-          return callback(null, true);
-        }
-
-        // Allow 127.0.0.1 (any port)
-        if (hostname === '127.0.0.1') {
-          return callback(null, true);
-        }
-
-        // Allow *.local pattern
-        if (hostname.endsWith('.local')) {
-          return callback(null, true);
-        }
-      } catch (err) {
-        // Invalid URL, will be rejected below
-      }
-    }
-
-    // Reject origin and log at WARN level
-    const adapter = app.getHttpAdapter();
-    const request = adapter.getRequestMethod ? undefined : origin; // Get request if available
-    loggerService.warn(`CORS: Rejected origin: ${origin}`, 'CORS');
-
-    // Return false to reject (no CORS headers will be sent)
-    return callback(null, false);
+    return callback(null, allowed);
   };
 
   app.enableCors({

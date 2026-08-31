@@ -43,6 +43,8 @@ const blockedPiiKeys = new Set([
   "name",
   "password",
   "phone",
+  "room",
+  "room_code",
   "secret",
   "session",
   "session_id",

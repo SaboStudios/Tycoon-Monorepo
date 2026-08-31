@@ -11,6 +11,36 @@ on:
 jobs:
   backend-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tycoon_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: tycoon_test
+      DB_SYNCHRONIZE: false
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: ci-only-jwt-secret
+      STELLAR_NETWORK: testnet
     defaults:
       run:
         working-directory: backend
@@ -18,6 +48,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,8 +61,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint backend
+        run: npm run lint:ci
+
+      - name: Verify admin guard coverage
+        run: npx ts-node scripts/verify-admin-guards.ts
+
       - name: Build backend
         run: npm run build
 
+      - name: Verify migrations on empty database
+        run: |
+          npm run migration:run
+          ! npm run migration:show | grep -q '\[ \]'
+
       - name: Run backend tests
         run: npm test -- --runInBand
+
+      - name: Run backend end-to-end tests
+        run: npm run test:e2e -- --runInBand
+
+      - name: Upload failing e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-e2e-diagnostics
+          path: |
+            backend/coverage
+            backend/logs
+          if-no-files-found: ignore

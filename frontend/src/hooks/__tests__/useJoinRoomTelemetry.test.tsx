@@ -530,7 +530,18 @@ describe('useJoinRoomTelemetry', () => {
     it('should validate error_type in trackJoinFailed accepts only valid types', () => {
       const { result } = renderHook(() => useJoinRoomTelemetry());
 
-      const validErrorTypes = ['validation', 'not_found', 'room_full', 'server_error', 'unknown'];
+      const validErrorTypes = [
+        'validation',
+        'not_found',
+        'room_full',
+        'server_error',
+        'unknown',
+        'rate_limit',
+        'unauthorized',
+        'api_error',
+        'network',
+        'timeout',
+      ];
 
       act(() => {
         validErrorTypes.forEach((errorType) => {
@@ -538,7 +549,7 @@ describe('useJoinRoomTelemetry', () => {
         });
       });
 
-      expect(track).toHaveBeenCalledTimes(5);
+      expect(track).toHaveBeenCalledTimes(validErrorTypes.length);
     });
   });
 });

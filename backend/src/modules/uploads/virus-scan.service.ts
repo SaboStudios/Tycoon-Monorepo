@@ -10,16 +10,18 @@ import { sanitizeUploadFilename } from './uploads-logging.util';
 import { UploadsObservabilityService } from './uploads-observability.service';
 
 /**
- * Virus scan stub backed by ClamAV (clamd INSTREAM protocol).
+ * Virus scan backed by ClamAV (clamd INSTREAM protocol).
  *
- * When CLAMAV_HOST is not set, the scan is skipped with a warning so that
- * the service works in environments where ClamAV is not available (dev/CI).
- * In production, set CLAMAV_HOST + CLAMAV_PORT to enforce scanning.
+ * Production: Requires CLAMAV_HOST to be set; app boot will fail if missing.
+ * Development/Test: When CLAMAV_HOST is not set, scan is gracefully skipped with a
+ *   warning. This allows local development without a running ClamAV instance.
+ *   Set CLAMAV_HOST + CLAMAV_PORT to enable scanning in dev/test.
  */
 @Injectable()
 export class VirusScanService {
   private readonly logger = new Logger(VirusScanService.name);
   private static readonly SCAN_TIMEOUT_MS = 15_000;
+  private static skippedWarningLogged = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -31,10 +33,12 @@ export class VirusScanService {
     const host = this.config.get<string>('upload.clamavHost');
 
     if (!host) {
-      const safeName = sanitizeUploadFilename(filename);
-      this.logger.warn(
-        `Virus scan skipped for "${safeName}" – set CLAMAV_HOST to enable ClamAV scanning`,
-      );
+      if (!VirusScanService.skippedWarningLogged) {
+        this.logger.warn(
+          'ClamAV_HOST not set; virus scans will be skipped. Set CLAMAV_HOST to enable scanning.',
+        );
+        VirusScanService.skippedWarningLogged = true;
+      }
       this.uploadsObservability?.recordVirusScanOutcome('skipped');
       return;
     }

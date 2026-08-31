@@ -12,11 +12,12 @@ import { GameSettings } from './entities/game-settings.entity';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
-import { JoinGameDto } from './dto/join-game.dto';
+import { EnhancedJoinGameDto } from './dto/enhanced-join-game.dto';
 import { GamePlayer } from './entities/game-player.entity';
 import { PaginatedResponse, PaginationService } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
 import { secureRandomAlphaNumeric } from '../../common/crypto-secure-random';
+import { GameFullException } from './exceptions/game-exceptions';
 
 /**
  * Generate a unique game code (cryptographically secure per character).
@@ -361,7 +362,7 @@ export class GamesService {
   async joinGame(
     gameId: number,
     userId: number,
-    dto: JoinGameDto,
+    dto: EnhancedJoinGameDto,
   ): Promise<GamePlayer> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -389,7 +390,11 @@ export class GamesService {
       });
 
       if (playerCount >= game.number_of_players) {
-        throw new BadRequestException('Game is full');
+        throw new GameFullException(
+          gameId,
+          playerCount,
+          game.number_of_players,
+        );
       }
 
       const existing = await queryRunner.manager.findOne(GamePlayer, {

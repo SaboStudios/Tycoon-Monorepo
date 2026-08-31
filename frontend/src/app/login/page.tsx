@@ -17,6 +17,16 @@ const getErrorMessage = (error: unknown): string => {
   return "Login failed";
 };
 
+/** Shape returned by POST /auth/login on the Nest backend. */
+interface LoginApiResponse {
+  /** camelCase key emitted by the backend AuthTokensResponse DTO */
+  accessToken?: string;
+  /** snake_case fallback for older backend builds */
+  access_token?: string;
+  refreshToken?: string;
+  refresh_token?: string;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,18 +61,28 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      // For now, mock a login or call the real backend if it's running
-      // const data = await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-      // login(data.accessToken, data.refreshToken);
+      const data = await apiRequest<LoginApiResponse>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
 
-      // MOCK for demonstration if backend is not reachable
-      const mockToken = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${btoa(
-        JSON.stringify({ sub: 1, email, role: "USER", is_admin: false })
-      )}.signature`;
-      login(mockToken, "mock-refresh-token");
+      // Accept both camelCase (current backend) and snake_case (legacy builds)
+      const accessToken = data.accessToken ?? data.access_token;
+      const refreshToken = data.refreshToken ?? data.refresh_token;
+
+      if (!accessToken) {
+        throw new Error("Server did not return an access token");
+      }
+
+      login(accessToken, refreshToken ?? "");
       router.push("/");
     } catch (err: unknown) {
-      setError(getErrorMessage(err));
+      // Map HTTP 401 to a clear, user-facing message without leaking internals
+      if (err instanceof Error && err.message.toLowerCase().includes("401")) {
+        setError("Invalid email or password.");
+      } else {
+        setError(getErrorMessage(err));
+      }
     } finally {
       setIsSubmitting(false);
     }

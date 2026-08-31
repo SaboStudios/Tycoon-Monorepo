@@ -28,6 +28,8 @@ import { PaginationService, PaginatedResponse, SortOrder } from '../../common';
 @Injectable()
 export class WaitlistService {
   private readonly logger = new Logger(WaitlistService.name);
+  private readonly MAX_IMPORT_BYTES = 10 * 1024 * 1024; // 10 MB
+  private readonly MAX_IMPORT_ROWS = 10000; // 10,000 rows
 
   constructor(
     @InjectRepository(Waitlist)
@@ -306,7 +308,7 @@ export class WaitlistService {
    */
   async bulkImport(fileBuffer: Buffer): Promise<BulkImportResponseDto> {
     const BATCH_SIZE = 100;
-    const rows = parseCsv(fileBuffer);
+    const rows = parseCsv(fileBuffer, this.MAX_IMPORT_BYTES, this.MAX_IMPORT_ROWS);
     const totalRows = rows.length;
     const errors: BulkImportErrorDto[] = [];
 

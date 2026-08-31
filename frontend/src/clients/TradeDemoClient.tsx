@@ -1,7 +1,13 @@
 "use client";
 
 // Trade Demo Client Component
-// This is the client-side component for the trade demo
+// This is the client-side component for the trade demo.
+//
+// Everything below runs on a fixed roster of fake players — there is no live
+// economy, no persistence, and no games/trade API call. The page is gated
+// behind the NEXT_PUBLIC_TRADE_DEMO flag (see app/trade-demo/page.tsx) and is
+// always labelled "Demo" so it can't be mistaken for real trading. When a real
+// trade API lands, replace MOCK_PLAYERS / the console.log in TradeModal with it.
 
 import React, { useState } from "react";
 import { TradeModal, TradePlayer } from "@/components/game/TradeModal";
@@ -58,6 +64,19 @@ export default function TradeDemoClient(): React.JSX.Element {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#010F10] p-8">
+      {/* Demo-mode notice — this page is not a live economy */}
+      <div
+        role="note"
+        data-testid="trade-demo-banner"
+        className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200"
+      >
+        <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#010F10]">
+          Demo
+        </span>
+        Players, balances, and trades on this page are simulated. Nothing here is
+        saved or sent to the game server.
+      </div>
+
       {/* Header */}
       <div className="text-center space-y-3">
         <h1 className="text-3xl font-bold text-[#00F0FF] font-orbitron tracking-wider">

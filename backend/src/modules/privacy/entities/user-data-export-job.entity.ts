@@ -10,11 +10,15 @@ import {
 import { User } from '../../users/entities/user.entity';
 
 export type UserDataExportJobStatus =
+  | 'queued'
+  | 'running'
+  | 'done'
+  | 'failed'
+  | 'expired'
+  // legacy aliases kept for backward compatibility
   | 'pending'
   | 'processing'
-  | 'ready'
-  | 'failed'
-  | 'expired';
+  | 'ready';
 
 @Entity({ name: 'user_data_export_jobs' })
 @Index(['user_id', 'created_at'])
@@ -40,6 +44,9 @@ export class UserDataExportJob {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'started_at' })
+  startedAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true, name: 'completed_at' })
   completedAt: Date | null;

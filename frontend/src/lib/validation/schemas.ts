@@ -81,9 +81,14 @@ export const gameSettingsSchema = z.object({
   customStake: z
     .string()
     .optional()
-    .refine((v) => v === undefined || v === "" || (!isNaN(Number(v)) && Number(v) > 0), {
-      message: "Must be a positive number",
-    }),
+    .refine(
+      (v) => {
+        if (v === undefined || v === "") return true;
+        const n = Number(v);
+        return !isNaN(n) && isFinite(n) && n > 0;
+      },
+      { message: "Stake must be a positive number (no negatives or NaN)" }
+    ),
 });
 
 export type LoginFormValues = z.infer<typeof loginSchema>;

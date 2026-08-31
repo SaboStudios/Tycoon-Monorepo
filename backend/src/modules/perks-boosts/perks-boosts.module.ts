@@ -19,6 +19,7 @@ import { NotificationsModule } from '../fetch-notification/notifications.module'
 import { PerkAnalyticsEvent } from './entities/perk-analytics-event.entity';
 import { PerkAnalyticsService } from './services/perk-analytics.service';
 import { Game } from '../games/entities/game.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { Game } from '../games/entities/game.entity';
       Game,
     ]),
     NotificationsModule,
+    AuthModule,
   ],
   controllers: [PerksController, PerksAnalyticsController],
   providers: [

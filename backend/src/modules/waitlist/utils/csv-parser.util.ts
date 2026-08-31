@@ -24,10 +24,26 @@ const HEADER_MAP: Record<string, keyof CsvWaitlistRowDto> = {
  * - Supports comma (`,`) as delimiter.
  * - Blank rows are silently skipped.
  * - At least one recognised column must be present in the header.
+ * - Enforces byte size and row count limits early in the pipeline.
  *
+ * @param buffer - File buffer to parse
+ * @param maxBytes - Maximum allowed file size in bytes (optional)
+ * @param maxRows - Maximum allowed data rows (optional)
  * @returns An array of parsed row objects.
+ * @throws BadRequestException if limits are exceeded or file is malformed
  */
-export function parseCsv(buffer: Buffer): CsvWaitlistRowDto[] {
+export function parseCsv(
+  buffer: Buffer,
+  maxBytes?: number,
+  maxRows?: number,
+): CsvWaitlistRowDto[] {
+  // Check byte size limit early
+  if (maxBytes && buffer.length > maxBytes) {
+    throw new BadRequestException(
+      `CSV file exceeds maximum size of ${maxBytes} bytes (received ${buffer.length} bytes).`,
+    );
+  }
+
   const content = buffer
     .toString('utf-8')
     .replace(/\r\n/g, '\n')
@@ -59,6 +75,13 @@ export function parseCsv(buffer: Buffer): CsvWaitlistRowDto[] {
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (line.length === 0) continue; // skip blank lines
+
+    // Check row count limit before adding
+    if (maxRows && rows.length >= maxRows) {
+      throw new BadRequestException(
+        `CSV file exceeds maximum row count of ${maxRows} (received more than ${maxRows} data rows).`,
+      );
+    }
 
     const values = line.split(',').map((v) => v.trim());
     const row: CsvWaitlistRowDto = {};

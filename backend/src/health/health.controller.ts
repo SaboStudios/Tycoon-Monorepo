@@ -1,9 +1,11 @@
 import { Controller, Get, UseInterceptors } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { RedisService } from '../modules/redis/redis.service';
+import { NearService } from '../modules/near/near.service';
 import { AuditTrailInterceptor } from '../modules/audit-trail/audit-trail.interceptor';
 import { AuditLog } from '../modules/audit-trail/audit-log.decorator';
 import { AuditAction } from '../modules/audit-trail/entities/audit-trail.entity';
@@ -28,6 +30,8 @@ interface HealthStatus {
 export class HealthController {
   constructor(
     private readonly redisService: RedisService,
+    private readonly nearService: NearService,
+    private readonly configService: ConfigService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -44,17 +48,19 @@ export class HealthController {
   /** Readiness: all critical dependencies are reachable. */
   @Get('ready')
   async readiness(): Promise<HealthStatus> {
-    const [redisOk, dbOk] = await Promise.all([
+    const [redisOk, dbOk, nearOk] = await Promise.all([
       this.checkRedisOk(),
       this.checkDbOk(),
+      this.checkNearOk(),
     ]);
 
-    const allOk = redisOk && dbOk;
+    const allOk = redisOk && dbOk && nearOk;
     return {
       status: allOk ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       redis: redisOk ? 'connected' : 'disconnected',
       database: dbOk ? 'connected' : 'disconnected',
+      ...(this.isNearHealthEnabled() && { near: nearOk ? 'healthy' : 'unhealthy' }),
     };
   }
 
@@ -98,6 +104,18 @@ export class HealthController {
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
+
+  private isNearHealthEnabled(): boolean {
+    return this.configService.get<boolean>('NEAR_HEALTH_ENABLED', true);
+  }
+
+  private async checkNearOk(): Promise<boolean> {
+    if (!this.isNearHealthEnabled()) {
+      return true;
+    }
+    const circuitState = this.nearService.circuit;
+    return circuitState !== 'OPEN';
+  }
 
   private async checkRedisOk(): Promise<boolean> {
     try {

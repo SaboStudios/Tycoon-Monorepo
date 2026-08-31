@@ -1,4 +1,5 @@
 import GameBoard from "@/components/game/GameBoard";
+import BoostSocketListener from "@/components/game/BoostSocketListener";
 import { generatePageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 
@@ -116,6 +117,8 @@ function GamePlayContent({
       >
         Skip to game board
       </a>
+
+      <BoostSocketListener />
 
       <h1 className="sr-only mb-6 text-center font-orbitron text-2xl font-bold text-[var(--tycoon-accent)]">
         Game Play

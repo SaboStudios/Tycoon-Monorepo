@@ -118,6 +118,12 @@ console.log(response.data);
 
 ## Implementation Details
 
+### Transaction schema
+
+Migration `1771000000000-CreateAdminTransactionsTable` creates the
+`transactions` table and indexes `playerId` and `createdAt`; production does
+not require TypeORM synchronization.
+
 ### Active Users Definition
 Active users are defined as users whose `updated_at` timestamp is within the last 30 days. This captures users who have:
 - Logged in

@@ -13,6 +13,8 @@ import { databaseConfig } from './config/database.config';
 import { gameConfig } from './config/game.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
+import { wsConfig } from './config/ws.config';
+import { emailConfig } from './config/email.config';
 import { nearConfig } from './config/near.config';
 import { CommonModule, HttpExceptionFilter, AppThrottlerGuard } from './common';
 import { SuspensionCheckMiddleware } from './common/middleware/suspension-check.middleware';
@@ -24,7 +26,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
-import { HealthController } from './health/health.controller';
+import { ObservabilityModule } from './observability/observability.module';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 import { GamesModule } from './modules/games/games.module';
@@ -44,11 +46,11 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
-import { MetricsModule } from './modules/metrics/metrics.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { NearModule } from './modules/near/near.module';
 import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledger-reconciliation.module';
 import { NotificationsModule } from './modules/fetch-notification/notifications.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -62,6 +64,8 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
         jwtConfig,
         redisConfig,
         uploadConfig,
+        wsConfig,
+        emailConfig,
         nearConfig,
       ],
       envFilePath: '.env',
@@ -81,7 +85,7 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
       },
     ]),
 
-    MetricsModule,
+    ObservabilityModule,
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({
@@ -132,8 +136,9 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
     LedgerReconciliationModule,
     NearModule,
     NotificationsModule,
+    UploadsModule,
   ],
-  controllers: [AppController, HealthController],
+  controllers: [AppController],
   providers: [
     AppService,
     SuspensionCheckMiddleware,

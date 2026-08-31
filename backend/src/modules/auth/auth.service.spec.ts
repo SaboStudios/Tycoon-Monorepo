@@ -7,6 +7,7 @@ import { UsersService } from '../users/users.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { AuthAuditService } from './audit/auth-audit.service';
+import { AuthObservabilityService } from './auth-observability.service';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -80,6 +81,10 @@ describe('AuthService', () => {
         {
           provide: AuthAuditService,
           useValue: { record: jest.fn() },
+        },
+        {
+          provide: AuthObservabilityService,
+          useValue: { recordFailedLogin: jest.fn() },
         },
       ],
     }).compile();

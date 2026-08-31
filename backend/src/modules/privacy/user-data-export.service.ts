@@ -30,7 +30,7 @@ export class UserDataExportService {
   async requestExport(userId: number): Promise<{ jobId: number }> {
     const job = this.jobs.create({
       userId,
-      status: 'pending',
+      status: 'queued',
     });
     await this.jobs.save(job);
     await this.userDataQueue.add(
@@ -70,7 +70,7 @@ export class UserDataExportService {
       completedAt: job.completedAt?.toISOString(),
     };
 
-    if (job.status !== 'ready' || !job.filePath) {
+    if (job.status !== 'done' && job.status !== 'ready' || !job.filePath) {
       return base;
     }
 

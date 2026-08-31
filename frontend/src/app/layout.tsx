@@ -17,6 +17,7 @@ import "./globals.css";
 import NavbarMobile from "@/components/shared/NavbarMobile";
 import Navbar from "@/components/shared/Navbar";
 import { MSWProvider } from "@/components/providers/msw-provider";
+import { ErrorTrackingProvider } from "@/components/providers/error-tracking-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({
           <NearWalletProvider>
             <ThemeProvider>
               <MSWProvider />
+              <ErrorTrackingProvider />
               <AnalyticsProvider />
               <ErrorBoundary showTechnical={isDev}>
                 <Navbar />

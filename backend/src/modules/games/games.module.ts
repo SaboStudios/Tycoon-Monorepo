@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
 import { Game } from './entities/game.entity';
 import { GameSettings } from './entities/game-settings.entity';
 import { GamePlayer } from './entities/game-player.entity';
@@ -8,15 +9,17 @@ import { GamesService } from './games.service';
 import { GamesController } from './games.controller';
 import { PerksBoostsModule } from '../perks-boosts/perks-boosts.module';
 import { GamesAuditModule } from './audit/games-audit.module';
+import { GameBoardGateway } from './gateways/game-board.gateway';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Game, GameSettings, GamePlayer]),
     forwardRef(() => PerksBoostsModule),
     GamesAuditModule,
+    JwtModule.register({}),
   ],
   controllers: [GamesController],
-  providers: [GamePlayersService, GamesService],
+  providers: [GamePlayersService, GamesService, GameBoardGateway],
   exports: [GamePlayersService],
 })
 export class GamesModule {}

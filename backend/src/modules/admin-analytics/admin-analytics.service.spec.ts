@@ -165,6 +165,60 @@ describe('AdminAnalyticsService', () => {
     });
   });
 
+  describe('getShopAnalytics – null-safe KPI aggregations', () => {
+    it('returns zeros for all KPIs when the DB is empty (no 500)', async () => {
+      jest.spyOn(service as any, 'getTotalRevenue').mockResolvedValue(0);
+      jest.spyOn(service as any, 'getPopularItems').mockResolvedValue([]);
+      jest.spyOn(service as any, 'getConversionRate').mockResolvedValue(0);
+      jest.spyOn(service as any, 'getRetentionMetrics').mockResolvedValue({
+        day1: 0,
+        day7: 0,
+        day30: 0,
+      });
+
+      const result = await service.getShopAnalytics();
+
+      expect(result.totalRevenue).toBe(0);
+      expect(result.popularItems).toEqual([]);
+      expect(result.conversionRate).toBe(0);
+      expect(result.retentionMetrics).toEqual({ day1: 0, day7: 0, day30: 0 });
+    });
+
+    it('getTotalRevenue returns 0 when SUM is NULL (empty table)', async () => {
+      const qb: any = { select: jest.fn().mockReturnThis(), getRawOne: jest.fn().mockResolvedValue({ total: null }) };
+      mockTransactionRepo.createQueryBuilder.mockReturnValue(qb);
+      const result = await (service as any).getTotalRevenue();
+      expect(result).toBe(0);
+    });
+
+    it('getConversionRate returns 0 when activity table is empty', async () => {
+      const actQb: any = { select: jest.fn().mockReturnThis(), getRawOne: jest.fn().mockResolvedValue({ count: '0' }) };
+      const txQb: any = { select: jest.fn().mockReturnThis(), getRawOne: jest.fn().mockResolvedValue({ count: '5' }) };
+      mockActivityRepo.createQueryBuilder.mockReturnValue(actQb);
+      mockTransactionRepo.createQueryBuilder.mockReturnValue(txQb);
+      const result = await (service as any).getConversionRate();
+      expect(result).toBe(0);
+    });
+
+    it('getPopularItems maps null revenue/count to 0', async () => {
+      const qb: any = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        addGroupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          { itemId: 'i1', itemName: 'Hat', purchaseCount: null, totalRevenue: null },
+        ]),
+      };
+      mockTransactionRepo.createQueryBuilder.mockReturnValue(qb);
+      const result = await (service as any).getPopularItems();
+      expect(result[0].purchaseCount).toBe(0);
+      expect(result[0].totalRevenue).toBe(0);
+    });
+  });
+
   describe('getShopAnalytics', () => {
     it('should return shop analytics data and record observability metrics', async () => {
       jest.spyOn(service as any, 'getTotalRevenue').mockResolvedValue(1200);

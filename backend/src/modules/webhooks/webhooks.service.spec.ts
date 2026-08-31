@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
 import { RedisService } from '../redis/redis.service';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { SortOrder } from '../../common/dto/pagination.dto';
@@ -54,6 +55,17 @@ describe('WebhooksService', () => {
         { provide: RedisService, useValue: mockRedisService },
         { provide: WebhooksObservabilityService, useValue: observability },
         { provide: WebhooksAuditService, useValue: auditService },
+        {
+          provide: WebhookAuditHooksService,
+          useValue: {
+            onReceived: jest.fn(),
+            onSignatureVerified: jest.fn(),
+            onSignatureFailed: jest.fn(),
+            onDuplicate: jest.fn(),
+            onProcessed: jest.fn(),
+            onFailed: jest.fn(),
+          },
+        },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },
         {
           provide: ConfigService,
@@ -147,6 +159,49 @@ describe('WebhooksService', () => {
         expect.any(Number),
         'timestamp_outside_tolerance',
       );
+    });
+
+    it('should reject future timestamp beyond tolerance window (replay protection)', async () => {
+      // A timestamp set 10 minutes in the future is outside the 5-minute window
+      const futureTimestamp = (Math.floor(Date.now() / 1000) + 700).toString();
+      const body = JSON.stringify({ test: 'data' });
+
+      await expect(
+        service.verifySignature('anysig', futureTimestamp, Buffer.from(body), 'stripe'),
+      ).rejects.toThrow('Webhook timestamp outside of tolerance');
+
+      expect(observability.logSignatureVerification).toHaveBeenCalledWith(
+        'stripe',
+        false,
+        expect.any(Number),
+        'timestamp_outside_tolerance',
+      );
+    });
+
+    it('should reject a non-numeric timestamp', async () => {
+      const body = JSON.stringify({ test: 'data' });
+
+      await expect(
+        service.verifySignature('anysig', 'not-a-number', Buffer.from(body), 'stripe'),
+      ).rejects.toThrow('Webhook timestamp outside of tolerance');
+    });
+
+    it('should accept a timestamp at the edge of the tolerance window (299 s ago)', async () => {
+      const edgeTimestamp = (Math.floor(Date.now() / 1000) - 299).toString();
+      const body = JSON.stringify({ test: 'data' });
+      const signedPayload = `${edgeTimestamp}.${body}`;
+      const signature = require('crypto')
+        .createHmac('sha256', secret)
+        .update(signedPayload)
+        .digest('hex');
+
+      const result = await service.verifySignature(
+        signature,
+        edgeTimestamp,
+        Buffer.from(body),
+        'stripe',
+      );
+      expect(result).toBe(true);
     });
 
     it('should log failure for missing signature', async () => {

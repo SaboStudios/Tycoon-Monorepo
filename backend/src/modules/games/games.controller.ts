@@ -39,7 +39,7 @@ import { RollDiceDto } from './dto/roll-dice.dto';
 import { PayRentDto } from './dto/pay-rent.dto';
 import { PayTaxDto } from './dto/pay-tax.dto';
 import { BuyPropertyDto } from './dto/buy-property.dto';
-import { JoinGameDto } from './dto/join-game.dto';
+import { EnhancedJoinGameDto } from './dto/enhanced-join-game.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
@@ -182,7 +182,7 @@ export class GamesController {
   @ApiUnauthorizedResponse({ description: 'User not authenticated' })
   async joinGame(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: JoinGameDto,
+    @Body() dto: EnhancedJoinGameDto,
     @Req() req: Request & { user: { id: number } },
   ) {
     return this.gamesService.joinGame(id, req.user.id, dto);
@@ -320,18 +320,21 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/pay-rent')
+  @UseGuards(JwtAuthGuard)
   @Idempotent()
   @ApiOperation({ summary: 'Pay rent with boost modifiers applied' })
   async payRent(
     @Param('gameId', ParseIntPipe) gameId: number,
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: PayRentDto,
+    @Req() req: Request & { user: { id: number } },
   ) {
     return this.gamePlayersService.payRent(
       gameId,
       playerId,
       dto.payeeId,
       dto.baseRent,
+      req.user.id,
     );
   }
 
