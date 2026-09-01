@@ -43,7 +43,23 @@ npm run test:e2e:smoke  # join-room smoke path
 npm run storybook       # Storybook
 ```
 
-Before opening a PR for frontend work, run the relevant checks locally. Current CI expectations are `npm test -- --run`, `npm run typecheck`, and `npm run build` for the touched app.
+Before opening a PR for frontend work, run the relevant checks locally. Current CI expectations are `npm run typecheck`, `npm test -- --run`, `npm run build`, and `npm run bundle:check` for the touched app.
+
+### Frontend CI jobs
+
+| Job | What it does | Blocks merge? |
+|-----|-------------|---------------|
+| `frontend-typecheck` | `tsc --noEmit` — catches type errors fast (~30 s), before the full build | Yes |
+| `frontend-checks` | Vitest, Next.js production build, then bundle budget check | Yes |
+| `frontend-lint` | ESLint (advisory until backlog cleared) | No (`continue-on-error`) |
+| `frontend-e2e` | Playwright smoke + critical journeys | Smoke blocks; journeys advisory |
+| `chromatic` | Storybook visual regression snapshots | Advisory (skipped on forks) |
+
+The `frontend-typecheck` job runs first so a type error fails in ~30 s instead of burning 3–5 minutes waiting for the production build.
+
+> **Note:** The `frontend-typecheck` job is a hard-fail gate. There are pre-existing type errors in several test files (tracked separately). New PRs must not introduce additional type errors — running `npm run typecheck` locally before opening a PR will show the current baseline. Once the backlog of pre-existing errors is cleared, the job will turn fully green.
+
+After the build, `npm run bundle:check` (script: `scripts/check-bundle-size.mjs`) compares gzip sizes of all `.next/static/chunks` against the budgets in `.size-limit.json`. A breach fails the job. The report is uploaded as a `bundle-size-report` artifact (retained 30 days). See [`frontend/BUNDLE_BUDGET.md`](frontend/BUNDLE_BUDGET.md) for thresholds and the exemption process.
 
 ## Backend setup
 

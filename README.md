@@ -110,7 +110,7 @@ CI runs on every PR via GitHub Actions:
 | Workflow | What it checks |
 |----------|---------------|
 | [Backend CI](.github/workflows/backend-ci.yml) | Build, test, migrations, admin guard verification |
-| [Frontend CI](.github/workflows/frontend-ci.yml) | Typecheck, build, lint, Vitest, Playwright E2E |
+| [Frontend CI](.github/workflows/frontend-ci.yml) | Typecheck (tsc, fast-fail), build, bundle budget, lint, Vitest, Playwright E2E |
 | [Contract CI](.github/workflows/contract-ci.yml) | Format, clippy, test, WASM build + size budget |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution workflow, including branch naming, commit conventions, and per-package CI checks.
