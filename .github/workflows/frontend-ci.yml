@@ -17,8 +17,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  frontend-checks:
+  # ── #1459: Explicit TypeScript typecheck ─────────────────────────────────────
+  # Runs tsc --noEmit before the expensive production build so type errors
+  # surface in ~30 s instead of waiting for the full next build (~3–5 min).
+  # Uses the node_modules cache so repeated runs skip npm ci entirely.
+  frontend-typecheck:
+    name: Typecheck (tsc --noEmit)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  frontend-checks:
+    name: Build, test & bundle budget
+    runs-on: ubuntu-latest
+    # Wait for typecheck so type errors fail fast without wasting build minutes.
+    needs: frontend-typecheck
     defaults:
       run:
         working-directory: frontend
@@ -49,6 +80,21 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      # ── #1460: Bundle size budget check ────────────────────────────────────
+      # Runs after the production build so .next/static/chunks is populated.
+      # Fails the job (exit 1) if any budget defined in .size-limit.json is
+      # exceeded. See frontend/BUNDLE_BUDGET.md for thresholds and exemptions.
+      - name: Check bundle size
+        run: npm run bundle:check
+
+      - name: Upload bundle size report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-size-report
+          path: frontend/bundle-size-report.json
+          retention-days: 30
 
   frontend-lint:
     runs-on: ubuntu-latest
