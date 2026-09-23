@@ -1,38 +1,16 @@
-# Tycoon Backend — Kubernetes Deployment
-#
-# Graceful shutdown alignment
-# ───────────────────────────
-# terminationGracePeriodSeconds: 30
-#   Total time Kubernetes waits after sending SIGTERM before force-killing.
-#
-# SHUTDOWN_TIMEOUT_MS: 15000 (15 s)
-#   Time the app waits for in-flight queue jobs to finish.
-#   Must be < terminationGracePeriodSeconds to leave headroom for:
-#     - HTTP keep-alive drain  (≤ 15 s, set via keepAliveTimeout in main.ts)
-#     - DB pool close          (~0 s)
-#     - Redis quit             (~0 s)
-#     - Node.js process exit   (~1 s)
-#
-# Shutdown sequence on SIGTERM:
-#   1. Kubernetes removes pod from Service endpoints (no new traffic).
-#   2. NestJS calls app.close() → server.close() (HTTP drain).
-#   3. OnApplicationShutdown hooks fire:
-#        a. BullMQ queues paused (no new jobs picked up).
-#        b. TypeORM DataSource destroyed (DB pool closed).
-#        c. ioredis quit() (Redis connection closed).
-#   4. Process exits cleanly.
-#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tycoon-backend
   labels:
-    app: tycoon-backend
+    app.kubernetes.io/name: tycoon-backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: tycoon
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: tycoon-backend
+      app.kubernetes.io/name: tycoon-backend
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -41,46 +19,65 @@ spec:
   template:
     metadata:
       labels:
-        app: tycoon-backend
+        app.kubernetes.io/name: tycoon-backend
+        app.kubernetes.io/component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3000"
     spec:
-      # 30 s gives the app 15 s for shutdown + 15 s headroom.
       terminationGracePeriodSeconds: 30
       containers:
         - name: backend
           image: tycoon-backend:latest
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
           env:
             - name: NODE_ENV
-              value: production
-            # Maximum time (ms) to wait for in-flight work before forcing exit.
-            # Keep this < terminationGracePeriodSeconds * 1000 (30 000 ms).
-            - name: SHUTDOWN_TIMEOUT_MS
-              value: "15000"
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: METRICS_ENABLED
+              value: "true"
+            - name: METRICS_PATH
+              value: "/metrics"
+            - name: RED_METRICS_ENABLED
+              value: "true"
+            - name: SHUTDOWN_DRAIN_MS
+              value: "10000"
+          # Fail-closed readiness: only route traffic once the app has
+          # completed boot checks (env validation + dependency probes) and
+          # is emitting RED metrics on /metrics.
           readinessProbe:
             httpGet:
-              path: /health/redis
-              port: 3000
+              path: /health/ready
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
             failureThreshold: 3
+          # Liveness must not depend on downstream dependencies, otherwise a
+          # transient Postgres/Redis/shop-api outage would restart healthy pods.
           livenessProbe:
             httpGet:
-              path: /health/redis
-              port: 3000
+              path: /health/live
+              port: http
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 3
             failureThreshold: 3
-          lifecycle:
-            preStop:
-              # Give Kubernetes time to remove the pod from the Service
-              # endpoints before SIGTERM arrives, so no new requests land
-              # on a draining pod.
-              exec:
-                command: ["/bin/sh", "-c", "sleep 5"]
+          # Startup probe gives slow boots room without tripping liveness.
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
           resources:
             requests:
-              cpu: "250m"
+              cpu: "100m"
               memory: "256Mi"
             limits:
               cpu: "1000m"
