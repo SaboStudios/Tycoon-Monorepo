@@ -129,10 +129,37 @@ Requests are rejected (HTTP 401) when:
 
 All rejections are logged via the observability service and written to the audit log, so failed signature attempts are fully traceable.
 
+### Replay Protection (Nonce / Event-ID Idempotency)
+
+Timestamp freshness alone is not sufficient: a captured request can be replayed within the 300 s window. Every accepted request must therefore also carry a unique identifier that is recorded and checked atomically.
+
+| Property | Value |
+|---|---|
+| Header – event id | `X-Stripe-Event-Id` (or `id` field in the JSON body) |
+| Store | Redis (`WEBHOOK_IDEMPOTENCY_*` keys) |
+| TTL | 7 days (matches idempotency key retention) |
+| Operation | `SET key 1 NX EX <ttl>` — atomic set-if-absent |
+
+Behavior:
+1. If the event id is missing, the request is rejected (HTTP 400) — deny-by-default.
+2. If `SET NX` reports the key already exists, the request is a duplicate and is rejected (HTTP 409) without re-processing.
+3. If Redis is unreachable, the request **fails closed** (HTTP 503) — never process a webhook whose replay status cannot be verified.
+4. The key is written *before* side effects run, so concurrent duplicate deliveries race on a single atomic `SET NX` and only one wins.
+
+### Fail-Closed Matrix
+
+| Dependency | State | Webhook behavior |
+|---|---|---|
+| `WEBHOOK_SECRET` | unset/empty | Reject all (401); boot check fails in production |
+| Redis | down | Reject writes (503); no side effects |
+| Postgres | down | Reject writes (503); no side effects |
+| shop-api | down | Reject writes (503); no side effects |
+
 ### Secret Management
 - Webhook secrets stored in secure environment variables
 - No secrets logged in application logs
 - Regular secret rotation procedure
+- `.env.example` contains placeholders only — never real secrets
 
 ### Rate Limiting
 - Implement rate limiting at infrastructure level
@@ -143,3 +170,37 @@ All rejections are logged via the observability service and written to the audit
 - All webhook attempts logged with request ID
 - Sensitive data redacted from logs
 - Logs retained for security analysis
+
+## Operator Quick Reference
+
+### Verify a webhook signature locally
+
+```bash
+# Compute the expected signature for a captured request (no secrets echoed)
+printf '%s.%s' "$TS" "$BODY" \
+  | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -hex
+```
+
+### Inspect replay-protection keys
+
+```bash
+# Count tracked event ids (should grow with traffic, never shrink within TTL)
+redis-cli --scan --pattern 'WEBHOOK_IDEMPOTENCY_*' | wc -l
+
+# Check a specific event id
+redis-cli EXISTS "WEBHOOK_IDEMPOTENCY_<event-id>"
+```
+
+### Validate compose config before deploy
+
+```bash
+docker compose -f backend/docker-compose.yml config >/dev/null && echo "compose OK"
+```
+
+### Rollback / Order of Operations
+
+1. **Disable** the webhook feature flag (stop new deliveries) before any rollback.
+2. Drain in-flight requests; confirm queue backlog is zero.
+3. Revert the deployment to the previous image.
+4. If the replay store must be cleared, delete `WEBHOOK_IDEMPOTENCY_*` keys **only** after confirming no provider retries are pending — clearing keys re-opens the replay window for those events.
+5. Re-enable the feature flag and watch signature-failure and duplicate-rejection metrics.

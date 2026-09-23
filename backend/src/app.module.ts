@@ -42,6 +42,7 @@ import { AdminAnalyticsModule } from './modules/admin-analytics/admin-analytics.
 import { MonetizationModule } from './modules/monetization/monetization.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { RawBodyMiddleware } from './common/middleware/raw-body.middleware';
+import { WebhookReplayProtectionMiddleware } from './modules/webhooks/middleware/webhook-replay-protection.middleware';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
@@ -140,6 +141,7 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
   providers: [
     AppService,
     SuspensionCheckMiddleware,
+    WebhookReplayProtectionMiddleware,
     {
       provide: APP_GUARD,
       useClass: AppThrottlerGuard,
@@ -162,6 +164,13 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(SuspensionCheckMiddleware).forRoutes('*');
+    // Raw body must be captured before HMAC verification so the signature is
+    // computed over the exact bytes received (no re-serialization drift).
     consumer.apply(RawBodyMiddleware).forRoutes('webhooks/*');
+    // HMAC signature + timestamp freshness + nonce/event-id replay protection
+    // for inbound agent/payment webhooks. Deny-by-default on missing headers.
+    consumer
+      .apply(WebhookReplayProtectionMiddleware)
+      .forRoutes('webhooks/*');
   }
 }
