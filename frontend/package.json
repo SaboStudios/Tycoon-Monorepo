@@ -17,6 +17,7 @@
     "test:e2e:critical": "playwright test --project=chromium e2e/critical-journeys.spec.ts",
     "dev:msw": "next dev",
     "bundle:check": "node scripts/check-bundle-size.mjs",
+    "deny-list": "node scripts/deny-list.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "chromatic": "chromatic --exit-zero-on-changes"

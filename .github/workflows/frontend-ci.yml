@@ -45,6 +45,31 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+  # ── #1811: Forbidden Stellar copy deny-list gate ────────────────────────────
+  # Scans frontend player-facing copy/source for forbidden Stellar strings
+  # (Stellar/XLM/Lumens/Soroban wallet references) per ADR-003. NEAR is the
+  # only supported chain UI until Stellar is gated ready. Fails (exit 1) on
+  # any match with file:line reporting. Deny-list lives in
+  # frontend/docs/SW-deny-list.md and frontend/scripts/deny-list.mjs.
+  frontend-deny-list:
+    name: Forbidden Stellar copy deny-list
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check forbidden Stellar copy strings
+        run: node scripts/deny-list.mjs
+
   frontend-checks:
     name: Build, test & bundle budget
     runs-on: ubuntu-latest
