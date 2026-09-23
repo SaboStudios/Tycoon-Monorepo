@@ -10,6 +10,36 @@ import { LoggerService } from './common/logger/logger.service';
 import { configureApiVersioning } from './common/versioning/api-versioning';
 import { isOriginAllowed } from './common/security/cors-origin-validator';
 
+/**
+ * Parse the TRUSTED_PROXY_CIDRS configuration into a value suitable for
+ * Express' `trust proxy` setting.
+ *
+ * Deny-by-default: when no proxies are explicitly configured we return
+ * `false`, so X-Forwarded-* headers from arbitrary clients are ignored and
+ * `req.ip` / `req.protocol` reflect the direct socket. Only the explicitly
+ * listed IPs/CIDRs (or the documented loopback defaults) are trusted.
+ *
+ * See docs/security/REVERSE_PROXY_HEADERS.md for the trust model.
+ */
+function resolveTrustedProxies(
+  raw: string | undefined,
+  isProduction: boolean,
+): string[] | false {
+  const entries = (raw || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (entries.length > 0) {
+    return entries;
+  }
+
+  // No explicit configuration: never trust forwarded headers in production.
+  // In non-production, trust only loopback so local dev proxies work without
+  // opening the door to spoofed X-Forwarded-For from the network.
+  return isProduction ? false : ['loopback'];
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
@@ -95,14 +125,34 @@ async function bootstrap() {
     }),
   );
 
-  // Trust proxy
-  if (configService.get<boolean>('app.trustProxy')) {
-    const adapter = app.getHttpAdapter();
-    const instance = adapter.getInstance();
-    if (typeof instance.set === 'function') {
-      instance.set('trust proxy', 1);
-    }
+  // Trust proxy — deny-by-default.
+  //
+  // X-Forwarded-For / X-Forwarded-Proto / X-Forwarded-Host are only honored
+  // when the immediate peer is an explicitly configured proxy IP/CIDR. This
+  // prevents arbitrary clients from spoofing their source IP (rate-limit
+  // bypass, audit-log poisoning) or protocol (secure-cookie / HSTS bypass).
+  //
+  // Configure via TRUSTED_PROXY_CIDRS (comma-separated IPs/CIDRs). When unset
+  // we trust only loopback outside production and nothing in production.
+  // See docs/security/REVERSE_PROXY_HEADERS.md.
+  const trustedProxies = resolveTrustedProxies(
+    configService.get<string>('app.trustedProxyCidrs') ??
+      process.env.TRUSTED_PROXY_CIDRS,
+    isProduction,
+  );
+
+  const adapter = app.getHttpAdapter();
+  const instance = adapter.getInstance();
+  if (typeof instance.set === 'function') {
+    instance.set('trust proxy', trustedProxies);
   }
+
+  loggerService.log(
+    trustedProxies === false
+      ? 'Proxy trust: disabled (no trusted proxies configured)'
+      : `Proxy trust: ${trustedProxies.join(', ')}`,
+    'Bootstrap',
+  );
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -220,9 +270,9 @@ async function bootstrap() {
   );
   // API Documentation log moved to Swagger setup
   logger.log(
-    `Environment: ${configService.get<string>('app.environment') || 'development'}`,
+    `📚 API Documentation: http://localhost:${port}/${apiPrefix}/docs`,
     'Bootstrap',
   );
-  logger.log(`Log Level: ${process.env.LOG_LEVEL || 'default'}`, 'Bootstrap');
 }
-void bootstrap();
+
+bootstrap();

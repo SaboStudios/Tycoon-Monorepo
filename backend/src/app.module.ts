@@ -52,6 +52,21 @@ import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledg
 import { NotificationsModule } from './modules/fetch-notification/notifications.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 
+/**
+ * Parse a comma-separated list of trusted reverse-proxy IPs/CIDRs.
+ * Returns an empty list when unset so that X-Forwarded-* headers are
+ * never trusted from arbitrary clients (deny-by-default).
+ */
+function parseTrustedProxies(raw: string | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 @Module({
   imports: [
     // Configuration Module
@@ -162,8 +177,24 @@ import { UploadsModule } from './modules/uploads/uploads.module';
   ],
 })
 export class AppModule implements NestModule {
+  constructor(private readonly configService: ConfigService) {}
+
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(SuspensionCheckMiddleware).forRoutes('*');
     consumer.apply(RawBodyMiddleware).forRoutes('webhooks/*');
+  }
+
+  /**
+   * Harden reverse-proxy header trust: only trust X-Forwarded-* headers
+   * when the immediate peer is an explicitly configured proxy IP/CIDR.
+   * Deny-by-default when TRUSTED_PROXIES is unset.
+   */
+  onModuleInit() {
+    const httpAdapter = this.configService.get('app.trustedProxies');
+    const trustedProxies = parseTrustedProxies(
+      typeof httpAdapter === 'string' ? httpAdapter : undefined,
+    );
+    // Exposed for the bootstrap layer to apply to the underlying HTTP adapter.
+    (globalThis as Record<string, unknown>).__trustedProxies = trustedProxies;
   }
 }
