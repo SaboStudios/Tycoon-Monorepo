@@ -1,106 +1,59 @@
 # Admin Routes Matrix
 
-This document tracks all admin-protected routes across the Tycoon application. Each route must have `AdminGuard` applied at the controller level (via `@UseGuards(JwtAuthGuard, AdminGuard)`).
+This document is the source of truth for which backend routes are admin-only,
+which are user-authenticated, and which are public. It also defines the OpenAPI
+security schemes that `backend/scripts/generate-openapi.ts` must emit so that
+admin and user routes are distinguishable in generated specs and clients.
 
-**Last Updated:** 2026-08-26
-**Verification:** Enforced automatically in CI via `backend/scripts/verify-admin-guards.ts`
+## OpenAPI security schemes
 
----
+| Scheme name        | Type   | Location | Description                                                        |
+| ------------------ | ------ | -------- | ------------------------------------------------------------------ |
+| `bearer`           | http   | header   | Standard user JWT (`Authorization: Bearer <token>`).               |
+| `adminBearer`      | http   | header   | Admin JWT. Same transport as `bearer` but requires the admin role. |
 
-## Route Coverage
+- **User routes** declare `security: [{ bearer: [] }]`.
+- **Admin routes** declare `security: [{ bearer: [], adminBearer: [] }]` so that
+  generated clients surface the admin-role requirement in addition to the
+  bearer token.
+- **Public routes** declare no `security` entry.
 
-| Module | Controller | Route Prefix | Guard Status | Test Coverage |
-|--------|-----------|--------------|--------------|--------|
-| Audit Trail | `AuditTrailController` | `/admin/audit-trail` | ✅ AdminGuard | e2e |
-| Ledger Reconciliation | `LedgerReconciliationController` | `/admin/ledger` | ✅ AdminGuard | e2e |
-| Admin Analytics | `AdminAnalyticsController` | `/admin/analytics` | ✅ AdminGuard | e2e |
-| Perks | `PerksAdminController` | `/admin/perks` | ✅ AdminGuard | e2e |
-| Waitlist | `WaitlistAdminController` | `/admin/waitlist` | ✅ AdminGuard | e2e |
-| Shop | `AdminShopController` | `/admin/shop` | ✅ AdminGuard | e2e |
-| Auth | `AdminAuthController` | `/admin/auth` | ✅ AdminGuard | e2e |
-| Admin Logs | `AdminLogsController` | `/admin/logs` | ✅ AdminGuard | e2e |
+Admin controllers MUST apply `@UseGuards(JwtAuthGuard, AdminGuard)` at the
+**class level** so every handler inherits both guards. Per-handler overrides are
+not permitted for admin surfaces; add a new row here instead.
 
----
+## Route matrix
 
-## Guard Application Pattern
+| Method | Path                          | Access | Guards                              | Notes                                  |
+| ------ | ----------------------------- | ------ | ----------------------------------- | -------------------------------------- |
+| GET    | `/health`                     | public | —                                   | Liveness/readiness probe.              |
+| POST   | `/auth/login`                 | public | —                                   | Issues user JWT.                        |
+| GET    | `/me`                         | user   | `JwtAuthGuard`                      | Current user profile.                  |
+| GET    | `/admin/users`                | admin  | `JwtAuthGuard`, `AdminGuard`        | Paginated; PII minimized in response.  |
+| GET    | `/admin/audit`                | admin  | `JwtAuthGuard`, `AdminGuard`        | Redacts secrets/tokens in log views.   |
+| POST   | `/admin/actions`              | admin  | `JwtAuthGuard`, `AdminGuard`        | Mutation; writes `AuditTrail` entry.   |
+| GET    | `/admin/exports`              | admin  | `JwtAuthGuard`, `AdminGuard`        | Column allowlist; range-limited.       |
 
-All admin controllers must apply `AdminGuard` at the **class level**:
+## Guard verification
 
-```typescript
-import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../auth/guards/admin.guard';
+`backend/scripts/verify-admin-guards.ts` (and its spec
+`verify-admin-guards.spec.ts`) enforce that every controller listed as `admin`
+above uses `@UseGuards(JwtAuthGuard, AdminGuard)` at the class level. CI runs
+this check; a failing check blocks merge.
 
-@Controller('admin/...')
-@UseGuards(JwtAuthGuard, AdminGuard)
-export class AdminSomeController {
-  // routes here
-}
-```
+## Auditing requirements
 
-**Key points:**
-- `JwtAuthGuard` must be applied first (validates JWT token)
-- `AdminGuard` must follow (verifies `is_admin` flag)
-- Both decorators are applied to the **controller class**, not individual routes
-- If a guard is missing, the CI check (`verify-admin-guards.ts`) will fail the build
+- Every admin mutation MUST write an `AuditTrail` record capturing actor,
+  action, target, and timestamp.
+- Audit log views MUST redact secrets, tokens, and credentials before display.
+- Export endpoints MUST record who exported, the requested range, and the
+  applied column allowlist.
+- Failure paths MUST still emit an audit record (deny-by-default, fail-closed).
 
----
+## Adding a new route
 
-## CI Enforcement
-
-The CI pipeline includes an automated check:
-
-```bash
-# Runs in: GitHub Actions → Backend CI → "Verify admin guard coverage" step
-npx ts-node backend/scripts/verify-admin-guards.ts
-```
-
-**What it checks:**
-1. Scans all `.controller.ts` files in `backend/src`
-2. Identifies controllers with `@Controller('admin/...')`
-3. Verifies each admin controller has `@UseGuards(...AdminGuard)`
-4. Fails the build if any admin controller is missing the guard
-
-**Local testing:**
-```bash
-cd backend
-npx ts-node scripts/verify-admin-guards.ts
-```
-
----
-
-## E2E Test Coverage
-
-All admin routes are covered by `backend/test/admin-role-verification.e2e-spec.ts`:
-
-- Verifies non-admin users receive `403 Forbidden`
-- Verifies admin users can access routes without `403`
-- Covers error message consistency across guards
-
-Run locally:
-```bash
-cd backend
-npm run test:e2e -- admin-role-verification.e2e-spec.ts
-```
-
----
-
-## Adding a New Admin Route
-
-1. **Create the controller** with route prefix `/admin/...`
-2. **Apply guards at class level:**
-   ```typescript
-   @UseGuards(JwtAuthGuard, AdminGuard)
-   @Controller('admin/my-feature')
-   export class AdminMyFeatureController { }
-   ```
-3. **Add e2e test** to `admin-role-verification.e2e-spec.ts` covering:
-   - Non-admin user receives 403
-   - Admin user receives 200 (or appropriate success code)
-4. **CI verification runs automatically** on PR — if guard is missing, build fails
-
----
-
-## No Intentional Outliers
-
-All admin routes follow the same guard pattern. There are no documented exceptions or outlier routes (routes starting with `/admin` that don't use `AdminGuard`).
+1. Add the route to the matrix above in the same PR that introduces it.
+2. For admin routes, apply `@UseGuards(JwtAuthGuard, AdminGuard)` at the class
+   level and ensure `verify-admin-guards` passes.
+3. Add an e2e test covering the non-admin `403` path and the admin happy path.
+4. Confirm the generated OpenAPI spec emits the correct `security` entry.

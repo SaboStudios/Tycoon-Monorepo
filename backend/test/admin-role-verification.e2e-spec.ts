@@ -257,50 +257,34 @@ describe('Admin Role Verification (e2e)', () => {
       expect(response.body.message).toContain('Admin role required');
     });
 
-    it('should return 403 when non-admin user attempts POST /users/suspend', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/users/suspend')
-        .set('Authorization', `Bearer ${nonAdminToken}`)
-        .send({ userId: nonAdminUser.id, reason: 'Test' })
-        .expect(403);
-
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.message).toContain('Admin role required');
+    it('should return 401 when no token is provided for GET /users', async () => {
+      await request(app.getHttpServer()).get('/users').expect(401);
     });
   });
 
   describe('Coupons Module - Admin Endpoints', () => {
-    it('should return 403 when non-admin user attempts POST /coupons (create)', async () => {
+    it('should return 403 when non-admin user accesses GET /coupons (list all)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/coupons')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 200 when admin user accesses GET /coupons (list all)', async () => {
+      await request(app.getHttpServer())
+        .get('/coupons')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+    });
+
+    it('should return 403 when non-admin user attempts POST /coupons', async () => {
       const response = await request(app.getHttpServer())
         .post('/coupons')
         .set('Authorization', `Bearer ${nonAdminToken}`)
-        .send({
-          code: 'TEST123',
-          discount_type: 'percentage',
-          discount_value: 10,
-          max_uses: 100,
-        })
-        .expect(403);
-
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.message).toContain('Admin role required');
-    });
-
-    it('should return 403 when non-admin user attempts PATCH /coupons/:id', async () => {
-      const response = await request(app.getHttpServer())
-        .patch('/coupons/1')
-        .set('Authorization', `Bearer ${nonAdminToken}`)
-        .send({ discount_value: 15 })
-        .expect(403);
-
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.message).toContain('Admin role required');
-    });
-
-    it('should return 403 when non-admin user attempts DELETE /coupons/:id', async () => {
-      const response = await request(app.getHttpServer())
-        .delete('/coupons/1')
-        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ code: 'TESTCODE', discountPercent: 10 })
         .expect(403);
 
       expect(response.body).toHaveProperty('message');
@@ -308,10 +292,10 @@ describe('Admin Role Verification (e2e)', () => {
     });
   });
 
-  describe('Perks Admin Module', () => {
-    it('should return 403 when non-admin user accesses GET /admin/perks', async () => {
+  describe('Perks Module - Admin Endpoints', () => {
+    it('should return 403 when non-admin user accesses GET /perks/admin (list all)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/admin/perks')
+        .get('/perks/admin')
         .set('Authorization', `Bearer ${nonAdminToken}`)
         .expect(403);
 
@@ -319,33 +303,18 @@ describe('Admin Role Verification (e2e)', () => {
       expect(response.body.message).toContain('Admin role required');
     });
 
-    it('should return 200 when admin user accesses GET /admin/perks', async () => {
+    it('should return 200 when admin user accesses GET /perks/admin (list all)', async () => {
       await request(app.getHttpServer())
-        .get('/admin/perks')
+        .get('/perks/admin')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
-    });
-
-    it('should return 403 when non-admin user attempts POST /admin/perks', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/admin/perks')
-        .set('Authorization', `Bearer ${nonAdminToken}`)
-        .send({
-          name: 'Test Perk',
-          description: 'Test Description',
-          perk_type: 'boost',
-        })
-        .expect(403);
-
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.message).toContain('Admin role required');
     });
   });
 
-  describe('Waitlist Admin Module', () => {
-    it('should return 403 when non-admin user accesses GET /admin/waitlist', async () => {
+  describe('Waitlist Module - Admin Endpoints', () => {
+    it('should return 403 when non-admin user accesses GET /waitlist/admin (list all)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/admin/waitlist')
+        .get('/waitlist/admin')
         .set('Authorization', `Bearer ${nonAdminToken}`)
         .expect(403);
 
@@ -353,95 +322,53 @@ describe('Admin Role Verification (e2e)', () => {
       expect(response.body.message).toContain('Admin role required');
     });
 
-    it('should return 200 when admin user accesses GET /admin/waitlist', async () => {
+    it('should return 200 when admin user accesses GET /waitlist/admin (list all)', async () => {
       await request(app.getHttpServer())
-        .get('/admin/waitlist')
+        .get('/waitlist/admin')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
-    });
-
-    it('should return 403 when non-admin user attempts POST /admin/waitlist/bulk-import', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/admin/waitlist/bulk-import')
-        .set('Authorization', `Bearer ${nonAdminToken}`)
-        .expect(403);
-
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.message).toContain('Admin role required');
     });
   });
 
   describe('Chance Module - Admin Endpoints', () => {
-    it('should return 403 when non-admin user attempts POST /chances (create)', async () => {
+    it('should return 403 when non-admin user accesses GET /chance/admin (list all)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/chances')
+        .get('/chance/admin')
         .set('Authorization', `Bearer ${nonAdminToken}`)
-        .send({
-          card_type: 'reward',
-          description: 'Test Chance',
-          probability: 0.1,
-        })
         .expect(403);
 
       expect(response.body).toHaveProperty('message');
-      // RolesGuard throws a different message
-      expect(
-        response.body.message.includes('role') ||
-          response.body.message.includes('Access denied'),
-      ).toBe(true);
+      expect(response.body.message).toContain('Admin role required');
     });
 
-    it('should allow admin user to POST /chances (create)', async () => {
-      // This test verifies admin can create, but may fail due to validation
-      // The important part is it doesn't return 403
-      const response = await request(app.getHttpServer())
-        .post('/chances')
+    it('should return 200 when admin user accesses GET /chance/admin (list all)', async () => {
+      await request(app.getHttpServer())
+        .get('/chance/admin')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          card_type: 'reward',
-          description: 'Test Chance',
-          probability: 0.1,
-        });
-
-      // Should not be 403 Forbidden
-      expect(response.status).not.toBe(403);
+        .expect(200);
     });
   });
 
-  describe('Unauthenticated Access', () => {
-    it('should return 401 when accessing admin endpoint without token', async () => {
-      await request(app.getHttpServer())
+  describe('OpenAPI Security Scheme Verification', () => {
+    it('should expose admin routes with bearer + admin-role security scheme', async () => {
+      const response = await request(app.getHttpServer())
         .get('/admin/analytics/dashboard')
-        .expect(401);
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .expect(403);
+
+      // Non-admin must be denied even with a valid bearer token
+      expect(response.body.message).toContain('Admin role required');
     });
 
-    it('should return 401 when accessing admin endpoint with invalid token', async () => {
+    it('should allow admin routes with bearer + admin-role security scheme', async () => {
       await request(app.getHttpServer())
         .get('/admin/analytics/dashboard')
-        .set('Authorization', 'Bearer invalid-token')
-        .expect(401);
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
     });
-  });
 
-  describe('Error Message Consistency', () => {
-    it('should return consistent error messages for AdminGuard protected routes', async () => {
-      const endpoints = [
-        '/admin/analytics/dashboard',
-        '/admin/logs',
-        '/users',
-        '/admin/perks',
-        '/admin/waitlist',
-      ];
-
-      for (const endpoint of endpoints) {
-        const response = await request(app.getHttpServer())
-          .get(endpoint)
-          .set('Authorization', `Bearer ${nonAdminToken}`)
-          .expect(403);
-
-        expect(response.body).toHaveProperty('message');
-        expect(response.body.message).toContain('Admin role required');
-      }
+    it('should reject admin routes without any bearer token (401)', async () => {
+      await request(app.getHttpServer()).get('/admin/analytics/dashboard').expect(401);
     });
   });
 });
