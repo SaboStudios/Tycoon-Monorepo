@@ -51,6 +51,7 @@ import { NearModule } from './modules/near/near.module';
 import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledger-reconciliation.module';
 import { NotificationsModule } from './modules/fetch-notification/notifications.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { GracefulShutdownModule } from './common/shutdown/graceful-shutdown.module';
 
 @Module({
   imports: [
@@ -86,6 +87,9 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     ]),
 
     ObservabilityModule,
+
+    // Graceful shutdown drain for in-flight HTTP/WS purchases
+    GracefulShutdownModule,
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({

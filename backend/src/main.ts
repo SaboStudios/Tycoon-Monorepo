@@ -24,6 +24,13 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port') || 3000;
 
+  // Graceful shutdown drain window (ms). In-flight HTTP purchase requests and
+  // purchase-related WebSocket messages are allowed to finish before the
+  // process exits. Fail-closed: writes that cannot complete within the window
+  // are rejected rather than silently dropped mid-transaction.
+  const shutdownDrainMs =
+    configService.get<number>('app.shutdownDrainMs') || 15_000;
+
   // Security headers — tuned for a JSON API with Swagger UI served at /api/docs.
   //
   // Reverse-proxy note: if Nginx/Caddy/ALB already sets HSTS, X-Frame-Options,
@@ -218,11 +225,54 @@ async function bootstrap() {
     `🚀 Application is running on: http://localhost:${port}`,
     'Bootstrap',
   );
-  // API Documentation log moved to Swagger setup
-  logger.log(
-    `Environment: ${configService.get<string>('app.environment') || 'development'}`,
-    'Bootstrap',
-  );
-  logger.log(`Log Level: ${process.env.LOG_LEVEL || 'default'}`, 'Bootstrap');
+
+  // Graceful shutdown drain for HTTP/WS purchases.
+  //
+  // On SIGTERM/SIGINT we stop accepting new connections, then wait up to
+  // `shutdownDrainMs` for in-flight HTTP purchase requests and purchase-related
+  // WebSocket messages to complete before closing the Nest app. This preserves
+  // Idempotency-Key semantics across restarts: a request that already reached
+  // the write path finishes and stores its response, so a client retry after
+  // restart replays the stored response instead of double-purchasing. Requests
+  // that cannot complete within the window are failed closed (connection
+  // closed) rather than silently dropped mid-transaction.
+  let shuttingDown = false;
+  const drain = async (signal: NodeJS.Signals) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    logger.log(
+      `Received ${signal}; draining in-flight HTTP/WS purchases (up to ${shutdownDrainMs}ms)`,
+      'Bootstrap',
+    );
+
+    // Stop accepting new connections so no new purchases enter the write path.
+    const httpServer = app.getHttpServer();
+    if (typeof httpServer.close === 'function') {
+      httpServer.close();
+    }
+
+    // Allow in-flight purchase requests / WS messages to settle. The Nest
+    // shutdown hooks (OnApplicationShutdown) run when app.close() is called
+    // below, after the drain window elapses.
+    await new Promise((resolve) => setTimeout(resolve, shutdownDrainMs));
+
+    try {
+      await app.close();
+      logger.log('Graceful shutdown drain complete', 'Bootstrap');
+    } catch (err) {
+      logger.error(
+        `Error during graceful shutdown: ${(err as Error).message}`,
+        (err as Error).stack,
+        'Bootstrap',
+      );
+      process.exitCode = 1;
+    }
+  };
+
+  process.once('SIGTERM', () => void drain('SIGTERM'));
+  process.once('SIGINT', () => void drain('SIGINT'));
 }
+
 void bootstrap();
