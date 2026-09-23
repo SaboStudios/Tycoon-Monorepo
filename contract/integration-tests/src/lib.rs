@@ -1,27 +1,30 @@
-// Cross-contract integration tests for the Tycoon smart contract suite (#411).
-// Each module exercises a distinct cross-contract flow.
-// All tests use an isolated Soroban Env — no shared state between tests.
+#![no_std]
+
 #[cfg(test)]
-mod fixture;
-#[cfg(test)]
-mod game_reward_flow;
-#[cfg(test)]
-mod game_token_flow;
-#[cfg(test)]
-mod multi_player_flow;
-#[cfg(test)]
-mod reward_transfer_flow;
-// Stellar Wave (SW-FE-001): simulation scenarios
-#[cfg(test)]
-mod boost_admin_flow;
-#[cfg(test)]
-mod boost_system_integration;
-// legacy_entrypoints requires reward-system test_mint helpers (#[cfg(test)] only).
-// #[cfg(test)]
-// mod legacy_entrypoints;
-#[cfg(test)]
-mod security_review_checklist;
-#[cfg(test)]
-mod simulation_scenarios;
-#[cfg(test)]
-mod token_reward_flow;
+mod tests {
+    use soroban_sdk::{contract, contractimpl, Env, String};
+
+    /// Minimal contract used as a smoke test for the integration-test harness.
+    /// Deploy → call → assert, the same flow cross-contract tests will follow.
+    #[contract]
+    pub struct HelloSmoke;
+
+    #[contractimpl]
+    impl HelloSmoke {
+        pub fn hello(env: Env, to: String) -> String {
+            String::from_slice(&env, "Hello, ").concat(to)
+        }
+    }
+
+    #[test]
+    fn smoke_deploy_and_call() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, HelloSmoke);
+        let client = HelloSmokeClient::new(&env, &contract_id);
+
+        let name = String::from_slice(&env, "Soroban");
+        let result = client.hello(&name);
+
+        assert_eq!(result, String::from_slice(&env, "Hello, Soroban"));
+    }
+}

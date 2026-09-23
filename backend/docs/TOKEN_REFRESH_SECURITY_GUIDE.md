@@ -37,8 +37,23 @@ token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 **After:**
 ```typescript
 // Tokens stored as SHA-256 hashes
-tokenHash: "ebd917958fc7b45aa35d972f7babc2331c0776a4a2aed01a6d54f799d0407735"
+tokenHash: "ebd917958fc7b45aa35d972f7babc2331c0776a2aed01a6d54f799d0407735"
 ```
+
+### 1a. Client Session Storage Direction
+
+The frontend must not keep long-lived access tokens in `localStorage` or any JS-readable browser storage. Session material should move to server-issued `httpOnly` cookies for the refresh path, with the browser only receiving a short-lived cookie-backed session or an opaque session identifier.
+
+**Recommended direction:**
+
+```text
+localStorage or sessionStorage -> deprecated
+httpOnly secure cookies -> preferred
+SameSite=Lax or Strict for browser navigation + CSRF mitigation
+CSRF token for state-changing cross-site requests
+```
+
+**Current transitional status:** the repo still has a compatibility shim in the frontend auth-provider and API client for older flows, but the long-term target is zero JS-readable token storage.
 
 ### 2. Token Creation
 
@@ -75,7 +90,18 @@ const result = await authService.refreshTokens(
 );
 ```
 
-### 4. Security Events
+### 4. CSRF and cookie handling
+
+If refresh or session tokens are delivered through cookies, implement a double-submit or same-site policy alongside the cookie flow. A browser cookie alone is not sufficient protection for cross-site state changing requests.
+
+Recommended defaults:
+
+- `Secure` on production cookies
+- `SameSite=Lax` for read-only sessions and `SameSite=Strict` when the app can tolerate it
+- `httpOnly` on the token cookie so it is not readable from JavaScript
+- CSRF token for POST / PATCH / DELETE requests that mutate state
+
+### 5. Security Events
 
 Monitor logs for token reuse detection:
 

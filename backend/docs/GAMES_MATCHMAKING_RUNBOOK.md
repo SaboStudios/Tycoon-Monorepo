@@ -49,6 +49,56 @@ If AI players are not moving:
 -   **Metric**: `tycoon_matchmaking_duration_seconds` - Histogram of time to match players.
 -   **Metric**: `tycoon_idempotency_hits_total` - Monitor how often replay protection is triggered.
 
+## Realtime Board State Synchronization
+
+### WebSocket Gateway Overview
+
+The Games module provides a WebSocket gateway (namespace: `games`) for real-time board state synchronization. This enables players to see turn changes, dice rolls, and other events instantly without polling.
+
+**Event Set:**
+- `join` — player joined a game session
+- `roll` — player rolled dice (includes dice value)
+- `turn` — turn advanced to a specific player
+- `turn-ready` — player signaled ready for next turn
+- `disconnect` — player left the session
+
+### Handshake & Authentication
+
+All WebSocket connections require JWT authentication:
+1. **Token source:** Provide JWT via `handshake.auth.token` or `Authorization: Bearer <token>` header.
+2. **Verification:** Server validates JWT signature on connection; invalid/missing tokens result in immediate disconnect.
+3. **User context:** Authenticated user ID is attached to the socket for room isolation and per-player event handling.
+
+### Room Isolation
+
+- Each game session occupies a dedicated room: `game_<gameId>`.
+- Only authenticated players in the room receive that game's events.
+- No broadcast to unauthenticated clients.
+- Disconnection automatically removes player from room and broadcasts `disconnect` event.
+
+### CORS & Deployment
+
+- Uses `getWsCorsConfig()` (same as `PerkBoostGateway`).
+- Respects `WS_CORS_ORIGINS` environment variable; wildcard (`*`) rejected in production.
+- Recommended: Set `WS_CORS_ORIGINS=https://app.example.com` in production.
+
+### Connection Limits & Monitoring
+
+- **Metric:** `socket.io.connected_clients` (track socket.io connection pool)
+- **Alert:** Monitor for unusual spikes in connection count (possible bot activity or stuck connections).
+- **Timeout:** Idle connections are reaped by socket.io's built-in heartbeat (default ~60s).
+
+### Frontend Integration (Out of Scope)
+
+Frontend clients must:
+1. Establish WebSocket connection to `/socket.io/` with JWT token.
+2. Emit `join` event with `{ gameId: <number> }` after connection.
+3. Listen for `roll`, `turn`, `disconnect` events and update board state accordingly.
+
+**Note:** Frontend integration is a follow-up to this ADR; backend gateway is production-ready and awaits client implementation.
+
+---
+
 ## Support Contacts
 -   Game Logic Team: #team-game-engine
 -   Infrastructure: #team-infra

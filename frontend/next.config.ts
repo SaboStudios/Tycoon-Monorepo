@@ -1,8 +1,16 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Pin the Turbopack workspace root to this package. Without this, Turbopack
+  // infers the root by walking up for a lockfile and finds candidates at both
+  // the monorepo root (package-lock.json) and here, which silently picks the
+  // wrong root and emits a "Next.js inferred your workspace root" warning.
+  turbopack: {
+    root: path.join(__dirname),
+  },
   transpilePackages: [
     "@near-wallet-selector/core",
     "@near-wallet-selector/modal-ui",
@@ -86,6 +94,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // /ai-play is deprecated — /play-ai is the single canonical AI route (it is
+  // e2e-protected and listed in the sitemap; the old /ai-play game room was an
+  // unfinished opponent with no real bot). (#1484)
+  redirects: async () => [
+    {
+      source: "/ai-play/:path*",
+      destination: "/play-ai",
+      permanent: true,
+    },
+  ],
 };
 
 const analyzer = withBundleAnalyzer({

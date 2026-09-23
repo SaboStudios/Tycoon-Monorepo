@@ -1553,6 +1553,7 @@ name = "tycoon-game"
 version = "0.2.0"
 dependencies = [
  "soroban-sdk",
+ "tycoon-reward-system",
 ]
 
 [[package]]
@@ -1569,7 +1570,7 @@ dependencies = [
 
 [[package]]
 name = "tycoon-lib"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
 ]

@@ -91,6 +91,9 @@
       "unexpected": "An unexpected error occurred",
       "network_error": "Network error. Check your connection and try again.",
       "timeout": "Request timed out. Please try again."
-    }
+    },
+    "network_error": "Network error. Please check your connection and try again.",
+    "timeout": "Request timed out. Please try again.",
+    "service_unavailable": "Service is currently unavailable. Please try again later."
   }
 }

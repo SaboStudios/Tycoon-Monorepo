@@ -12,6 +12,14 @@ const SHELL_PATHS = new Set([
   "/metadata/android-chrome-512x512.png",
 ]);
 
+/**
+ * PWA caching strategy:
+ * - Shell assets (static JS/CSS, metadata, offline page) are cached for fast offline loading
+ * - Live game state paths (/api/, /game-*, /ai-play/, /join-room) are NEVER cached
+ *   to prevent stale session conflicts when the user reconnects
+ * - This ensures multiplayer games and wallet-driven flows work correctly after reconnection
+ */
+
 function isShellAssetPath(pathname) {
   return (
     pathname.startsWith("/_next/static/") ||
@@ -76,12 +84,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Skip caching for live game state and API routes to prevent stale session conflicts.
+  // Only cache shell assets needed for offline fallback (static, metadata, offline page).
   if (
     !isShellAssetPath(url.pathname) ||
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/game-") ||
     url.pathname.startsWith("/ai-play/") ||
-    url.pathname.startsWith("/join-room")
+    url.pathname.startsWith("/join-room") ||
+    url.pathname.startsWith("/socket.io/")
   ) {
     return;
   }

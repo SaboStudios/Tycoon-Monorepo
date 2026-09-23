@@ -82,6 +82,11 @@ describe("useJoinRoomTelemetry", () => {
       "room_full",
       "server_error",
       "unknown",
+      "rate_limit",
+      "unauthorized",
+      "api_error",
+      "network",
+      "timeout",
     ] as const)("emits join_room_failed with error_type=%s", (error_type) => {
       const { result } = renderHook(() => useJoinRoomTelemetry());
       act(() => result.current.trackJoinFailed(error_type));

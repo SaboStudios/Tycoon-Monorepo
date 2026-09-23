@@ -1,0 +1,152 @@
+# Dependabot configuration for Tycoon Monorepo
+# Issue #1513 — grouped weekly updates per package directory.
+#
+# Strategy:
+#   • Each package.json directory gets its own update entry.
+#   • NestJS packages are grouped together per directory so a single PR
+#     upgrades the whole framework family at once (prevents version skew).
+#   • GitHub Actions ecosystem runs separately for CI workflow files.
+#   • Major-version bumps for NestJS are ignored until explicitly reviewed
+#     (root is on NestJS 10, backend on 11, shop-api on 10 — intentional split).
+
+version: 2
+
+updates:
+  # ── Root package.json (shared/tooling deps, NestJS 10) ────────────────────
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - root
+    groups:
+      nestjs-root:
+        patterns:
+          - "@nestjs/*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Root intentionally stays on NestJS 10; ignore major bumps to 11+
+      - dependency-name: "@nestjs/*"
+        update-types: ["version-update:semver-major"]
+
+  # ── backend/ (NestJS 11) ─────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: "/backend"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 8
+    labels:
+      - dependencies
+      - backend
+    groups:
+      nestjs-backend:
+        patterns:
+          - "@nestjs/*"
+        update-types:
+          - minor
+          - patch
+      typeorm-pg:
+        patterns:
+          - typeorm
+          - pg
+          - "@types/pg"
+      testing-backend:
+        patterns:
+          - jest
+          - ts-jest
+          - supertest
+          - "@types/jest"
+          - "@types/supertest"
+
+  # ── shop-api/ (NestJS 10) ─────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: "/shop-api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - shop-api
+    groups:
+      nestjs-shop-api:
+        patterns:
+          - "@nestjs/*"
+        update-types:
+          - minor
+          - patch
+      typeorm-pg-shop:
+        patterns:
+          - typeorm
+          - pg
+      testing-shop-api:
+        patterns:
+          - jest
+          - ts-jest
+          - supertest
+          - "@types/jest"
+          - "@types/supertest"
+    ignore:
+      # shop-api intentionally stays on NestJS 10; ignore major bumps to 11+
+      - dependency-name: "@nestjs/*"
+        update-types: ["version-update:semver-major"]
+
+  # ── frontend/ (Next.js / React) ───────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 8
+    labels:
+      - dependencies
+      - frontend
+    groups:
+      nextjs-react:
+        patterns:
+          - next
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - minor
+          - patch
+      testing-frontend:
+        patterns:
+          - vitest
+          - "@vitest/*"
+          - "@testing-library/*"
+          - playwright
+          - "@playwright/*"
+
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    groups:
+      github-actions-all:
+        patterns:
+          - "*"

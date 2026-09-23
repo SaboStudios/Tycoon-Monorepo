@@ -1,0 +1,43 @@
+name: Shop API CI
+
+on:
+  pull_request:
+    paths:
+      - "shop-api/**"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "shop-api/**"
+  workflow_dispatch:
+
+jobs:
+  shop-api-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: shop-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: shop-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shop-api
+        run: npm run build
+
+      # Tests use an in-memory SQLite database (src/test/test-db.module.ts) —
+      # no external Postgres service or secrets required. Failures block the PR.
+      - name: Run shop-api tests
+        run: npm test -- --runInBand

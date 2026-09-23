@@ -1,0 +1,89 @@
+name: Backend — DB Pool Load Test (Nightly)
+
+on:
+  schedule:
+    # Run nightly at 02:00 UTC (10 PM PT)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  pool-load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tycoon_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: tycoon_test
+      DB_SYNCHRONIZE: false
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: ci-only-jwt-secret
+      STELLAR_NETWORK: testnet
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Run migrations
+        run: npm run migration:run
+
+      - name: Run pool-load test
+        run: |
+          npm test test/pool-load.spec.ts -- --runInBand --verbose 2>&1 | tee pool-load-test.log
+
+      - name: Upload pool-load test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pool-load-test-logs
+          path: backend/pool-load-test.log
+          if-no-files-found: warn
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pool-load-test-coverage
+          path: backend/coverage
+          if-no-files-found: ignore
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Pool load test failed. Check logs at https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

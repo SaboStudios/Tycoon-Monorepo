@@ -106,7 +106,13 @@ POST /api/admin/ledger-reconciliation/run
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `PAYMENT_PROVIDER` | `stub` | `stripe` in production; `stub` for tests/local dry-runs |
+| `STRIPE_SECRET_KEY` | none | Restricted Stripe key with read-only PaymentIntent access |
 | `RECONCILIATION_DRY_RUN` | `false` | Force dry-run in any environment |
+
+The Stripe adapter reads PaymentIntents in 100-record pages, maps amounts from
+minor units, and never includes its API key in logs or errors. Validate a new
+key with a staging dry-run before enabling scheduled reconciliation.
 
 ---
 

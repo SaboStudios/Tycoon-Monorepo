@@ -81,3 +81,18 @@ and therefore share the same pool. Because `idleTimeoutMillis` is set below the
 RDS idle client timeout, connections are returned to the OS before RDS drops
 them. The pool load test (`test/pool-load.spec.ts`) asserts that
 `pool.waitingCount === 0` after a burst, confirming no connections are leaked.
+
+---
+
+## Nightly validation
+
+The pool sizing is validated against peak concurrency every night via a scheduled
+GitHub Actions workflow. This ensures that query changes or connection leaks
+don't introduce pool exhaustion without waiting for production metrics to alert.
+
+**Workflow:** `.github/workflows/backend-pool-load-nightly.yml`  
+**Run:** Nightly at 02:00 UTC + manual dispatch via `workflow_dispatch`  
+**Test:** Runs `test/pool-load.spec.ts` with `CONCURRENCY = 20` (matching prod `DB_POOL_SIZE`)  
+**Artifacts:** Logs and coverage reports uploaded for failed runs
+
+To manually trigger: Go to **Actions** → **Backend — DB Pool Load Test (Nightly)** → **Run workflow**

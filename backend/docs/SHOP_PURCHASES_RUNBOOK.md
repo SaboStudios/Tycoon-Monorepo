@@ -34,6 +34,163 @@ If a user cannot see their purchased items:
     -   Redis Key: `shop:inventory:<USER_ID>`
     -   Action: `DEL shop:inventory:<USER_ID>`
 
+### 4. Duplicate Purchase Reports (Idempotency)
+`POST /shop/purchase` **requires** an `Idempotency-Key` header and is wrapped with
+`IdempotencyInterceptor` (`src/modules/redis/idempotency.interceptor.ts`) to ensure
+exactly-once semantics matching `shop-api`'s implementation:
+
+#### Idempotency Header
+-   **Header Name**: `Idempotency-Key` (case-insensitive for `idempotency-key` and `x-idempotency-key`)
+-   **Requirement**: Required for all purchase requests
+-   **Format**: Any unique string, typically UUID (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+-   **Max Length**: 255 characters
+
+#### State Machine
+-   **Claim**: On a new key, the request is marked `processing` in Redis (`idempotency:<key>`, 24h TTL) before the handler runs.
+-   **Complete**: On success, the response is cached and replayed (with `X-Idempotency-Replayed: true` header) for any repeat request using the same key.
+-   **Fail**: If the handler throws, the key is deleted so the client can safely retry with the same key.
+
+#### Response Scenarios
+
+| Scenario | Status | Header | Behavior |
+|----------|--------|--------|----------|
+| **First request** | 201 | None | Purchase processed; item added to inventory |
+| **Duplicate (completed)** | 201 | `X-Idempotency-Replayed: true` | Cached response replayed; no new charge |
+| **Duplicate (in-flight)** | 409 | None | Original request still processing; client must retry |
+| **No Idempotency-Key** | 201 | None | Not deduplicated; each request processes independently |
+
+#### Examples
+
+**First purchase request** (success):
+```bash
+curl -X POST http://localhost:3000/shop/purchase \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shop_item_id": 42,
+    "quantity": 1,
+    "coupon_code": "SAVE10"
+  }'
+```
+
+Response (201 Created):
+```json
+{
+  "id": 123,
+  "user_id": 456,
+  "shop_item_id": 42,
+  "quantity": 1,
+  "final_price": "9.99",
+  "status": "completed",
+  "created_at": "2026-08-26T10:30:00Z"
+}
+```
+
+**Duplicate request (replay)** — same Idempotency-Key, original has completed:
+```bash
+curl -X POST http://localhost:3000/shop/purchase \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shop_item_id": 42,
+    "quantity": 1,
+    "coupon_code": "SAVE10"
+  }'
+```
+
+Response (201 Created, **X-Idempotency-Replayed: true**):
+```
+X-Idempotency-Replayed: true
+```
+```json
+{
+  "id": 123,
+  "user_id": 456,
+  "shop_item_id": 42,
+  "quantity": 1,
+  "final_price": "9.99",
+  "status": "completed",
+  "created_at": "2026-08-26T10:30:00Z"
+}
+```
+**Note**: Same response body and purchase ID; no new charge; item not added again.
+
+**Concurrent duplicate request** — same Idempotency-Key, original still in-flight:
+```bash
+curl -X POST http://localhost:3000/shop/purchase \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shop_item_id": 42,
+    "quantity": 1
+  }'
+```
+
+Response (409 Conflict):
+```json
+{
+  "statusCode": 409,
+  "message": "Request is still being processed",
+  "error": "Conflict"
+}
+```
+**Action**: Client should wait 1–5 seconds and retry, or use a different `Idempotency-Key` for a new purchase.
+
+#### Troubleshooting
+If a user reports being charged twice for what they believe was one click:
+1.  **Check client logs** for the `Idempotency-Key` sent on both requests.
+2.  **If same key**: The second request should have been idempotent. Check audit logs to confirm if two distinct purchase records were created or if the second was a replay.
+3.  **If different keys**: This is expected behavior — two independent purchases with two different keys are not deduplicated (see Section 1 for refund procedures).
+
+### 5. Feature Flags: Shop Proxy Games WS & Stellar UI Gate
+Feature flags are evaluated **server-side only** and are **deny-by-default**: any flag
+that is unknown, unset, or whose backing store (Postgres/Redis) is unreachable
+resolves to **disabled**. Clients must never be trusted to decide flag state.
+
+#### Flags
+| Flag | Gates | Default |
+|------|-------|---------|
+| `shop_proxy_games_ws` | Shop proxy games WebSocket surface | `false` |
+| `stellar_ui` | Stellar chain UI (per ADR-003) | `false` |
+
+#### ADR-003: NEAR is the only supported chain UI
+Until `stellar_ui` is **explicitly enabled** server-side, NEAR remains the only
+supported chain UI. Do not surface Stellar wallet/chain affordances in the UI based
+on client state, query params, or local storage — always read the server flag.
+
+#### Read path (frontend)
+The frontend determines Stellar UI availability via the server read endpoint
+(no client-trusted state):
+```bash
+curl http://localhost:3000/feature-flags \
+  -H "Authorization: Bearer <TOKEN>"
+```
+Response (200 OK):
+```json
+{
+  "shop_proxy_games_ws": false,
+  "stellar_ui": false
+}
+```
+
+#### Fail-closed behavior
+-   **Postgres/Redis outage**: flag evaluation returns `false` for every flag; the
+    shop proxy games WS surface stays closed and the Stellar UI gate stays hidden.
+-   **Unknown flag name**: resolves to `false` (never throws, never defaults to on).
+-   **Write paths**: if the flag store is unavailable, writes fail closed rather than
+    proceeding with an assumed-enabled state.
+
+#### Troubleshooting
+If a flag appears stuck:
+1.  **Verify store health**: confirm Postgres and Redis are reachable from the backend.
+2.  **Check the read endpoint**: `GET /feature-flags` should reflect the intended state.
+3.  **Confirm deny-by-default**: an unreachable store intentionally reports `false`;
+    restore the dependency before expecting the flag to flip.
+4.  **Never** enable `stellar_ui` without an explicit readiness decision per ADR-003.
+
 ## Operational Procedures
 
 ### Deactivating a Malfunctioning Shop Item

@@ -1,36 +1,61 @@
 name: Contract CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+    branches: [main]
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-ci.yml'
+  pull_request:
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-ci.yml'
+
+concurrency:
+  group: contract-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  contract-checks:
+  contract:
+    name: Build, test, lint contract workspace
     runs-on: ubuntu-latest
     defaults:
       run: 
         working-directory: contract
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo
+        uses: actions/cache@v4
         with:
-          workspaces: contract
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      - name: Install wasm-opt
-        run: sudo apt-get update && sudo apt-get install -y binaryen
+      # Archive crates under contract/archive/ are intentionally excluded from CI.
+      # They remain valid workspace members so they can be built/tested locally.
+      # See contract/archive/README.md for the local commands.
+      - name: Format check (workspace, excluding archive)
+        run: cargo fmt --all -- --check --exclude hello-world
+
+      - name: Clippy (workspace, excluding archive)
+        run: cargo clippy --workspace --exclude hello-world --all-targets -- -D warnings
+
+      - name: Build (workspace, excluding archive)
+        run: cargo build --workspace --exclude hello-world
+
+      - name: Test (workspace, excluding archive)
+        run: cargo test --workspace --exclude hello-world
 
       - name: Run contract CI checks
         run: make ci

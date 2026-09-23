@@ -1,0 +1,123 @@
+name: WASM Release — build, hash, and stage env vars
+
+# Triggered only on semver tags (e.g. v1.2.3 or v1.2.3-rc.1).
+# Allows manual dispatch for testing the workflow without a tag.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — build and hash but do NOT create the GitHub Release"
+        required: false
+        default: "false"
+
+# ──────────────────────────────────────────────
+# IMPORTANT: This workflow does NOT auto-commit
+# secrets or env files. Env var propagation to
+# Vercel / k8s requires a manual operator step
+# documented in contract/docs/WASM_BUMP_ENV.md
+# ──────────────────────────────────────────────
+
+jobs:
+  build-and-hash:
+    name: Build WASM + write hashes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to upload release assets
+    defaults:
+      run:
+        working-directory: contract
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contract
+
+      # wasm-opt shrinks bytecode before hashing — same pass as contract-ci.yml
+      - name: Install wasm-opt (binaryen)
+        run: sudo apt-get update -qq && sudo apt-get install -y binaryen
+
+      - name: Verify wasm-opt
+        run: wasm-opt --version
+
+      # Runs: cargo build --target wasm32-unknown-unknown --release + wasm-opt -Oz
+      - name: Build release WASM artifacts
+        run: make build-wasm
+
+      # Runs: sha256sum on every *.wasm and writes deploy/wasm-hashes.txt
+      - name: Write WASM hash file
+        run: make wasm-hashes
+
+      - name: Print hash file (for log visibility)
+        run: cat deploy/wasm-hashes.txt
+
+      # ── Verify hash file format ─────────────────────────────────────────
+      # Each line must match: <64-hex-chars>  <filename>.wasm
+      # A malformed file will fail CI before any artifact upload.
+      - name: Validate hash file format
+        run: |
+          echo "Validating deploy/wasm-hashes.txt format…"
+          bad_lines=$(grep -Pv '^[0-9a-f]{64}  .+\.wasm$' deploy/wasm-hashes.txt || true)
+          if [ -n "$bad_lines" ]; then
+            echo "ERROR: malformed lines in wasm-hashes.txt:"
+            echo "$bad_lines"
+            exit 1
+          fi
+          echo "Format OK — $(wc -l < deploy/wasm-hashes.txt) contract(s) hashed."
+
+      # ── Upload artifacts ────────────────────────────────────────────────
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-release-${{ github.ref_name }}
+          path: |
+            contract/target/wasm32-unknown-unknown/release/*.wasm
+            contract/deploy/wasm-hashes.txt
+            contract/deploy/wasm-size-report.md
+          retention-days: 90
+
+      # ── Create GitHub Release (skipped on dry-run or workflow_dispatch dry_run) ──
+      - name: Create GitHub Release with WASM assets
+        if: >
+          startsWith(github.ref, 'refs/tags/') &&
+          github.event.inputs.dry_run != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "WASM Release ${{ github.ref_name }}"
+          body: |
+            ## WASM Release ${{ github.ref_name }}
+
+            Built from commit `${{ github.sha }}`.
+
+            ### Hash file
+
+            Copy the contents of `wasm-hashes.txt` (attached below) into your
+            environment configuration. See
+            [contract/docs/WASM_BUMP_ENV.md](../blob/main/contract/docs/WASM_BUMP_ENV.md)
+            for the step-by-step bump guide.
+
+            ### ⚠️ Manual approval required
+
+            Env var propagation to Vercel / Kubernetes **requires a human operator**.
+            Do NOT set `NEXT_PUBLIC_CONTRACT_*` or backend contract IDs from CI
+            automation — always follow the bump runbook and get a second pair of eyes
+            on production changes.
+          files: |
+            contract/deploy/wasm-hashes.txt
+            contract/deploy/wasm-size-report.md
+            contract/target/wasm32-unknown-unknown/release/*.wasm
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') }}
