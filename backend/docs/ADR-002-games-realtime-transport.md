@@ -92,7 +92,7 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
 
 - The gateway uses the Socket.IO Redis adapter so events fan out across all
   gateway instances. A Redis partition degrades to per-instance delivery; the
-  gateway logs the failure and clients fall back to REST polling until the
+gateway logs the failure and clients fall back to REST polling until the
   adapter reconnects.
 - `roll` events are rate limited per socket and per game to bound abuse.
 - Every payload includes a `schemaVersion` field so clients can negotiate
@@ -107,6 +107,43 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
 - On reconnect the client rejoins its room and receives the current state
   rather than a replay of missed events.
 
+### 6. Graceful unsubscribe on ban / admin force-end
+
+When a user is banned or an admin force-ends a game/session, the gateway must
+detach the affected socket(s) from the game room **without leaking state** and
+without relying on the client to disconnect voluntarily.
+
+**Triggers:**
+- `user.banned` — emitted by the admin/moderation path when a principal is banned.
+- `game.force_end` — emitted by an admin force-end action for a specific `gameId`.
+
+**Behavior:**
+1. The gateway resolves the affected sockets by `userId` (ban) or by room
+   membership `game_<gameId>` (force-end).
+2. For each affected socket it emits a terminal `unsubscribed` event carrying a
+   stable reason code (`banned` or `force_end`) and the `gameId`, then calls
+   `socket.leave('game_<gameId>')` so the socket no longer receives room events.
+3. The socket is then disconnected (`socket.disconnect(true)`). No further room
+   events are delivered after the `unsubscribed` event.
+4. The room is torn down once empty; no residual per-game state (turn timers,
+   rate-limit buckets, seat reservations) is retained for the ended game.
+5. The unsubscribe path is idempotent: a repeated ban/force-end for the same
+   socket or game is a no-op and does not emit duplicate terminal events.
+
+**Multi-instance delivery:** the ban/force-end signal is published through the
+Redis adapter so every gateway instance detaches its local sockets for that
+user/game. If the Redis adapter is unavailable, the gateway fails closed for
+new joins to the affected game and logs the degraded state; local sockets are
+still detached on the instance that received the signal.
+
+**Authz:** only the admin/moderation path (AdminGuard / API-key) may publish
+ban or force-end signals. Clients cannot self-unsubscribe another player, and
+no unauthenticated broadcast is performed.
+
+**Error mapping:** terminal events use stable codes per
+`docs/API_ERROR_RESPONSE_STANDARDS.md` (`banned`, `force_end`) with
+`requestId`/correlation for observability.
+
 ### Minimal Event Set
 
 **Server → Client:**
@@ -114,6 +151,7 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
 - `turn` — turn changed to a specific player
 - `roll` — player rolled dice (dice value + player info)
 - `disconnect` — player left the session
+- `unsubscribed` — socket detached from a game room (reason: `banned` | `force_end`)
 
 **Client → Server:**
 - `join` — player joins a specific game room
@@ -132,6 +170,8 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
 - Turn and dice integrity is enforced server-side.
 - Multi-instance deployments scale through the Redis adapter.
 - Clients must handle handshake rejection, off-turn errors, and reconnect.
+- Banned users and force-ended games are detached server-side; clients must
+  handle the terminal `unsubscribed` event and stop rendering the game.
 
 ### AI Opponent Turns — Shared Rule Engine Parity (Issue #1703)
 
@@ -154,21 +194,4 @@ AI opponent turns MUST execute through the **same shared rule engine** as human 
 
 ## Explicit Out of Scope
 
-- **Frontend client implementation** (`useGameBoardLogic` wiring) — this ADR defines the backend gateway only; frontend updates are a follow-up.
-- **Game action processing logic** (rolling, buying properties) — existing REST endpoints continue to handle this; WebSocket is for state sync only.
-- **Persistence** — WebSocket events are ephemeral notifications; permanent state lives in the database.
-- Unrelated package refactors.
-- Mainnet irreversible deploys without a readiness issue.
-
-## Testing & Rollout
-
-1. **Unit tests** — gateway connection, disconnection, message routing.
-2. **Integration tests** — full handshake flow, unauthorized rejection, room isolation.
-3. **Canary deployment** — enable gateway for 10% of users, monitor connection health and error rates.
-4. **Gradual rollout** — increase percentage as confidence grows; monitor socket.io connection pool usage.
-
-## Related ADRs
-
-- ADR-001: Shop Purchase Write Path — established proxy pattern; not directly related but shows decision-making approach.
-- ADR-004: Auth — JWT issuance and verification used by the handshake.
-
+- **Frontend client implementation** (`useGameBoardLogic` wiring) — this ADR defines the backend gateway only.
