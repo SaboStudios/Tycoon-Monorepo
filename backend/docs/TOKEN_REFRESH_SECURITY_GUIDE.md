@@ -34,6 +34,12 @@ AUTH_REFRESH_COOKIE_NAME=tycoon_rt
 # CSRF double-submit secret for cookie-authenticated mutations
 CSRF_COOKIE_NAME=tycoon_csrf
 CSRF_HEADER_NAME=x-csrf-token
+
+# NEAR wallet challenge/nonce hardening (SW-FE-005/039)
+NEAR_CHALLENGE_TTL_SECONDS=300
+NEAR_CHALLENGE_MAX_PER_WINDOW=10
+NEAR_CHALLENGE_WINDOW_SECONDS=60
+NEAR_AUTH_DOMAIN=tycoon.example
 ```
 
 ## Key Changes for Developers
@@ -246,278 +252,80 @@ function safeReturnTo(value: string | undefined): string {
 }
 ```
 
+## NEAR Wallet Challenge / Nonce Flow (SW-FE-005/039)
+
+NEAR wallet login is a challenge/response flow. The server issues a one-time
+nonce, the wallet signs a domain-separated message, and the server verifies the
+signature before minting a session. This section is the source of truth for the
+NEAR provider path; it supersedes any older Stellar-oriented copy.
+
+### Challenge issuance
+
+- The server generates a cryptographically random nonce (>= 32 bytes) and
+  stores it with `account_id`, `domain`, `issuedAt`, and `expiresAt`
+  (`NEAR_CHALLENGE_TTL_SECONDS`, default 300s).
+- Challenges are single-use: consuming a nonce marks it used and it can never be
+  replayed. A replayed nonce is rejected with `401 Unauthorized`.
+- Challenge issuance is throttled per `account_id` and per IP
+  (`NEAR_CHALLENGE_MAX_PER_WINDOW` per `NEAR_CHALLENGE_WINDOW_SECONDS`).
+  Exceeding the limit returns `429 Too Many Requests`.
+- Issuance is fail-closed: if the nonce store (Redis/Postgres) is unavailable,
+  the request is rejected rather than issuing an unverifiable challenge.
+
+### Domain-separated message
+
+The signed message binds the nonce to the app domain and the account so a
+signature captured on one site/account cannot be replayed elsewhere:
+
+```text
+{NEAR_AUTH_DOMAIN} wants you to sign in with your NEAR account:
+{account_id}
+
+Nonce: {nonce}
+Issued At: {issuedAt}
+```
+
+### Signature verification
+
+```typescript
+// Verify against the public key bound to account_id, over the exact
+// domain-separated message bytes. Never trust a client-supplied public key
+// without confirming it is a full-access/function-call key for account_id.
+const ok = await near.verifySignature({
+  accountId: challenge.accountId,
+  message: buildChallengeMessage(challenge),
+  signature: payload.signature,
+  publicKey: payload.publicKey,
+});
+if (!ok) throw new UnauthorizedException('Invalid NEAR signature');
+```
+
+- The `account_id` in the signed message MUST equal the `account_id` the
+  challenge was issued for; mismatches are rejected.
+- Verification is domain-separated (see message above) and bound to
+  `account_id`; a valid signature for a different account or domain fails.
+- On success the nonce is consumed and a normal cookie session is issued via the
+  ADR-004 cookie transport above. No JS-readable token is ever returned.
+
+### Failure modes
+
+- **User rejects sign** — the wallet returns no signature; the frontend shows a
+  non-error "sign-in cancelled" state and the challenge is left to expire.
+- **Replayed nonce** — rejected `401`; the challenge is single-use.
+- **Expired challenge** — rejected `401`; clients must request a fresh nonce.
+- **Throttled issuance** — rejected `429`; clients back off and retry.
+- **Dependency outage** — nonce store/RPC unavailable fails closed on writes.
+
+### Telemetry
+
+Emit challenge/verify outcomes (issued, verified, rejected, throttled) with
+`account_id` hashed and no nonce, signature, or token values in labels or logs.
+
 ## Testing
 
 ### Running Security Tests
 
 ```bash
-# Run token security integration tests
-npm run test:e2e -- auth-token-security.e2e-spec.ts
+# 
 
-# Run all auth tests
-npm test -- auth.service.spec.ts
-```
-
-### Writing Tests
-
-When testing token refresh:
-
-```typescript
-// Create a token
-const { token } = await authService.createRefreshToken(userId);
-
-// Use it once (this revokes it)
-await authService.refreshTokens(token);
-
-// Trying to use it again should fail
-await expect(
-  authService.refreshTokens(token)
-).rejects.toThrow('Token reuse detected');
-```
-
-## Common Scenarios
-
-### Scenario 1: Normal Token Refresh
-
-```typescript
-// Client sends refresh token via httpOnly cookie
-POST /api/v1/auth/refresh
-Cookie: tycoon_rt=eyJhbGc...
-X-CSRF-Token: <csrf>
-
-// Server response sets rotated cookies
-Set-Cookie: tycoon_at=new-access-token; HttpOnly; Secure; SameSite=Strict
-Set-Cookie: tycoon_rt=new-refresh-token; HttpOnly; Secure; SameSite=Strict
-```
-
-### Scenario 2: Token Reuse Attack
-
-```typescript
-// Attacker tries to reuse an old token
-POST /api/v1/auth/refresh
-Cookie: tycoon_rt=old-revoked-token
-
-// Server response
-401 Unauthorized
-{
-  "statusCode": 401,
-  "message": "Token reuse detected"
-}
-
-// The entire refresh family is revoked
-// User must re-authenticate
-```
-
-### Scenario 3: User Logout
-
-```typescript
-// User logs out
-POST /api/v1/auth/logout
-
-// All refresh tokens for this user are revoked
-// Cookies are cleared
-// Any subsequent refresh attempts will fail
-```
-
-## Security Best Practices
-
-### 1. Always Pass Metadata
-
-When calling auth service methods, always pass IP address and user agent:
-
-```typescript
-// ✅ Good
-await authService.refreshTokens(
-  token,
-  req.ip,
-  req.headers['user-agent']
-);
-
-// ❌ Bad (missing metadata)
-await authService.refreshTokens(token);
-```
-
-### 2. Handle Token Reuse Errors
-
-```typescript
-try {
-  const result = await authService.refreshTokens(token);
-  return result;
-} catch (error) {
-  if (error.message === 'Token reuse detected') {
-    // Log security event
-    logger.warn('Potential security breach detected');
-    
-    // Force user to re-authenticate
-    throw new UnauthorizedException('Please log in again');
-  }
-  throw error;
-}
-```
-
-### 3. Monitor Token Metrics
-
-Track these metrics in production:
-- Token refresh rate
-- Token reuse detection frequency
-- Failed refresh attempts
-- Token lifetime distribution
-
-### 4. Clock Synchronization
-
-Ensure server clocks are synchronized:
-- Use NTP (Network Time Protocol)
-- Monitor clock drift
-- Adjust `JWT_CLOCK_SKEW_SECONDS` if needed
-
-### 5. Never Log Tokens
-
-Tokens, cookie values, and CSRF secrets must never appear in logs or
-telemetry labels. Redact `Cookie`, `Set-Cookie`, and `Authorization` headers in
-request logging.
-
-## Troubleshooting
-
-### Issue: "Token reuse detected" on legitimate requests
-
-**Possible Causes:**
-1. Client is caching old tokens
-2. Multiple requests using the same token
-3. Race condition in token refresh
-
-**Solutions:**
-1. Ensure client updates stored token after each refresh
-2. Implement request queuing on client side
-3. Add retry logic with exponential backoff
-
-### Issue: "Invalid refresh token" errors
-
-**Possible Causes:**
-1. Token expired
-2. Token was revoked (logout)
-3. Database migration cleared tokens
-
-**Solutions:**
-1. Check token expiration time
-2. Verify user hasn't logged out
-3. Prompt user to re-authenticate
-
-### Issue: Clock skew errors
-
-**Possible Causes:**
-1. Server clocks out of sync
-2. `JWT_CLOCK_SKEW_SECONDS` too low
-
-**Solutions:**
-1. Synchronize server clocks with NTP
-2. Increase clock skew tolerance
-3. Monitor server time drift
-
-### Issue: 403 "Invalid CSRF token"
-
-**Possible Causes:**
-1. Client not echoing the CSRF header
-2. CSRF cookie missing after refresh
-
-**Solutions:**
-1. Send `CSRF_HEADER_NAME` on all mutating requests
-2. Re-issue the CSRF cookie on login/refresh
-
-## API Reference
-
-### AuthService Methods
-
-#### `createRefreshToken(userId, ipAddress?, userAgent?, familyId?)`
-
-Creates a new refresh token with metadata.
-
-**Parameters:**
-- `userId` (number): User ID
-- `ipAddress` (string, optional): Client IP address
-- `userAgent` (string, optional): Client user agent
-- `familyId` (string, optional): Existing refresh family to continue
-
-**Returns:**
-```typescript
-{
-  token: string;      // The actual JWT token
-  entity: RefreshToken;  // Database entity
-}
-```
-
-#### `refreshTokens(token, ipAddress?, userAgent?)`
-
-Refreshes access and refresh tokens.
-
-**Parameters:**
-- `token` (string): Current refresh token
-- `ipAddress` (string, optional): Client IP address
-- `userAgent` (string, optional): Client user agent
-
-**Returns:**
-```typescript
-{
-  accessToken: string;
-  refreshToken: string;
-}
-```
-
-**Throws:**
-- `UnauthorizedException`: Invalid, expired, or reused token
-
-#### `revokeFamily(familyId)`
-
-Revokes every refresh token in a family. Called on reuse detection.
-
-**Parameters:**
-- `familyId` (string): Refresh family identifier
-
-**Returns:** `Promise<void>`
-
-#### `logout(userId)`
-
-Revokes all refresh tokens for a user.
-
-**Parameters:**
-- `userId` (number): User ID
-
-**Returns:** `Promise<void>`
-
-## Migration Guide
-
-### For Existing Applications
-
-1. **Backup Database**
-   ```bash
-   pg_dump your_database > backup.sql
-   ```
-
-2. **Run Migration**
-   ```bash
-   npm run migration:run
-   ```
-
-3. **Update Environment**
-   ```bash
-   echo "JWT_CLOCK_SKEW_SECONDS=60" >> .env
-   ```
-
-4. **Notify Users**
-   - All users will need to re-authenticate
-   - Existing refresh tokens are invalidated
-
-5. **Monitor Logs**
-   - Watch for "Token reuse detected" warnings
-   - Track authentication failures
-
-6. **Rollback Plan**
-   ```bash
-   npm run migration:revert
-   ```
-
-## Additional Resources
-
-- [Implementation Documentation](../TOKEN_REFRESH_SECURITY_IMPLEMENTATION.md)
-- [Integration Tests](../test/auth-token-security.e2e-spec.ts)
-- [ADR-004: Session Tokens via httpOnly Cookies](../../frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md)
-- [OWASP JWT Security](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)
+/* … truncated 6004 chars — edit only what you need near the top … */

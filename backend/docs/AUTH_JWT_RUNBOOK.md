@@ -12,6 +12,8 @@ Sources of truth:
 - `backend/docs/TOKEN_REFRESH_SECURITY_GUIDE.md`
 - `backend/docs/ADR-002-games-realtime-transport.md`
 - `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md`
+- `frontend/docs/NEAR_WALLET_TESTNET_CHECKLIST.md`
+- `frontend/docs/SW-FE-005-near-wallet-telemetry.md`
 - `backend/test/auth-token-security.e2e-spec.ts`
 - `backend/test/auth.e2e-spec.ts`
 
@@ -95,6 +97,48 @@ Cookie-authenticated mutations require CSRF protection:
 - If the user rejects the signature, no session is created and the nonce is
   discarded.
 
+### 6.1 Domain-separated signed payload
+
+The signed message MUST be constructed from a canonical, domain-separated
+envelope so a signature produced for one purpose cannot be replayed against
+another. The `account_id` is bound into the payload and re-checked server-side
+against the account that requested the nonce.
+
+```
+<domain>\n<account_id>\n<nonce>\n<issued_at>\n<expires_at>
+```
+
+- `<domain>` is a fixed, versioned constant (e.g. `tycoon.near.login.v1`).
+  Changing it invalidates all outstanding challenges.
+- `<account_id>` is the NEAR account that requested the challenge. A signature
+  whose embedded `account_id` differs from the requesting account is rejected.
+- `<nonce>` is a cryptographically random, single-use value.
+- `<issued_at>` / `<expires_at>` are Unix seconds; challenges are short-lived
+  (default 5 minutes) and rejected once expired.
+
+Verification steps (all must pass, deny-by-default):
+
+1. Look up the challenge by `nonce`; reject if unknown, expired, or consumed.
+2. Recompute the canonical payload from the stored challenge fields; never trust
+   client-supplied `account_id`, `issued_at`, or `expires_at`.
+3. Verify the NEAR signature against the public key registered for the bound
+   `account_id`.
+4. On success, consume the nonce (single-use) and issue the session cookies.
+5. On any failure, return `401 Unauthorized` and do **not** create a session.
+
+### 6.2 Challenge throttling
+
+- Rate-limit challenge issuance per IP **and** per `account_id`.
+- Exceeding the limit returns `429 Too Many Requests` with `Retry-After`.
+- Throttling is fail-closed: if the rate-limit store (Redis) is unavailable,
+  reject new challenge issuance rather than allowing unbounded requests.
+
+### 6.3 Telemetry (SW-FE-005)
+
+- Emit challenge issued / verified / rejected counters with outcome labels only.
+- Never include the nonce, signature, public key, or `account_id` in telemetry
+  labels or logs; use coarse outcome enums to avoid PII and enumeration leaks.
+
 ## 7. Redirects
 
 - `returnTo` values are validated against an allowlist of known origins/paths.
@@ -165,6 +209,10 @@ These codes are part of the client contract and must remain stable.
 | Auth expiry mid-flow              | `401`, client re-authenticates            |
 | Forbidden role                    | `403`, no data leak                       |
 | Oversized / adversarial payload   | `413`/`400`, request rejected             |
+| Replayed NEAR nonce               | `401`, no session, nonce stays consumed   |
+| User rejects NEAR signature       | No session; nonce discarded               |
+| Challenge rate-limit store outage | Fail closed, `503`, no new challenges     |
+| Open-redirect `returnTo`          | `400`, redirect refused                   |
 
 ## 14. Rollback
 
@@ -182,15 +230,6 @@ These codes are part of the client contract and must remain stable.
 - [ ] Metrics for connected sockets and rejected actions.
 - [ ] Fail-closed on dependency outage (Postgres/Redis/shop-api/RPC) for writes.
 - [ ] Deny-by-default for new WS/action surfaces.
-
-## 16. Verification
-
-- `backend/test/auth-token-security.e2e-spec.ts` — rotation, reuse detection,
-  family revocation, cookie flags, CSRF.
-- `backend/test/auth.e2e-spec.ts` — login, refresh, logout, role access.
-- Unit tests — signature verification negatives, replayed nonce, forged
-  `account_id`; authz matrix for seat vs spectator.
-- E2E — join / roll / reconnect, including `game-idempotency.e2e`.
-- Confirm cookie-only, header-only, and both-present handshakes all succeed and
-  resolve to the same principal.
-- Frontend RTL — wallet reject path creates no session.
+- [ ] NEAR challenges are single-use, domain-separated, and bound to `account_id`.
+- [ ] Challenge issuance throttled per IP and per account; fail-closed on store outage.
+- [ ] `returnTo` redirects validated against an allowlist; open redirects rejected.
