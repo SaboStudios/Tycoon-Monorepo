@@ -12,7 +12,7 @@ jobs:
   contract-checks:
     runs-on: ubuntu-latest
     defaults:
-      run:
+      run: 
         working-directory: contract
 
     steps:
@@ -34,3 +34,16 @@ jobs:
 
       - name: Run contract CI checks
         run: make ci
+
+      - name: Run wasm bump with documented env vars
+        env:
+          # Documented in contract/docs/WASM_BUMP_ENV.md
+          WASM_BUMP_CRATE: ${{ vars.WASM_BUMP_CRATE || 'tycoon-contract' }}
+          WASM_BUMP_PROFILE: ${{ vars.WASM_BUMP_PROFILE || 'release' }}
+          WASM_BUMP_TARGET: ${{ vars.WASM_BUMP_TARGET || 'wasm32-unknown-unknown' }}
+          WASM_BUMP_OUT_DIR: ${{ vars.WASM_BUMP_OUT_DIR || 'target/wasm32-unknown-unknown/release' }}
+          WASM_BUMP_ARTIFACT: ${{ vars.WASM_BUMP_ARTIFACT || 'tycoon_contract.wasm' }}
+          WASM_BUMP_SIZE_BUDGET: ${{ vars.WASM_BUMP_SIZE_BUDGET || 'wasm-size-budget.json' }}
+          WASM_BUMP_OPT_LEVEL: ${{ vars.WASM_BUMP_OPT_LEVEL || '-Oz' }}
+          WASM_BUMP_STRIP: ${{ vars.WASM_BUMP_STRIP || 'true' }}
+        run: ./scripts/wasm-bump.sh
