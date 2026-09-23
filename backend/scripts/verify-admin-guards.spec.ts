@@ -238,4 +238,53 @@ describe('Admin Guard Verification Logic', () => {
       expect(result.hasAdminGuard).toBe(true);
     });
   });
+
+  describe('Class-level guard placement (ADMIN_ROUTES_MATRIX)', () => {
+    it('should accept class-level @UseGuards(JwtAuthGuard, AdminGuard) on admin controller', () => {
+      const content = `
+        @Controller('admin/rooms')
+        @UseGuards(JwtAuthGuard, AdminGuard)
+        export class AdminRoomsController {
+          @Get()
+          list() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(true);
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should reject admin controller where AdminGuard is only on a method', () => {
+      const content = `
+        @Controller('admin/rooms')
+        export class AdminRoomsController {
+          @Get()
+          @UseGuards(AdminGuard)
+          list() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(true);
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should reject admin controller with no guard anywhere', () => {
+      const content = `
+        @Controller('admin/rooms')
+        export class AdminRoomsController {
+          @Get()
+          list() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(false);
+      expect(result.isValid).toBe(false);
+    });
+  });
 });
