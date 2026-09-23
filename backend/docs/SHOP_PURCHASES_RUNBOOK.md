@@ -3,6 +3,21 @@
 ## Overview
 This runbook covers the operational procedures for managing the Tycoon Shop and Purchases module, including troubleshooting failed transactions, managing coupons, and auditing financial activity.
 
+## Authoritative Write Path
+
+`shop-api` is the **single source of truth** for purchases, inventory, and money.
+All purchase writes MUST go through `shop-api`; the backend never mutates
+inventory or balances directly.
+
+-   **Write path**: client → `shop-api` `POST /shop/purchase` (authoritative).
+-   **Backend proxy/read models**: the backend may proxy reads (catalog, user
+    inventory) and expose read models for admin reconciliation, but it MUST NOT
+    write purchases, inventory, or balances. Any backend proxy is read-only and
+    forwards the caller's `Authorization` and `requestId`.
+-   **Admin reconciliation tools** (shop and pots) are read-only views over
+    `shop-api` + the internal ledger. Admin mutations (catalog edits, item
+    deactivation) are audited and go through `shop-api` admin endpoints only.
+
 ## Common Issues & Troubleshooting
 
 ### 1. Failed Purchases
@@ -50,14 +65,22 @@ exactly-once semantics matching `shop-api`'s implementation:
 -   **Complete**: On success, the response is cached and replayed (with `X-Idempotency-Replayed: true` header) for any repeat request using the same key.
 -   **Fail**: If the handler throws, the key is deleted so the client can safely retry with the same key.
 
+#### Body Hash & Payload Conflict
+Each claim stores a hash of the request body alongside the key. On replay:
+-   **Same key + same body hash**: stored response is replayed (no new charge).
+-   **Same key + different body hash**: `409 Conflict` — the key was already used
+    for a different payload. Clients MUST use a new `Idempotency-Key` for a
+    genuinely different purchase.
+
 #### Response Scenarios
 
 | Scenario | Status | Header | Behavior |
 |----------|--------|--------|----------|
 | **First request** | 201 | None | Purchase processed; item added to inventory |
-| **Duplicate (completed)** | 201 | `X-Idempotency-Replayed: true` | Cached response replayed; no new charge |
+| **Duplicate (completed, same body)** | 201 | `X-Idempotency-Replayed: true` | Cached response replayed; no new charge |
 | **Duplicate (in-flight)** | 409 | None | Original request still processing; client must retry |
-| **No Idempotency-Key** | 201 | None | Not deduplicated; each request processes independently |
+| **Same key, different body** | 409 | None | Payload conflict; use a new key |
+| **No Idempotency-Key** | 400 | None | Rejected — header is required |
 
 #### Examples
 
@@ -145,6 +168,28 @@ If a user reports being charged twice for what they believe was one click:
 2.  **If same key**: The second request should have been idempotent. Check audit logs to confirm if two distinct purchase records were created or if the second was a replay.
 3.  **If different keys**: This is expected behavior — two independent purchases with two different keys are not deduplicated (see Section 1 for refund procedures).
 
+### 5. Concurrent Checkout of the Same SKU
+Inventory is adjusted **atomically** in `shop-api` (row-level constraint /
+reservation with TTL) so concurrent buys of the same SKU cannot oversell.
+-   **Inventory never negative**: if the atomic decrement fails, the purchase is
+    rejected with `409 Conflict` and no charge is recorded.
+-   **Reservation TTL**: reservations that are not confirmed within the TTL are
+    released back to available stock automatically.
+-   **Catalog edit during purchase**: a purchase in flight uses the price/SKU
+    snapshot captured at claim time; a concurrent catalog edit does not change
+    the price of an in-flight purchase.
+
+### 6. shop-api Unavailable (Fail-Closed)
+On any write, if `shop-api` (or its Postgres/Redis dependency) is unavailable,
+the backend **fails closed**: the request is rejected with `503 Service
+Unavailable` and no inventory or balance mutation occurs. Clients may retry with
+the **same** `Idempotency-Key` once `shop-api` recovers.
+
+### 7. Idempotency TTL Expiry Reuse
+Idempotency keys expire after 24h. Reusing an expired key is treated as a new
+request — clients MUST NOT reuse keys across days. If a client retries after TTL
+expiry, a new purchase may be created; reconcile via the audit log (Section 1).
+
 ## Operational Procedures
 
 ### Deactivating a Malfunctioning Shop Item
@@ -160,9 +205,18 @@ Currently, refunds are handled manually by:
 2.  Crediting the user's balance (if applicable).
 3.  Logging the action in `audit_trails` with a reason.
 
+### Ledger Reconciliation (Shop & Pots)
+Admin reconciliation tools are **read-only** and surface mismatches between
+`shop-api` purchases and the internal ledger:
+1.  List purchases for a window and compare against ledger entries.
+2.  Flag purchases with no matching ledger entry (and vice versa).
+3.  Export the mismatch set for finance review; do not mutate from the tool.
+
 ## Monitoring & Metrics
 -   **Metric**: `tycoon_purchases_total` - Track successful vs failed purchases.
 -   **Metric**: `tycoon_coupon_usage_total` - Monitor marketing campaign effectiveness.
+-   **Metric**: `tycoon_purchase_duration_seconds` - RED latency histogram for the purchase path.
+-   **Metric**: `tycoon_purchase_errors_total` - RED error counter, labeled by mapped error code (no PII).
 
 ## Support Contacts
 -   Backend Team: #team-backend
