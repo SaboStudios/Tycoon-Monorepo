@@ -145,6 +145,52 @@ If a user reports being charged twice for what they believe was one click:
 2.  **If same key**: The second request should have been idempotent. Check audit logs to confirm if two distinct purchase records were created or if the second was a replay.
 3.  **If different keys**: This is expected behavior — two independent purchases with two different keys are not deduplicated (see Section 1 for refund procedures).
 
+### 5. Feature Flags: Shop Proxy Games WS & Stellar UI Gate
+Feature flags are evaluated **server-side only** and are **deny-by-default**: any flag
+that is unknown, unset, or whose backing store (Postgres/Redis) is unreachable
+resolves to **disabled**. Clients must never be trusted to decide flag state.
+
+#### Flags
+| Flag | Gates | Default |
+|------|-------|---------|
+| `shop_proxy_games_ws` | Shop proxy games WebSocket surface | `false` |
+| `stellar_ui` | Stellar chain UI (per ADR-003) | `false` |
+
+#### ADR-003: NEAR is the only supported chain UI
+Until `stellar_ui` is **explicitly enabled** server-side, NEAR remains the only
+supported chain UI. Do not surface Stellar wallet/chain affordances in the UI based
+on client state, query params, or local storage — always read the server flag.
+
+#### Read path (frontend)
+The frontend determines Stellar UI availability via the server read endpoint
+(no client-trusted state):
+```bash
+curl http://localhost:3000/feature-flags \
+  -H "Authorization: Bearer <TOKEN>"
+```
+Response (200 OK):
+```json
+{
+  "shop_proxy_games_ws": false,
+  "stellar_ui": false
+}
+```
+
+#### Fail-closed behavior
+-   **Postgres/Redis outage**: flag evaluation returns `false` for every flag; the
+    shop proxy games WS surface stays closed and the Stellar UI gate stays hidden.
+-   **Unknown flag name**: resolves to `false` (never throws, never defaults to on).
+-   **Write paths**: if the flag store is unavailable, writes fail closed rather than
+    proceeding with an assumed-enabled state.
+
+#### Troubleshooting
+If a flag appears stuck:
+1.  **Verify store health**: confirm Postgres and Redis are reachable from the backend.
+2.  **Check the read endpoint**: `GET /feature-flags` should reflect the intended state.
+3.  **Confirm deny-by-default**: an unreachable store intentionally reports `false`;
+    restore the dependency before expecting the flag to flip.
+4.  **Never** enable `stellar_ui` without an explicit readiness decision per ADR-003.
+
 ## Operational Procedures
 
 ### Deactivating a Malfunctioning Shop Item

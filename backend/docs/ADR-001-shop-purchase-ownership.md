@@ -55,6 +55,38 @@ This approach:
 
 ---
 
+## Feature Flags (Issue #1806)
+
+The proxy cutover and the Stellar UI gate are controlled by the authoritative,
+server-side feature flag service (`backend/src/modules/feature-flags`). Flags are
+**deny-by-default**: an unknown flag, a missing flag, or a flag store outage
+(Postgres/Redis) resolves to `disabled`. Clients must never be trusted to decide
+whether a surface is enabled.
+
+| Flag | Default | Gates |
+|------|---------|-------|
+| `SHOP_PURCHASES_BACKEND_PROXY_ENABLED` | `false` | Backend `POST /shop/purchase` proxies writes to shop-api instead of legacy local logic |
+| `SHOP_PROXY_GAMES_WS_ENABLED` | `false` | Shop proxy games WebSocket surface (deny-by-default; disabled until explicitly enabled) |
+| `STELLAR_UI_ENABLED` | `false` | Stellar UI gate. Per ADR-003, NEAR remains the only supported chain UI until this flag is explicitly enabled |
+
+### Read path for the frontend
+
+The frontend must not infer Stellar availability from client state. It reads the
+evaluated flags from the backend read endpoint (`GET /feature-flags`), which
+returns the server-evaluated values. If the flag service cannot reach its
+dependencies, the endpoint returns the deny-by-default values (all `false`) so
+the Stellar UI stays gated and the games WS surface stays closed.
+
+### Fail-closed behavior
+
+- Flag evaluation errors (Postgres/Redis outage, timeout) → flag resolves to `false`.
+- The read endpoint never throws a 5xx that would let a client fall back to
+  optimistic defaults; it returns the disabled snapshot.
+- Enabling a flag is an explicit, audited operator action; there is no
+  client-supplied override.
+
+---
+
 ## Implementation Plan
 
 ### Phase 1: Service Contract (Week 1)
@@ -208,80 +240,4 @@ After Phase 2, `POST /shop/purchase` ALWAYS delegates to shop-api. The legacy ba
 
 ### Guarantee 2: No Parallel Writes
 - Backend HTTP request → proxy service → single HTTP call to shop-api
-- No background jobs or async writes that could race
-- Audit trail shows exactly one write
-
-### Guarantee 3: Idempotency Contract Enforced
-- Backend REQUIRES `Idempotency-Key` header (guards/validators enforce this)
-- shop-api REQUIRES the header (IdempotencyKeyGuard)
-- Duplicate headers → shop-api returns cached response, not a new record
-
-### Monitoring
-- Alert if backend creates a purchase without forwarding to shop-api (should never happen post-Phase 2)
-- Alert if same idempotency key returns different `purchaseId` values (indicates dual-write bug)
-- Log all proxy calls; cross-check with shop-api audit logs
-
----
-
-## Backward Compatibility
-
-### For Clients Calling `POST /shop/purchase` (most users)
-- ✅ No changes required
-- The endpoint continues to work identically
-- Idempotency-Key contract remains the same
-- Backend handles the proxy internally
-
-### For Clients Calling `POST /shop-api/purchases` (if any exist)
-- ✅ Continue to work
-- shop-api remains the authoritative implementation
-- No forced migration; can coexist during transition
-
----
-
-## Rollback Plan
-
-If the proxy implementation causes issues:
-
-1. **Immediate:** Set `SHOP_PURCHASES_BACKEND_PROXY_ENABLED=false` in production
-   - Requests fall back to legacy backend logic
-   - Existing purchase records in shop-api are preserved
-   - Downtime: ~10 seconds (rolling restart of backend pods)
-
-2. **Investigation window:** Monitor error rates, latency, audit mismatches
-
-3. **Gradual recovery:**
-   - Investigate root cause (network, schema mismatch, auth issue, etc.)
-   - Fix in a new version
-   - Re-enable proxy with canary traffic (5%) before full cutover
-
-4. **Worst case:** Revert the feature branch entirely; dual-write path continues until root cause is fixed
-
----
-
-## Success Criteria
-
-✅ Proxy implementation merged and deployed to staging  
-✅ `POST /shop/purchase` returns identical responses as before (except maybe headers)  
-✅ Idempotency-Key header required and enforced in both paths  
-✅ All purchase records created in shop-api database only  
-✅ Audit trail shows shop-api as source of truth for all purchases  
-✅ 0 instances of dual-writes detected in production (monitored via alerts)  
-✅ Latency (backend → shop-api) < 100ms p50, < 500ms p99  
-✅ canary test passes: 5% → 25% → 100% traffic migration succeeds  
-
----
-
-## Related Issues & Links
-
-- Issue #1431 — Documents Idempotency-Key contract in Swagger & runbook
-- `SHOP_PURCHASES_RUNBOOK.md` — Operational procedures (updated post-decision)
-- `backend/src/modules/shop/shop-api-proxy.service.ts` — Implementation TBD
-- `backend/docs/ADMIN_ROUTES_MATRIX.md` — Admin shop routes (separate from purchases)
-
----
-
-## Future Considerations
-
-1. **shop-api consolidation:** Once proxy is stable, consider merging shop-api schema into backend or vice versa (out of scope for this ADR)
-2. **Async purchase processing:** If purchase processing becomes expensive, introduce a job queue (currently synchronous)
-3. **Multi-datacenter replication:** If shop-api grows, add read replicas and cross-DC failover
+- No background jobs or async write

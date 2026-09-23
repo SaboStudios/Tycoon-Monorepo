@@ -66,6 +66,46 @@ either entity's schema.
 See the mapping doc for the full table and a worked example row on both
 sides.
 
+## Feature Flags: shop proxy games WS and Stellar UI gate
+
+This ADR also records the flag contract that gates the shop proxy games
+WebSocket surface and the Stellar UI, per issue #1806. The flag service is
+the single server-side source of truth; clients must never decide on their
+own whether Stellar UI or the games WS surface is available.
+
+### Flag names and defaults
+
+| Flag | Surface | Default | Notes |
+| --- | --- | --- | --- |
+| `shop.proxy.games.ws` | shop proxy games WebSocket | `false` | Deny-by-default; enabling exposes the WS proxy surface. |
+| `stellar.ui` | Stellar UI gate | `false` | ADR-003 chain policy: NEAR is the only supported chain UI until this flag is explicitly enabled. |
+
+### Evaluation rules
+
+1. **Deny-by-default.** Unknown, missing, or unevaluable flags resolve to
+   `false`. There is no implicit enable path.
+2. **Fail-closed on dependency outage.** If the flag store (Postgres/Redis)
+   is unreachable, evaluation returns the default (`false`) and records a
+   metric; it never falls back to a cached `true` or to client-supplied
+   state.
+3. **Server-side only.** The authoritative read path is a backend endpoint
+   (or proxy) that evaluates flags server-side and returns the resolved
+   booleans. The frontend consumes that response; it does not evaluate
+   flags itself and does not trust any client-provided flag value.
+4. **ADR-003 chain policy.** While `stellar.ui` is `false`, the UI must
+   present NEAR as the only supported chain. Enabling `stellar.ui` is an
+   explicit operator action and must be accompanied by the Stellar
+   readiness checklist; it is not implied by any other flag.
+5. **WS gate.** The shop proxy games WS surface must reject connections
+   when `shop.proxy.games.ws` is `false`, using the same deny-by-default
+   evaluation as the read path.
+
+### Rollback
+
+Disabling either flag returns the surface to its default-off state without
+requiring a deploy. Rollback notes for the enabling PR must state which
+flag was flipped, the observed metrics, and the revert action.
+
 ## Consequences
 
 - No entity code changes in this ADR — this is a documentation and process
@@ -73,3 +113,7 @@ sides.
   boundary must reference and follow `docs/SHOP_ARCHITECTURE.md`.
 - Follow-up work (out of scope here): implement and unit-test the actual
   translator function once ADR-001's proxy cutover work begins.
+- Feature-flag evaluation for `shop.proxy.games.ws` and `stellar.ui` is
+  owned by the backend flag service; any new admin/WS/action surface added
+  under these flags is deny-by-default and must be authorized and
+  rate-limited at the server.
