@@ -86,6 +86,7 @@ describe("sanitizeJoinRoomErrorMessage", () => {
 
 describe("hasJoinAuthToken", () => {
   afterEach(() => {
+    localStorage.removeItem("accessToken");
     localStorage.removeItem("access_token");
   });
 
@@ -93,9 +94,19 @@ describe("hasJoinAuthToken", () => {
     expect(hasJoinAuthToken()).toBe(false);
   });
 
-  it("returns true when a non-empty token is stored", () => {
-    localStorage.setItem("access_token", "test-token");
+  it("returns true when a non-empty token is stored in canonical accessToken key", () => {
+    localStorage.setItem("accessToken", "test-token");
     expect(hasJoinAuthToken()).toBe(true);
+  });
+
+  it("falls back to legacy access_token key if accessToken not found", () => {
+    localStorage.setItem("access_token", "legacy-token");
+    expect(hasJoinAuthToken()).toBe(true);
+  });
+
+  it("returns false when tokens are whitespace only", () => {
+    localStorage.setItem("accessToken", "   ");
+    expect(hasJoinAuthToken()).toBe(false);
   });
 });
 

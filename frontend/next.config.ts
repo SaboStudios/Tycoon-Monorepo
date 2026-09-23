@@ -94,6 +94,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // /ai-play is deprecated — /play-ai is the single canonical AI route (it is
+  // e2e-protected and listed in the sitemap; the old /ai-play game room was an
+  // unfinished opponent with no real bot). (#1484)
+  redirects: async () => [
+    {
+      source: "/ai-play/:path*",
+      destination: "/play-ai",
+      permanent: true,
+    },
+  ],
 };
 
 const analyzer = withBundleAnalyzer({

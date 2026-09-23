@@ -2,6 +2,48 @@
 
 Part of the **Stellar Wave** engineering batch.
 
+## Canonical Idempotency Pattern
+
+All idempotency implementations in the codebase must follow a single, canonical claim/complete/fail pattern to ensure consistent replay behavior and prevent double-execution under concurrent requests.
+
+### Pattern Overview
+
+Every idempotent operation follows these three phases:
+
+1. **Claim** — Atomically reserve the idempotency key before the operation runs
+   - If the key is already claimed by another request, reject with HTTP 409 Conflict
+   - Use Redis `SET ... NX` (only if not exists) to ensure atomicity
+   - TTL: short (e.g., 60s) to time out stalled in-flight operations
+
+2. **Complete** — After the operation succeeds, store the cached result
+   - Update the key status to "complete" and cache the full response
+   - TTL: long (e.g., 24h) to allow replays for extended periods
+   - If a replay request arrives before this step, return 409 (still in-flight)
+
+3. **Fail** — If the operation fails, release the claim to allow retries
+   - Delete the key (or mark as "failed" and let TTL expire)
+   - Subsequent requests with the same key can retry the operation
+   - Do not cache error responses (exceptions are not idempotent)
+
+### Replay Behavior
+
+When a replayed request arrives (same idempotency key, in "complete" state):
+- Return the cached response with status code and body
+- Set header `X-Idempotency-Replayed: true` to inform the client
+- Do not re-execute the handler or modify state
+- Validate request integrity if needed (e.g., check body hasn't changed)
+
+### Implementation Location
+
+Shared helper: `backend/src/common/idempotency/` provides the core claim/complete/fail logic.
+All modules (shop, uploads, etc.) use this shared helper rather than inventing their own.
+
+### Modules Using This Pattern
+
+- `backend/src/modules/shop` — purchase idempotency
+- `backend/src/modules/uploads` — upload idempotency
+- (shop-api is intentionally separate, documented in its own ADR)
+
 ## What was changed
 
 ### New test files

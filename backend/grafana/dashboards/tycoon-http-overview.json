@@ -120,11 +120,50 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "unit": "s"
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
         },
         "overrides": []
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(tycoon_http_requests_total{status_class=~\"5xx\",route_group=~\"admin|public\"}[5m])) by (route_group) / clamp_min(sum(rate(tycoon_http_requests_total{route_group=~\"admin|public\"}[5m])) by (route_group), 1e-9)",
+          "legendFormat": "{{route_group}} 5xx ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Error ratio (5xx / total) by route group",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "id": 4,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -136,16 +175,118 @@
           "expr": "histogram_quantile(0.95, sum(rate(tycoon_http_request_duration_seconds_bucket{route_group=~\"admin|public\"}[5m])) by (le, route_group))",
           "legendFormat": "{{route_group}} p95",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.99, sum(rate(tycoon_http_request_duration_seconds_bucket{route_group=~\"admin|public\"}[5m])) by (le, route_group))",
+          "legendFormat": "{{route_group}} p99",
+          "refId": "B"
         }
       ],
-      "title": "Latency p95 (admin vs public)",
+      "title": "Latency p95/p99 (admin vs public)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(tycoon_http_request_duration_seconds_sum{route_group=~\"admin|public\"}[5m])) by (route_group) / clamp_min(sum(rate(tycoon_http_request_duration_seconds_count{route_group=~\"admin|public\"}[5m])) by (route_group), 1e-9)",
+          "legendFormat": "{{route_group}} avg",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency average (admin vs public)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "ledger_reconciliation_drift_percent",
+          "legendFormat": "drift %",
+          "refId": "A"
+        }
+      ],
+      "title": "Finance — Ledger Reconciliation Drift (5% alert threshold)",
+      "description": "Percentage of ledger records with discrepancies vs payment provider. Alert threshold set to 5% to flag financial drift.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "increase(ledger_reconciliation_runs_total[1h])",
+          "legendFormat": "{{mode}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Finance — Reconciliation Run Count (last 1h)",
       "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["tycoon", "http", "prometheus"],
+  "tags": ["tycoon", "http", "prometheus", "red"],
   "templating": {
     "list": [
       {
@@ -165,7 +306,7 @@
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "",
-  "title": "Tycoon HTTP — admin vs public",
+  "title": "Tycoon HTTP — RED metrics (admin vs public)",
   "uid": "tycoon-http-overview",
   "version": 1,
   "weekStart": ""

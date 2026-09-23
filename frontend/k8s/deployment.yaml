@@ -1,0 +1,152 @@
+# Tycoon Frontend (Next.js) — Kubernetes Manifests
+#
+# Next.js specifics
+# ─────────────────
+# - The app listens on port 3000 by default.
+# - Readiness probe uses `/_next/static` availability via `/` rather than a
+#   dedicated /health/redis endpoint (Next.js has no built-in health route).
+#   If you add a custom `/api/health` route, update the probe path accordingly.
+# - Liveness probe also targets `/` — a 200/304 response means the renderer
+#   is alive. Adjust `failureThreshold` for slower cold-start environments.
+# - `NEXT_TELEMETRY_DISABLED=1` prevents Next.js from phoning home during
+#   container startup.
+#
+# Secrets
+# ───────
+# The following environment variables must be provided via a Kubernetes Secret
+# named `frontend-secrets` before deploying:
+#
+#   NEXTAUTH_SECRET        NextAuth / iron-session signing secret
+#   NEXTAUTH_URL           Public base URL (e.g. https://app.example.com)
+#   NEXT_PUBLIC_API_URL    Backend API base URL (injected at build time)
+#
+# Create the secret:
+#   kubectl create secret generic frontend-secrets \
+#     --from-literal=NEXTAUTH_SECRET=<secret> \
+#     --from-literal=NEXTAUTH_URL=https://app.example.com \
+#     --from-literal=NEXT_PUBLIC_API_URL=https://api.example.com
+#
+# Ingress
+# ───────
+# The Ingress below routes `app.example.com` to this Service.
+# Update `spec.rules[0].host` to match your actual domain before applying.
+# TLS termination is handled by your ingress controller (e.g. cert-manager).
+#
+# Resource requests
+# ─────────────────
+# The values below are starting placeholders — tune after profiling in staging.
+# Next.js SSR can be memory-intensive under load; monitor and adjust limits.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tycoon-frontend
+  labels:
+    app: tycoon-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tycoon-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: tycoon-frontend
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: frontend
+          image: tycoon-frontend:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-secrets
+                  key: NEXTAUTH_SECRET
+            - name: NEXTAUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-secrets
+                  key: NEXTAUTH_URL
+            - name: NEXT_PUBLIC_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-secrets
+                  key: NEXT_PUBLIC_API_URL
+          # Next.js does not expose a dedicated /health endpoint out of the box.
+          # The root path `/` returns 200 once the server is ready.
+          # Add a custom `/api/health` route and update these paths for stricter checks.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10   # Next.js needs more startup time than API services
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30   # Allow the full SSR warm-up before liveness kicks in
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          resources:
+            requests:
+              cpu: "250m"      # placeholder — tune after staging profiling
+              memory: "512Mi"  # Next.js SSR is more memory-intensive than a plain API
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tycoon-frontend
+  labels:
+    app: tycoon-frontend
+spec:
+  selector:
+    app: tycoon-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tycoon-frontend
+  annotations:
+    # Adjust annotations to match your ingress controller (nginx, traefik, etc.)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  rules:
+    - host: app.example.com   # ← update to your actual domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tycoon-frontend
+                port:
+                  number: 80

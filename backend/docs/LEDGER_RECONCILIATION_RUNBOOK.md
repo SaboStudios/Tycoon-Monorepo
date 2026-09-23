@@ -6,6 +6,21 @@ The nightly reconciliation job compares internal `purchases` records against the
 
 ---
 
+## Authoritative Write Path
+
+**shop-api is the single source of truth for purchases, inventory, and money.** All purchase writes (checkout, refunds, inventory adjustments) MUST go through shop-api. The backend does **not** write purchases directly; it only exposes read models and admin proxies that forward to shop-api with a service API key.
+
+| Concern | Owner | Notes |
+|---|---|---|
+| Purchase create / refund | shop-api | Authoritative write path; enforces Idempotency-Key + body hash |
+| Inventory decrement | shop-api | Atomic, constraint-backed; never negative |
+| Admin reconciliation reads | backend proxy → shop-api | Read-only; forwards `requestId` |
+| Admin discrepancy resolution | backend proxy → shop-api | Audited admin mutation; deny-by-default |
+
+Any code path that mutates `purchases` outside shop-api is a bug — file it against the owning service, do not patch around it here.
+
+---
+
 ## Discrepancy Types
 
 | Type | Meaning |
