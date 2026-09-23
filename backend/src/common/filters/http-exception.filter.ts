@@ -14,12 +14,14 @@ import { LoggerService } from '../logger/logger.service';
  * Global exception filter that wraps all error responses in the standardized format.
  * Also logs all errors with contextual information.
  *
- * Response format:
+ * Response format (see docs/API_ERROR_RESPONSE_STANDARDS.md):
  * {
  *   "success": false,
  *   "message": "Error message",
  *   "data": null,
- *   "statusCode": 400
+ *   "statusCode": 400,
+ *   "code": "BAD_REQUEST",
+ *   "requestId": "..."
  * }
  */
 @Catch()
@@ -35,6 +37,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let statusCode: number;
     let message: string | string[];
     let stack: string | undefined;
+    let code: string | undefined;
+    let details: unknown;
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
@@ -50,6 +54,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
         // Handle validation errors (which have an array of messages)
         message =
           (responseObj.message as string | string[]) || exception.message;
+        // Preserve an explicit error code / details if the thrower provided one
+        if (typeof responseObj.code === 'string') {
+          code = responseObj.code;
+        }
+        if (responseObj.details !== undefined) {
+          details = responseObj.details;
+        }
       } else {
         message = exception.message;
       }
@@ -71,9 +82,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ? message.join(', ')
       : message;
 
+    // Derive a stable machine-readable error code when not explicitly set
+    const errorCode = code || this.deriveErrorCode(statusCode);
+
+    // Propagate the request id so clients can correlate with server logs
+    const requestId =
+      (request.headers['x-request-id'] as string) ||
+      (request as Request & { requestId?: string }).requestId;
+
     // Log the error with context
     const logContext = {
       statusCode,
+      code: errorCode,
+      requestId,
       method: request.method,
       url: request.url,
       ip: request.ip,
@@ -99,13 +120,55 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.logWithMeta('warn', 'Client Error Details', logContext);
     }
 
-    const standardResponse: StandardResponse<null> = {
+    const standardResponse: StandardResponse<null> & {
+      code: string;
+      requestId?: string;
+      details?: unknown;
+    } = {
       success: false,
       message: formattedMessage,
       data: null,
       statusCode,
+      code: errorCode,
     };
 
+    if (requestId) {
+      standardResponse.requestId = requestId;
+    }
+    if (details !== undefined) {
+      standardResponse.details = details;
+    }
+
     response.status(statusCode).json(standardResponse);
+  }
+
+  /**
+   * Maps an HTTP status to a stable, machine-readable error code so that
+   * backend and shop-api error envelopes stay aligned per
+   * docs/API_ERROR_RESPONSE_STANDARDS.md.
+   */
+  private deriveErrorCode(statusCode: number): string {
+    switch (statusCode) {
+      case HttpStatus.BAD_REQUEST:
+        return 'BAD_REQUEST';
+      case HttpStatus.UNAUTHORIZED:
+        return 'UNAUTHORIZED';
+      case HttpStatus.FORBIDDEN:
+        return 'FORBIDDEN';
+      case HttpStatus.NOT_FOUND:
+        return 'NOT_FOUND';
+      case HttpStatus.CONFLICT:
+        return 'CONFLICT';
+      case HttpStatus.UNPROCESSABLE_ENTITY:
+        return 'UNPROCESSABLE_ENTITY';
+      case HttpStatus.TOO_MANY_REQUESTS:
+        return 'TOO_MANY_REQUESTS';
+      case HttpStatus.SERVICE_UNAVAILABLE:
+        return 'SERVICE_UNAVAILABLE';
+      case HttpStatus.GATEWAY_TIMEOUT:
+        return 'GATEWAY_TIMEOUT';
+      default:
+        return statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'ERROR';
+    }
   }
 }

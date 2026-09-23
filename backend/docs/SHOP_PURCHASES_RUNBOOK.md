@@ -57,6 +57,7 @@ exactly-once semantics matching `shop-api`'s implementation:
 | **First request** | 201 | None | Purchase processed; item added to inventory |
 | **Duplicate (completed)** | 201 | `X-Idempotency-Replayed: true` | Cached response replayed; no new charge |
 | **Duplicate (in-flight)** | 409 | None | Original request still processing; client must retry |
+| **Payload conflict (same key, different body)** | 409 | None | Key already used with a different body hash; request rejected |
 | **No Idempotency-Key** | 201 | None | Not deduplicated; each request processes independently |
 
 #### Examples
@@ -139,11 +140,72 @@ Response (409 Conflict):
 ```
 **Action**: Client should wait 1–5 seconds and retry, or use a different `Idempotency-Key` for a new purchase.
 
+**Payload conflict** — same Idempotency-Key reused with a different request body:
+```bash
+curl -X POST http://localhost:3000/shop/purchase \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shop_item_id": 42,
+    "quantity": 5
+  }'
+```
+
+Response (409 Conflict):
+```json
+{
+  "statusCode": 409,
+  "message": "Idempotency-Key was already used with a different request body",
+  "error": "Conflict"
+}
+```
+**Action**: The key is bound to the original body hash. Use a new `Idempotency-Key` for a genuinely different purchase; do not reuse keys across payloads.
+
 #### Troubleshooting
 If a user reports being charged twice for what they believe was one click:
 1.  **Check client logs** for the `Idempotency-Key` sent on both requests.
 2.  **If same key**: The second request should have been idempotent. Check audit logs to confirm if two distinct purchase records were created or if the second was a replay.
 3.  **If different keys**: This is expected behavior — two independent purchases with two different keys are not deduplicated (see Section 1 for refund procedures).
+
+### 5. Error Envelope & requestId Propagation
+All backend and `shop-api` error responses conform to
+`docs/API_ERROR_RESPONSE_STANDARDS.md`. Every error body carries the standard
+envelope so clients and operators can correlate a failure end-to-end:
+
+```json
+{
+  "statusCode": 400,
+  "code": "VALIDATION_FAILED",
+  "message": "quantity must be a positive integer",
+  "requestId": "b3f1c2d4-5e6a-4b7c-8d9e-0f1a2b3c4d5e",
+  "details": [{ "field": "quantity", "issue": "min" }]
+}
+```
+
+-   **requestId**: Propagated from the inbound `X-Request-Id` header (generated if absent) and echoed on every response, including errors. Use it to grep backend and `shop-api` logs for the same request.
+-   **code**: Stable machine-readable string (e.g. `VALIDATION_FAILED`, `IDEMPOTENCY_CONFLICT`, `DEPENDENCY_UNAVAILABLE`). Clients must branch on `code`, never on `message`.
+-   **details**: Optional structured context; never contains secrets, tokens, or PII.
+
+#### Purchase-path error mapping
+
+| Condition | Status | `code` | Notes |
+|-----------|--------|--------|-------|
+| DTO validation failure (SKU, quantity, minor units, unknown fields) | 400 | `VALIDATION_FAILED` | Unknown fields rejected per policy |
+| Idempotency replay (completed) | 201 | — | Stored response replayed with `X-Idempotency-Replayed: true` |
+| Idempotency in-flight | 409 | `IDEMPOTENCY_IN_PROGRESS` | Retry after 1–5s |
+| Idempotency payload conflict | 409 | `IDEMPOTENCY_CONFLICT` | Same key, different body hash |
+| Auth expired / missing | 401 | `UNAUTHENTICATED` | Client must re-authenticate |
+| Forbidden role | 403 | `FORBIDDEN` | Deny-by-default for admin surfaces |
+| Insufficient inventory | 409 | `INSUFFICIENT_INVENTORY` | Atomic decrement; inventory never negative |
+| Postgres/Redis/`shop-api`/RPC outage on write | 503 | `DEPENDENCY_UNAVAILABLE` | **Fail-closed**: no purchase is recorded |
+
+#### Fail-closed behavior on dependency outage
+When `shop-api` (the authoritative write path) or its Postgres/Redis dependencies
+are unavailable, purchase writes **fail closed**: the request returns `503` with
+`code: DEPENDENCY_UNAVAILABLE` and no inventory or ledger mutation occurs. Do not
+retry blindly — surface the `requestId` to the user and check the dependency's
+health before advising a retry with the same `Idempotency-Key`.
 
 ## Operational Procedures
 
@@ -163,6 +225,8 @@ Currently, refunds are handled manually by:
 ## Monitoring & Metrics
 -   **Metric**: `tycoon_purchases_total` - Track successful vs failed purchases.
 -   **Metric**: `tycoon_coupon_usage_total` - Monitor marketing campaign effectiveness.
+-   **Metric**: `tycoon_purchase_duration_seconds` - RED latency histogram for the purchase path (label by `status`/`code`).
+-   **Metric**: `tycoon_purchase_errors_total` - RED error counter, labelled by `code` (no PII/tokens in labels).
 
 ## Support Contacts
 -   Backend Team: #team-backend
