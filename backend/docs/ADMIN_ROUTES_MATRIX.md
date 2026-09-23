@@ -8,6 +8,29 @@ The backend uses two primary guards for admin access control:
 - **AdminGuard**: Checks if `user.is_admin === true`
 - **RolesGuard**: Checks if user has required role(s) specified via `@Roles()` decorator
 
+## Guard Enforcement Contract
+
+Every admin controller MUST apply guards at the **class level** so that no route can
+accidentally ship unguarded:
+
+```typescript
+@UseGuards(JwtAuthGuard, AdminGuard)
+@Controller('admin/...')
+export class SomeAdminController { ... }
+```
+
+- `JwtAuthGuard` MUST come first so the request is authenticated before admin status is checked.
+- `AdminGuard` MUST be applied at the class level (not per-method) for admin controllers.
+- `RolesGuard` + `@Roles(Role.ADMIN)` is the accepted alternative where role-based access is required.
+- Any new admin route MUST be added to this matrix in the same PR that introduces it.
+
+### CI Enforcement
+
+`backend/scripts/verify-admin-guards.ts` statically verifies that every controller listed
+below applies the required guards. The `verify-admin-guards` workflow runs this script on
+every PR and MUST stay green. If you add an admin controller, add it to the script's
+expected-controller list and to this matrix in the same PR.
+
 ## Admin-Protected Routes by Module
 
 ### 1. Admin Analytics Module
@@ -44,6 +67,13 @@ The backend uses two primary guards for admin access control:
 |-------------|------|---------|------------|
 | GET | `/admin/logs` | Retrieve admin audit logs with filters and pagination | AdminGuard |
 | GET | `/admin/logs/export` | Export admin audit logs as CSV | AdminGuard |
+
+**Audit & Redaction Policy**:
+- Every admin mutation MUST write an `AuditTrail` entry (actor id, action, target, timestamp).
+- Audit entries MUST be written on both success and failure paths so failed mutations are traceable.
+- Admin log views and exports MUST redact secrets (tokens, passwords, API keys, JWTs) before returning data.
+- Exports MUST use an explicit column allowlist and MUST NOT include PII beyond what the allowlist permits.
+- Export ranges MUST be bounded/paginated to prevent export DoS on large ranges.
 
 ---
 
@@ -197,31 +227,10 @@ aborting the batch, so the response may contain fewer items than were requested.
 
 1. **Always use JwtAuthGuard first**: Admin guards should always be paired with `JwtAuthGuard` to ensure the user is authenticated before checking admin status.
 
-2. **AdminGuard vs RolesGuard**: 
-   - Use `AdminGuard` for simple admin-only checks (checks `is_admin` field)
-   - Use `RolesGuard` with `@Roles()` decorator for role-based access (checks `role` field)
+2. **AdminGuard is deny-by-default**: A non-admin token MUST receive `403 Forbidden`. This is covered by `admin-role-verification.e2e` (non-admin 403 + admin happy path).
 
-3. **Default Behavior**: 
-   - `AdminGuard` denies by default (throws exception if not admin)
-   - `RolesGuard` **now denies by default** (throws exception if no `@Roles()` decorator present or user doesn't have required role)
+3. **Audit every mutation**: Admin mutations MUST write an `AuditTrail` entry, including on failure paths, and MUST redact secrets in admin log views and exports.
 
----
+4. **Least privilege & no shared credentials**: Admin access is per-user; shared admin passwords are prohibited.
 
-## Security Recommendations
-
-1. **✅ RolesGuard Default Deny**: RolesGuard has been updated to deny access by default when no `@Roles()` decorator is present. This ensures routes must explicitly declare required roles.
-
-2. **Consistent Guard Usage**: Ensure all admin endpoints use appropriate guards consistently.
-
-3. **Integration Testing**: All admin-protected routes should have integration tests verifying 403 responses for non-admin users. See `test/admin-role-verification.e2e-spec.ts` for examples.
-
-4. **Admin Action Logging**: Consider logging all admin actions for audit purposes using `AdminLogsService`.
-
-5. **Rate Limiting**: Apply stricter rate limits to admin endpoints to prevent abuse.
-
----
-
-## Last Updated
-
-Document created: 2024
-Last reviewed: 2024
+5. **Bound heavy queries**: List/export endpoints MUST paginate or bound their ranges to avoid export DoS on large ranges.
