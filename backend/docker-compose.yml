@@ -1,51 +1,72 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: tycoon_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tycoon_db
+      POSTGRES_USER: ${POSTGRES_USER:-tycoon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tycoon}
+      POSTGRES_DB: ${POSTGRES_DB:-tycoon}
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
     ports:
-      - '5432:5432'
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - tycoon_network
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tycoon} -d ${POSTGRES_DB:-tycoon}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   redis:
     image: redis:7-alpine
-    container_name: tycoon_redis
     restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "${REDIS_MAXMEMORY:-256mb}", "--maxmemory-policy", "allkeys-lru"]
     ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    networks:
-      - tycoon_network
-    command: redis-server --appendonly yes
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: tycoon_pgadmin
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@tycoon.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - '5050:80'
     depends_on:
-      - postgres
-    networks:
-      - tycoon_network
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgres://${POSTGRES_USER:-tycoon}:${POSTGRES_PASSWORD:-tycoon}@postgres:5432/${POSTGRES_DB:-tycoon}
+      REDIS_URL: redis://redis:6379
+      # Database pool sizing (see backend/docs/DATABASE_POOL.md).
+      # Budget: DB_POOL_MAX * replicas must stay below POSTGRES_MAX_CONNECTIONS
+      # minus reserved superuser/monitoring connections.
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      DB_POOL_MIN: ${DB_POOL_MIN:-2}
+      DB_POOL_IDLE_TIMEOUT_MS: ${DB_POOL_IDLE_TIMEOUT_MS:-30000}
+      DB_POOL_CONNECTION_TIMEOUT_MS: ${DB_POOL_CONNECTION_TIMEOUT_MS:-5000}
+      DB_POOL_MAX_LIFETIME_MS: ${DB_POOL_MAX_LIFETIME_MS:-1800000}
+      DB_POOL_STATEMENT_TIMEOUT_MS: ${DB_POOL_STATEMENT_TIMEOUT_MS:-10000}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
-  postgres_data:
-  redis_data:
-
-networks:
-  tycoon_network:
-    driver: bridge
+  postgres-data:

@@ -22,6 +22,20 @@
 #        c. ioredis quit() (Redis connection closed).
 #   4. Process exits cleanly.
 #
+# Database pool sizing + nightly load budgets
+# ──────────────────────────────────────────
+# Pool sizing is enforced fail-closed at boot (see backend/docs/DATABASE_POOL.md).
+# The values below MUST stay in sync with the documented budgets:
+#   DB_POOL_MAX  = 20   (per pod; replicas × max must stay ≤ Postgres max_connections)
+#   DB_POOL_MIN  = 2    (warm connections kept open per pod)
+#   DB_POOL_IDLE_TIMEOUT_MS = 30000
+#   DB_POOL_CONNECTION_TIMEOUT_MS = 5000
+#   DB_POOL_STATEMENT_TIMEOUT_MS = 10000
+# With replicas: 2 the worst-case connection demand is 2 × 20 = 40, which must
+# remain below the Postgres max_connections budget for the target environment.
+# The nightly load budget check (.github/workflows/backend-pool-load-nightly.yml)
+# validates these numbers against the documented budgets and fails closed on drift.
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -57,6 +71,18 @@ spec:
             # Keep this < terminationGracePeriodSeconds * 1000 (30 000 ms).
             - name: SHUTDOWN_TIMEOUT_MS
               value: "15000"
+            # Database pool sizing — must match backend/docs/DATABASE_POOL.md.
+            # Boot fails closed in production if these are missing or invalid.
+            - name: DB_POOL_MAX
+              value: "20"
+            - name: DB_POOL_MIN
+              value: "2"
+            - name: DB_POOL_IDLE_TIMEOUT_MS
+              value: "30000"
+            - name: DB_POOL_CONNECTION_TIMEOUT_MS
+              value: "5000"
+            - name: DB_POOL_STATEMENT_TIMEOUT_MS
+              value: "10000"
           readinessProbe:
             httpGet:
               path: /health/redis
