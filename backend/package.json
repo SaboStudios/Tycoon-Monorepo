@@ -27,6 +27,8 @@
     "migration:revert": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:revert",
     "migration:show": "typeorm-ts-node-commonjs -d src/config/database.config.ts migration:show",
     "codegen": "ts-node -r tsconfig-paths/register scripts/generate-openapi.ts",
+    "generate-openapi": "ts-node -r tsconfig-paths/register scripts/generate-openapi.ts",
+    "check-openapi-parity": "node scripts/check-openapi-parity.mjs",
     "build:openapi": "nest build && npm run codegen"
   },
   "dependencies": {

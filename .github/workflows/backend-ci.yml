@@ -1,84 +1,74 @@
 name: Backend CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  backend-checks:
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: tycoon_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s --health-timeout 5s --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s --health-timeout 5s --health-retries 5
-    env:
-      NODE_ENV: test
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      DB_DATABASE: tycoon_test
-      DB_SYNCHRONIZE: true
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      JWT_SECRET: ci-only-jwt-secret
-      STELLAR_NETWORK: testnet
     defaults:
       run:
         working-directory: backend
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
-      - name: Lint backend
-        run: npm run lint:ci
+      - name: Lint
+        run: bun run lint
 
-      - name: Build backend
-        run: npm run build
+      - name: Build
+        run: bun run build
 
-      - name: Run backend tests
-        run: npm test -- --runInBand
+      - name: Unit tests
+        run: bun run test
 
-      - name: Run backend end-to-end tests
-        run: npm run test:e2e -- --runInBand
+  openapi-parity:
+    name: OpenAPI Generate & Parity
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Upload failing e2e diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          name: backend-e2e-diagnostics
-          path: |
-            backend/coverage
-            backend/logs
-          if-no-files-found: ignore
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate OpenAPI spec
+        run: bun run generate-openapi
+
+      - name: Check OpenAPI parity
+        run: bun run check-openapi-parity
+
+      - name: Show drift diff on failure
+        if: failure()
+        run: |
+          echo '::error::OpenAPI spec drift detected. Run `bun run generate-openapi` in backend/ and commit the updated artifact.'
+          git --no-pager diff -- backend/openapi.json || true
