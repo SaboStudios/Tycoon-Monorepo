@@ -11,20 +11,14 @@ on:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
 
-concurrency:
-  group: backend-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build-and-test:
-    name: Build, lint, and test backend
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,14 +33,14 @@ jobs:
       - name: Lint
         run: npm run lint --if-present
 
-      - name: Build
-        run: npm run build --if-present
-
       - name: Verify admin guards
         run: npx ts-node scripts/verify-admin-guards.ts
 
       - name: Verify admin analytics
         run: bash scripts/verify-admin-analytics.sh
+
+      - name: Build
+        run: npm run build --if-present
 
       - name: Unit tests
         run: npm test --if-present

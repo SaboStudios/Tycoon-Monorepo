@@ -31,6 +31,15 @@ below applies the required guards. The `verify-admin-guards` workflow runs this 
 every PR and MUST stay green. If you add an admin controller, add it to the script's
 expected-controller list and to this matrix in the same PR.
 
+`backend/scripts/verify-admin-analytics.sh` verifies the admin analytics surface in CI:
+
+- `AdminAnalyticsController` applies `@UseGuards(JwtAuthGuard, AdminGuard)` at the class level.
+- Every analytics route is registered in this matrix with a rate limit.
+- Heavy aggregation queries are bounded/paginated and exports use an explicit column allowlist.
+- Admin analytics mutations write `AuditTrail` entries and redact secrets in log views.
+
+The `verify-admin-analytics` workflow runs this script on every PR and MUST stay green.
+
 ## Admin-Protected Routes by Module
 
 ### 1. Admin Analytics Module
@@ -54,6 +63,13 @@ expected-controller list and to this matrix in the same PR.
 - Global default: 100 requests per minute
 - Health check endpoints (`/health/*`) remain unthrottled
 - Exceeding limits returns 429 Too Many Requests
+
+**Aggregation & Export Policy**:
+- Heavy aggregation queries MUST be bounded (date range + pagination/limit) to avoid unbounded scans.
+- Analytics exports MUST use an explicit column allowlist and MUST NOT include PII beyond what the allowlist permits.
+- Export ranges MUST be bounded to prevent export DoS on large ranges.
+- Every admin analytics mutation MUST write an `AuditTrail` entry (actor id, action, target, timestamp) on both success and failure paths.
+- Admin analytics log views MUST redact secrets (tokens, passwords, API keys, JWTs) before returning data.
 
 ---
 
@@ -178,59 +194,3 @@ expected-controller list and to this matrix in the same PR.
 from an earlier, pre-Nest implementation into `AdminShopController` under `ShopModule`
 (see commit `22adf0d`, #858). This audit re-confirmed there is no remaining
 standalone/orphan Express router, controller, or app instance for shop management
-anywhere in the repository — `AdminShopController` registered in `ShopModule` is the
-single source of truth for these routes, fully covered by
-`admin-shop.controller.spec.ts`.
-
-**Partial-success policy (#1281)**: `POST /admin/shop/bulk/update` requires 1-100 items
-(`400` if empty or over the limit — see `BulkUpdateShopItemsDto`). Each item is applied
-independently; a failure on one item (e.g. unknown id) is logged and skipped rather than
-aborting the batch, so the response may contain fewer items than were requested.
-
----
-
-## Guard Implementations
-
-### AdminGuard
-
-**Location**: `src/modules/auth/guards/admin.guard.ts`
-
-**Behavior**:
-- Checks if `user.is_admin === true`
-- Throws `ForbiddenException` with message "Access denied. Admin role required." if not admin
-- Returns `true` if user is admin
-
-**Usage**:
-```typescript
-@UseGuards(JwtAuthGuard, AdminGuard)
-```
-
-### RolesGuard
-
-**Location**: `src/modules/auth/guards/roles.guard.ts`
-
-**Behavior**:
-- Checks if user has any of the required roles specified via `@Roles()` decorator
-- Returns `true` if no roles are required (permissive by default)
-- Returns `true` if user has at least one of the required roles
-- Returns `false` if user doesn't have required roles
-
-**Usage**:
-```typescript
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
-```
-
----
-
-## Security Notes
-
-1. **Always use JwtAuthGuard first**: Admin guards should always be paired with `JwtAuthGuard` to ensure the user is authenticated before checking admin status.
-
-2. **AdminGuard is deny-by-default**: A non-admin token MUST receive `403 Forbidden`. This is covered by `admin-role-verification.e2e` (non-admin 403 + admin happy path).
-
-3. **Audit every mutation**: Admin mutations MUST write an `AuditTrail` entry, including on failure paths, and MUST redact secrets in admin log views and exports.
-
-4. **Least privilege & no shared credentials**: Admin access is per-user; shared admin passwords are prohibited.
-
-5. **Bound heavy queries**: List/export endpoints MUST paginate or bound their ranges to avoid export DoS on large ranges.
