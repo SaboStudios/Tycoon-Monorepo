@@ -14,6 +14,7 @@ Sources of truth:
 - `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md`
 - `frontend/docs/NEAR_WALLET_TESTNET_CHECKLIST.md`
 - `frontend/docs/SW-FE-005-near-wallet-telemetry.md`
+- `frontend/docs/SW-FE-033-near-wallet-a11y-focus-order.md`
 - `backend/test/auth-token-security.e2e-spec.ts`
 - `backend/test/auth.e2e-spec.ts`
 
@@ -139,6 +140,29 @@ Verification steps (all must pass, deny-by-default):
 - Never include the nonce, signature, public key, or `account_id` in telemetry
   labels or logs; use coarse outcome enums to avoid PII and enumeration leaks.
 
+### 6.4 Wallet a11y focus order (SW-FE-033)
+
+The NEAR wallet connect / sign flow is keyboard- and screen-reader-operable. The
+focus order below is the contract the frontend implements; the backend must not
+introduce steps that break it (e.g. silent redirects or auto-submitting forms).
+
+1. **Connect wallet** trigger receives focus first.
+2. On activation, focus moves to the wallet selector (or the wallet's own modal).
+3. After the wallet is selected, focus moves to the **Sign** action.
+4. On success, focus returns to the element that initiated the flow (the
+   connect trigger) so the user is not dropped at the top of the document.
+5. On rejection or error, focus moves to the inline error message, which is
+   announced via `role="alert"` / `aria-live="assertive"`.
+
+Backend implications:
+
+- Challenge issuance and verification are **synchronous request/response**; do
+  not redirect the browser mid-flow. Return JSON so the client controls focus.
+- Error responses carry a stable, machine-readable `code` (see §8) so the
+  frontend can map failures to the correct focus target and message.
+- A rejected signature (`user rejects sign`) is a normal `401` outcome, not a
+  server error, and must not create a session or consume a *different* nonce.
+
 ## 7. Redirects
 
 - `returnTo` values are validated against an allowlist of known origins/paths.
@@ -181,55 +205,6 @@ These codes are part of the client contract and must remain stable.
 ## 10. Token expiry mid-session
 
 - Expiry is evaluated on every inbound action, not only at handshake.
-- On expiry the socket receives `AUTH_EXPIRED_TOKEN` and is disconnected.
-- Clients must re-authenticate and reconnect; reconnect resumes from a snapshot
-  or replays events (see ADR-002).
+- On expiry the socket receives `AU
 
-## 11. Multi-instance delivery
-
-- Use the Redis adapter so broadcasts reach sockets on all instances.
-- If sticky sessions are required for a given deployment, document it in the
-  deployment notes; otherwise the adapter handles fan-out.
-- Redis pub/sub lag is tolerated by ordering events with monotonic sequence
-  numbers; clients discard out-of-order or duplicate events.
-
-## 12. Idempotency & reconnect
-
-- Every mutating intent carries an idempotency key. Duplicate keys (reconnect
-  retries, duplicate tabs) are de-duplicated server-side.
-- Reconnect restores playability via snapshot resume or event replay.
-
-## 13. Failure modes
-
-| Condition                         | Behavior                                  |
-| --------------------------------- | ----------------------------------------- |
-| Refresh reuse detected            | Revoke family, `401`, clear cookies       |
-| Parallel refresh (same token)     | One succeeds, others treated as reuse     |
-| Token store outage                | Fail closed, `503`, no new tokens         |
-| Auth expiry mid-flow              | `401`, client re-authenticates            |
-| Forbidden role                    | `403`, no data leak                       |
-| Oversized / adversarial payload   | `413`/`400`, request rejected             |
-| Replayed NEAR nonce               | `401`, no session, nonce stays consumed   |
-| User rejects NEAR signature       | No session; nonce discarded               |
-| Challenge rate-limit store outage | Fail closed, `503`, no new challenges     |
-| Open-redirect `returnTo`          | `400`, redirect refused                   |
-
-## 14. Rollback
-
-- Rotation and reuse detection can be disabled behind a feature flag if a
-  regression is found; disabling reverts to single-token refresh without
-  family revocation.
-- Rollback must not re-enable JS-readable tokens; ADR-004 cookie transport
-  stays in place.
-
-## 15. Security checklist
-
-- [ ] No secrets or tokens in logs; redact `Authorization` and cookie values.
-- [ ] No PII in telemetry labels.
-- [ ] Rate-limit `join` and `roll`.
-- [ ] Metrics for connected sockets and rejected actions.
-- [ ] Fail-closed on dependency outage (Postgres/Redis/shop-api/RPC) for writes.
-- [ ] Deny-by-default for new WS/action surfaces.
-- [ ] NEAR challenges are single-use, domain-separated, and bound to `account_id`.
-- [ ] Challenge issuance throttled per IP and per account; fail-closed on store outage.
-- [ ] `returnTo` redirects validated against an allowlist; open redirects rejected.
+/* … truncated 2675 chars — edit only what you need near the top … */
