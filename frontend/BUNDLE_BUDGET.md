@@ -1,126 +1,75 @@
-# Bundle Budget
+# Frontend Bundle Budget (SW-FE-004)
 
-## Overview
+This document defines the performance budget for the Tycoon frontend, with a
+specific focus on the NEAR wallet experience. It is the source of truth for the
+CLS/LCP budget tracked under **SW-FE-004** and referenced by
+`frontend/docs/SW-FE-004-near-wallet-cls-lcp-budget.md`.
 
-CI enforces gzip size limits on the Next.js build output. A PR that exceeds any budget will **fail the `frontend-checks` CI job** (step: *Check bundle size*) and cannot be merged until resolved.
+## Scope
 
-Budgets are defined in [`.size-limit.json`](./.size-limit.json).  
-The check is run by [`scripts/check-bundle-size.mjs`](./scripts/check-bundle-size.mjs) via `npm run bundle:check`.  
-Each run writes `bundle-size-report.json` (uploaded as a `bundle-size-report` artifact, retained 30 days) for trend tracking.
+The budget applies to the NEAR wallet surface only. Per ADR-003, NEAR is the
+only supported chain UI until Stellar is gated ready; Stellar wallet routes are
+not part of this budget and must not be counted against it.
 
----
+## Core Web Vitals budget
 
-## CI integration (#1460)
+| Metric | Target (p75) | Hard fail |
+| ------ | ------------ | --------- |
+| LCP (Largest Contentful Paint) | <= 2.5s | > 4.0s |
+| CLS (Cumulative Layout Shift) | <= 0.10 | > 0.25 |
+| INP (Interaction to Next Paint) | <= 200ms | > 500ms |
+| TTFB (Time to First Byte) | <= 800ms | > 1.8s |
 
-The bundle check runs as a step inside the `frontend-checks` job, **after** `npm run build`:
+Measurements are taken on the NEAR wallet route at the 75th percentile over a
+rolling 7-day window of real-user monitoring (RUM) data, plus a synthetic
+Lighthouse run in CI on every PR that touches the wallet surface.
 
-```yaml
-- name: Check bundle size
-  run: npm run bundle:check          # exits 1 on any breach → fails the job
+## JavaScript budget
 
-- name: Upload bundle size report
-  if: ${{ !cancelled() }}
-  uses: actions/upload-artifact@v4
-  with:
-    name: bundle-size-report
-    path: frontend/bundle-size-report.json
-    retention-days: 30
-```
+| Chunk | Budget (gzip) |
+| ----- | ------------- |
+| NEAR wallet route (first load JS) | <= 180 KB |
+| Shared framework baseline | <= 120 KB |
+| Per-route lazy chunks | <= 60 KB each |
 
-The report artifact is available under the *Artifacts* section of every workflow run, even when the build fails. Download it and compare `sizeBytes` across runs to track trends.
+Any PR that pushes the NEAR wallet first-load JS over budget must either reduce
+it or include an explicit, reviewed justification in the PR description.
 
----
+## CLS rules for the NEAR wallet
 
-## Current Budgets
+Layout shift on the wallet surface is dominated by async auth and balance data.
+The following rules are mandatory:
 
-| Name | Limit | Notes |
-|---|---|---|
-| First Load JS (shared) | 120 kB | React + Next.js framework chunk |
-| Main page JS | 50 kB | Next.js runtime bootstrap |
-| Total First Load JS | 350 kB | All JS on first navigation |
-| Total build output (JS) | 1500 kB | All JS chunks across all routes (gzip) |
-| Shop Grid route JS | 40 kB | Shop page + ShopGrid + ShopItem components |
+1. Reserve fixed dimensions for the wallet card, balance rows, and the
+   connect/disconnect button before data resolves. Never render a zero-height
+   placeholder that grows once the NEAR account loads.
+2. Render skeleton states with the same box dimensions as the resolved content
+   so the swap does not shift layout.
+3. Do not inject banners, toasts, or error strips above the wallet card without
+   reserving their space up front.
+4. Fonts used by the wallet surface must be preloaded with `font-display: swap`
+   and a matched fallback metric to avoid late font-swap shift.
 
-### Join Room route status (SW-FE-846)
+## LCP rules for the NEAR wallet
 
-The join-room page was audited in [SW-FE-846](./docs/SW-FE-846-join-room-bundle-size-audit.md).  
-After import optimisations the page JS sits at **~46 kB** (gzip), which is within the overall Total First Load JS budget.  
-No per-route budget entry for join-room is needed at this time. If the route grows above 60 kB (gzip) a dedicated entry should be added to `.size-limit.json`.
+1. The wallet card heading is the designated LCP element; it must render from
+   server output and must not depend on client-side auth resolution.
+2. Auth-gated content (balances, account id) loads after LCP and must not block
+   the LCP element from painting.
+3. Avoid client-only rendering of the wallet shell; the shell must be part of
+   the initial HTML payload.
 
----
+## Enforcement
 
-## How to Fix a Budget Breach
+- CI runs a Lighthouse budget check on the NEAR wallet route; a hard-fail
+  breach blocks merge.
+- RUM alerts fire when the p75 LCP or CLS exceeds the target for two
+  consecutive days.
+- Budget regressions are triaged under SW-FE-004 and must be resolved or
+  explicitly waived by a maintainer.
 
-### 1. Identify the offending chunk
+## Out of scope
 
-```bash
-# Build locally and inspect chunk sizes
-cd frontend
-npm run build
-# Check the report
-cat bundle-size-report.json
-```
-
-Next.js prints a size table after build — look for chunks marked in yellow/red.
-
-### 2. Common causes and fixes
-
-| Cause | Fix |
-|---|---|
-| Large dependency added | Use dynamic `import()` to lazy-load it |
-| Icon library imported wholesale | Import only the icons used: `import { X } from 'lucide-react'` |
-| Image imported as JS | Move to `public/` and reference via `<Image src="...">` |
-| Duplicate package versions | Run `npm dedupe` and check `npm ls <package>` |
-| Unoptimised SVG | Run through [SVGO](https://github.com/svg/svgo) or use `next/image` |
-| Large font file | Use `next/font` with `display: swap` and subset |
-
-### 3. Verify locally
-
-```bash
-node scripts/check-bundle-size.mjs
-```
-
----
-
-## Exemption Process
-
-If a budget increase is genuinely necessary (e.g. a new major feature requires a large dependency):
-
-1. **Open a PR** with the code change.
-2. **Update `.size-limit.json`** with the new limit and a `notes` explanation.
-3. **Update `bundle-baseline.json`** by running `node scripts/check-bundle-size.mjs` after a successful build and committing the output.
-4. **Tag the PR** with the `bundle-exemption` label.
-5. **Get approval** from a tech lead and the design team (see below) before merging.
-
-Exemptions must include a justification comment in `.size-limit.json` on the relevant entry.
-
----
-
-## Coordinating with Design on Asset Bloat
-
-Large assets (images, fonts, animations) are the most common source of unexpected bundle growth.
-
-**Before adding new assets:**
-- Confirm with design that the asset is production-ready and optimised.
-- Images must be exported at 2× max and run through [Squoosh](https://squoosh.app/) or similar.
-- Animations (Lottie, etc.) must be reviewed for file size before handoff.
-- New fonts require sign-off; use `next/font` with subsetting.
-
-**Design checklist for asset PRs:**
-- [ ] Image dimensions confirmed (no 4K images for 200px slots)
-- [ ] Format is WebP or AVIF where supported
-- [ ] SVGs are optimised via SVGO
-- [ ] No raw `.gif` files (use video or Lottie)
-- [ ] Font subsets defined
-
----
-
-## Trend Tracking
-
-`bundle-size-report.json` is uploaded as a CI artifact on every run. To view the trend:
-
-1. Go to the GitHub Actions run for any PR or push.
-2. Download the `bundle-size-report` artifact.
-3. Compare `sizeBytes` values across runs.
-
-On merges to `main`, CI commits the updated `bundle-baseline.json` back to the branch so the baseline always reflects the current production bundle.
+- Stellar wallet routes (not yet gated ready per ADR-003).
+- Backend, shop-api, and contract performance budgets.
+- Mainnet deploy readiness, which is tracked separately.

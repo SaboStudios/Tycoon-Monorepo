@@ -13,6 +13,8 @@ Sources of truth:
 - `backend/docs/ADR-002-games-realtime-transport.md`
 - `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md`
 - `frontend/docs/NEAR_WALLET_TESTNET_CHECKLIST.md`
+- `frontend/docs/SW-FE-004-near-wallet-cls-lcp-budget.md`
+- `frontend/BUNDLE_BUDGET.md`
 - `frontend/docs/SW-FE-005-near-wallet-telemetry.md`
 - `frontend/docs/SW-FE-033-near-wallet-a11y-focus-order.md`
 - `backend/test/auth-token-security.e2e-spec.ts`
@@ -64,6 +66,17 @@ Every refresh call rotates the refresh token:
 
 Rotation is atomic: the used-mark and the new-token insert happen in a single
 transaction so concurrent duplicate requests cannot both succeed.
+
+### 3.1 Parallel refresh (idempotency)
+
+Two refresh calls racing with the same token must not both mint a new pair:
+
+- The used-mark is a conditional update (`WHERE used = false`); the loser of the
+  race observes zero rows affected and is treated as reuse (§4).
+- Clients that fire duplicate refreshes on reconnect should serialize them; the
+  server still fails closed on the second call rather than issuing two families.
+- If the token store is unavailable mid-rotation, the transaction rolls back and
+  no new tokens are issued (fail-closed on writes).
 
 ## 4. Reuse detection
 
@@ -163,6 +176,25 @@ Backend implications:
 - A rejected signature (`user rejects sign`) is a normal `401` outcome, not a
   server error, and must not create a session or consume a *different* nonce.
 
+### 6.5 CLS / LCP budget (SW-FE-004)
+
+The NEAR wallet connect / sign surface is the primary LCP element on the login
+route and the most CLS-prone (async wallet selector, late-arriving challenge
+JSON). The backend contract below keeps the frontend within the
+`frontend/BUNDLE_BUDGET.md` CLS/LCP budget; see
+`frontend/docs/SW-FE-004-near-wallet-cls-lcp-budget.md` for the frontend side.
+
+- Challenge issuance returns a **small, stable JSON shape** (no HTML, no
+  redirects) so the client can render a reserved placeholder without a layout
+  shift when the response lands.
+- Responses are cacheable-safe and carry no `Set-Cookie` on the challenge
+  *issue* call; cookies are only set on successful verify, so the login route is
+  not re-rendered mid-paint.
+- Keep the challenge payload lean (nonce + timestamps only) to avoid inflating
+  the critical-path response and delaying LCP.
+- Never block the initial paint on a challenge round-trip: issuance is triggered
+  by user intent (connect/sign), not on first render.
+
 ## 7. Redirects
 
 - `returnTo` values are validated against an allowlist of known origins/paths.
@@ -175,36 +207,12 @@ Browsers cannot set arbitrary headers on `WebSocket`, so the cookie path is the
 primary transport for browser clients. Native/CLI clients may use the
 `Authorization` header.
 
-- The gateway extracts the token during the handshake (before `connection`),
-  parsing the same httpOnly auth cookies as REST.
-- On success, the socket is bound to the authenticated principal and its role
-  (`seat` or `spectator`).
-- On failure, the handshake is rejected before upgrade. **Deny-by-default**: an
-  unauthenticated socket is never admitted and never receives broadcasts.
-
-### Stable error codes
-
-| Code | Meaning |
-| --- | --- |
-| `AUTH_MISSING_TOKEN` | No token found in any source. |
-| `AUTH_INVALID_TOKEN` | Token present but failed verification. |
-| `AUTH_EXPIRED_TOKEN` | Token verified but is past `exp`. |
-| `AUTH_FORBIDDEN_ROLE` | Authenticated but role not permitted for the action. |
-
-These codes are part of the client contract and must remain stable.
-
-## 9. Authorization: seat vs spectator
-
-- `seat` principals may submit game intents (e.g. `roll`).
-- `spectator` principals may observe only. Any mutating intent is rejected with
-  `AUTH_FORBIDDEN_ROLE` and dropped server-side.
-- The server is the source of truth for outcomes; clients submit intents, never
-  results.
-- Hidden information (e.g. unrevealed cards) is never broadcast to spectators.
-
-## 10. Token expiry mid-session
-
-- Expiry is evaluated on every inbound action, not only at handshake.
-- On expiry the socket receives `AU
-
-/* … truncated 2675 chars — edit only what you need near the top … */
+- The handshake resolves credentials using the **same** ordered source list as
+  REST (§2): `Authorization` header, then `access_token` cookie, then `token`
+  cookie.
+- Cookie parsing MUST match the REST strategy exactly (URL-decode, treat empty
+  or malformed values as absent). Divergence is a bug.
+- A failed handshake is rejected before the socket is upgraded; no session is
+  created and no game state is exposed.
+- Reconnect retries reuse the existing cookie; the server does not mint new
+  tokens on handshake.

@@ -76,3 +76,51 @@ Manual:
 - [x] No new production dependencies
 - [x] Modal UI CSS removed from critical path
 - [x] Both wallet UI regions have reserved dimensions (no CLS)
+
+## Budget guardrails (SW-FE-004)
+
+To keep the CLS/LCP wins from regressing, the following guardrails apply to the
+NEAR wallet surface. They are enforced by the checks below and by the existing
+`frontend/BUNDLE_BUDGET.md` thresholds.
+
+### CLS budget
+
+- **Target**: CLS ≤ 0.1 on the home route (Lighthouse mobile, throttled).
+- **Hard fail**: CLS > 0.1 on the home route or any route that mounts
+  `NearWalletProvider`.
+- Reserved dimensions are mandatory for any wallet region that can toggle
+  visibility (button row, account pill, transaction status, error banner).
+  Use `min-h-*` / `min-w-*` rather than conditional rendering that collapses
+  layout.
+- New wallet UI must not introduce layout-affecting conditional mounts without
+  a reserved-size wrapper.
+
+### LCP budget
+
+- **Target**: LCP ≤ 2.5s on the home route (Lighthouse mobile, throttled).
+- **Hard fail**: LCP > 2.5s, or any wallet stylesheet/script appearing in the
+  initial critical path (`<head>` or blocking `<link rel="stylesheet">`).
+- Wallet selector CSS and modules must remain dynamically imported inside the
+  bootstrap `Promise.all`; do not reintroduce a static top-level import in
+  `near-wallet-provider.tsx`.
+
+### How to verify locally
+
+```bash
+cd frontend
+npm run typecheck
+npm run test
+# Lighthouse (mobile, throttled) against the home route
+npx lighthouse http://localhost:3000 --preset=desktop --only-categories=performance --view
+```
+
+Record the resulting CLS/LCP numbers in the PR description and compare against
+`bundle-baseline.json`. A regression beyond the hard-fail thresholds blocks the
+merge until the offending change is reverted or the budget is explicitly
+re-baselined with reviewer sign-off.
+
+### Rollback
+
+If a CLS/LCP regression ships, revert the offending commit. The static CSS
+import can be restored in under a minute with no data migration, and reserved
+sizing wrappers can be removed independently of wallet logic.
