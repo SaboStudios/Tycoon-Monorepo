@@ -164,3 +164,8 @@ Key links:
 ## License
 
 ## Project: Stellar Wave
+
+## Handsoff notes
+
+<!-- handsoff-issue-1724 -->
+- #1724: Join room a11y + keyboard shortcuts SW-FE-034/845
