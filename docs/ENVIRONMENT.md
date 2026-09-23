@@ -10,6 +10,31 @@ rename it `.env`, and fill in the required values.
 
 ---
 
+## Docker Compose profiles
+
+The root `docker-compose.yml` exposes optional tooling (PgAdmin, debug ports) behind
+Compose profiles. These are **local-development only** and must never be enabled in
+non-local (staging/production) environments.
+
+| Profile | Service | Port | Local only | Notes |
+|---|---|---|---|---|
+| `local` | `pgadmin` | `5050` | ✅ | PgAdmin web UI — bind to `127.0.0.1` only |
+| `local` | `backend` debug | `9229` | ✅ | Node inspector — never publish in non-local profiles |
+| `local` | `shop-api` debug | `9230` | ✅ | Node inspector — never publish in non-local profiles |
+
+Rules:
+
+- PgAdmin and debug ports are published **only** under the `local` profile. Non-local
+  profiles (`staging`, `production`) must not declare `ports:` for these services.
+- Debug ports (`9229`, `9230`) must never be reachable from outside the host. Do not
+  bind them to `0.0.0.0` in any profile.
+- PgAdmin must not be exposed publicly; if it is needed remotely, tunnel over SSH
+  rather than publishing the port.
+- CI and non-local deploys should run `docker compose --profile local config` only for
+  local validation; production deploys must omit the `local` profile entirely.
+
+---
+
 ## Quick links
 
 | Package | Example file | Joi validation |
@@ -171,77 +196,56 @@ NestJS API server. Run from `backend/`.
 |---|---|---|---|---|
 | `EMAIL_PROVIDER` | ✅ | `noop` | | `noop` (dev) \| `sendgrid` \| `ses` |
 | `SENDGRID_API_KEY` | ✅ (if sendgrid) | *(empty)* | ✅ | SendGrid API key |
-| `SENDGRID_FROM_EMAIL` | ✅ (if sendgrid) | *(empty)* | | Sender address |
+| `SENDGRID_FROM_EMAIL` | ✅ (if sendgrid) | *(empty)* | | Verified sender address |
+| `SENDGRID_FROM_NAME` | | `Tycoon` | | Sender display name |
+| `SES_REGION` | ✅ (if ses) | *(empty)* | | AWS SES region |
+| `SES_FROM_EMAIL` | ✅ (if ses) | *(empty)* | | Verified SES sender address |
+
+### Feature Flags
+
+| Variable | Required in prod | Default | Secret | Notes |
+|---|---|---|---|---|
+| `FEATURE_STELLAR_ENABLED` | | `false` | | Gate Stellar chain UI — keep `false` until ADR-003 readiness |
+| `FEATURE_NEAR_ENABLED` | | `true` | | NEAR wallet is the only supported chain UI per ADR-003 |
 
 ---
 
 ## Frontend (`frontend/.env.example`)
 
-Next.js app. `NEXT_PUBLIC_*` variables are **embedded in the browser bundle** — never put secrets here.
+Next.js app. Only `NEXT_PUBLIC_*` variables reach the browser.
 
 | Variable | Required in prod | Default | Secret | Notes |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_NEAR_NETWORK` | | `testnet` | | NEAR network: `testnet` \| `mainnet` |
-| `NEXT_PUBLIC_NEAR_CONTRACT_ID` | | `guest-book.testnet` | | NEAR contract ID for wallet sign-in |
-| `NEXT_PUBLIC_WALLET_NETWORK_LABEL` | | `NEAR` | | Display label for the wallet chain in UI copy |
-| `NEXT_PUBLIC_ENABLE_BOOSTS_SOCKET` | | `true` | | Enable live perks/boosts Socket.IO connection |
-| `NEXT_PUBLIC_SOCKET_URL` | | *(falls back to `NEXT_PUBLIC_API_URL`)* | | Override for the Socket.IO endpoint |
-| `NEXT_PUBLIC_API_URL` | ✅ (prod) | *(empty)* | | Base URL of the backend API |
-| `NEXT_PUBLIC_API_MOCKING` | | `disabled` | | Set `enabled` to force MSW in the browser |
-| `PORT` | | `3000` | | Dev server port |
-| `NODE_ENV` | | `development` | | `development` \| `production` |
+| `NEXT_PUBLIC_API_URL` | ✅ | `http://localhost:3000/api` | | Backend base URL |
+| `NEXT_PUBLIC_WS_URL` | ✅ | `ws://localhost:3000` | | WebSocket base URL |
+| `NEXT_PUBLIC_NEAR_NETWORK` | ✅ | `testnet` | | `testnet` \| `mainnet` |
+| `NEXT_PUBLIC_NEAR_CONTRACT_ID` | ✅ | *(empty)* | | NEAR contract account |
+| `NEXT_PUBLIC_FEATURE_STELLAR` | | `false` | | Mirror of `FEATURE_STELLAR_ENABLED`; keep `false` until gated ready |
 
 ---
 
 ## Shop API (`shop-api/.env.example`)
 
-Standalone NestJS microservice. Run from `shop-api/`.
+NestJS purchases service — source of truth for shop purchases.
 
 | Variable | Required in prod | Default | Secret | Notes |
 |---|---|---|---|---|
-| `NODE_ENV` | ✅ | `development` | | `development` \| `production` |
-| `PORT` | | `3000` | | HTTP listen port |
+| `NODE_ENV` | ✅ | `development` | | `development` \| `staging` \| `production` \| `test` |
+| `PORT` | | `3002` | | HTTP listen port |
 | `DB_HOST` | ✅ | `localhost` | | PostgreSQL host |
 | `DB_PORT` | | `5432` | | PostgreSQL port |
-| `DB_USER` | ✅ | `postgres` | | DB username |
-| `DB_PASSWORD` | ✅ | `changeme` | ✅ | DB password |
-| `DB_NAME` | ✅ | `shop` | | Database name |
+| `DB_USERNAME` | ✅ | `postgres` | | DB username |
+| `DB_PASSWORD` | ✅ | `postgres` | ✅ | DB password |
+| `DB_DATABASE` | ✅ | `shop_db` | | Database name |
+| `DB_SYNCHRONIZE` | | `false` | | **Never `true` in production** — use migrations |
+| `JWT_SECRET` | ✅ | *(must change)* | ✅ | Must match backend signing secret |
+| `BACKEND_API_URL` | ✅ | `http://localhost:3000/api` | | Backend base URL for cross-service calls |
 
 ---
 
-## Port Matrix
+## Related docs
 
-Default ports when all services run locally side by side:
-
-| Service | Port | Variable |
-|---|---|---|
-| Backend (NestJS API) | `3000` | `PORT` in `backend/.env` |
-| Frontend (Next.js) | `3001` | `PORT` in `frontend/.env` (set explicitly to avoid clash) |
-| Shop API | `3000` | `PORT` in `shop-api/.env` (use `3002` locally to avoid clash) |
-| PostgreSQL (backend) | `5432` | `DB_PORT` |
-| PostgreSQL (shop-api) | `5433` | `DB_PORT` (use a second instance or schema) |
-| Redis | `6379` | `REDIS_PORT` |
-| ClamAV | `3310` | `CLAMAV_PORT` |
-
-> Tip: When running all services locally, set the frontend's `NEXT_PUBLIC_API_URL=http://localhost:3000`
-> and the shop-api `PORT=3002` to avoid port collisions.
-
----
-
-## Production Required Summary
-
-The following variables have **no safe default** and will cause data loss, security issues,
-or silent failures if left unset in production:
-
-| Variable | Package | Risk if missing |
-|---|---|---|
-| `JWT_SECRET` | root, backend | All tokens are signed with a weak/shared key |
-| `DB_PASSWORD` | root, backend, shop-api | Default password in production |
-| `PAYMENT_WEBHOOK_SECRET` | backend | Webhook requests not verified — replay attacks possible |
-| `STRIPE_SECRET_KEY` | backend | Ledger reconciliation broken if `PAYMENT_PROVIDER=stripe` |
-| `CORS_ALLOWED_ORIGINS` | backend | CORS policy may block legitimate clients or be too permissive |
-| `WS_CORS_ORIGINS` | backend | WebSocket connections may be rejected or open to all origins |
-| `CLAMAV_HOST` | backend | Uploaded files not scanned for malware |
-| `EMAIL_PROVIDER` | backend | Transactional emails silently dropped (`noop` default) |
-| `NEXT_PUBLIC_API_URL` | frontend | All API calls fail |
-| `DB_PASSWORD` | shop-api | Default password in production |
+- [`backend/docs/ADR-003-shop-purchase-field-mapping.md`](../backend/docs/ADR-003-shop-purchase-field-mapping.md)
+- [`backend/docs/SHOP_PURCHASES_RUNBOOK.md`](../backend/docs/SHOP_PURCHASES_RUNBOOK.md)
+- [`backend/docs/ADR-001-shop-purchase-ownership.md`](../backend/docs/ADR-001-shop-purchase-ownership.md)
+- [`ADMIN_ROUTES_MATRIX.md`](../ADMIN_ROUTES_MATRIX.md)
