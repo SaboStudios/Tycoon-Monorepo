@@ -52,6 +52,42 @@ afterEach(() => {
 // ─── Auth headers ─────────────────────────────────────────────────────────────
 
 describe('auth headers', () => {
+  it('reads token from canonical accessToken key', async () => {
+    const getItemMock = vi.fn((key: string) => {
+      if (key === 'accessToken') return 'canonical-token';
+      return null;
+    });
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(getItemMock);
+    const fetchMock = mockFetch(200, { id: 1 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiClient.get('/games');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer canonical-token');
+    expect(getItemMock).toHaveBeenCalledWith('accessToken');
+  });
+
+  it('falls back to legacy access_token key if accessToken not found', async () => {
+    const getItemMock = vi.fn((key: string) => {
+      if (key === 'accessToken') return null;
+      if (key === 'access_token') return 'legacy-token';
+      return null;
+    });
+    const setItemMock = vi.fn();
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(getItemMock);
+    (localStorage.setItem as ReturnType<typeof vi.fn>).mockImplementation(setItemMock);
+    const fetchMock = mockFetch(200, { id: 1 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiClient.get('/games');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer legacy-token');
+    // Should migrate to canonical key
+    expect(setItemMock).toHaveBeenCalledWith('accessToken', 'legacy-token');
+  });
+
   it('attaches Authorization header when token exists in localStorage', async () => {
     (localStorage.getItem as ReturnType<typeof vi.fn>).mockReturnValue('my-token');
     const fetchMock = mockFetch(200, { id: 1 });

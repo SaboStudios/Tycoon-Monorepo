@@ -1,63 +1,28 @@
-# Stellar Wave — GitHub issues (batch)
+# Stellar Wave — Issue Backlog
 
-This folder holds **375** issue drafts split by surface area:
+This directory is a placeholder for the Stellar Wave issue tracking area.
 
-| Folder       | Count |
-|-------------|-------|
-| `frontend/` | 125   |
-| `backend/`  | 125   |
-| `contract/` | 125   |
+## Where are the issues?
 
-Each file is the issue **body** only (starts with `Description (Frontend|Backend|Contract)`). GitHub titles live in `manifest.json` — no `#` title line in the markdown files.
+All Stellar Wave issues live on GitHub:
 
-Issues are generated from a repo scan (routes, modules, crates) plus explicit **[Restore]** items for code removed in the cleanup batch.
+**[https://github.com/SaboStudios/Tycoon-Monorepo/issues](https://github.com/SaboStudios/Tycoon-Monorepo/issues)**
 
-## Generate
+Filter by label to find issues by area:
 
-From the monorepo root:
+| Label | Link |
+|---|---|
+| `frontend` | [issues?q=label%3Afrontend](https://github.com/SaboStudios/Tycoon-Monorepo/issues?q=is%3Aopen+label%3Afrontend) |
+| `backend` | [issues?q=label%3Abackend](https://github.com/SaboStudios/Tycoon-Monorepo/issues?q=is%3Aopen+label%3Abackend) |
+| `contract` | [issues?q=label%3Acontract](https://github.com/SaboStudios/Tycoon-Monorepo/issues?q=is%3Aopen+label%3Acontract) |
+| `good first issue` | [issues?q=label%3A%22good+first+issue%22](https://github.com/SaboStudios/Tycoon-Monorepo/issues?q=is%3Aopen+label%3A%22good+first+issue%22) |
 
-```bash
-npm run issues:stellar-wave:generate
-# or
-node scripts/stellar-wave/generate-stellar-wave-issues.mjs
-```
+## What this directory is not
 
-This refreshes `frontend/`, `backend/`, `contract/`, and `manifest.json`.
+There are no draft issue files in this directory. An earlier version of this README claimed 375 draft files split across `frontend/`, `backend/`, and `contract/` subfolders — that was inaccurate. No such files exist and no generator script is present in this repo.
 
-## Push to GitHub
+If you are looking for the issue list to pick up work, use the GitHub issues link above.
 
-Requires [GitHub CLI](https://cli.github.com/) and `gh auth login`.
+## Contributing
 
-```bash
-npm run issues:stellar-wave:push
-```
-
-Dry run (print titles only):
-
-```bash
-DRY_RUN=1 ./scripts/stellar-wave/push-stellar-wave-issues.sh
-```
-
-### Continue after a partial push
-
-Files are processed in sorted filename order (`001-...`, `002-...`). If you already pushed some issues, resume with:
-
-```bash
-# Example: frontend done (125), backend stopped at file 6 — continue from backend #7
-RESUME_AREA=backend RESUME_FROM=7 ./scripts/stellar-wave/push-stellar-wave-issues.sh
-```
-
-Preview resume:
-
-```bash
-DRY_RUN=1 RESUME_AREA=backend RESUME_FROM=7 ./scripts/stellar-wave/push-stellar-wave-issues.sh
-```
-
-| Variable       | Meaning |
-|----------------|---------|
-| `RESUME_AREA`  | Skip `frontend` / `backend` / `contract` until this area |
-| `RESUME_FROM`  | 1-based index in that area (`007-...md` → `7`) |
-
-The script creates labels if missing: **frontend**, **backend**, **contract**, and applies the area label only (no Stellar Wave label).
-
-**Note:** Running without `RESUME_*` after a partial push will **duplicate** issues already on GitHub.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for how to pick up an issue and open a pull request.

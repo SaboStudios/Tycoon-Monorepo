@@ -93,7 +93,40 @@ The `verify-admin-analytics` workflow runs this script on every PR and MUST stay
 
 ---
 
-### 3. Users Module
+### 3. Admin Ledger Module
+
+**Base Path**: `/admin/ledger`  
+**Controller**: `AdminLedgerController`  
+**Guards**: `JwtAuthGuard`, `AdminGuard` (class-level)
+
+| HTTP Method | Path | Purpose | Guard Used |
+|-------------|------|---------|------------|
+| GET | `/admin/ledger` | List ledger entries with pagination and filters | AdminGuard |
+| GET | `/admin/ledger/export` | Export ledger entries as CSV with PII-minimized columns | AdminGuard |
+
+**Export column allowlist (PII-minimized):**
+
+| Column | Source | Notes |
+|--------|--------|-------|
+| `id` | `entry.id` | Ledger entry identifier |
+| `created_at` | `entry.createdAt` | ISO-8601 timestamp |
+| `type` | `entry.type` | Ledger entry type |
+| `amount` | `entry.amount` | Numeric amount |
+| `currency` | `entry.currency` | Currency code |
+| `status` | `entry.status` | Entry status |
+| `reference` | `entry.reference` | Internal reference (no PII) |
+| `user_ref` | `entry.userId` | Opaque user reference (hashed/ID only, no email/name) |
+
+**Explicitly excluded from export:** raw email, display name, wallet address, IP address, auth tokens, and any other direct PII or secrets. Secrets are redacted in admin log views.
+
+**Export safeguards:**
+- Export range is capped (max range size) to prevent export DoS on large ranges.
+- Heavy ledger queries are paginated/limited.
+- Every export writes an `AuditTrail` entry recording who exported and the requested range.
+
+---
+
+### 4. Users Module
 
 **Base Path**: `/users`  
 **Controller**: `UsersController`  
@@ -110,7 +143,7 @@ The `verify-admin-analytics` workflow runs this script on every PR and MUST stay
 
 ---
 
-### 4. Coupons Module
+### 5. Coupons Module
 
 **Base Path**: `/coupons`  
 **Controller**: `CouponsController`  
@@ -126,7 +159,7 @@ The `verify-admin-analytics` workflow runs this script on every PR and MUST stay
 
 ---
 
-### 5. Perks Admin Module
+### 6. Perks Admin Module
 
 **Base Path**: `/admin/perks`  
 **Controller**: `PerksAdminController`  
@@ -148,7 +181,7 @@ The `verify-admin-analytics` workflow runs this script on every PR and MUST stay
 
 ---
 
-### 6. Waitlist Admin Module
+### 7. Waitlist Admin Module
 
 **Base Path**: `/admin/waitlist`  
 **Controller**: `WaitlistAdminController`  
@@ -163,9 +196,15 @@ The `verify-admin-analytics` workflow runs this script on every PR and MUST stay
 | DELETE | `/admin/waitlist/:id` | Soft delete a waitlist entry | AdminGuard |
 | DELETE | `/admin/waitlist/:id/permanent` | Permanently delete a waitlist entry | AdminGuard |
 
+**Bulk Import Limits** (`POST /admin/waitlist/bulk-import`):
+- **Maximum file size**: 10 MB (exceeding returns HTTP 413 Payload Too Large)
+- **Maximum rows**: 10,000 data rows (exceeding returns HTTP 400 Bad Request)
+- Limits are enforced early in the streaming pipeline before database processing to prevent OOM or DoS attacks
+- Error responses include the specific limit exceeded and its configured value
+
 ---
 
-### 7. Chance Module
+### 8. Chance Module
 
 **Base Path**: `/chances`  
 **Controller**: `ChanceController`  
@@ -193,4 +232,53 @@ The `verify-admin-analytics` workflow runs this script on every PR and MUST stay
 **Note (#1280 — orphan Express tree audit)**: admin shop management was fully migrated
 from an earlier, pre-Nest implementation into `AdminShopController` under `ShopModule`
 (see commit `22adf0d`, #858). This audit re-confirmed there is no remaining
-standalone/orphan Express router, controller, or app instance for shop management
+standalone/orphan Express router, controller, or app instance for shop management.
+
+---
+
+### 9. Games Replay Admin Module
+
+**Base Path**: `/admin/games/replay`  
+**Controller**: `GamesReplayAdminController` (`src/modules/games/admin/games-replay-admin.controller.ts`)  
+**Guards**: `JwtAuthGuard`, `AdminGuard` (class-level via `@UseGuards(JwtAuthGuard, AdminGuard)`)
+
+| HTTP Method | Path | Purpose | Guard Used |
+|-------------|------|---------|------------|
+| GET | `/admin/games/replay` | List deterministic replay events with pagination and filters | AdminGuard |
+| GET | `/admin/games/replay/:id` | Get a single replay event by ID | AdminGuard |
+| GET | `/admin/games/replay/export` | Export replay events as CSV with PII-minimized columns | AdminGuard |
+
+**Deterministic event store:**
+- Replay events are append-only and ordered by a monotonic `sequence` per game session; the server is the source of truth for dice, board tiles, inventory, and money.
+- Mutations (create/update/delete of replay records) write an `AuditTrail` entry recording actor, action, target, and timestamp.
+- Concurrent duplicate requests are idempotent via a deterministic `eventId` (client retries/reconnects do not create duplicate events).
+- Writes fail-closed when Postgres/Redis/shop-api/RPC dependencies are unavailable.
+
+**Export column allowlist (PII-minimized):**
+
+| Column | Source | Notes |
+|--------|--------|-------|
+| `id` | `event.id` | Replay event identifier |
+| `sequence` | `event.sequence` | Monotonic per-session ordering |
+| `created_at` | `event.createdAt` | ISO-8601 timestamp |
+| `game_id` | `event.gameId` | Game session identifier |
+| `event_type` | `event.type` | Deterministic event type |
+| `payload_hash` | `event.payloadHash` | Hash of payload (no raw payload/PII) |
+| `user_ref` | `event.userId` | Opaque user reference (ID only, no email/name) |
+
+**Explicitly excluded from export:** raw event payloads, email, display name, wallet address, IP address, auth tokens, and any other direct PII or secrets. Secrets/tokens are redacted in admin log views.
+
+**Export safeguards:**
+- Export range is capped (max range size) to prevent export DoS on large ranges.
+- Heavy replay queries are paginated/limited.
+- Every export writes an `AuditTrail` entry recording who exported and the requested range.
+
+**Authorization:**
+- Non-admin tokens receive HTTP 403 Forbidden (covered by `admin-role-verification.e2e`).
+- `verify-admin-guards.ts` validates class-level guards on this controller in CI.
+
+---
+
+### 10. Admin Shop Bulk Update Notes
+
+**Note (#1280):** Bulk update returns partial success — see module docs for per-item error reporting.

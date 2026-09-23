@@ -1,51 +1,74 @@
 name: Contract CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+    branches: [main]
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-ci.yml'
+  pull_request:
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-ci.yml'
+
+concurrency:
+  group: contract-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  contract-checks:
+  contract:
+    name: Build, test, lint contract workspace
     runs-on: ubuntu-latest
     defaults:
-      run:
+      run: 
         working-directory: contract
-    env:
-      # Explicitly unset — integration tests must use Env::default() only.
-      # Any test that reads STELLAR_NETWORK to connect to staging will fail
-      # fast here rather than mutating shared contract state. (#1359)
-      STELLAR_NETWORK: ""
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo
+        uses: actions/cache@v4
         with:
-          workspaces: contract
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      # binaryen provides wasm-opt, which is used in the build-wasm Makefile target
-      # to run a size-optimisation pass (wasm-opt -Oz) on every release WASM artifact.
-      # This shrinks bytecode before the wasm-size-budget check and before deployment,
-      # reducing on-chain storage rent on Soroban/Stellar.
-      - name: Install wasm-opt (binaryen)
-        run: sudo apt-get update -qq && sudo apt-get install -y binaryen
+      # Archive crates under contract/archive/ are intentionally excluded from CI.
+      # They remain valid workspace members so they can be built/tested locally.
+      # See contract/archive/README.md for the local commands.
+      - name: Format check (workspace, excluding archive)
+        run: cargo fmt --all -- --check --exclude hello-world
 
-      - name: Verify wasm-opt presence
-        run: |
-          wasm-opt --version
-          echo "wasm-opt path: $(command -v wasm-opt)"
+      - name: Clippy (workspace, excluding archive)
+        run: cargo clippy --workspace --exclude hello-world --all-targets -- -D warnings
+
+      - name: Build (workspace, excluding archive)
+        run: cargo build --workspace --exclude hello-world
+
+      - name: Test (workspace, excluding archive)
+        run: cargo test --workspace --exclude hello-world
 
       - name: Run contract CI checks
         run: make ci
+
+      - name: Run wasm bump with documented env vars
+        env:
+          # Documented in contract/docs/WASM_BUMP_ENV.md
+          WASM_BUMP_CRATE: ${{ vars.WASM_BUMP_CRATE || 'tycoon-contract' }}
+          WASM_BUMP_PROFILE: ${{ vars.WASM_BUMP_PROFILE || 'release' }}
+          WASM_BUMP_TARGET: ${{ vars.WASM_BUMP_TARGET || 'wasm32-unknown-unknown' }}
+          WASM_BUMP_OUT_DIR: ${{ vars.WASM_BUMP_OUT_DIR || 'target/wasm32-unknown-unknown/release' }}
+          WASM_BUMP_ARTIFACT: ${{ vars.WASM_BUMP_ARTIFACT || 'tycoon_contract.wasm' }}
+          WASM_BUMP_SIZE_BUDGET: ${{ vars.WASM_BUMP_SIZE_BUDGET || 'wasm-size-budget.json' }}
+          WASM_BUMP_OPT_LEVEL: ${{ vars.WASM_BUMP_OPT_LEVEL || '-Oz' }}
+          WASM_BUMP_STRIP: ${{ vars.WASM_BUMP_STRIP || 'true' }}
+        run: ./scripts/wasm-bump.sh

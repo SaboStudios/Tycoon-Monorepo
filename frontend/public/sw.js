@@ -91,7 +91,8 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/game-") ||
     url.pathname.startsWith("/ai-play/") ||
-    url.pathname.startsWith("/join-room")
+    url.pathname.startsWith("/join-room") ||
+    url.pathname.startsWith("/socket.io/")
   ) {
     return;
   }

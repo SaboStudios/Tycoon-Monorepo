@@ -25,10 +25,11 @@ Covers the global Redis client and Nest `CacheModule` wiring under `backend/src/
 | Component | Role |
 |-----------|------|
 | `RedisModule` (`@Global`) | Registers `cache-manager` with `cache-manager-ioredis-yet` (same host/db/password as app config). Exports `RedisService`, idempotency helpers, and `CacheModule`. |
-| `RedisService` | Direct `ioredis` client for tokens, rate limits, sorted sets, `KEYS`/`SCAN` helpers; uses `CACHE_MANAGER` for cache-manager get/set/del. |
+| `RedisService` | Direct `ioredis` client for tokens, rate limits, sorted sets, `KEYS`/`SCAN` helpers, **cache versioning** (`getCacheVersion`, `incrementCacheVersion`); uses `CACHE_MANAGER` for cache-manager get/set/del. |
 | `redis.config.ts` | `ConfigFactory` for `ConfigService.get('redis')`. |
 | `env.validation.ts` | Joi schema: single source of truth for allowed env shapes and defaults for Redis-related variables. |
 | `GET /health/redis` | Smoke test: cache set/get for key `health-check` (short TTL). Routed **outside** the versioned API prefix (see `configureApiVersioning` exclusions). |
+| `CacheInterceptor` | Intercepts GET requests and caches responses. For versioned resources (e.g., shop catalog), includes the cache version in the key. |
 
 **Important:** `delByPattern` uses Redis `KEYS`, which can block a large instance. Prefer `scanPage` for wide keyspaces in production maintenance unless you know the pattern is narrow.
 
@@ -64,6 +65,32 @@ Validated at process startup via `validationSchema` in `src/config/env.validatio
 - **Schema:** New `AuditAction` enum string values (`CACHE_SET`, `CACHE_DEL`, `CACHE_INVALIDATE`) are stored in `audit_trails.action` (`varchar(50)`). No Alembic/TypeORM migration is required for length; existing rows are unchanged.
 - **Order of operations:** Deploy application code first (backward compatible). Then optionally enable `CACHE_AUDIT_ENABLED` per environment.
 - **Redis version:** No minimum version bump required for this runbook; follow your platform standard (e.g. Redis 6+ for TLS if used outside this repo).
+
+---
+
+## 4.5. Cache key versioning for shop catalog
+
+**Rationale:** The shop catalog is frequently cached but also frequently mutated by admins (price changes, item deactivation, etc.). Instead of using broad, blocking `KEYS` patterns to invalidate the cache, we use **cache key versioning**: each time an admin mutation occurs, a version counter increments, and the `CacheInterceptor` includes this version in generated cache keys. Subsequent reads automatically miss old entries and fetch fresh data.
+
+**Implementation:**
+
+- **Version key:** `{environment}:cache-version:shop:catalog` (stored in Redis, default 0)
+- **Cache key format:** `cache:GET:/api/v1/shop/items:userId:queryParams:vN` (where N is the current version)
+- **Mutation triggers:** When `ShopService.create()`, `ShopService.update()`, `ShopService.remove()`, or `ShopService.bulkUpdate()` is called, `invalidateCache()` increments the version
+- **TTL:** Shop catalog cache entries expire after 300 seconds (5 minutes) regardless of version changes
+
+**Versioning example:**
+
+1. Admin calls `PATCH /admin/shop/1/price` → price updated to $99.99 → version increments from 1 → 2
+2. Next `GET /api/v1/shop/items` request generates cache key with `:v2` suffix
+3. If cache still had an entry from `:v1`, it is not found (cache miss)
+4. Fresh data is fetched and cached under `:v2`
+5. Subsequent requests for the next 5 minutes hit the `:v2` cache entry
+
+**Methods:**
+
+- `redisService.getCacheVersion(namespace)` → returns current version (e.g., 2)
+- `redisService.incrementCacheVersion(namespace)` → increments and returns new version (e.g., 3)
 
 ---
 

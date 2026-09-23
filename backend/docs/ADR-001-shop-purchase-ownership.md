@@ -76,6 +76,50 @@ For ledger reconciliation of **shop purchases and pots**, the authoritative writ
 
 **Fail-closed rule:** if shop-api is unreachable, times out (>5s), or returns 5xx, the backend MUST return `503 Service Unavailable` and MUST NOT fall back to local writes. Reconciliation reads may serve stale data with an explicit `stale: true` marker, but writes never degrade.
 
+## Feature Flags (Issue #1806)
+
+The proxy cutover and the Stellar UI gate are controlled by the authoritative,
+server-side feature flag service (`backend/src/modules/feature-flags`). Flags are
+**deny-by-default**: an unknown flag, a missing flag, or a flag store outage
+(Postgres/Redis) resolves to `disabled`. Clients must never be trusted to decide
+whether a surface is enabled.
+
+| Flag | Default | Gates |
+|------|---------|-------|
+| `SHOP_PURCHASES_BACKEND_PROXY_ENABLED` | `false` | Backend `POST /shop/purchase` proxies writes to shop-api instead of legacy local logic |
+| `SHOP_PROXY_GAMES_WS_ENABLED` | `false` | Shop proxy games WebSocket surface (deny-by-default; disabled until explicitly enabled) |
+| `STELLAR_UI_ENABLED` | `false` | Stellar UI gate. Per ADR-003, NEAR remains the only supported chain UI until this flag is explicitly enabled |
+
+### Read path for the frontend
+
+The frontend must not infer Stellar availability from client state. It reads the
+evaluated flags from the backend read endpoint (`GET /feature-flags`), which
+returns the server-evaluated values. If the flag service cannot reach its
+dependencies, the endpoint returns the deny-by-default values (all `false`) so
+the Stellar UI stays gated and the games WS surface stays closed.
+
+### Fail-closed behavior
+
+- Flag evaluation errors (Postgres/Redis outage, timeout) → flag resolves to `false`.
+- The read endpoint never throws a 5xx that would let a client fall back to
+  optimistic defaults; it returns the disabled snapshot.
+- Enabling a flag is an explicit, audited operator action; there is no
+  client-supplied override.
+
+---
+
+## Implementation Plan
+
+### Phase 1: Service Contract (Week 1)
+1. **Document the contract** for shop-api's `POST /purchases`:
+   - Required headers: `Idempotency-Key` (UUID, max 255 chars)
+   - Request body: `{ userId, itemId, amount, currency, metadata? }`
+   - Success response: 201 with `{ id, userId, itemId, amount, createdAt, ... }`
+   - Replay response: 201 with `x-idempotency-replayed: true` header
+   - Concurrent duplicate: 409 with message "Request is still being processed"
+
+2. **
+
 ---
 
 ## Implementation Plan

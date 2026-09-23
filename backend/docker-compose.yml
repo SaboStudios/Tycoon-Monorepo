@@ -28,10 +28,15 @@ services:
       - tycoon_network
     command: redis-server --appendonly yes
 
+  # PgAdmin is a local-development-only tool. Its port is published only in the
+  # `local` profile so it is never exposed in non-local (staging/production)
+  # compose profiles. Run with: docker compose --profile local up
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: tycoon_pgadmin
     restart: unless-stopped
+    profiles:
+      - local
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@tycoon.com
       PGADMIN_DEFAULT_PASSWORD: admin

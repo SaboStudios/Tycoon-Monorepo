@@ -11,11 +11,25 @@ so they're captured by Chromatic.
 ## CI wiring
 `.github/workflows/frontend-ci.yml` runs a `chromatic` job (via `npm run
 chromatic`, defined in `frontend/package.json`) after `frontend-checks`
-passes. It requires a `CHROMATIC_PROJECT_TOKEN` repository secret; if unset
-(e.g. on a fork), the step is skipped rather than failing the build. The
-script uses `--exit-zero-on-changes`, so a visual diff surfaces in the
+passes. The job is path-filtered: it only starts when files under `frontend/`
+are added or modified (and always on `workflow_dispatch` for manual runs).
+
+The job requires a `CHROMATIC_PROJECT_TOKEN` repository secret. If the
+variable is unset — which is the case for **fork PRs** that don't have access
+to repository secrets — the "Publish to Chromatic" step is skipped via an
+`if: ${{ env.CHROMATIC_PROJECT_TOKEN != '' }}` guard. The build still passes;
+forks simply don't produce a Chromatic run.
+
+The script uses `--exit-zero-on-changes`, so a visual diff surfaces in the
 Chromatic UI/PR check without blocking merges by itself — treat it as a
 review signal, not a hard gate, unless that's later tightened.
+
+## Secret setup (repository maintainers only)
+1. Log in to [chromatic.com](https://www.chromatic.com) and copy the project token.
+2. In the GitHub repo go to **Settings → Secrets and variables → Actions**.
+3. Create a new repository secret named **`CHROMATIC_PROJECT_TOKEN`** with the
+   copied value.
+4. **Never commit the token** — it belongs only in the secrets store.
 
 ## Updating a baseline
 1. Make your intentional visual change.
