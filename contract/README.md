@@ -16,6 +16,29 @@ The following production contracts are part of the main workspace:
 | **tycoon-boost-system**  | Power-ups and boost mechanics                 | `contracts/tycoon-boost-system/`  |
 | **tycoon-lib**           | Shared library with common utilities          | `contracts/tycoon-lib/`           |
 
+## 🗺️ Roadmap & Crate Status
+
+This table tracks each workspace crate against its implementation status. It must stay in sync with the
+`members` list in [`Cargo.toml`](Cargo.toml) — every workspace member appears here, and no crate is
+listed as implemented until its API is aligned with the contract roadmap and Soroban SDK v23.
+
+| Crate (workspace member)        | Path                              | Status         | Notes                                                        |
+| ------------------------------- | --------------------------------- | -------------- | ------------------------------------------------------------ |
+| **tycoon-main-game**            | `contracts/tycoon-main-game/`     | Implemented    | Players, games, and lobbies                                  |
+| **tycoon-game**                 | `contracts/tycoon-game/`          | Implemented    | Core game mechanics and state management                     |
+| **tycoon-token**                | `contracts/tycoon-token/`         | Implemented    | ERC-20 style token for in-game currency                      |
+| **tycoon-reward-system**        | `contracts/tycoon-reward-system/` | Implemented    | Reward distribution and achievements                         |
+| **tycoon-collectibles**         | `contracts/tycoon-collectibles/`  | Implemented    | NFT collectibles and items                                   |
+| **tycoon-boost-system**         | `contracts/tycoon-boost-system/`  | Implemented    | Power-ups and boost mechanics                                |
+| **tycoon-lib**                  | `contracts/tycoon-lib/`           | Implemented    | Shared library with common utilities                         |
+| **tycoon-integration-tests**    | `integration-tests/`              | Test-only      | Cross-contract smoke tests; not a deployable WASM binary     |
+
+> **Status legend:** `Implemented` = crate builds and its public API matches the roadmap; `Scaffolding` = crate is a workspace member but its API is still being aligned with the roadmap and Soroban SDK v23; `Test-only` = crate is not deployed as a WASM binary.
+
+When adding or removing a workspace member in `Cargo.toml`, update this table in the same PR. Do not
+advertise a crate as implemented (or claim Stellar UI support) until its status here is `Implemented`
+and the deploy checklist is satisfied.
+
 ## 📁 Project Structure
 
 ```text

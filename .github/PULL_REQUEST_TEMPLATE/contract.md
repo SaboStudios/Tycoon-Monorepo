@@ -27,6 +27,8 @@ make ci: OK (hygiene + build + wasm-check + test)
 - [ ] New or changed behaviour is covered by tests
 - [ ] `GAS_SNAPSHOT_DIFF.md` updated if storage ops changed
 - [ ] `docs/NEP_STANDARDS_CHECKLIST.md` updated if token interface changed
+- [ ] `contract/README.md` roadmap crates status table matches the workspace members in `contract/Cargo.toml` (no crate marked implemented/scaffolding that disagrees with `[workspace] members`)
+- [ ] No ungated Stellar UI claims introduced; Stellar surfaces remain deny-listed until the deploy checklist is satisfied (ADR-003)
 - [ ] No regressions in related flows
 - [ ] PR title follows `feat|fix|chore|docs(scope): summary [#issue]`
 - [ ] Changes comply with the [Workspace Security Review Checklist](../contract/SECURITY_REVIEW_CHECKLIST.md) (SW-CONTRACT-HYGIENE-001)

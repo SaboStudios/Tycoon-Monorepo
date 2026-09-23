@@ -36,6 +36,32 @@ CSRF_COOKIE_NAME=tycoon_csrf
 CSRF_HEADER_NAME=x-csrf-token
 
 # NEAR wallet challenge/nonce hardening (SW-FE-005/039)
+
+NEAR_CHALLENGE_TTL_SECONDS=300
+NEAR_CHALLENGE_MAX_PER_WINDOW=10
+NEAR_CHALLENGE_WINDOW_SECONDS=60
+NEAR_AUTH_DOMAIN=tycoon.example
+```
+
+## Key Changes for Developers
+
+### 1. Token Storage
+
+**Before:**
+```typescript
+// Tokens stored in plaintext
+token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**After:**
+```typescript
+// Tokens stored as SHA-256 hashes
+tokenHash: "ebd917958fc7b45aa35d972f7babc2331c0776a2aed01a6d54f799d0407735"
+```
+
+### 1a. Client Session Storage Direction
+
+The frontend must n
 NEAR_CHALLENGE_TTL_SECONDS=300
 NEAR_CHALLENGE_MAX_PER_WINDOW=10
 NEAR_CHALLENGE_WINDOW_SECONDS=60
@@ -248,12 +274,21 @@ function safeReturnTo(value: string | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//')) {
     return '/';
   }
+  if (value.includes('\\')) return '/';
+  const normalized = new URL(value, 'https://tycoon.example').pathname;
   const allowed = ALLOWED_RETURN_PREFIXES.some(
-    (prefix) => value === prefix || value.startsWith(`${prefix}/`),
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
   );
-  return allowed ? value : '/';
+  return allowed ? normalized : '/';
 }
 ```
+
+Rules:
+
+- Only same-origin, path-relative targets are accepted.
+- Absolute (`https://evil.com`), protocol-relative (`//evil.com`), and
+  backslash-smuggled (`/\evil.com`) values fall back to `/`.
+- The allowlist is deny-by-default: new destinations must be added explicitly.
 
 ## NEAR Wallet Challenge / Nonce Hardening (SW-FE-033)
 
@@ -316,6 +351,9 @@ if (!ok) throw new UnauthorizedException('Invalid NEAR signature');
 - **Parallel refresh** — serialize refreshes client-side; the server's rotation
   rule revokes the family on a raced reuse.
 - **Open redirect attempts** — `returnTo` is validated by `safeReturnTo` above.
+- **Forged account session** — the signature is bound to `account_id` and the
+  domain-separated message, so a signature for one account/origin cannot mint a
+  session for another.
 
 ## Troubleshooting
 
@@ -334,3 +372,15 @@ This means a refresh token was used more than once. Common causes:
 
 If reuse detection fires spuriously, check for parallel refresh races and ensure
 clients persist the rotated token before issuing the next request.
+
+### Cookies not being set
+
+- Confirm `AUTH_COOKIE_SECURE` matches the transport (TLS in prod).
+- Confirm `AUTH_COOKIE_DOMAIN` covers the API host.
+- Confirm the client sends `credentials: 'include'`.
+
+### CSRF 403 on mutations
+
+- Ensure the `CSRF_COOKIE_NAME` cookie is present and echoed in
+  `CSRF_HEADER_NAME`.
+- The CSRF cookie is intentionally not httpOnly so the client can read it.

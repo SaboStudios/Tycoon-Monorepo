@@ -157,3 +157,35 @@ When touching purchase code, verify:
 ## Picking up your first issue
 
 Start with issues labeled [`good first issue`](https://github.com/SaboStudios/Tycoon-Monorepo/labels/good%20first%20issue). Once you're comfortable with the codebase, move on to [`help wanted`](https://github.com/SaboStudios/Tycoon-Monorepo/labels/help%20wanted). Issues are also labeled by area (`frontend`, `backend`, `contract`, `shop-api`) to help you find ones matching your experience.
+
+### Good-first-issue policy
+
+A `good first issue` is a **scoped, low-risk, self-contained** task that a new contributor can complete without tribal knowledge and without touching money or security-critical paths. To keep the label trustworthy, it is applied deliberately and enforced by CI.
+
+**An issue qualifies as `good first issue` only when all of the following hold:**
+
+- It is confined to a single area (`frontend`, `backend`, `contract`, or `shop-api`) and does not require cross-service coordination.
+- It has a clear, verifiable acceptance criterion (a test, a doc, or a visible UI change) and no open design questions.
+- It does **not** touch any money-path or security-sensitive surface (see exclusions below).
+- It does **not** require production credentials, secrets, migrations, or irreversible operations.
+- It is labeled with exactly one area label plus `good first issue`.
+
+**Explicitly excluded from `good first issue` (money-path and hard/security-sensitive):**
+
+- **Payments & purchases** — anything under `shop-api/**`, the `POST /shop/purchase` proxy, purchase DTOs, idempotency keys, or ledger/balance writes.
+- **Ledger & inventory mutations** — balance, wallet, inventory, or dice-roll state changes and their persistence.
+- **Admin & authorization** — admin endpoints, role checks, authz guards, token/session handling, or deny-by-default surfaces.
+- **Security-sensitive** — auth, secrets, rate limiting, telemetry redaction, or anything covered by [`SECURITY.md`](SECURITY.md).
+- **Hard / high-blast-radius** — migrations, infra/CI gates, contract deploys, or changes that can cause availability incidents.
+
+These issues should instead carry `help wanted` (and an area label). If you are unsure whether an issue qualifies, ask a maintainer before applying the label.
+
+**Enforcement (fail-closed):** CI runs `scripts/check-good-first-issue-policy.mjs` on every PR that changes issue metadata or the policy files. It fails the PR when a `good first issue` label is applied to an issue whose body or linked paths match the money-path/hard deny-list. Run it locally before opening a PR:
+
+```bash
+node scripts/check-good-first-issue-policy.mjs
+```
+
+**Operator rollback / order of operations:** if the policy check blocks a legitimate issue, remove the `good first issue` label (or reclassify to `help wanted`) and re-run the check — do not bypass the gate. To roll back the policy itself, revert the `CONTRIBUTING.md` and `scripts/check-good-first-issue-policy.mjs` changes together in a single PR so docs and enforcement never diverge.
+
+See [`stellar-wave-issues/README.md`](stellar-wave-issues/README.md) for how this policy applies to Stellar Wave contributions.

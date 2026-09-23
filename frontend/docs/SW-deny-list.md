@@ -46,3 +46,40 @@ isCacheExcludedPath("/shop");       // false
 
 Both files must stay in sync — `sw.js` runs in the browser's service worker scope and
 cannot import TypeScript modules.
+
+---
+
+# Forbidden Stellar Copy Deny-List (CI Gate)
+
+Per ADR-003, **NEAR is the only supported chain UI** until Stellar is gated ready. To keep
+player-facing copy honest, CI enforces a deny-list of forbidden Stellar copy strings across
+the frontend. This is a **separate** deny-list from the service-worker cache exclusions
+above — do not conflate the two.
+
+## Single source of truth
+
+The forbidden strings live in one module:
+
+- `src/lib/copy/forbidden-stellar-copy.ts` → `FORBIDDEN_STELLAR_COPY` (patterns) and
+  `findForbiddenStellarCopy(text)` (matcher).
+
+Each entry is a case-insensitive, word-boundary pattern. The matcher normalizes whitespace
+and casing so `"  stellar  "`, `"Stellar"`, and `"STELLAR"` all match, while allow-listed
+NEAR copy (e.g. `"NEAR wallet"`, `"near.org"`) passes.
+
+## CI gate
+
+The checker script `scripts/check-forbidden-stellar-copy.mjs` scans frontend player-facing
+copy/source, prints `file:line: <match>` for every hit, and exits non-zero on any match.
+It is wired into `.github/workflows/frontend-ci.yml` as a **required** gate, so a PR that
+reintroduces forbidden Stellar copy fails CI.
+
+## Adding or allow-listing a string
+
+1. Add/remove the pattern in `src/lib/copy/forbidden-stellar-copy.ts`.
+2. Add a matching case to `src/lib/copy/forbidden-stellar-copy.test.ts` (positive match,
+   allow-listed NEAR copy passes, case/whitespace handling).
+3. If a legitimate exception is needed, add it to the allow-list in the same module — never
+   silence the gate inline.
+
+Run locally with `node scripts/check-forbidden-stellar-copy.mjs` before pushing.

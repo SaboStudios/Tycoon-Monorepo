@@ -181,3 +181,28 @@ jobs:
             backend/coverage
             backend/logs
           if-no-files-found: ignore
+
+# ─── Job: good-first-issue policy enforcement ────────────────────────────────
+# Fails closed when a `good first issue` is applied to a money-path or
+# security-sensitive issue. Policy is documented in CONTRIBUTING.md and
+# stellar-wave-issues/README.md. Run locally with:
+#   bash scripts/check-good-first-issue-policy.sh
+  good-first-issue-policy:
+    name: Good-first-issue policy (fail-closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce good-first-issue policy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bash scripts/check-good-first-issue-policy.sh

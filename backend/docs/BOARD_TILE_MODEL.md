@@ -38,6 +38,47 @@ Clients never finalize economic outcomes — they render server quotes/results o
 - Simultaneous actions are serialized per game via a transactional lock; the loser
   of a race receives `CONFLICT_RETRY` and may retry idempotently.
 
+## Prize pot accounting
+
+The prize pot is the single escrowed balance for a game. It is mutated only by the
+stake, join, cancel, and finish flows below; every mutation is transactional and
+emits a game event so the pot can be rebuilt by replay.
+
+### Invariants
+
+Let `pot` be the escrowed balance, `stake` the per-player buy-in, and `players` the
+set of joined players.
+
+1. **Conservation** — `pot` equals the sum of all accepted stakes minus all
+   refunds and the single winner payout. No other code path may credit or debit the
+   pot.
+2. **Stake** — a stake is accepted only once per player per game; the pot increases
+   by exactly `stake`. Duplicate stakes are rejected with `ALREADY_STAKED` and no
+   state change.
+3. **Join** — joining requires an accepted stake; the pot is unchanged by join
+   itself. Joining twice is idempotent by `playerId`.
+4. **Cancel** — cancelling before the game starts refunds each joined player exactly
+   their stake and zeroes the pot. Cancel after start is rejected with
+   `GAME_ALREADY_STARTED` and no state change.
+5. **Finish** — finishing pays the pot to the single winner and zeroes it. The pot
+   must be non-negative at every step; a negative pot is a fatal invariant breach.
+6. **Winner-only claim** — only the winner may claim; claims are idempotent by
+   `gameId` and rejected with `NOT_WINNER` for non-winners and `ALREADY_CLAIMED`
+   for duplicates.
+
+### Events
+
+Prize pot mutations emit `STAKE_ACCEPTED`, `PLAYER_JOINED`, `GAME_CANCELLED`,
+`PRIZE_PAID`, and `POT_REFUNDED`. Replaying these events MUST rebuild an identical
+pot balance.
+
+### Golden vectors
+
+Table-driven vectors in `backend/test/prize-pot.invariant-spec.ts` cover stake,
+join, cancel, and finish, including duplicate stake, join-before-stake, cancel
+after start, and finish with a zero pot. Vectors assert both the resulting pot and
+the emitted event sequence.
+
 ## Events
 
 Every accepted mutation emits a game event for replay:

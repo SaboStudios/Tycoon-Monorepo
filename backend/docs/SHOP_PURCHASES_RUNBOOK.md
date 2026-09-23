@@ -1,236 +1,119 @@
-<<<<<<< HEAD
-# Operational Runbook: Shop & Purchases
+# Shop Purchases Runbook
 
-## Overview
-This runbook covers the operational procedures for managing the Tycoon Shop and Purchases module, including troubleshooting failed transactions, managing coupons, and auditing financial activity.
+Operational guide for the shop-api purchase path (the source of truth for
+money, inventory, and admin catalog mutations) and the public Shop catalog
+read path.
 
-## Common Issues & Troubleshooting
+## Scope
 
-### 1. Failed Purchases
-If a user reports a failed purchase but claims they were charged (or vice versa):
-1.  **Check Audit Logs**:
-    ```sql
-    SELECT * FROM audit_trails 
-    WHERE action = 'PURCHASE_CREATED' 
-    AND user_id = <USER_ID> 
-    ORDER BY created_at DESC;
-    ```
-2.  **Verify Ledger**: Check the `ledger_reconciliation` module/logs to see if the transaction was recorded in the internal ledger.
-3.  **Inventory Check**: Verify if the item exists in the user's inventory:
-    ```sql
-    SELECT * FROM user_inventories 
-    WHERE user_id = <USER_ID> 
-    AND shop_item_id = <ITEM_ID>;
-    ```
+- **shop-api** is the authoritative write path for purchases and admin
+  catalog mutations (create/update/delete of SKUs).
+- **backend** may proxy public catalog reads; it must never be the source of
+  truth for price, inventory, or admin state.
+- **frontend** renders catalog data only; it must not trust client-supplied
+  price or inventory.
 
-### 2. Invalid Coupon Errors
-If coupons are not working as expected:
--   **Expiry**: Check `valid_until` in the `coupons` table.
--   **Usage Limit**: Check if `usage_count` has reached `max_usages`.
--   **Scope**: Ensure the coupon is valid for the specific `shop_item_id`.
+## Public catalog read caching
 
-### 3. Inventory Out of Sync
-If a user cannot see their purchased items:
--   The cache might be stale. Invalidate the shop cache for the user:
-    -   Redis Key: `shop:inventory:<USER_ID>`
-    -   Action: `DEL shop:inventory:<USER_ID>`
+Public Shop catalog reads are served from a cache layer in front of the
+authoritative shop-api read path.
 
-### 4. Duplicate Purchase Reports (Idempotency)
-`POST /shop/purchase` **requires** an `Idempotency-Key` header and is wrapped with
-`IdempotencyInterceptor` (`src/modules/redis/idempotency.interceptor.ts`) to ensure
-exactly-once semantics matching `shop-api`'s implementation:
+### Cache key scheme
 
-#### Idempotency Header
--   **Header Name**: `Idempotency-Key` (case-insensitive for `idempotency-key` and `x-idempotency-key`)
--   **Requirement**: Required for all purchase requests
--   **Format**: Any unique string, typically UUID (e.g., `550e8400-e29b-41d4-a716-446655440000`)
--   **Max Length**: 255 characters
+- Per-SKU keys: `shop:catalog:sku:{sku}`
+- Catalog listing key: `shop:catalog:list:{page}:{pageSize}`
+- Catalog version key: `shop:catalog:version` (monotonic counter bumped on
+  every successful admin mutation)
 
-#### State Machine
--   **Claim**: On a new key, the request is marked `processing` in Redis (`idempotency:<key>`, 24h TTL) before the handler runs.
--   **Complete**: On success, the response is cached and replayed (with `X-Idempotency-Replayed: true` header) for any repeat request using the same key.
--   **Fail**: If the handler throws, the key is deleted so the client can safely retry with the same key.
+### TTL
 
-#### Response Scenarios
+- Per-SKU entries: `SHOP_CATALOG_SKU_TTL_SECONDS` (default 300s).
+- Listing entries: `SHOP_CATALOG_LIST_TTL_SECONDS` (default 60s).
+- TTL is a safety net only; correctness relies on explicit invalidation on
+  admin edit (see below).
 
-| Scenario | Status | Header | Behavior |
-|----------|--------|--------|----------|
-| **First request** | 201 | None | Purchase processed; item added to inventory |
-| **Duplicate (completed)** | 201 | `X-Idempotency-Replayed: true` | Cached response replayed; no new charge |
-| **Duplicate (in-flight)** | 409 | None | Original request still processing; client must retry |
-| **Payload conflict (same key, different body)** | 409 | None | Key already used with a different body hash; request rejected |
-| **No Idempotency-Key** | 201 | None | Not deduplicated; each request processes independently |
+### Read path
 
-#### Examples
+1. Compute the cache key for the requested SKU or listing.
+2. On hit, return the cached payload.
+3. On miss, read from shop-api (authoritative), populate the cache, and
+   return the fresh payload.
+4. Cache is never authoritative: price, inventory, and admin state always
+   come from shop-api on miss, and any cached value is treated as a hint.
 
-**First purchase request** (success):
-```bash
-curl -X POST http://localhost:3000/shop/purchase \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "shop_item_id": 42,
-    "quantity": 1,
-    "coupon_code": "SAVE10"
-  }'
-```
+## Invalidation on admin edit
 
-Response (201 Created):
-```json
-{
-  "id": 123,
-  "user_id": 456,
-  "shop_item_id": 42,
-  "quantity": 1,
-  "final_price": "9.99",
-  "status": "completed",
-  "created_at": "2026-08-26T10:30:00Z"
-}
-```
+Every successful admin catalog mutation (create/update/delete) MUST
+invalidate or refresh the affected cache entries before the mutation is
+reported as successful.
 
-**Duplicate request (replay)** — same Idempotency-Key, original has completed:
-```bash
-curl -X POST http://localhost:3000/shop/purchase \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "shop_item_id": 42,
-    "quantity": 1,
-    "coupon_code": "SAVE10"
-  }'
-```
+1. Persist the mutation in shop-api (authoritative write).
+2. Bump `shop:catalog:version`.
+3. Delete `shop:catalog:sku:{sku}` for the affected SKU.
+4. Delete all `shop:catalog:list:*` entries (or refresh them from the
+   authoritative read path).
+5. Only after steps 2–4 succeed, return success to the admin caller.
 
-Response (201 Created, **X-Idempotency-Replayed: true**):
-```
-X-Idempotency-Replayed: true
-```
-```json
-{
-  "id": 123,
-  "user_id": 456,
-  "shop_item_id": 42,
-  "quantity": 1,
-  "final_price": "9.99",
-  "status": "completed",
-  "created_at": "2026-08-26T10:30:00Z"
-}
-```
-**Note**: Same response body and purchase ID; no new charge; item not added again.
+### Concurrency (edit during read)
 
-**Concurrent duplicate request** — same Idempotency-Key, original still in-flight:
-```bash
-curl -X POST http://localhost:3000/shop/purchase \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "shop_item_id": 42,
-    "quantity": 1
-  }'
-```
+- Invalidation is version-guarded: a reader that started before the bump
+  must not repopulate the cache with pre-edit data. Readers include the
+  observed `shop:catalog:version` in the value they write; a write whose
+  version is older than the current version is discarded.
+- Admin edits and reads may interleave; the post-edit read must observe the
+  new version and fall through to shop-api.
 
-Response (409 Conflict):
-```json
-{
-  "statusCode": 409,
-  "message": "Request is still being processed",
-  "error": "Conflict"
-}
-```
-**Action**: Client should wait 1–5 seconds and retry, or use a different `Idempotency-Key` for a new purchase.
+### Fail-closed on admin writes
 
-**Payload conflict** — same Idempotency-Key reused with a different request body:
-```bash
-curl -X POST http://localhost:3000/shop/purchase \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "shop_item_id": 42,
-    "quantity": 5
-  }'
-```
+- If the cache/dependency (Redis) is unavailable during an admin mutation,
+  the mutation MUST fail closed: do not report success, do not silently drop
+  invalidation. Surface a 5xx mapped per
+  `docs/API_ERROR_RESPONSE_STANDARDS.md` and alert operators.
+- Public reads may degrade to the authoritative shop-api read path when the
+  cache is unavailable; they must not serve stale data as if it were fresh.
 
-Response (409 Conflict):
-```json
-{
-  "statusCode": 409,
-  "message": "Idempotency-Key was already used with a different request body",
-  "error": "Conflict"
-}
-```
-**Action**: The key is bound to the original body hash. Use a new `Idempotency-Key` for a genuinely different purchase; do not reuse keys across payloads.
+## Purchase path (authoritative writes)
 
-#### Troubleshooting
-If a user reports being charged twice for what they believe was one click:
-1.  **Check client logs** for the `Idempotency-Key` sent on both requests.
-2.  **If same key**: The second request should have been idempotent. Check audit logs to confirm if two distinct purchase records were created or if the second was a replay.
-3.  **If different keys**: This is expected behavior — two independent purchases with two different keys are not deduplicated (see Section 1 for refund procedures).
+- Idempotency-Key is required; the body hash is stored with the response.
+  Replays return the stored response; a conflicting payload returns 409.
+- Inventory adjustments are atomic (constraint or reservation TTL) so
+  concurrent buys for the same SKU cannot oversell; inventory never goes
+  negative.
+- `requestId` is propagated end-to-end; errors map to
+  `docs/API_ERROR_RESPONSE_STANDARDS.md`; RED metrics are emitted for
+  purchases.
+- Writes fail closed when Postgres, Redis, shop-api, or RPC dependencies are
+  unavailable.
 
-### 5. Error Envelope & requestId Propagation
-All backend and `shop-api` error responses conform to
-`docs/API_ERROR_RESPONSE_STANDARDS.md`. Every error body carries the standard
-envelope so clients and operators can correlate a failure end-to-end:
+## Edge cases
 
-```json
-{
-  "statusCode": 400,
-  "code": "VALIDATION_FAILED",
-  "message": "quantity must be a positive integer",
-  "requestId": "b3f1c2d4-5e6a-4b7c-8d9e-0f1a2b3c4d5e",
-  "details": [{ "field": "quantity", "issue": "min" }]
-}
-```
+- Concurrent duplicate requests / reconnect retries: handled by
+  Idempotency-Key + body hash.
+- Idempotency TTL expiry reuse: after TTL, a new key is required; the old
+  key no longer replays.
+- shop-api timeout vs client retry: client retries with the same
+  Idempotency-Key; server returns the stored response on replay.
+- Catalog edit during purchase: purchase reads authoritative price/inventory
+  from shop-api; the catalog cache is invalidated on edit and never trusted
+  for money or inventory.
 
--   **requestId**: Propagated from the inbound `X-Request-Id` header (generated if absent) and echoed on every response, including errors. Use it to grep backend and `shop-api` logs for the same request.
--   **code**: Stable machine-readable string (e.g. `VALIDATION_FAILED`, `IDEMPOTENCY_CONFLICT`, `DEPENDENCY_UNAVAILABLE`). Clients must branch on `code`, never on `message`.
--   **details**: Optional structured context; never contains secrets, tokens, or PII.
+## Security
 
-#### Purchase-path error mapping
+- Server remains source of truth for money, dice, inventory, and admin
+  mutations.
+- No secrets in repo/logs; redact tokens and avoid PII in telemetry labels.
+- Rate-limit and authorize every external entrypoint touched by this work.
+- Deny-by-default for new admin/WS/action surfaces.
+- API-key only for service calls; no client-trusted price.
+- Admin catalog mutations are audited.
 
-| Condition | Status | `code` | Notes |
-|-----------|--------|--------|-------|
-| DTO validation failure (SKU, quantity, minor units, unknown fields) | 400 | `VALIDATION_FAILED` | Unknown fields rejected per policy |
-| Idempotency replay (completed) | 201 | — | Stored response replayed with `X-Idempotency-Replayed: true` |
-| Idempotency in-flight | 409 | `IDEMPOTENCY_IN_PROGRESS` | Retry after 1–5s |
-| Idempotency payload conflict | 409 | `IDEMPOTENCY_CONFLICT` | Same key, different body hash |
-| Auth expired / missing | 401 | `UNAUTHENTICATED` | Client must re-authenticate |
-| Forbidden role | 403 | `FORBIDDEN` | Deny-by-default for admin surfaces |
-| Insufficient inventory | 409 | `INSUFFICIENT_INVENTORY` | Atomic decrement; inventory never negative |
-| Postgres/Redis/`shop-api`/RPC outage on write | 503 | `DEPENDENCY_UNAVAILABLE` | **Fail-closed**: no purchase is recorded |
+## Rollback
 
-#### Fail-closed behavior on dependency outage
-When `shop-api` (the authoritative write path) or its Postgres/Redis dependencies
-are unavailable, purchase writes **fail closed**: the request returns `503` with
-`code: DEPENDENCY_UNAVAILABLE` and no inventory or ledger mutation occurs. Do not
-retry blindly — surface the `requestId` to the user and check the dependency's
-health before advising a retry with the same `Idempotency-Key`.
+- Disable the catalog cache flag to fall back to direct shop-api reads.
+- Invalidation remains required on admin edits regardless of cache flag.
 
-## Operational Procedures
+## References
 
-### Deactivating a Malfunctioning Shop Item
-If an item is causing issues (e.g., incorrect pricing), deactivate it immediately:
-```sql
-UPDATE shop_items SET active = false WHERE id = <ITEM_ID>;
-```
-This is preferred over deletion to preserve historical purchase records.
-
-### Refunding a Purchase
-Currently, refunds are handled manually by:
-1.  Removing the item from `user_inventories`.
-2.  Crediting the user's balance (if applicable).
-3.  Logging the action in `audit_trails` with a reason.
-
-## Monitoring & Metrics
--   **Metric**: `tycoon_purchases_total` - Track successful vs failed purchases.
--   **Metric**: `tycoon_coupon_usage_total` - Monitor marketing campaign effectiveness.
--   **Metric**: `tycoon_purchase_duration_seconds` - RED latency histogram for the purchase path (label by `status`/`code`).
--   **Metric**: `tycoon_purchase_errors_total` - RED error counter, labelled by `code` (no PII/tokens in labels).
-
-## Support Contacts
--   Backend Team: #team-backend
--   Finance/Operations: #ops-billing
-=======
->>>>>>> upstream/main
+- `backend/docs/REDIS_CACHE_RUNBOOK.md`
+- `backend/docs/API_ERROR_RESPONSE_STANDARDS.md`
+- ADR-001 / ADR-003 notes for operators.

@@ -97,6 +97,22 @@ Validated at process startup via `validationSchema` in `src/config/env.validatio
 - `redisService.getCacheVersion(namespace)` → returns current version (e.g., 2)
 - `redisService.incrementCacheVersion(namespace)` → increments and returns new version (e.g., 3)
 
+### 4.5.1. Public read path & authority
+
+The public catalog read (`GET /api/v1/shop/items`, `GET /api/v1/shop/items/:id`) is **cache-first, origin-authoritative**:
+
+- On a cache hit, the cached payload is returned. Cached payloads are only ever written from a successful shop-api read; the cache is never the source of truth for price, inventory, or admin state.
+- On a cache miss (including every miss caused by a version bump), the request falls through to the authoritative shop-api read path and the fresh result is written back under the current version key.
+- Price, inventory, and admin mutations are always resolved by shop-api; the cache layer must not be consulted for write decisions.
+
+### 4.5.2. Invalidation on admin edit
+
+Admin catalog mutations (`create`, `update`, `remove`, `bulkUpdate`) call `invalidateCache()`, which increments the shop catalog version. Because the version is part of the key, all prior entries become unreachable immediately and the next public read repopulates from shop-api.
+
+**Concurrency (edit during read):** versioning is monotonic and atomic (`INCR`), so a read that started before an edit may still write its result under the *old* version key. That entry is unreachable after the bump, so no stale data is served. A read that starts after the bump uses the new version and observes the edit.
+
+**Fail-closed on admin writes:** if the version increment fails (Redis unavailable), the admin mutation must **not** be reported as successfully invalidated. Surface the error to the caller and let the write fail closed rather than silently dropping invalidation — a successful admin edit must never leave stale public catalog data reachable.
+
 ---
 
 ## 5. Normal operations
@@ -152,144 +168,6 @@ Do **not** paste `REDIS_PASSWORD` into tickets, chat, or CI logs.
 
 ### 6.4 Cache stampede (thundering herd) on a hot namespace
 
-**Symptoms:** A single hot key expires and origin (Postgres / shop-api / RPC) QPS spikes; `tycoon_cache_stampede_leader_total` and `tycoon_cache_stampede_follower_total` both climb; p99 latency on the affected endpoint rises while cache hit ratio dips.
+**Symp
 
-**Steps:**
-
-1. Confirm the stampede counters are moving and that the affected namespace is the one you expect (see §10).
-2. Verify `CACHE_STAMPEDE_LOCK_TTL_MS` is greater than the p99 origin latency for that namespace; if not, raise it and redeploy.
-3. If followers are timing out (`tycoon_cache_stampede_wait_timeout_total` climbing), raise `CACHE_STAMPEDE_WAIT_TIMEOUT_MS` or reduce origin latency.
-4. If Redis itself is the bottleneck, follow §6.1 — stampede protection degrades to direct origin calls, it does not block requests.
-
----
-
-## 7. Logging & secrets
-
-- **Do not** log `REDIS_PASSWORD`, full Redis URLs with auth, or refresh token values. `RedisService` logs keys at **debug** for cache hit/miss and identifiers like `userId` for token operations — keep production `LOG_LEVEL` at `info` or higher unless troubleshooting.
-- Error messages include Redis/ioredis `message` only (no password).
-- Stampede lock keys are logged at **debug** only; they contain the namespace and cache key but never payloads or PII.
-
----
-
-## 8. Monitoring
-
-Prometheus metrics (non-exhaustive):
-
-- `tycoon_redis_operations_total{operation="..."}`
-- `tycoon_redis_errors_total`
-- `tycoon_cache_hits_total` / `tycoon_cache_misses_total`
-- `tycoon_redis_operation_duration_seconds`
-- `tycoon_cache_stampede_leader_total{namespace="..."}` — requests that acquired the single-flight lock and populated the cache
-- `tycoon_cache_stampede_follower_total{namespace="..."}` — requests that waited on an in-flight leader
-- `tycoon_cache_stampede_wait_timeout_total{namespace="..."}` — followers that timed out and fell back to the origin
-
-Alert on sustained error rate and on `health/redis` failing synthetic checks. Alert when `tycoon_cache_stampede_wait_timeout_total` grows faster than `tycoon_cache_stampede_leader_total` for a namespace — that indicates the lock TTL is too short relative to origin latency.
-
----
-
-## 9. Rollback
-
-1. Revert or redeploy previous image.
-2. If audit volume was the issue, set `CACHE_AUDIT_ENABLED=false` without reverting code.
-3. No data migration rollback is required for audit enum strings.
-4. Stampede protection is additive and self-healing: lock keys carry a TTL (`CACHE_STAMPEDE_LOCK_TTL_MS`) and expire on their own, so reverting the image leaves no orphaned state. If you must disable it without a redeploy, set `CACHE_STAMPEDE_LOCK_TTL_MS` to a very small value (e.g. `1`) so locks expire immediately and every request behaves as a direct origin call.
-
----
-
-## 10. Cache namespaces & stampede protection
-
-### Namespace conventions
-
-Every cache key is namespaced so that invalidation, metrics, and stampede locks stay scoped and never collide across features:
-
-| Namespace | Key shape | Owner |
-|-----------|-----------|-------|
-| `auth` | `auth:<userId>:<purpose>` | Auth module (refresh tokens, sessions) |
-| `game` | `game:<gameId>:<field>` | Game module |
-| `shop` | `shop:<sku>:<field>` | shop-api proxy |
-| `admin` | `admin:<resource>:<id>` | Admin module |
-| `health` | `health-check` | `GET /health/redis` |
-
-Rules:
-
-- Namespace is the first colon-delimited segment of the key.
-- Never write a key without a namespace; the cache interceptor derives it from the `@CacheOptions` decorator (see below).
-- Invalidation patterns must be namespace-scoped (e.g. `game:*`), never `*`.
-
-### Cache interceptor surface (unchanged)
-
-The existing cache interceptor feature surface is preserved:
-
-- **TTL** — per-route TTL from `@CacheOptions({ ttl })`, falling back to `REDIS_TTL`.
-- **Namespace** — per-route namespace from `@CacheOptions({ namespace })`, defaulting to the controller/module name.
-- **`@CacheOptions` decorator** — `ttl`, `namespace`, and `key` behavior are unchanged; stampede protection wraps the existing miss path and does not alter key derivation.
-
-### Single-flight / distributed lock behavior
-
-When a request misses the cache for a namespace, the interceptor uses a Redis `SET NX PX` lock to elect a single leader:
-
-1. **Leader** — acquires `lock:<namespace>:<key>` with `SET NX PX CACHE_STAMPEDE_LOCK_TTL_MS`. It calls the origin, writes the result to the cache with the normal TTL, then releases the lock. Emits `tycoon_cache_stampede_leader_total{namespace}`.
-2. **Follower** — fails to acquire the lock, so it polls the cache every `CACHE_STAMPEDE_WAIT_INTERVAL_MS` up to `CACHE_STAMPEDE_WAIT_TIMEOUT_MS`. If the leader populates the cache, the follower returns the cached value. Emits `tycoon_cache_stampede_follower_total{namespace}`.
-3. **Follower timeout** — if the wait budget elapses, the follower falls back to calling the origin directly (fail-open for reads) and emits `tycoon_cache_stampede_wait_timeout_total{namespace}`. This bounds worst-case latency and prevents a stuck leader from blocking traffic.
-4. **Redis unavailable** — if the lock cannot be acquired because Redis is down, the request proceeds directly to the origin (reads fail-open). Writes are governed by §11.
-
-Locks are always released in a `finally` block and additionally expire via their TTL, so a crashed leader cannot deadlock a namespace.
-
-### Copy-pasteable commands
-
-Inspect active stampede locks for a namespace (read-only):
-
-```bash
-redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} \
-  --scan --pattern 'lock:game:*'
-```
-
-Count locks per namespace without `KEYS`:
-
-```bash
-redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} \
-  --scan --pattern 'lock:*' | awk -F: '{print $2}' | sort | uniq -c
-```
-
-Inspect a specific lock's remaining TTL (ms):
-
-```bash
-redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} \
-  PTTL 'lock:game:<gameId>:<field>'
-```
-
-Force-expire a stuck lock (only after confirming no leader is in flight):
-
-```bash
-redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} \
-  DEL 'lock:game:<gameId>:<field>'
-```
-
----
-
-## 11. SW-BE-007 error mapping
-
-Redis cache failures map to the standard error envelope defined in `docs/API_ERROR_RESPONSE_STANDARDS.md`. The server remains the source of truth for money, dice, inventory, and admin mutations.
-
-| Condition | Read path | Write path | Error code | HTTP |
-|-----------|-----------|------------|------------|------|
-| Cache miss | Call origin, populate cache | n/a | — | — |
-| Redis unavailable | Fail-open: call origin directly | **Fail-closed**: reject | `SW-BE-007` | `503` |
-| Lock acquisition error | Fail-open: call origin directly | **Fail-closed**: reject | `SW-BE-007` | `503` |
-| Follower wait timeout | Fail-open: call origin directly | n/a | — | — |
-| Serialization error on set | Log, return origin value | **Fail-closed**: reject | `SW-BE-007` | `503` |
-
-Rules:
-
-- **Reads fail-open.** A cache outage must never take down read traffic; the origin is authoritative.
-- **Writes fail-closed.** Any mutation that depends on cache consistency (inventory, dice, admin) must reject with `SW-BE-007` / `503` rather than proceed on stale or unverifiable state.
-- The error envelope follows `docs/API_ERROR_RESPONSE_STANDARDS.md`: `{ "statusCode": 503, "code": "SW-BE-007", "message": "...", "requestId": "..." }`. Never include `REDIS_PASSWORD`, connection strings, or PII in the message.
-- `SW-BE-007` is emitted only for cache-layer failures; origin failures keep their own codes.
-
----
-
-## Related docs
-
-- `docs/AUTH_JWT_RUNBOOK.md` — refresh tokens also use Redis-backed flows in auth.
-- `docs/webhooks-runbook.md` — webhook idempotency uses Redis.
-- `docs/API_ERROR_RESPONSE_STANDARDS.md` — canonical error envelope and `SW-BE-007` mapping.
+/* … truncated 7825 chars — edit only what you need near the top … */
