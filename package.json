@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Tycoon Gaming Platform Monorepo",
   "scripts": {
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install --legacy-peer-deps",
-    "dev:all": "concurrently \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\"",
-    "test:all": "cd backend && npm run test && cd ../frontend && npm run test",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install --legacy-peer-deps && cd ../shop-api && npm install",
+    "dev:all": "concurrently \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\" \"cd shop-api && npm run start:dev\"",
+    "test:all": "cd backend && npm run test && cd ../frontend && npm run test && cd ../shop-api && npm test",
     "build:all": "cd backend && npm run build && cd ../frontend && npm run build",
     "backend": "cd backend && npm run start:dev",
     "backend:build": "cd backend && npm run build",

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Operational Runbook: Shop & Purchases
 
 ## Overview
@@ -231,3 +232,5 @@ Currently, refunds are handled manually by:
 ## Support Contacts
 -   Backend Team: #team-backend
 -   Finance/Operations: #ops-billing
+=======
+>>>>>>> upstream/main

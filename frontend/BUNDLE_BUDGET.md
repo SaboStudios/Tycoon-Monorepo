@@ -2,11 +2,32 @@
 
 ## Overview
 
-CI enforces gzip size limits on the Next.js build output. A PR that exceeds any budget will **fail the `bundle-budget` CI job** and cannot be merged until resolved.
+CI enforces gzip size limits on the Next.js build output. A PR that exceeds any budget will **fail the `frontend-checks` CI job** (step: *Check bundle size*) and cannot be merged until resolved.
 
 Budgets are defined in [`.size-limit.json`](./.size-limit.json).  
-The check is run by [`scripts/check-bundle-size.mjs`](./scripts/check-bundle-size.mjs).  
-Each run writes `bundle-size-report.json` (uploaded as a CI artifact) for trend tracking.
+The check is run by [`scripts/check-bundle-size.mjs`](./scripts/check-bundle-size.mjs) via `npm run bundle:check`.  
+Each run writes `bundle-size-report.json` (uploaded as a `bundle-size-report` artifact, retained 30 days) for trend tracking.
+
+---
+
+## CI integration (#1460)
+
+The bundle check runs as a step inside the `frontend-checks` job, **after** `npm run build`:
+
+```yaml
+- name: Check bundle size
+  run: npm run bundle:check          # exits 1 on any breach → fails the job
+
+- name: Upload bundle size report
+  if: ${{ !cancelled() }}
+  uses: actions/upload-artifact@v4
+  with:
+    name: bundle-size-report
+    path: frontend/bundle-size-report.json
+    retention-days: 30
+```
+
+The report artifact is available under the *Artifacts* section of every workflow run, even when the build fails. Download it and compare `sizeBytes` across runs to track trends.
 
 ---
 
@@ -18,6 +39,13 @@ Each run writes `bundle-size-report.json` (uploaded as a CI artifact) for trend 
 | Main page JS | 50 kB | Next.js runtime bootstrap |
 | Total First Load JS | 350 kB | All JS on first navigation |
 | Total build output (JS) | 1500 kB | All JS chunks across all routes (gzip) |
+| Shop Grid route JS | 40 kB | Shop page + ShopGrid + ShopItem components |
+
+### Join Room route status (SW-FE-846)
+
+The join-room page was audited in [SW-FE-846](./docs/SW-FE-846-join-room-bundle-size-audit.md).  
+After import optimisations the page JS sits at **~46 kB** (gzip), which is within the overall Total First Load JS budget.  
+No per-route budget entry for join-room is needed at this time. If the route grows above 60 kB (gzip) a dedicated entry should be added to `.size-limit.json`.
 
 ---
 
