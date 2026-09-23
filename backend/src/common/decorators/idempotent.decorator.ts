@@ -32,6 +32,14 @@ export const IDEMPOTENT_TTL_MS = 24 * 60 * 60 * 1000;
  */
 export const GAME_ACTION_IDEMPOTENCY_SCOPE = 'game-action';
 
+/**
+ * Bankruptcy winner determination and prize claim are money-moving actions.
+ * They are scoped separately from ordinary game actions so a prize claim can
+ * never be replayed as (or collide with) a roll/buy/end-turn intent, and so the
+ * winner-only authorization is enforced on a dedicated key namespace.
+ */
+export const BANKRUPTCY_PRIZE_CLAIM_IDEMPOTENCY_SCOPE = 'bankruptcy-prize-claim';
+
 export type GameActionType = 'roll' | 'buy' | 'end-turn';
 
 export interface GameActionIntent {
@@ -39,6 +47,23 @@ export interface GameActionIntent {
   seatId: string;
   action: GameActionType;
   /** Client-generated key; stable across reconnect retries of the same intent. */
+  idempotencyKey: string;
+  payload?: unknown;
+}
+
+/**
+ * Intent for claiming the bankruptcy winner prize. The winner seat is the only
+ * seat authorized to submit this intent; the server re-derives the winner from
+ * the pinned ruleset and never trusts the client-supplied seatId for the
+ * economic outcome.
+ */
+export interface BankruptcyPrizeClaimIntent {
+  gameId: string;
+  /** Seat submitting the claim; must match the server-determined winner. */
+  seatId: string;
+  /** Pinned ruleset version/hash the claim was computed against. */
+  rulesetVersion: string;
+  /** Client-generated key; stable across reconnect retries of the same claim. */
   idempotencyKey: string;
   payload?: unknown;
 }
@@ -112,6 +137,40 @@ export function hashGameActionIntent(intent: GameActionIntent): string {
     gameId: intent.gameId,
     seatId: intent.seatId,
     action: intent.action,
+    payload: intent.payload ?? null,
+  });
+}
+
+/**
+ * Builds the store key for a bankruptcy prize claim. Namespaced by game and
+ * seat so a non-winner seat cannot replay the winner's claim, and so the same
+ * client key across games never collides.
+ */
+export function bankruptcyPrizeClaimIdempotencyKey(
+  intent: BankruptcyPrizeClaimIntent,
+): string {
+  return [
+    BANKRUPTCY_PRIZE_CLAIM_IDEMPOTENCY_SCOPE,
+    intent.gameId,
+    intent.seatId,
+    intent.idempotencyKey,
+  ].join(':');
+}
+
+/**
+ * Canonical hash of a bankruptcy prize claim intent. Excludes the idempotency
+ * key itself (it is part of the store key) so a replay with the same key and
+ * same claim matches, while a reused key with a different ruleset version or
+ * payload fails closed. The ruleset version is included so a claim computed
+ * against a stale ruleset cannot be silently replayed after a ruleset bump.
+ */
+export function hashBankruptcyPrizeClaimIntent(
+  intent: BankruptcyPrizeClaimIntent,
+): string {
+  return hashRequestBody({
+    gameId: intent.gameId,
+    seatId: intent.seatId,
+    rulesetVersion: intent.rulesetVersion,
     payload: intent.payload ?? null,
   });
 }
