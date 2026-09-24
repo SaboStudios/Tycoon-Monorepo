@@ -10,6 +10,7 @@ This guide documents the Cross-Origin Resource Sharing (CORS) security implement
 - [Configuration Examples](#configuration-examples)
 - [Security Features](#security-features)
 - [Development Wildcard Rules](#development-wildcard-rules)
+- [Cookie & CSRF Policy](#cookie--csrf-policy)
 - [Security Checklist](#security-checklist)
 - [Manual Testing Procedure](#manual-testing-procedure)
 - [Troubleshooting](#troubleshooting)
@@ -265,6 +266,59 @@ This is useful for:
 - Debugging CORS issues
 - Security audits
 
+## Cookie & CSRF Policy
+
+Per ADR-004, session authentication uses **httpOnly, Secure, SameSite cookies** and never JS-readable access tokens. CORS and cookie policy must be configured together so that cookie-authenticated mutations are protected against CSRF.
+
+### Cookie Attributes
+
+| Attribute | Value | Rationale |
+|-----------|-------|-----------|
+| `HttpOnly` | `true` | Prevents JavaScript (and XSS) from reading the session token |
+| `Secure` | `true` (production/staging) | Cookie only sent over HTTPS |
+| `SameSite` | `Lax` (default) or `Strict` | Blocks cross-site cookie attachment on mutations |
+| `Path` | `/` | Scoped to the API surface |
+| `Domain` | unset (host-only) | Avoids leaking cookies to sibling subdomains |
+
+**Ban:** Do not store access/refresh tokens in `localStorage`, `sessionStorage`, or any JS-readable cookie. Any client code that reads a token from JS is a defect.
+
+### Credentials + Origin Coupling
+
+- `CORS_CREDENTIALS=true` is required for cookie auth; the server must echo the exact requesting origin (never `*`).
+- Because credentials are enabled, the origin allowlist is the first line of defense: only allowlisted origins may send cookies.
+- `SameSite=Lax`/`Strict` is the second line of defense; it prevents the browser from attaching the session cookie to cross-site requests.
+
+### CSRF Strategy for Cookie-Authenticated Mutations
+
+Cookie auth means the browser auto-attaches credentials, so state-changing requests need an explicit CSRF defense:
+
+1. **Double-submit CSRF token**
+   - On session establishment, issue a non-httpOnly `csrf_token` cookie (or return it in the login response body).
+   - The client must echo it in the `X-CSRF-Token` header on every `POST`/`PUT`/`PATCH`/`DELETE`.
+   - The server compares the header value to the cookie value (constant-time) and rejects mismatches with `403`.
+
+2. **Origin/Referer check**
+   - For cookie-authenticated mutations, verify the `Origin` header is in `CORS_ALLOWED_ORIGINS`.
+   - Reject requests with a missing or non-allowlisted `Origin` on unsafe methods.
+
+3. **Safe methods**
+   - `GET`/`HEAD`/`OPTIONS` must be side-effect free and must not mutate state.
+
+4. **Fail closed**
+   - If CSRF validation cannot be performed (missing token, missing origin), reject the request rather than allowing it.
+
+### returnTo Redirect Allowlist
+
+Any `returnTo`/`redirect` parameter used after login must be validated against an allowlist to prevent open redirects:
+
+- Accept only **relative paths** (e.g. `/dashboard`) or origins present in `CORS_ALLOWED_ORIGINS`.
+- Reject absolute URLs to unknown hosts, protocol-relative URLs (`//evil.com`), and values containing control characters.
+- Default to a safe internal path when validation fails.
+
+### WebSocket Handshake
+
+WS handshakes must parse the same session cookie as REST. Do not accept tokens via query string or `Sec-WebSocket-Protocol`; validate the cookie during the upgrade and reject unauthenticated upgrades.
+
 ## Security Checklist
 
 Use this checklist to ensure your CORS configuration is secure:
@@ -283,351 +337,68 @@ Use this checklist to ensure your CORS configuration is secure:
 
 - [ ] **Check Credentials Policy**
   - `CORS_CREDENTIALS=true` if using cookies or auth headers
-  - Understand that credentials require specific origins (not wildcard)
+  - Understand that credentials require an explicit origin (no `*`)
 
-- [ ] **Verify Wildcard Settings**
-  - `CORS_DEV_WILDCARD=false` in production (or rely on NODE_ENV check)
-  - No warning logs about wildcards in non-dev environments
+- [ ] **Verify Cookie Attributes**
+  - Session cookies are `HttpOnly`, `Secure`, and `SameSite=Lax`/`Strict`
+  - No access/refresh tokens are readable from JavaScript
 
-- [ ] **Test Configuration**
-  - Application starts without validation errors
-  - Startup logs show correct origin count
-  - No unexpected warnings in logs
+- [ ] **Verify CSRF Protection**
+  - Cookie-authenticated mutations require a CSRF token and/or allowlisted `Origin`
+  - CSRF failures return `403` and fail closed
 
-### Post-Deployment
-
-- [ ] **Monitor Logs**
-  - Check for rejected origin warnings
-  - Investigate any unexpected CORS rejections
-  - Verify no legitimate origins are being blocked
-
-- [ ] **Test Client Access**
-  - Verify all legitimate clients can access API
-  - Confirm credentials (cookies/auth) work correctly
-  - Test preflight requests are cached
-
-- [ ] **Security Audit**
-  - Review CORS headers in browser DevTools
-  - Verify `Access-Control-Allow-Origin` returns specific origin
-  - Confirm `Access-Control-Allow-Credentials: true` when expected
-
-### Regular Maintenance
-
-- [ ] **Review Origin List**
-  - Remove decommissioned domains
-  - Add new legitimate origins
-  - Update for domain changes
-
-- [ ] **Check Logs Periodically**
-  - Look for patterns in rejected origins
-  - Identify potential security issues
-  - Update allowlist as needed
+- [ ] **Verify Redirect Allowlist**
+  - `returnTo`/`redirect` values are restricted to relative paths or allowlisted origins
 
 ## Manual Testing Procedure
 
-### Prerequisites
-
-- Backend server running
-- Browser with DevTools (Chrome, Firefox, Edge)
-- `curl` or Postman for API testing
-
-### Test 1: Allowed Origin (Success)
-
-**Objective:** Verify that configured origins are allowed.
-
-**Steps:**
-1. Configure an allowed origin:
+1. **Preflight request**
    ```bash
-   CORS_ALLOWED_ORIGINS=http://localhost:3000
-   ```
-
-2. Start the backend server
-
-3. Create a test HTML file (`test-cors.html`):
-   ```html
-   <!DOCTYPE html>
-   <html>
-   <body>
-     <h1>CORS Test</h1>
-     <button onclick="testCors()">Test API Call</button>
-     <pre id="result"></pre>
-     <script>
-       async function testCors() {
-         try {
-           const response = await fetch('http://localhost:3000/api/v1/health', {
-             method: 'GET',
-             credentials: 'include',
-             headers: {
-               'Content-Type': 'application/json'
-             }
-           });
-           const data = await response.json();
-           document.getElementById('result').textContent = 
-             'Success!\n' + JSON.stringify(data, null, 2);
-         } catch (error) {
-           document.getElementById('result').textContent = 
-             'Error: ' + error.message;
-         }
-       }
-     </script>
-   </body>
-   </html>
-   ```
-
-4. Serve the HTML file from `http://localhost:3000` (use `python -m http.server 3000` or similar)
-
-5. Open the page and click "Test API Call"
-
-**Expected Result:**
-- ✅ Request succeeds
-- ✅ Response data displayed
-- ✅ No CORS errors in console
-- ✅ DevTools Network tab shows:
-  - `Access-Control-Allow-Origin: http://localhost:3000`
-  - `Access-Control-Allow-Credentials: true`
-
-### Test 2: Unauthorized Origin (Rejection)
-
-**Objective:** Verify that non-configured origins are rejected.
-
-**Steps:**
-1. Use the same test HTML file from Test 1
-
-2. Serve it from a different origin (e.g., `http://localhost:8080`)
-
-3. Open the page and click "Test API Call"
-
-4. Check backend logs for rejection message
-
-**Expected Result:**
-- ❌ Request fails with CORS error
-- ❌ Console shows: "Access to fetch... has been blocked by CORS policy"
-- ✅ Backend logs show: `CORS: Rejected origin: http://localhost:8080`
-- ✅ No `Access-Control-Allow-Origin` header in response
-
-### Test 3: Preflight Request (OPTIONS)
-
-**Objective:** Verify preflight caching works correctly.
-
-**Steps:**
-1. Configure CORS:
-   ```bash
-   CORS_ALLOWED_ORIGINS=http://localhost:3000
-   CORS_MAX_AGE=3600
-   ```
-
-2. Use curl to send a preflight request:
-   ```bash
-   curl -X OPTIONS http://localhost:3000/api/v1/users \
-     -H "Origin: http://localhost:3000" \
+   curl -i -X OPTIONS https://api.example.com/auth/session \
+     -H "Origin: https://app.example.com" \
      -H "Access-Control-Request-Method: POST" \
-     -H "Access-Control-Request-Headers: Content-Type" \
-     -v
+     -H "Access-Control-Request-Headers: content-type,x-csrf-token"
    ```
+   Expect `Access-Control-Allow-Origin: https://app.example.com` and `Access-Control-Allow-Credentials: true`.
 
-**Expected Result:**
-- ✅ Response status: 204 No Content
-- ✅ Headers include:
-  - `Access-Control-Allow-Origin: http://localhost:3000`
-  - `Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS`
-  - `Access-Control-Allow-Headers: Content-Type, Accept, Authorization`
-  - `Access-Control-Max-Age: 3600`
-  - `Access-Control-Allow-Credentials: true`
-
-### Test 4: Development Wildcard (localhost)
-
-**Objective:** Verify development wildcard rules work.
-
-**Steps:**
-1. Configure for development:
+2. **Rejected origin**
    ```bash
-   NODE_ENV=development
-   CORS_ALLOWED_ORIGINS=http://localhost:3000
-   CORS_DEV_WILDCARD=true
+   curl -i -X OPTIONS https://api.example.com/auth/session \
+     -H "Origin: https://evil.example.com" \
+     -H "Access-Control-Request-Method: POST"
    ```
+   Expect no `Access-Control-Allow-Origin` for the rejected origin.
 
-2. Test from `http://localhost:5000` (not in allowlist)
-
-3. Check if request succeeds due to wildcard rule
-
-**Expected Result:**
-- ✅ Request succeeds (wildcard rule applied)
-- ✅ Backend logs show wildcard rules enabled at startup
-- ✅ Response includes `Access-Control-Allow-Origin: http://localhost:5000`
-
-### Test 5: Production Strict Mode
-
-**Objective:** Verify wildcards are disabled in production.
-
-**Steps:**
-1. Configure for production:
+3. **CSRF rejection**
    ```bash
-   NODE_ENV=production
-   CORS_ALLOWED_ORIGINS=https://app.example.com
-   CORS_DEV_WILDCARD=true
+   curl -i -X POST https://api.example.com/shop/purchase \
+     -H "Origin: https://app.example.com" \
+     --cookie "session=..."
    ```
+   Expect `403` when the `X-CSRF-Token` header is missing or mismatched.
 
-2. Test from `http://localhost:3000`
-
-**Expected Result:**
-- ❌ Request fails (wildcard rules not applied in production)
-- ✅ Backend logs show no wildcard rules enabled
-- ✅ Origin rejected and logged
-
-### Test 6: Credentials with Cookies
-
-**Objective:** Verify credentials policy works with cookies.
-
-**Steps:**
-1. Configure CORS:
+4. **Open redirect rejection**
    ```bash
-   CORS_ALLOWED_ORIGINS=http://localhost:3000
-   CORS_CREDENTIALS=true
+   curl -i "https://api.example.com/auth/login?returnTo=https://evil.example.com"
    ```
-
-2. Use fetch with credentials:
-   ```javascript
-   fetch('http://localhost:3000/api/v1/auth/login', {
-     method: 'POST',
-     credentials: 'include',
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ username: 'test', password: 'test' })
-   });
-   ```
-
-**Expected Result:**
-- ✅ Request succeeds
-- ✅ Cookies are sent and received
-- ✅ Response includes `Access-Control-Allow-Credentials: true`
-
-### Test 7: Multiple Origins
-
-**Objective:** Verify multiple origins in allowlist work correctly.
-
-**Steps:**
-1. Configure multiple origins:
-   ```bash
-   CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002
-   ```
-
-2. Test from each origin separately
-
-**Expected Result:**
-- ✅ All three origins succeed
-- ✅ Each response returns the specific requesting origin
-- ✅ Startup logs show "3 allowed origin(s) configured"
+   Expect the redirect to fall back to a safe internal path.
 
 ## Troubleshooting
 
-### Issue: "CORS policy: No 'Access-Control-Allow-Origin' header"
+### Cookies Not Sent
 
-**Cause:** Origin is not in allowlist and doesn't match wildcard rules.
+- Confirm `CORS_CREDENTIALS=true` and that the client uses `credentials: 'include'`.
+- Confirm the cookie is `Secure` and the request is over HTTPS.
+- Confirm `SameSite` is not blocking the request (cross-site flows need `SameSite=None; Secure`).
 
-**Solution:**
-1. Check backend logs for rejection message
-2. Add origin to `CORS_ALLOWED_ORIGINS`
-3. Or enable dev wildcards if in development
+### CSRF 403 on Valid Requests
 
-### Issue: "Wildcard '*' cannot be used when credentials are enabled"
+- Confirm the client echoes the `csrf_token` cookie in `X-CSRF-Token`.
+- Confirm the `Origin` header matches an entry in `CORS_ALLOWED_ORIGINS`.
+- Confirm the CSRF cookie is not expired or cleared by the browser.
 
-**Cause:** Attempting to use wildcard origin with credentials.
+### Preflight Fails
 
-**Solution:**
-- This implementation never uses wildcards, so this shouldn't occur
-- If you see this, check for manual CORS configuration elsewhere
-
-### Issue: Preflight requests failing
-
-**Cause:** Missing or incorrect preflight headers.
-
-**Solution:**
-1. Verify `Access-Control-Request-Method` matches allowed methods
-2. Check `Access-Control-Request-Headers` are in allowed list
-3. Ensure origin is in allowlist
-
-### Issue: Cookies not being sent
-
-**Cause:** Credentials not enabled or origin mismatch.
-
-**Solution:**
-1. Set `CORS_CREDENTIALS=true`
-2. Use `credentials: 'include'` in fetch requests
-3. Verify origin exactly matches allowlist entry (including protocol and port)
-
-### Issue: "Invalid CORS origins detected" at startup
-
-**Cause:** One or more origins in `CORS_ALLOWED_ORIGINS` are not valid URLs.
-
-**Solution:**
-1. Check each origin has protocol (http:// or https://)
-2. Verify no typos in domain names
-3. Remove any trailing slashes or paths
-4. Example: Use `https://app.example.com` not `app.example.com` or `https://app.example.com/`
-
-### Issue: Development wildcards not working
-
-**Cause:** Wildcards disabled or not in development mode.
-
-**Solution:**
-1. Verify `NODE_ENV=development`
-2. Check `CORS_DEV_WILDCARD=true` (or not set)
-3. Review startup logs for wildcard status
-4. Ensure origin matches wildcard patterns (localhost, 127.0.0.1, *.local)
-
-### Issue: Too many preflight requests
-
-**Cause:** `CORS_MAX_AGE` too low or not set.
-
-**Solution:**
-1. Increase `CORS_MAX_AGE` (e.g., 86400 for 24 hours)
-2. Verify header is present in OPTIONS responses
-3. Check browser DevTools to confirm caching
-
-## Best Practices
-
-1. **Use HTTPS in Production**
-   - Always use `https://` origins in production
-   - Never use `http://` for production domains
-
-2. **Minimize Origin List**
-   - Only add origins that need API access
-   - Remove decommissioned domains promptly
-
-3. **Monitor Logs**
-   - Regularly review rejected origin logs
-   - Investigate unexpected rejections
-   - Set up alerts for unusual patterns
-
-4. **Test Before Deployment**
-   - Verify CORS configuration in staging
-   - Test all client applications
-   - Confirm credentials work correctly
-
-5. **Document Custom Origins**
-   - Maintain a list of why each origin is allowed
-   - Document which applications use each origin
-   - Review periodically for accuracy
-
-6. **Use Environment-Specific Configs**
-   - Different origins for dev/staging/production
-   - Never use production origins in development
-   - Keep configurations in version control
-
-7. **Disable Dev Wildcards in Production**
-   - Set `CORS_DEV_WILDCARD=false` explicitly
-   - Or rely on `NODE_ENV` check
-   - Verify in startup logs
-
-## Additional Resources
-
-- [MDN: CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
-- [OWASP: CORS Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
-- [NestJS CORS Documentation](https://docs.nestjs.com/security/cors)
-
-## Support
-
-For issues or questions about CORS configuration:
-1. Check this guide first
-2. Review application logs
-3. Test using the manual testing procedure
-4. Contact the backend team with specific error messages and logs
+- Confirm the requested method/headers are allowed.
+- Confirm the origin is in the allowlist (or dev wildcard is enabled in development).
+- Check server logs for rejected-origin warnings.
