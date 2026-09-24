@@ -61,6 +61,22 @@ The `frontend-typecheck` job runs first so a type error fails in ~30 s instead o
 
 After the build, `npm run bundle:check` (script: `scripts/check-bundle-size.mjs`) compares gzip sizes of all `.next/static/chunks` against the budgets in `.size-limit.json`. A breach fails the job. The report is uploaded as a `bundle-size-report` artifact (retained 30 days). See [`frontend/BUNDLE_BUDGET.md`](frontend/BUNDLE_BUDGET.md) for thresholds and the exemption process.
 
+### Playwright critical journeys
+
+Beyond the join-room smoke path, `frontend/e2e/critical-journeys.spec.ts` covers the
+player-facing funnel end to end. When you touch a flow below, update or extend the
+matching journey in the same PR:
+
+- **Lobby → join room** — loading, empty, and error states render before the room is ready.
+- **Wallet connect / reject** — the NEAR wallet is the only supported chain UI per ADR-003; a rejected connection surfaces a recoverable error, not a dead end.
+- **Purchase funnel** — writes go through `shop-api` (ADR-001) with an `Idempotency-Key`; double CTA clicks must not create duplicate purchases.
+- **Auth expiry mid-flow** — an expired session redirects to sign-in without losing the in-progress action.
+
+Journeys must exercise live APIs (no MSW in the production bundle) and assert keyboard
+focus order and visible focus for the primary controls. Keep heavy wallet/board deps
+code-split so the journeys do not regress the bundle/CLS budgets enforced by
+`npm run bundle:check`.
+
 ## Backend setup
 
 ```bash
@@ -176,16 +192,4 @@ A `good first issue` is a **scoped, low-risk, self-contained** task that a new c
 - **Ledger & inventory mutations** — balance, wallet, inventory, or dice-roll state changes and their persistence.
 - **Admin & authorization** — admin endpoints, role checks, authz guards, token/session handling, or deny-by-default surfaces.
 - **Security-sensitive** — auth, secrets, rate limiting, telemetry redaction, or anything covered by [`SECURITY.md`](SECURITY.md).
-- **Hard / high-blast-radius** — migrations, infra/CI gates, contract deploys, or changes that can cause availability incidents.
-
-These issues should instead carry `help wanted` (and an area label). If you are unsure whether an issue qualifies, ask a maintainer before applying the label.
-
-**Enforcement (fail-closed):** CI runs `scripts/check-good-first-issue-policy.mjs` on every PR that changes issue metadata or the policy files. It fails the PR when a `good first issue` label is applied to an issue whose body or linked paths match the money-path/hard deny-list. Run it locally before opening a PR:
-
-```bash
-node scripts/check-good-first-issue-policy.mjs
-```
-
-**Operator rollback / order of operations:** if the policy check blocks a legitimate issue, remove the `good first issue` label (or reclassify to `help wanted`) and re-run the check — do not bypass the gate. To roll back the policy itself, revert the `CONTRIBUTING.md` and `scripts/check-good-first-issue-policy.mjs` changes together in a single PR so docs and enforcement never diverge.
-
-See [`stellar-wave-issues/README.md`](stellar-wave-issues/README.md) for how this policy applies to Stellar Wave contributions.
+- **Hard / high-blast-radius** — migrations, infra/CI gates, contract deploys, or

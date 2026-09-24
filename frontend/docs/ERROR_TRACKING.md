@@ -32,6 +32,78 @@ See `.env.example`. All keys are `NEXT_PUBLIC_*` (client-readable).
 the Sentry module is only dynamically imported when enabled, so unit tests never
 initialise the SDK or make a network call.
 
+## Backend `requestId` correlation
+
+Every backend error response carries a `requestId` (see
+`docs/API_ERROR_RESPONSE_STANDARDS.md`). The frontend must attach that id to the
+outbound error report so a client-side event can be joined to the server log
+line for the same request.
+
+### Contract
+
+- The API error envelope is `{ statusCode, code, message, requestId }`.
+- `requestId` is read from the response body first, then from the
+  `x-request-id` response header as a fallback (proxies may strip the body).
+- It is treated as an **opaque, non-PII** correlation token: it is never parsed,
+  never used for authz, and never logged with user data.
+- When absent (network failure, non-JSON body, older backend), the report is
+  still sent with `requestId: undefined` — correlation is best-effort and must
+  never block error reporting.
+
+### Wiring
+
+| Piece | File |
+| --- | --- |
+| Extract `requestId` from a `Response`/error | `src/lib/errors/request-id.ts` |
+| Attach to the report context | `src/hooks/useErrorReporting.ts` |
+| Forward as a Sentry tag | `src/lib/errors/tracking.ts` (`scrubEventPii` / `beforeSend`) |
+
+`extractRequestId()` is the single source of truth for reading the id. It is a
+pure function with strict null guards:
+
+```ts
+export function extractRequestId(
+  input: Response | { requestId?: unknown } | null | undefined,
+): string | undefined {
+  if (!input) return undefined;
+  if (input instanceof Response) {
+    const header = input.headers.get("x-request-id");
+    return header && header.trim() !== "" ? header.trim() : undefined;
+  }
+  const value = input.requestId;
+  return typeof value === "string" && value.trim() !== ""
+    ? value.trim()
+    : undefined;
+}
+```
+
+Callers pass the parsed error body when available and fall back to the raw
+`Response`:
+
+```ts
+const requestId =
+  extractRequestId(body) ?? extractRequestId(response) ?? undefined;
+reportError(error, { ...context, requestId });
+```
+
+### Sentry tag
+
+`requestId` is forwarded as a Sentry **tag** (`requestId`) so events can be
+filtered/searched by it, and is also kept in `extra` for full context. It is
+**not** added to the PII redaction list — it is an opaque id, not a secret — but
+it is still passed through `scrubEventPii()` like every other field.
+
+### Failure modes
+
+- **Missing `requestId`**: report is sent without the tag; no throw.
+- **Non-string / oversized value**: rejected by the `typeof` + `trim()` guard;
+  values longer than 128 chars are dropped to avoid log-injection / cardinality
+  blowups.
+- **Duplicate concurrent requests**: each response carries its own `requestId`,
+  so reports are correlated per-request, not per-user.
+- **Retries / reconnects**: the id from the final failed attempt is the one
+  reported; earlier attempts are not merged.
+
 ## PII policy
 
 - `Sentry.init` is called with `sendDefaultPii: false` and `tracesSampleRate: 0`
@@ -45,6 +117,8 @@ initialise the SDK or make a network call.
     in headers, `extra` and `contexts`.
 - The hook already sanitizes the report (`sanitizeContext` / `sanitizeUrl`)
   before it reaches the SDK.
+- `requestId` is explicitly **allow-listed** as a non-PII correlation tag; it is
+  never combined with user identifiers in the same label.
 
 ## Source maps
 

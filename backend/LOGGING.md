@@ -1,226 +1,76 @@
-# Logging System Documentation
+# Backend Logging & Error Tracking
 
-This application uses Winston for production-ready logging with environment-based configuration.
+This document describes how the Tycoon backend (NestJS 11) emits structured logs and how
+those logs correlate with the frontend ERROR_TRACKING pipeline.
 
-## Features
+See also:
 
-- **Structured Logging**: JSON-formatted logs for easy parsing and analysis
-- **Environment-based Configuration**: Different log levels and transports for development, production, and test environments
-- **Request/Response Logging**: Automatic logging of all HTTP requests with timing information
-- **Error Logging**: Comprehensive error tracking with stack traces and context
-- **Sensitive Data Protection**: Automatic redaction of sensitive fields (passwords, tokens, etc.)
-- **Log Rotation**: Daily log rotation with automatic compression and retention policies (production only)
+- `frontend/docs/ERROR_TRACKING.md` — frontend error reporting contract
+- `docs/API_ERROR_RESPONSE_STANDARDS.md` — canonical API error envelope
 
-## Log Levels
+## Request ID correlation
 
-The application supports the following log levels (in order of priority):
+Every inbound HTTP request is assigned a `requestId`. The backend is the source of truth
+for this identifier and MUST return it to the client so the frontend can attach it to
+error reports.
 
-1. `error` - Error conditions
-2. `warn` - Warning conditions
-3. `info` - Informational messages
-4. `http` - HTTP request/response logs
-5. `verbose` - Verbose informational messages
-6. `debug` - Debug-level messages
-7. `silly` - Very detailed debug messages
+### Generation
 
-## Environment Configuration
+- If the client sends an `x-request-id` header, the backend validates it (UUID v4 shape,
+  max 128 chars) and reuses it. Invalid or oversized values are discarded and a fresh
+  UUID v4 is generated.
+- Otherwise the backend generates a UUID v4.
+- The resolved `requestId` is stored on the request context and echoed back on the
+  response as the `x-request-id` header for **all** responses, including errors.
 
-### Environment Variables
+### Error envelope
 
-Configure logging behavior using these environment variables:
-
-```bash
-# Log level (default: 'debug' for dev, 'info' for production)
-LOG_LEVEL=info
-
-# Enable console logging in production (default: false)
-LOG_CONSOLE=true
-
-# Application environment (affects default log level and transports)
-NODE_ENV=production
-```
-
-### Environment-specific Defaults
-
-**Development:**
-
-- Log Level: `debug`
-- Transports: Console (colored, human-readable format)
-- File Logging: Disabled
-
-**Production:**
-
-- Log Level: `info`
-- Transports: File (JSON format)
-- Console Logging: Disabled (unless `LOG_CONSOLE=true`)
-- Log Files:
-  - `logs/error-YYYY-MM-DD.log` - Error logs only
-  - `logs/combined-YYYY-MM-DD.log` - All logs
-  - `logs/http-YYYY-MM-DD.log` - HTTP request/response logs
-- Log Rotation: Daily, 20MB max size per file
-- Retention: 14 days for combined/error logs, 7 days for HTTP logs
-
-**Test:**
-
-- Log Level: `error`
-- Transports: Console
-- File Logging: Disabled
-
-## Usage in Code
-
-### Injecting the Logger
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { LoggerService } from './common/logger/logger.service';
-
-@Injectable()
-export class MyService {
-  constructor(private readonly logger: LoggerService) {}
-
-  someMethod() {
-    this.logger.log('This is an info message', 'MyService');
-    this.logger.error('This is an error', stack, 'MyService');
-    this.logger.warn('This is a warning', 'MyService');
-    this.logger.debug('This is a debug message', 'MyService');
-  }
-}
-```
-
-### Log Methods
-
-```typescript
-// Basic logging
-logger.log(message: string, context?: string);
-logger.error(message: string, trace?: string, context?: string);
-logger.warn(message: string, context?: string);
-logger.debug(message: string, context?: string);
-logger.verbose(message: string, context?: string);
-
-// HTTP logging (used by middleware)
-logger.http(message: string, meta?: Record<string, any>);
-
-// Custom metadata logging
-logger.logWithMeta(level: string, message: string, meta: Record<string, any>);
-```
-
-## Sensitive Data Protection
-
-The logger automatically redacts the following fields:
-
-- `password`
-- `token`
-- `accessToken`
-- `refreshToken`
-- `authorization`
-- `secret`
-- `apiKey`
-- `creditCard`
-- `ssn`
-
-These fields will be replaced with `[REDACTED]` in logs.
-
-## Log File Structure (Production)
-
-```
-backend/
-└── logs/
-    ├── error-2024-01-27.log
-    ├── error-2024-01-28.log
-    ├── combined-2024-01-27.log
-    ├── combined-2024-01-28.log
-    ├── http-2024-01-27.log
-    └── http-2024-01-28.log
-```
-
-## HTTP Request Logging
-
-All HTTP requests are automatically logged with the following information:
+All error responses follow `docs/API_ERROR_RESPONSE_STANDARDS.md` and include the
+`requestId` so the frontend can correlate a user-visible failure with backend logs:
 
 ```json
 {
-  "level": "http",
-  "message": "GET /api/v1/users 200 - 45ms",
-  "timestamp": "2024-01-27 10:30:45",
-  "method": "GET",
-  "url": "/api/v1/users",
-  "statusCode": 200,
-  "responseTime": 45,
-  "ip": "192.168.1.100",
-  "userAgent": "Mozilla/5.0..."
-}
-```
-
-## Error Logging
-
-Errors are logged with comprehensive context:
-
-```json
-{
-  "level": "error",
-  "message": "POST /api/v1/users - 500 - Internal server error",
-  "timestamp": "2024-01-27 10:30:45",
-  "context": "HttpExceptionFilter",
   "statusCode": 500,
-  "method": "POST",
-  "url": "/api/v1/users",
-  "ip": "192.168.1.100",
-  "userAgent": "Mozilla/5.0...",
-  "errorMessage": "Database connection failed",
-  "stack": "Error: Database connection failed\n    at..."
+  "error": "Internal Server Error",
+  "message": "Something went wrong",
+  "requestId": "3f1c2b7a-9d4e-4c1a-8b2f-6a0e5d9c1f23"
 }
 ```
 
-## Best Practices
+- `requestId` is always present on error responses (4xx and 5xx).
+- `requestId` is never derived from user input beyond the validated `x-request-id` header.
+- The same `requestId` appears in the corresponding structured log line.
 
-1. **Use Appropriate Log Levels**:
-   - `error` for errors that need immediate attention
-   - `warn` for potentially harmful situations
-   - `info` for important business logic events
-   - `debug` for diagnostic information
+### Structured log fields
 
-2. **Include Context**: Always provide context (usually the class name) when logging
+Each request log line includes at minimum:
 
-3. **Avoid Logging Sensitive Data**: Never manually log passwords, tokens, or personal information
+| Field       | Description                                             |
+| ----------- | ------------------------------------------------------- |
+| `requestId` | Correlation id (matches `x-request-id` response header) |
+| `method`    | HTTP method                                             |
+| `path`      | Route path (no query string)                            |
+| `status`    | Response status code                                    |
+| `durationMs`| Handler duration in milliseconds                        |
 
-4. **Use Structured Logging**: Pass metadata objects instead of concatenating strings
+Error log lines additionally include `errorName` and `errorMessage`. Stack traces are
+logged server-side only and are never returned to clients.
 
-5. **Don't Over-log**: Avoid logging in tight loops or high-frequency operations
+## PII and secret handling
 
-## Monitoring and Analysis
+- Never log tokens, cookies, `Authorization` headers, wallet secrets, or raw request
+  bodies that may contain credentials.
+- Redact known-sensitive keys (`authorization`, `cookie`, `set-cookie`, `password`,
+  `token`, `secret`) before serialization.
+- Telemetry labels must not contain PII; use `requestId` for correlation instead of
+  user identifiers.
 
-In production, you can:
+## Frontend correlation
 
-1. **View Recent Logs**:
+When the frontend receives an error response, it reads `requestId` from the body (or the
+`x-request-id` header as a fallback) and includes it in the ERROR_TRACKING report. This
+lets support and on-call engineers pivot from a user report directly to the backend log
+line via `requestId`.
 
-   ```bash
-   tail -f logs/combined-$(date +%Y-%m-%d).log
-   ```
-
-2. **View Error Logs Only**:
-
-   ```bash
-   tail -f logs/error-$(date +%Y-%m-%d).log
-   ```
-
-3. **Search Logs**:
-
-   ```bash
-   grep "search term" logs/combined-*.log
-   ```
-
-4. **Parse JSON Logs**:
-   ```bash
-   cat logs/combined-2024-01-27.log | jq '.level'
-   ```
-
-## Integration with External Services
-
-The Winston logger can be easily extended to send logs to external services like:
-
-- **Elasticsearch** (via winston-elasticsearch)
-- **CloudWatch** (via winston-cloudwatch)
-- **Datadog** (via winston-datadog)
-- **Sentry** (for error tracking)
-
-To add these, install the appropriate Winston transport and add it to the transports array in [logger.config.ts](src/common/logger/logger.config.ts).
+If `requestId` is missing or malformed, the frontend reports the error without a
+correlation id rather than fabricating one.
