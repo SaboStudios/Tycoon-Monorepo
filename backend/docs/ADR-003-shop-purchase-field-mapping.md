@@ -66,6 +66,76 @@ either entity's schema.
 See the mapping doc for the full table and a worked example row on both
 sides.
 
+## Purchase Write Path Contract (issue #1727)
+
+This section records the authoritative write-path contract for the shop
+purchase flow. It is the source of truth for the idempotency, inventory,
+validation, and telemetry behavior that the shop grid a11y/strictness work
+depends on. Any PR touching the purchase path must conform to it.
+
+### Authoritative write path
+
+- **shop-api is the source of truth for purchases.** All purchase writes
+  (create, replay, conflict) are handled by `shop-api`'s purchases module.
+- The backend does **not** write purchases directly. Any backend surface
+  that needs purchase data reads it through the shop-api proxy/read model
+  defined by ADR-001; it never mutates purchase or inventory state itself.
+- The frontend never computes or trusts a client-supplied price. Prices are
+  resolved server-side from the catalog at write time.
+
+### Idempotency
+
+- Every purchase write must carry an `Idempotency-Key` header. Requests
+  without one are rejected (fail-closed) rather than treated as new writes.
+- The key is stored together with a hash of the request body.
+  - **Replay (same key, same body hash):** return the stored response with
+    the original status code. No second purchase is created.
+  - **Conflict (same key, different body hash):** return `409 Conflict`.
+    The stored record is never overwritten.
+- Idempotency records have a TTL. After TTL expiry the key may be reused;
+  operators must treat a post-TTL reuse as a new write, and the runbook
+  documents the TTL value and the resulting replay window.
+
+### Inventory atomicity
+
+- Inventory is adjusted atomically with the purchase write (single
+  transaction, or a reservation with a TTL that is committed or released).
+- Concurrent checkouts of the same SKU must not oversell: the inventory
+  constraint (or reservation) is enforced at the database level, not in
+  application code alone.
+- Inventory must never go negative. A failed constraint aborts the whole
+  purchase transaction; no partial purchase is persisted.
+- A catalog edit during an in-flight purchase must not change the price or
+  inventory already reserved for that purchase.
+
+### DTO validation
+
+- Purchase DTOs validate `sku`, `quantity`, and minor-unit amounts
+  explicitly. Amounts are integers in minor units; floats are rejected.
+- Unknown fields are rejected per policy (no silent stripping), so
+  adversarial or spoofed payloads fail validation instead of being
+  partially applied.
+- Oversized payloads and enumeration attempts are rejected at the edge and
+  rate-limited; every external entrypoint touched by this work is
+  authorized and rate-limited server-side.
+
+### Error mapping, requestId, and telemetry
+
+- The incoming `requestId` is propagated through the write path and echoed
+  in responses and logs so a purchase can be traced end to end.
+- Errors are mapped to `docs/API_ERROR_RESPONSE_STANDARDS.md`. Dependency
+  outages (Postgres/Redis/shop-api/RPC) fail closed on writes — no
+  best-effort write is attempted.
+- RED metrics (rate, errors, duration) are emitted for the purchase
+  operation. Telemetry labels must not contain secrets, tokens, or PII.
+
+### Auth
+
+- Auth expiry mid-flow and forbidden-role access are rejected server-side.
+- Service-to-service calls use API keys only; no client-trusted price or
+  client-trusted inventory is accepted.
+- Admin catalog mutations are audited.
+
 ## Feature Flags: shop proxy games WS and Stellar UI gate
 
 This ADR also records the flag contract that gates the shop proxy games

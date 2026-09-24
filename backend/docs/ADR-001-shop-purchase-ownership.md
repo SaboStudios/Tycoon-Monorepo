@@ -8,7 +8,7 @@
 **Date:** 2026-08-26  
 **Author:** Backend Team  
 **Issue:** #1432  
-**Related:** #1710 (Ledger reconciliation admin tools for shop and pots)
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire)
 
 ## Context
 
@@ -47,15 +47,6 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
    - `details` is optional and must not contain secrets, tokens, or PII.
 
 4. **Idempotency.** Purchase writes require an `Idempotency-Key` header. `shop-api` stores the key together with a hash of the request body:
-   - Replay with the same key and same body hash returns
-   }
-   ```
-
-   - `code` is a stable, machine-readable string (e.g. `VALIDATION_FAILED`, `IDEMPOTENCY_CONFLICT`, `DEPENDENCY_UNAVAILABLE`).
-   - `requestId` is always present and matches the value in logs for the same request.
-   - `details` is optional and must not contain secrets, tokens, or PII.
-
-4. **Idempotency.** Purchase writes require an `Idempotency-Key` header. `shop-api` stores the key together with a hash of the request body:
    - Replay with the same key and same body hash returns the stored response.
    - Replay with the same key and a different body hash returns `409` with code `IDEMPOTENCY_CONFLICT`.
    - Keys expire per the TTL documented in `docs/SHOP_PURCHASES_RUNBOOK.md`; after expiry a new request is treated as a fresh purchase.
@@ -63,6 +54,10 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
 5. **Inventory integrity.** Inventory adjustments are atomic (constraint or reservation with TTL) so concurrent purchases of the same SKU cannot oversell. Inventory must never go negative.
 
 6. **Fail-closed on dependency outage.** If Postgres, Redis, `shop-api`, or the RPC dependency is unavailable, purchase writes return an error envelope with code `DEPENDENCY_UNAVAILABLE` and HTTP `503`. Reads may degrade, writes must not.
+
+7. **Strict DTO validation.** Purchase request DTOs validate `sku` (non-empty string, known catalog SKU), `quantity` (positive integer within bounds), and `minorUnits` (non-negative integer). Unknown fields are rejected (`forbidNonWhitelisted`) per policy; client-supplied price is never trusted.
+
+8. **Observability.** Purchase writes propagate `requestId` end-to-end and emit RED metrics (`shop_purchase_requests_total`, `shop_purchase_errors_total`, `shop_purchase_duration_seconds`). Metric labels must not contain tokens or PII.
 
 ## Consequences
 
@@ -160,32 +155,4 @@ Operators reconcile shop and pot ledgers through backend admin endpoints (deny-b
 | `/admin/ledger/reconciliation/:id/notes` | POST | Attach an operator note (audited) |
 | `/admin/ledger/reconciliation/:id/resolve` | POST | Mark an entry reconciled (audited, idempotent) |
 
-All admin responses propagate `requestId` and follow `docs/API_ERROR_RESPONSE_STANDARDS.md`. RED metrics (`ledger_reconciliation_requests_total`, `_errors_total`, `_duration_seconds`) are emitted for every admin call.
-
----
-
-## Error Handling
-
-| shop-api Response | Backend → Client |
-|---|---|
-| 201 Created | 201 Created (mapped payload) |
-| 201 + x-idempotency-replayed | 201 + x-idempotency-replayed (replay detected) |
-| 409 Conflict | 409 Conflict (request in-flight) |
-| 400 Bad Request | 400 Bad Request (validation error) |
-| 500 Server Error | 503 Service Unavailable (shop-api down) |
-| Network timeout (>5s) | 504 Gateway Timeout |
-
-**Idempotency retry logic in backend:**
-- 409 (in-flight): Retry after exponential backoff (max 3 retries, 1s base)
-- 503/504 (shop-api down): Fail immediately; client sees 503; client is responsible for retry
-
----
-
-## Preventing Silent Dual-Writes
-
-### Guarantee 1: Single Write Path
-After Phase 2, `POST /shop/purchase` ALWAYS delegates to shop-api. The legacy backend logic is gated behind a feature flag and never both codepaths execute for the same request.
-
-### Guarantee 2: No Parallel Writes
-- Backend HTTP request → proxy service → single HTTP call to shop-api
-- No background jobs or async write
+All admin responses propagate `requestId` and follow `docs/API_ERROR_RESPONSE_STANDARDS.md`. RED metrics (`ledger_reconciliation_requests_total`, `_errors_total`, `_duration_seconds`) are emitted for every admin reconciliation call.

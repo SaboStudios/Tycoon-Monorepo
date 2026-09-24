@@ -85,6 +85,40 @@ reported as successful.
 - Writes fail closed when Postgres, Redis, shop-api, or RPC dependencies are
   unavailable.
 
+### DTO validation (purchase request)
+
+- `sku`: required, non-empty string, bounded length; must match an existing
+  catalog SKU (no enumeration leakage — unknown SKUs return the same error
+  shape as invalid input).
+- `quantity`: required integer, `>= 1`, bounded by a per-request max
+  (`SHOP_PURCHASE_MAX_QUANTITY`, default 100).
+- `unitMinorUnits` / price fields: server-derived from the authoritative
+  catalog; any client-supplied price is rejected as an unknown field.
+- Unknown fields are rejected (`forbidNonWhitelisted`); oversized payloads
+  are rejected before parsing business logic.
+
+### Idempotency semantics
+
+- Key: `Idempotency-Key` header (required). Stored alongside a hash of the
+  canonical request body.
+- Replay with the same key and identical body hash: return the stored
+  response (same status, same body) without re-executing the purchase.
+- Replay with the same key and a different body hash: return `409 Conflict`
+  mapped per `docs/API_ERROR_RESPONSE_STANDARDS.md`.
+- TTL: idempotency records expire after `SHOP_IDEMPOTENCY_TTL_SECONDS`
+  (default 86400s). After expiry the key no longer replays and a new key is
+  required; clients must not reuse keys across logical purchases.
+
+### Atomic inventory
+
+- Inventory is decremented in the same transaction as the purchase record
+  using a conditional update (`WHERE inventory >= quantity`) or a row lock,
+  so concurrent checkouts of the same SKU cannot oversell.
+- If the conditional update affects zero rows, the purchase fails with a
+  conflict/out-of-stock error and no inventory change is committed.
+- Reservation TTL (if used) must expire reservations back to available
+  inventory; expired reservations must never be counted as sold.
+
 ## Edge cases
 
 - Concurrent duplicate requests / reconnect retries: handled by
@@ -96,6 +130,12 @@ reported as successful.
 - Catalog edit during purchase: purchase reads authoritative price/inventory
   from shop-api; the catalog cache is invalidated on edit and never trusted
   for money or inventory.
+- Concurrent checkout of the same SKU: atomic conditional decrement; losers
+  receive out-of-stock/conflict and inventory never goes negative.
+- Auth expiry mid-flow: writes fail closed with 401 mapped per standards;
+  forbidden roles receive 403; no partial purchase is committed.
+- Dependency outage (Postgres/Redis/shop-api/RPC): writes fail closed; no
+  success is reported and no inventory is mutated.
 
 ## Security
 
@@ -107,10 +147,21 @@ reported as successful.
 - API-key only for service calls; no client-trusted price.
 - Admin catalog mutations are audited.
 
+## Observability
+
+- RED metrics for the purchase path: request rate, error rate (by mapped
+  error code), and duration histogram, labeled by route and outcome only
+  (no PII, no tokens).
+- `requestId` is propagated from the edge through shop-api and included in
+  logs and error responses per `docs/API_ERROR_RESPONSE_STANDARDS.md`.
+
 ## Rollback
 
 - Disable the catalog cache flag to fall back to direct shop-api reads.
 - Invalidation remains required on admin edits regardless of cache flag.
+- Purchase path changes are additive (idempotency + atomic inventory);
+  rollback is a redeploy of the previous shop-api image. Idempotency records
+  remain valid across rollback and continue to replay stored responses.
 
 ## References
 
