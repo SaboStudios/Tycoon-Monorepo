@@ -96,7 +96,37 @@ accept tokens via query string. Unauthenticated or expired handshakes are
 closed with `4401`; forbidden roles are closed with `4403`. Deny by default for
 any new WS action surface.
 
-## 8. Failure modes
+## 8. CSP `connect-src` allowlist (NEAR wallet and API hosts)
+
+The Content Security Policy `connect-src` directive is deny-by-default. Only
+the following origins may be contacted by `fetch`, `XMLHttpRequest`, WebSocket,
+and `EventSource` from the frontend. Everything else is blocked by the browser.
+
+| Origin | Purpose |
+| ------ | ------- |
+| `'self'` | Same-origin backend and Next.js routes. |
+| `https://rpc.testnet.near.org` | NEAR testnet RPC (read-only chain queries). |
+| `https://rpc.mainnet.near.org` | NEAR mainnet RPC (gated behind readiness issue). |
+| `https://helper.testnet.near.org` | NEAR testnet wallet helper. |
+| `https://helper.mainnet.near.org` | NEAR mainnet wallet helper. |
+| `https://wallet.testnet.near.org` | NEAR testnet wallet UI. |
+| `https://wallet.mainnet.near.org` | NEAR mainnet wallet UI. |
+| `https://api.tycoon.example` | Backend (NestJS 11) API origin. |
+| `https://shop-api.tycoon.example` | shop-api (purchases SoT) origin. |
+| `wss://api.tycoon.example` | Authenticated WebSocket endpoint (same cookie parsing as REST). |
+
+Rules:
+
+- No wildcard hosts (`*.near.org`, `https://*`) in `connect-src`.
+- No `http:` origins in staging or production; TLS only.
+- Stellar/Soroban RPC hosts are **not** allowlisted until Stellar is gated
+  ready per ADR-003. Do not add them speculatively.
+- Any new host requires a PR that updates both this runbook and
+  `frontend/CSP_DOCUMENTATION.md`; the two documents MUST stay consistent.
+- `connect-src` violations are reported via `report-to`/`report-uri`; reports
+  MUST NOT include tokens, nonces, or PII.
+
+## 9. Failure modes
 
 - **Dependency outage (Postgres/Redis/shop-api/RPC):** fail closed on writes.
   Do not issue tokens if the nonce store or session store is unavailable.
@@ -106,13 +136,13 @@ any new WS action surface.
 - **Adversarial input:** reject oversized payloads, enumeration attempts, and
   spoofed events; rate-limit every external entrypoint touched here.
 
-## 9. Logging and secrets
+## 10. Logging and secrets
 
 - Never log access tokens, refresh tokens, nonces, signatures, or CSRF tokens.
 - Redact tokens in error traces and telemetry labels; avoid PII in labels.
 - No secrets in the repository.
 
-## 10. Verification checklist
+## 11. Verification checklist
 
 - [ ] Access and refresh tokens are httpOnly, `Secure`, and correctly
       `SameSite`-scoped; no JS-readable access tokens anywhere.
@@ -121,5 +151,8 @@ any new WS action surface.
 - [ ] CSRF double-submit enforced on all cookie-authenticated mutations.
 - [ ] `returnTo` redirects are allowlisted.
 - [ ] WS handshake uses the same cookie parsing as REST.
+- [ ] CSP `connect-src` allowlists only the NEAR wallet/RPC, backend, and
+      shop-api origins above; no wildcards; consistent with
+      `frontend/CSP_DOCUMENTATION.md`.
 - [ ] `auth-token-security.e2e`, `auth.e2e`, signature-verify unit negatives,
       and the frontend RTL wallet-reject path are green.
