@@ -2,13 +2,13 @@
 
 - Status: Accepted
 - Date: 2024-01-01
-- Related: ADR-003 (NEAR wallet is the only supported chain UI), `docs/API_ERROR_RESPONSE_STANDARDS.md`, `docs/SHOP_PURCHASES_RUNBOOK.md`
+- Related: ADR-003 (NEAR wallet is the only supported chain UI), ADR-004 (Session httpOnly cookies + CSRF), `docs/API_ERROR_RESPONSE_STANDARDS.md`, `docs/SHOP_PURCHASES_RUNBOOK.md`
 
 **Status:** Decided  
 **Date:** 2026-08-26  
 **Author:** Backend Team  
 **Issue:** #1432  
-**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire)
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client)
 
 ## Context
 
@@ -59,11 +59,19 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
 
 8. **Observability.** Purchase writes propagate `requestId` end-to-end and emit RED metrics (`shop_purchase_requests_total`, `shop_purchase_errors_total`, `shop_purchase_duration_seconds`). Metric labels must not contain tokens or PII.
 
+9. **Session auth for purchase writes (issue #1729).** Purchase mutations are cookie-authenticated per ADR-004; the api client MUST NOT read or attach JS-readable access tokens.
+   - Session cookies are `httpOnly`, `Secure`, and `SameSite=Lax` (or `Strict` for admin surfaces). Access tokens are never exposed to JS.
+   - Cookie-authenticated mutations require a CSRF defense: a double-submit CSRF token (or equivalent origin-checked token) validated server-side before any purchase write. Missing/invalid CSRF token returns `403` with code `CSRF_INVALID` and no state change.
+   - The `backend` proxy forwards the session cookie and CSRF token unchanged to `shop-api`; it never mints or caches a bearer token on the client's behalf.
+   - `returnTo`/redirect parameters on auth and purchase flows are validated against an allowlist; non-allowlisted targets are rejected to prevent open redirects.
+   - Refresh/rotation follows `AUTH_JWT_RUNBOOK` and `TOKEN_REFRESH_SECURITY_GUIDE`; refresh-token reuse revokes the token family. Parallel refreshes are serialized so a single rotation wins.
+
 ## Consequences
 
 - A single writer (`shop-api`) makes inventory and idempotency reasoning tractable.
 - `backend` proxy code stays thin and testable; contract tests assert envelope and `requestId` propagation.
 - Operators have one runbook (`docs/SHOP_PURCHASES_RUNBOOK.md`) for purchase incidents.
+- Cookie-based sessions remove JS-readable tokens from the purchase path, shrinking XSS blast radius; CSRF tokens are required for every cookie-authenticated mutation.
 - Any future service that needs to mutate purchases must go through `shop-api` or supersede this ADR.
 
 ## Out of scope
@@ -155,4 +163,4 @@ Operators reconcile shop and pot ledgers through backend admin endpoints (deny-b
 | `/admin/ledger/reconciliation/:id/notes` | POST | Attach an operator note (audited) |
 | `/admin/ledger/reconciliation/:id/resolve` | POST | Mark an entry reconciled (audited, idempotent) |
 
-All admin responses propagate `requestId` and follow `docs/API_ERROR_RESPONSE_STANDARDS.md`. RED metrics (`ledger_reconciliation_requests_total`, `_errors_total`, `_duration_seconds`) are emitted for every admin reconciliation call.
+All admin responses propagate `requestId` and follow `docs/API_ERROR_RESPONSE_STANDARDS.md
