@@ -1,0 +1,200 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    WAITLIST ADMIN MANAGEMENT - FLOW DIAGRAM                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              UPDATE FLOW                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Admin Request
+       │
+       ├─→ PATCH /admin/waitlist/:id
+       │   Body: { email_address: "new@example.com" }
+       │   Headers: Authorization: Bearer <token>
+       │
+       ↓
+  ┌─────────────────┐
+  │ JwtAuthGuard    │ ──→ Verify JWT token
+  └────────┬────────┘
+           │
+           ↓
+  ┌─────────────────┐
+  │ AdminGuard      │ ──→ Check admin role
+  └────────┬────────┘
+           │
+           ↓
+  ┌─────────────────┐
+  │ RateLimitGuard  │ ──→ Check rate limit (30/min)
+  └────────┬────────┘
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ WaitlistAdminController.update()    │
+  └────────┬────────────────────────────┘
+           │
+           ├─→ Validate DTO (UpdateWaitlistDto)
+           │   • At least one field required
+           │   • Email format validation
+           │   • Telegram format validation
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ WaitlistService.update()            │
+  └────────┬────────────────────────────┘
+           │
+           ├─→ Find entry by ID
+           ├─→ Check if exists (throw 400 if not)
+           ├─→ Check duplicate wallet/email (throw 409 if exists)
+           ├─→ Update entry
+           └─→ Save to database
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ AdminLogsService.createLog()        │
+  └────────┬────────────────────────────┘
+           │
+           ├─→ Log action: "waitlist:update"
+           ├─→ Store admin ID, target ID
+           ├─→ Store changes: { email_address: "new@example.com" }
+           ├─→ Store IP address, user agent
+           └─→ Store timestamp
+           │
+           ↓
+  Return updated entry (200 OK)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SOFT DELETE FLOW                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Admin Request
+       │
+       ├─→ DELETE /admin/waitlist/:id
+       │   Headers: Authorization: Bearer <token>
+       │
+       ↓
+  [Same auth/guard flow as above]
+       │
+       ↓
+  ┌─────────────────────────────────────┐
+  │ WaitlistAdminController.softDelete()│
+  └────────┬────────────────────────────┘
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ WaitlistService.softDelete()        │
+  └────────┬────────────────────────────┘
+           │
+           ├─→ Call repository.softDelete(id)
+           ├─→ Sets deleted_at = NOW()
+           └─→ Entry still in DB but excluded from queries
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ AdminLogsService.createLog()        │
+  └────────┬────────────────────────────┘
+           │
+           └─→ Log action: "waitlist:soft_delete"
+           │
+           ↓
+  Return 204 No Content
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           HARD DELETE FLOW                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Admin Request
+       │
+       ├─→ DELETE /admin/waitlist/:id/permanent
+       │   Headers: Authorization: Bearer <token>
+       │
+       ↓
+  [Same auth/guard flow, but rate limit: 10/min]
+       │
+       ↓
+  ┌─────────────────────────────────────┐
+  │ WaitlistAdminController.hardDelete()│
+  └────────┬────────────────────────────┘
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ WaitlistService.hardDelete()        │
+  └────────┬────────────────────────────┘
+           │
+           ├─→ Call repository.delete(id)
+           └─→ Entry PERMANENTLY removed from DB
+           │
+           ↓
+  ┌─────────────────────────────────────┐
+  │ AdminLogsService.createLog()        │
+  └────────┬────────────────────────────┘
+           │
+           └─→ Log action: "waitlist:hard_delete"
+           │
+           ↓
+  Return 204 No Content
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            DATABASE SCHEMA                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  waitlist table:
+  ┌──────────────────┬──────────────┬──────────────┐
+  │ Column           │ Type         │ Constraints  │
+  ├──────────────────┼──────────────┼──────────────┤
+  │ id               │ INTEGER      │ PRIMARY KEY  │
+  │ wallet_address   │ VARCHAR(255) │ UNIQUE       │
+  │ email_address    │ VARCHAR(255) │ UNIQUE       │
+  │ telegram_username│ VARCHAR(100) │              │
+  │ created_at       │ TIMESTAMP    │ NOT NULL     │
+  │ updated_at       │ TIMESTAMP    │ NOT NULL     │
+  │ deleted_at       │ TIMESTAMP    │ NULL ← NEW!  │
+  └──────────────────┴──────────────┴──────────────┘
+
+  admin_logs table:
+  ┌──────────────────┬──────────────┬──────────────┐
+  │ Column           │ Type         │ Constraints  │
+  ├──────────────────┼──────────────┼──────────────┤
+  │ id               │ INTEGER      │ PRIMARY KEY  │
+  │ adminId          │ INTEGER      │ FK → users   │
+  │ action           │ VARCHAR(100) │ INDEXED      │
+  │ targetId         │ INTEGER      │ INDEXED      │
+  │ details          │ JSONB        │              │
+  │ ipAddress        │ VARCHAR(45)  │              │
+  │ userAgent        │ TEXT         │              │
+  │ createdAt        │ TIMESTAMP    │ INDEXED      │
+  └──────────────────┴──────────────┴──────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SECURITY LAYERS                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Request
+     │
+     ├─→ Layer 1: JwtAuthGuard
+     │   └─→ Validates JWT token
+     │   └─→ Extracts user info
+     │
+     ├─→ Layer 2: AdminGuard
+     │   └─→ Checks user.role === 'admin'
+     │   └─→ Returns 403 if not admin
+     │
+     ├─→ Layer 3: RateLimitGuard
+     │   └─→ Checks Redis for request count
+     │   └─→ Returns 429 if limit exceeded
+     │
+     ├─→ Layer 4: Input Validation
+     │   └─→ class-validator decorators
+     │   └─→ Returns 400 if invalid
+     │
+     ├─→ Layer 5: Business Logic
+     │   └─→ Duplicate checking
+     │   └─→ Entry existence checking
+     │
+     └─→ Layer 6: Audit Logging
+         └─→ Records all actions
+         └─→ Cannot be bypassed
+

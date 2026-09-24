@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/*
+ * Tycoon theme CSS variables
+ * Usage: var(--tycoon-bg), var(--tycoon-accent), etc.
+ *
+ * --tycoon-bg       : Page background
+ * --tycoon-accent   : Primary accent / highlights
+ * --tycoon-border   : Borders and dividers
+ * --tycoon-text     : Primary text color
+ * --tycoon-card-bg  : Card / panel background
+ */
+:root,
+[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: #12262a;
+
+  /* Tycoon theme */
+  --tycoon-bg: #f7fafb;
+  --tycoon-accent: #006d77;
+  --tycoon-border: #c6dde0;
+  --tycoon-text: #12262a;
+  --tycoon-card-bg: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  /* Tycoon theme colors for Tailwind */
+  --color-tycoon-bg: var(--tycoon-bg);
+  --color-tycoon-accent: var(--tycoon-accent);
+  --color-tycoon-border: var(--tycoon-border);
+  --color-tycoon-text: var(--tycoon-text);
+  --color-tycoon-card-bg: var(--tycoon-card-bg);
+  /* Focus ring — maps to brand accent so all ring-ring usages pick up brand color */
+  --color-ring: var(--tycoon-accent);
+}
+
+/*
+ * Shell content widths (rem; align with Tailwind max-w-7xl / custom game width).
+ * Marketing/default: 80rem. Game surfaces can use max-w-[var(--shell-content-max-game)].
+ */
+:root {
+  --shell-content-max-marketing: 80rem;
+  --shell-content-max-game: 90rem;
+}
+
+[data-theme="dark"] {
+  --background: #010f10;
+  --foreground: #f0f7f7;
+  --tycoon-bg: #010f10;
+  --tycoon-accent: #00f0ff;
+  --tycoon-border: #003b3e;
+  --tycoon-text: #f0f7f7;
+  --tycoon-card-bg: #0e1415;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-dm-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Font utility classes for Tycoon typography */
+.font-krona {
+  font-family: var(--font-krona-one), sans-serif;
+}
+.font-orbitron {
+  font-family: var(--font-orbitron), sans-serif;
+}
+.font-dm-sans {
+  font-family: var(--font-dm-sans), sans-serif;
+}
+
+/* Accessibility: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

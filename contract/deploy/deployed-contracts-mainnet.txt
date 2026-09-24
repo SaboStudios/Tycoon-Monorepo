@@ -1,0 +1,4 @@
+# Deployed Contracts — Mainnet
+# Format: <contract_name> <contract_id> <wasm_hash> <deployed_at>
+# Updated automatically by scripts/deploy.sh
+# DO NOT edit manually — use deploy.sh to add entries
