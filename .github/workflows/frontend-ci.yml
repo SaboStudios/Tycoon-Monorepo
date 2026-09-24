@@ -176,10 +176,14 @@ jobs:
       - name: E2E smoke (join-room)
         run: npm run test:e2e:smoke
 
-      # Advisory until the auth/MSW fixtures for these journeys are hardened.
+      # ── #1731: Critical journeys beyond smoke ──────────────────────────────
+      # Runs frontend/e2e/critical-journeys.spec.ts covering the funnel beyond
+      # the join-room smoke path: loading/empty/error states, wallet reject,
+      # double CTA clicks, auth expiry, and a11y focus order. Hermetic via
+      # page.route + MSW fixtures (no prod mocks). Failure now blocks the job
+      # so regressions in critical journeys cannot merge.
       - name: E2E critical journeys
         run: npm run test:e2e:critical
-        continue-on-error: true
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
