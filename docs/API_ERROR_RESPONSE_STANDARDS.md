@@ -296,6 +296,60 @@ correlation_id: "req_550e8400-e29b-41d4-a716-446655440000"
 
 ---
 
+## ERROR_TRACKING Correlation (Issue #1734)
+
+### Contract
+
+The frontend ERROR_TRACKING pipeline correlates every reported error with the backend
+`correlationId` returned in the canonical error response. This is the single source of
+truth for joining a player-facing error report to backend logs.
+
+- The backend `correlationId` is the **requestId** used for correlation.
+- The frontend MUST attach `correlationId` to every error report when present.
+- When the response is not parseable (network failure, non-JSON body, 500 without body),
+  the frontend MUST still report the error with `correlationId: null` and a
+  `correlationSource: "unavailable"` marker — never fabricate an ID.
+- The frontend MUST NOT send PII, tokens, or raw request bodies in the report payload.
+
+### Frontend report shape
+
+```typescript
+type ErrorTrackingReport = {
+  message: string;
+  statusCode: number | null;
+  correlationId: string | null; // backend requestId, null when unavailable
+  correlationSource: 'backend' | 'unavailable';
+  route: string;
+  timestamp: string; // ISO-8601
+};
+```
+
+### Null-guard rules (strict TypeScript)
+
+1. `correlationId` is `string | null`; never coerce `undefined` to `"undefined"`.
+2. Only accept a correlation ID matching `/^req_[0-9a-f-]{36}$/i`; otherwise treat as unavailable.
+3. `statusCode` is `number | null`; a missing status is not `0`.
+4. Reports are emitted only after telemetry consent is granted (see consent gate).
+
+### UI requirements
+
+- Error surfaces render the tracking ID when `correlationId !== null`:
+  `Error tracking ID: <correlationId> — include this in support tickets`.
+- When `correlationId === null`, render a generic message without an empty ID slot.
+- The tracking ID element is focusable and reachable in keyboard focus order; it is
+  announced via `aria-live="polite"` when it appears after an async failure.
+- Loading, empty, and error states are all covered; no MSW handlers ship in the prod bundle.
+
+### Backend requirements
+
+- `HttpExceptionFilter` always emits `correlationId` (generated or echoed from
+  `x-correlation-id`).
+- The filter echoes the same `correlationId` in the `x-correlation-id` response header so
+  clients can correlate even when the body is truncated by a proxy.
+- 500 responses keep `correlationId` populated and `errors: null`.
+
+---
+
 ## Migration Guide
 
 ### For Backend Developers
@@ -365,76 +419,19 @@ Verify HttpExceptionFilter always emits canonical shape:
 
 ```bash
 cd backend
-npm test -- http-exception.filter.spec.ts
-```
-
-### E2E Tests
-
-Verify all endpoints return canonical shape:
-
-```bash
-cd backend
-npm run test:e2e -- api-error-response-shape.e2e-spec.ts
+npm run test -- api-error-response-shape.spec.ts
 ```
 
 ### Frontend Tests
 
-Verify error parser handles all response shapes:
+Verify the error parser and ERROR_TRACKING correlation:
 
 ```bash
 cd frontend
-npm test -- errors.test.ts
+npm run test -- errors.test.ts error-tracking.test.ts
 ```
 
----
+### E2E
 
-## No Intentional Outliers
-
-All API errors conform to the canonical shape. There are no documented exceptions or routes that deviate from this standard.
-
-| Module | Status | Notes |
-|--------|--------|-------|
-| community-chest | ✅ Updated | Now uses canonical shape |
-| uploads | ✅ Updated | Now uses canonical shape |
-| audit-trail | ✅ Compliant | Uses HttpExceptionFilter |
-| admin-analytics | ✅ Compliant | Uses HttpExceptionFilter |
-| perks | ✅ Compliant | Uses HttpExceptionFilter |
-| waitlist | ✅ Compliant | Uses HttpExceptionFilter |
-| shop | ✅ Compliant | Uses HttpExceptionFilter |
-| auth | ✅ Compliant | Uses HttpExceptionFilter |
-
----
-
-## Security Notes
-
-### Production Safety
-
-- **Stack traces:** Never included in response body (logged server-side only)
-- **Sensitive details:** Error messages sanitized to not leak file paths, system info, or internal errors
-- **Validation errors:** Field-level constraints visible for UX, but no internal implementation details
-- **Correlation IDs:** Safe to include in error responses (UUID, not sensitive data)
-
-### Error Message Guidelines
-
-When throwing errors, keep messages user-facing:
-
-```typescript
-// ❌ DON'T (internal details)
-throw new BadRequestException(`Database constraint violation: unique_email`);
-
-// ✅ DO (user-facing)
-throw new BadRequestException('Email is already in use');
-```
-
----
-
-## References
-
-- **Issue:** #1445
-- **Implementation Checklist:**
-  - ✅ HttpExceptionFilter emits canonical shape with correlationId
-  - ✅ All module mappers updated or verified compliant
-  - ✅ Frontend error parser handles canonical shape
-  - ✅ Tests confirm 400/401/409 sample responses match canonical shape
-  - ✅ No stack traces in production error bodies
-  - ✅ Documentation complete
+Playwright critical journeys assert the tracking ID is rendered on a forced 500 and that
+no MSW handlers are present in the production bundle (`bundle:check`).
