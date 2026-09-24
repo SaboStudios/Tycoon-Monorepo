@@ -45,3 +45,43 @@ npm test -- --run src/mocks/msw-tree-shake.test.ts
 # Run full suite
 npm test -- --run
 ```
+
+## Admin surface audit (SW-FE-1462 scope)
+
+This audit also covers the admin mutation surface touched by the same workstream so the MSW tree-shake guarantee is not undermined by admin-only code paths.
+
+### Guards
+
+- Every admin controller must declare `@UseGuards(JwtAuthGuard, AdminGuard)` at the **class level** per `ADMIN_ROUTES_MATRIX.md`.
+- `verify-admin-guards.ts` (and related CI scripts) must continue to pass; the script is the source of truth for class-level guard coverage.
+- Non-admin tokens must receive `403 Forbidden`; the `admin-role-verification.e2e` spec asserts this for each admin route.
+
+### Auditing
+
+- All admin mutations write an `AuditTrail` entry (actor, action, target, timestamp, outcome).
+- Failure paths also write an audit entry — a missing audit on failure is treated as a bug.
+- Admin log views redact secrets (tokens, keys, credentials) before rendering; unit tests cover the redaction helper.
+
+### Exports
+
+- Exports use a column allowlist; PII is minimized and never included by default.
+- Heavy queries are paginated/limited to prevent export DoS on large ranges.
+- The export column allowlist is covered by a dedicated test.
+
+### Matrix
+
+- Any new admin route added under this workstream must be documented in `ADMIN_ROUTES_MATRIX.md` in the same PR.
+
+## Test plan
+
+- `admin-role-verification.e2e` — non-admin 403 + admin happy path
+- `verify-admin-guards` — class-level guard coverage
+- unit redaction — secrets stripped from admin log views
+- export column allowlist test — PII minimization enforced
+
+## Acceptance criteria
+
+- [ ] Guards verified in CI
+- [ ] Matrix updated
+- [ ] Non-admin 403
+- [ ] Auditing complete for mutations
