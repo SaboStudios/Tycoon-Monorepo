@@ -144,6 +144,48 @@ no unauthenticated broadcast is performed.
 `docs/API_ERROR_RESPONSE_STANDARDS.md` (`banned`, `force_end`) with
 `requestId`/correlation for observability.
 
+### 7. In-game chat moderation (or explicit disable)
+
+In-game chat is a user-facing, abuse-prone surface. Until a moderation pipeline
+is wired end-to-end, chat is **explicitly disabled** on the `/games` namespace
+rather than shipped unmoderated. This section is the source of truth for the
+chat abuse controls referenced by issue #1786.
+
+**Invariants (chat abuse controls):**
+- **Server authority.** The gateway is the only component that accepts, filters,
+  and fans out chat. Clients never broadcast directly to a room; a `chat:send`
+  event is validated server-side before any fanout.
+- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED` feature flag
+  is explicitly enabled for the environment. When the flag is off, `chat:send`
+  is rejected with a stable `chat_disabled` error and no message is stored or
+  broadcast. This is the current default in production.
+- **Fail-closed on writes.** If the moderation dependency (Redis for rate-limit
+  buckets, or the moderation service) is unavailable, chat writes are rejected
+  (`chat_unavailable`) rather than passed through unfiltered. Reads of existing
+  history may continue from cache.
+- **Authz.** Only authenticated principals in the game's room may send chat.
+  The sender identity is taken from `socket.data` (the verified JWT principal),
+  never from the payload. Spoofed `userId`/`seat` fields are ignored.
+- **Rate limiting.** Per-socket and per-game token buckets bound message rate;
+  exceeding the bucket returns `rate_limited` and is not broadcast.
+- **Input bounds.** Messages are length-bounded and normalized (trim, strip
+  control characters); oversized or malformed payloads are rejected with
+  `invalid_payload` before moderation.
+- **Moderation actions.** Mute/ban are admin-only (AdminGuard / API-key) and
+  reuse the ban path in §6 so a banned principal is detached from the room and
+  cannot continue chatting. Moderation actions are idempotent.
+
+**Error mapping:** chat rejections use stable codes per
+`docs/API_ERROR_RESPONSE_STANDARDS.md` (`chat_disabled`, `chat_unavailable`,
+`rate_limited`, `invalid_payload`, `forbidden`) and carry `requestId` for
+correlation. Telemetry labels use the stable code and `gameId` only — never
+message content, tokens, or other PII.
+
+**Rollout / rollback:** chat stays behind `GAMES_CHAT_ENABLED`. Enabling it is a
+config change (no deploy); disabling it immediately restores the deny-by-default
+behavior and is the documented rollback. Operators should follow
+`GAMES_MATCHMAKING_RUNBOOK.md` for the enable/disable procedure.
+
 ### Minimal Event Set
 
 **Server → Client:**
@@ -152,46 +194,16 @@ no unauthenticated broadcast is performed.
 - `roll` — player rolled dice (dice value + player info)
 - `disconnect` — player left the session
 - `unsubscribed` — socket detached from a game room (reason: `banned` | `force_end`)
+- `chat:message` — moderated chat message fanned out to the room (only when `GAMES_CHAT_ENABLED`)
 
 **Client → Server:**
 - `join` — player joins a specific game room
 - `roll` — player initiates a dice roll
 - `turn-ready` — player signals ready for next turn
+- `chat:send` — player sends a chat message (rejected with `chat_disabled` when the flag is off)
 
 ### CORS & Origin Restrictions
 
 - Uses `getWsCorsConfig()` (same as `PerkBoostGateway`).
 - No `*` wildcard allowed (enforced at startup for production).
-- Respects `WS_CORS_ORIGINS` environment variable.
-
-## Consequences
-
-- Realtime play no longer requires polling.
-- Turn and dice integrity is enforced server-side.
-- Multi-instance deployments scale through the Redis adapter.
-- Clients must handle handshake rejection, off-turn errors, and reconnect.
-- Banned users and force-ended games are detached server-side; clients must
-  handle the terminal `unsubscribed` event and stop rendering the game.
-
-### AI Opponent Turns — Shared Rule Engine Parity (Issue #1703)
-
-AI opponent turns MUST execute through the **same shared rule engine** as human turns. There is no AI-only rule path.
-
-**Parity invariants:**
-1. **Single rule engine** — both human and AI turns are resolved by the shared rule engine (dice, movement, rent, purchases, bankruptcy). AI never mutates board state directly.
-2. **Server authority** — the server is the sole source of truth for dice, money, inventory, and turn mutations. AI decisions are computed server-side only; clients cannot submit, spoof, or replay AI actions.
-3. **Same event surface** — AI turns emit the same `turn` / `roll` events as human turns, so clients render AI and human turns identically.
-4. **Deterministic inputs** — AI decisions are derived from the same server-side game state snapshot the rule engine consumes for human turns; no privileged state access.
-5. **Idempotency** — AI turn advancement is keyed by `(gameId, turnIndex)` so duplicate/reconnect retries cannot double-apply a turn.
-
-**Authz:** AI turns are triggered only by server-side scheduling or an authenticated, authorized caller (JWT / AdminGuard / API-key / WS seat check). Untrusted clients cannot trigger or spoof AI turns; deny-by-default for any new AI-turn entrypoint.
-
-**Error mapping:** AI-turn failures surface typed errors with explicit codes per `docs/API_ERROR_RESPONSE_STANDARDS.md`, including `requestId`/correlation for observability. Writes fail closed on dependency outage (Postgres/Redis/RPC).
-
-**Rollout:** AI-turn execution is gated behind a feature flag/kill switch; rollback disables AI turns without affecting human turn handling.
-
----
-
-## Explicit Out of Scope
-
-- **Frontend client implementation** (`useGameBoardLogic` wiring) — this ADR defines the backend gateway only.
+- Respects `WS_CORS_ORIGINS` en
