@@ -56,6 +56,21 @@ Signature verification failures (bad signature, mismatched `account_id`,
 unknown or expired nonce, oversized payload) return `401` and are counted in
 rate-limit buckets. Never echo the nonce or signature back in error bodies.
 
+### 3.1 Session fixation prevention
+
+Login MUST NOT reuse a pre-authentication session identifier. On successful
+`POST /auth/verify`:
+
+1. Rotate the session identifier before issuing tokens (issue a fresh session
+   id; never promote the anonymous/pre-login session).
+2. Invalidate any prior session cookies presented with the verify request so a
+   fixated identifier cannot be replayed.
+3. Bind the new session to the verified `account_id` and `public_key`; a session
+   whose bound `account_id` does not match the verified signature MUST be
+   rejected.
+4. If a session id is presented that was already authenticated for a different
+   `account_id`, fail closed with `401` and revoke the conflicting session.
+
 ## 4. Refresh / rotation flow
 
 1. Client calls `POST /auth/refresh`; the browser sends the refresh cookie.
@@ -88,6 +103,19 @@ allowlist of same-origin paths. Reject absolute URLs, protocol-relative URLs
 (`//evil.example`), and encoded variants. On failure, fall back to the default
 post-login route rather than reflecting the supplied value. This prevents open
 redirects during login and refresh flows.
+
+### 6.1 Allowlist rules (deny-by-default)
+
+- Only same-origin, root-relative paths are permitted (e.g. `/lobby`, `/game/42`).
+- Reject any value containing a scheme (`https:`, `javascript:`, `data:`), a
+  host, or a leading `//` or `/\`.
+- Decode percent-encoding and Unicode normalization **before** matching, then
+  re-check; reject double-encoded and mixed-encoding variants.
+- Reject control characters, backslashes, and whitespace-padded values.
+- Match against an explicit allowlist of known routes; anything not on the list
+  falls back to the default post-login route (`/`).
+- Never reflect the rejected value back into the response body or `Location`
+  header.
 
 ## 7. WebSocket handshake
 
@@ -135,6 +163,13 @@ Rules:
 - **Forbidden role access:** return `403`; never leak resource existence.
 - **Adversarial input:** reject oversized payloads, enumeration attempts, and
   spoofed events; rate-limit every external entrypoint touched here.
+- **User rejects sign:** the wallet returns no signature; the client aborts the
+  flow, the nonce is left to expire, and no session is created.
+- **Replayed nonce:** the nonce is single-use and deleted on first verify; a
+  second verify with the same nonce fails closed with `401`.
+- **Parallel refresh:** serialized server-side; losers get `409` and retry once.
+- **Open redirect attempt:** non-allowlisted `returnTo` values fall back to the
+  default route; the rejected value is never reflected.
 
 ## 10. Logging and secrets
 
@@ -147,9 +182,10 @@ Rules:
 - [ ] Access and refresh tokens are httpOnly, `Secure`, and correctly
       `SameSite`-scoped; no JS-readable access tokens anywhere.
 - [ ] Challenge nonces are single-use, TTL-bound, and throttled.
+- [ ] Session identifier is rotated on login; fixated sessions are rejected.
 - [ ] Refresh rotation revokes the family on reuse detection.
 - [ ] CSRF double-submit enforced on all cookie-authenticated mutations.
-- [ ] `returnTo` redirects are allowlisted.
+- [ ] `returnTo` redirects are allowlisted (deny-by-default).
 - [ ] WS handshake uses the same cookie parsing as REST.
 - [ ] CSP `connect-src` allowlists only the NEAR wallet/RPC, backend, and
       shop-api origins above; no wildcards; consistent with
