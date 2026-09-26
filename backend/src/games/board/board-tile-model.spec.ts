@@ -212,3 +212,104 @@ describe('BOARD_TILE_MODEL server-side enforcement', () => {
     expect(result.error.code).toBe(BoardTileErrorCode.RulesetMismatch);
   });
 });
+
+  {
+    name: 'house build rejected when supply exhausted',
+    state: baseState({
+      players: {
+        p1: { id: 'p1', cash: 10000, position: 0, bankrupt: false, properties: [1, 2] },
+        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
+      },
+      board: {
+        tiles: [
+          { index: 0, kind: TileKind.Go },
+          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50 },
+          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50 },
+        ],
+        houseSupply: 0,
+        hotelSupply: 12,
+      },
+    }),
+    action: { type: 'buildHouse', playerId: 'p1', tileIndex: 1 },
+    expect: { ok: false, code: BoardTileErrorCode.HouseSupplyExhausted },
+  },
+  {
+    name: 'hotel build allowed when 4 houses reached',
+    state: baseState({
+      players: {
+        p1: { id: 'p1', cash: 5000, position: 0, bankrupt: false, properties: [1, 2] },
+        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
+      },
+      board: {
+        tiles: [
+          { index: 0, kind: TileKind.Go },
+          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 4, hotel: false },
+          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 4, hotel: false },
+        ],
+        houseSupply: 32,
+        hotelSupply: 12,
+      },
+    }),
+    action: { type: 'buildHotel', playerId: 'p1', tileIndex: 1 },
+    expect: { ok: true, hotel: { 1: true }, events: ['hotel.built'] },
+  },
+  {
+    name: 'house build rejected on mortgaged property',
+    state: baseState({
+      players: {
+        p1: { id: 'p1', cash: 1500, position: 0, bankrupt: false, properties: [1, 2] },
+        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
+      },
+      board: {
+        tiles: [
+          { index: 0, kind: TileKind.Go },
+          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, mortgaged: true },
+          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50 },
+        ],
+      },
+    }),
+    action: { type: 'buildHouse', playerId: 'p1', tileIndex: 1 },
+    expect: { ok: false, code: BoardTileErrorCode.Mortgaged },
+  },
+  {
+    name: 'uneven house build rejected',
+    state: baseState({
+      players: {
+        p1: { id: 'p1', cash: 1500, position: 0, bankrupt: false, properties: [1, 2] },
+        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
+      },
+      board: {
+        tiles: [
+          { index: 0, kind: TileKind.Go },
+          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 2 },
+          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 1 },
+        ],
+      },
+    }),
+    action: { type: 'buildHouse', playerId: 'p1', tileIndex: 1 },
+    expect: { ok: false, code: BoardTileErrorCode.UnevenBuild },
+  },
+  {
+    name: 'ruleset hash mismatch rejects action',
+    state: baseState({ rulesetHash: 'invalid-hash' }),
+    action: { type: 'buy', playerId: 'p1', tileIndex: 1 },
+    expect: { ok: false, code: BoardTileErrorCode.RulesetHashMismatch },
+  },
+  {
+    name: 'concurrent duplicate buy rejected',
+    state: baseState(),
+    action: { type: 'buy', playerId: 'p1', tileIndex: 1, version: 1, currentVersion: 2 },
+    expect: { ok: false, code: BoardTileErrorCode.StaleVersion },
+  },
+  {
+    name: 'bankruptcy mid-debt settles to creditor',
+    state: baseState({
+      players: {
+        p1: { id: 'p1', cash: 10, position: 0, bankrupt: false, properties: [1] },
+        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
+      },
+    }),
+    action: { type: 'payDebt', playerId: 'p1', creditorId: 'p2', amount: 200 },
+    expect: { ok: true, cash: { p1: 0, p2: 1510 }, owner: { 1: 'p2' }, events: ['player.bankrupt'] },
+  },
+];
