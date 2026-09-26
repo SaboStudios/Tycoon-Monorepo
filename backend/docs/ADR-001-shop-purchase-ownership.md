@@ -8,7 +8,7 @@
 **Date:** 2026-08-26  
 **Author:** Backend Team  
 **Issue:** #1432  
-**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client)
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1789 (Inventory reservation atomic decrement anti-oversell)
 
 ## Context
 
@@ -66,12 +66,20 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
    - `returnTo`/redirect parameters on auth and purchase flows are validated against an allowlist; non-allowlisted targets are rejected to prevent open redirects.
    - Refresh/rotation follows `AUTH_JWT_RUNBOOK` and `TOKEN_REFRESH_SECURITY_GUIDE`; refresh-token reuse revokes the token family. Parallel refreshes are serialized so a single rotation wins.
 
+10. **Atomic inventory decrement / reservation (issue #1789).** The anti-oversell guarantee is enforced in the datastore, not in application-level read-then-write logic:
+    - **Single-statement conditional decrement.** `shop-api` decrements inventory with a guarded update, e.g. `UPDATE inventory SET available = available - :qty WHERE sku = :sku AND available >= :qty`. A row count of `0` means insufficient stock and the purchase is rejected with `409` and code `INSUFFICIENT_INVENTORY`; no partial write occurs.
+    - **Reservation with TTL.** When a purchase spans multiple steps (payment/ledger), `shop-api` first inserts a reservation row `(sku, quantity, idempotencyKey, expiresAt)` inside the same transaction as the decrement. Reservations expire after the TTL documented in `docs/SHOP_PURCHASES_RUNBOOK.md`; an expired reservation is released by a sweeper that re-increments `available` exactly once (guarded by the reservation's terminal state so it cannot double-release).
+    - **Constraint backstop.** A `CHECK (available >= 0)` constraint (or equivalent) is the last line of defense: any code path that would drive inventory negative fails the transaction rather than persisting a negative count.
+    - **Idempotency interaction.** The decrement/reservation is committed in the same transaction as the idempotency record, so a replayed `Idempotency-Key` returns the stored response without decrementing again, and a `409 IDEMPOTENCY_CONFLICT` never mutates inventory.
+    - **Concurrency.** Two concurrent buys of the same SKU serialize on the inventory row (row lock / conditional update); at most one succeeds when stock is `1`. This is asserted by the `shop-api` purchases e2e concurrency test.
+
 ## Consequences
 
 - A single writer (`shop-api`) makes inventory and idempotency reasoning tractable.
 - `backend` proxy code stays thin and testable; contract tests assert envelope and `requestId` propagation.
 - Operators have one runbook (`docs/SHOP_PURCHASES_RUNBOOK.md`) for purchase incidents.
 - Cookie-based sessions remove JS-readable tokens from the purchase path, shrinking XSS blast radius; CSRF tokens are required for every cookie-authenticated mutation.
+- Datastore-enforced decrement/reservation makes oversell impossible even under concurrent retries, and the `available >= 0` constraint turns any future regression into a failed transaction instead of a negative count.
 - Any future service that needs to mutate purchases must go through `shop-api` or supersede this ADR.
 
 ## Out of scope
@@ -145,22 +153,8 @@ To prevent key reuse with a different payload (a common reconciliation break), s
 
 Concurrent buys of the same SKU must never oversell and inventory must never go negative:
 
-- Inventory decrement happens **inside the same shop-api transaction** as the purchase insert.
-- The row is locked with `SELECT ... FOR UPDATE` (or an equivalent `UPDATE ... WHERE quantity >= :qty` guarded statement) so two concurrent transactions serialize.
-- If the guarded update affects 0 rows, shop-api returns **409 Conflict** with `code: INSUFFICIENT_INVENTORY` and rolls back — no partial ledger entry.
-- Optional reservation TTL: a short-lived reservation row (`expiresAt`) holds stock during checkout; expired reservations are released by a sweeper and are visible in the reconciliation read model.
-
----
-
-## Admin Reconciliation Tooling (issue #1710)
-
-Operators reconcile shop and pot ledgers through backend admin endpoints (deny-by-default, admin role required, every mutation audited):
-
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/admin/ledger/reconciliation` | GET | List purchase/pot ledger entries with filters (`status`, `from`, `to`, `sku`, `potId`) |
-| `/admin/ledger/reconciliation/:id` | GET | Drill-down for a single entry, including `requestId` and idempotency key |
-| `/admin/ledger/reconciliation/:id/notes` | POST | Attach an operator note (audited) |
-| `/admin/ledger/reconciliation/:id/resolve` | POST | Mark an entry reconciled (audited, idempotent) |
-
-All admin responses propagate `requestId` and follow `docs/API_ERROR_RESPONSE_STANDARDS.md
+- Inventory decrements are performed as a single guarded statement (`available >= :qty`) so the check and the write are atomic; a zero-row result is a `409 INSUFFICIENT_INVENTORY`.
+- Multi-step purchases hold a reservation row with a TTL; the sweeper releases expired reservations exactly once.
+- A `CHECK (available >= 0)` constraint backstops every write path.
+- The decrement/reservation commits in the same transaction as the idempotency record, so replays and `409 IDEMPOTENCY_CONFLICT` responses never mutate inventory.
+- See decision item 10 for the full anti-oversell contract (issue #1789).
