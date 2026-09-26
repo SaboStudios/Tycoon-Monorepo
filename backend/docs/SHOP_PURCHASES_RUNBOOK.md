@@ -13,6 +13,61 @@ read path.
 - **frontend** renders catalog data only; it must not trust client-supplied
   price or inventory.
 
+## Health vs readiness probes
+
+Both **backend** and **shop-api** expose two distinct probes. They are not
+interchangeable: liveness answers "is the process alive?" and readiness
+answers "can this instance safely serve traffic right now?".
+
+### Liveness (health)
+
+- Endpoint: `GET /health` (backend and shop-api).
+- Semantics: process liveness only. It MUST NOT touch Postgres, Redis,
+  shop-api, or RPC. A dependency outage must never cause a liveness failure,
+  otherwise orchestrators will restart healthy pods and amplify the outage.
+- Response: `200` with a minimal body (e.g. `{ "status": "ok" }`). No
+  dependency details, no secrets, no PII.
+- Used by: container liveness probes and restart policies.
+
+### Readiness (ready)
+
+- Endpoint: `GET /ready` (backend and shop-api).
+- Semantics: readiness reflects dependency availability. It checks the
+  dependencies required to serve the write path — at minimum Postgres and
+  Redis — and reports `503` when any required dependency is unavailable.
+- Fail-closed: when a required dependency is down, readiness MUST report
+  not-ready so the instance is removed from load-balancer rotation and
+  writes are not routed to it. This is the mechanism that enforces the
+  "writes fail closed" guarantee for the purchase path.
+- Response: `200` when all required dependencies are reachable, `503`
+  otherwise. The body reports per-dependency status using stable, non-secret
+  labels (e.g. `postgres`, `redis`) and never includes connection strings,
+  credentials, tokens, or PII.
+- Used by: load-balancer / service readiness gates and rollout gating.
+
+### Operator expectations
+
+- A pod that is alive but not ready is expected during dependency outages;
+  do not restart it — fix the dependency. Restarting a not-ready pod does
+  not help and can worsen the incident.
+- A pod that is not alive (liveness failing) is a process-level fault and is
+  restarted by the orchestrator.
+- During a Postgres or Redis outage, expect readiness to fail closed for
+  both backend and shop-api; purchase writes will be rejected rather than
+  served from a degraded instance.
+- Probe endpoints are unauthenticated by design but MUST NOT leak secrets or
+  PII in responses or telemetry labels; they are rate-limited like other
+  external entrypoints.
+
+### Observability for probes
+
+- Probe results are emitted using the existing metrics conventions: a
+  readiness gauge labeled by dependency name and outcome only (no PII, no
+  tokens, no connection details).
+- Liveness checks emit no dependency labels (there are none to report).
+- Probe failures are logged with `requestId` where available and mapped per
+  `docs/API_ERROR_RESPONSE_STANDARDS.md`; they never include secrets.
+
 ## Public catalog read caching
 
 Public Shop catalog reads are served from a cache layer in front of the
@@ -83,7 +138,8 @@ reported as successful.
   `docs/API_ERROR_RESPONSE_STANDARDS.md`; RED metrics are emitted for
   purchases.
 - Writes fail closed when Postgres, Redis, shop-api, or RPC dependencies are
-  unavailable.
+  unavailable. Readiness probes (see above) are what remove a degraded
+  instance from rotation so these writes are not attempted against it.
 
 ### DTO validation (purchase request)
 
@@ -135,14 +191,16 @@ reported as successful.
 - Auth expiry mid-flow: writes fail closed with 401 mapped per standards;
   forbidden roles receive 403; no partial purchase is committed.
 - Dependency outage (Postgres/Redis/shop-api/RPC): writes fail closed; no
-  success is reported and no inventory is mutated.
+  success is reported and no inventory is mutated. Readiness probes report
+  not-ready so degraded instances are removed from rotation.
 
 ## Security
 
 - Server remains source of truth for money, dice, inventory, and admin
   mutations.
 - No secrets in repo/logs; redact tokens and avoid PII in telemetry labels.
-- Rate-limit and authorize every external entrypoint touched by this work.
+- Rate-limit and authorize every external entrypoint touched by this work,
+  including probe endpoints.
 - Deny-by-default for new admin/WS/action surfaces.
 - API-key only for service calls; no client-trusted price.
 - Admin catalog mutations are audited.
@@ -152,6 +210,8 @@ reported as successful.
 - RED metrics for the purchase path: request rate, error rate (by mapped
   error code), and duration histogram, labeled by route and outcome only
   (no PII, no tokens).
+- Readiness gauge labeled by dependency name and outcome only (no PII, no
+  tokens, no connection details).
 - `requestId` is propagated from the edge through shop-api and included in
   logs and error responses per `docs/API_ERROR_RESPONSE_STANDARDS.md`.
 
@@ -162,6 +222,9 @@ reported as successful.
 - Purchase path changes are additive (idempotency + atomic inventory);
   rollback is a redeploy of the previous shop-api image. Idempotency records
   remain valid across rollback and continue to replay stored responses.
+- Probe changes are additive; reverting to the previous image restores prior
+  probe behavior. Readiness fail-closed behavior should be kept in place
+  during any rollback to avoid routing writes to degraded instances.
 
 ## References
 

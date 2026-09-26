@@ -104,6 +104,111 @@ additional tracing infrastructure.
 
 ---
 
+## Health vs readiness probes (backend & shop-api)
+
+Liveness and readiness are **distinct** endpoints with different semantics. A pod must
+never be restarted because a dependency is briefly unavailable, and must never receive
+traffic while a required dependency is down.
+
+### Endpoint contract
+
+| Probe | Path | Purpose | Dependency checks | Failure action |
+|---|---|---|---|---|
+| **Liveness** | `GET /health` | Process is alive and the event loop is responsive | **None** — no DB/Redis/RPC calls | k8s restarts the pod |
+| **Readiness** | `GET /health/ready` | Pod can serve traffic | Postgres + Redis (and shop-api for the backend proxy) | k8s removes the pod from the Service endpoints |
+
+Both endpoints are served by `HealthController` in `src/health/` and are registered
+through `ObservabilityModule`. The same contract is implemented in `shop-api/src/health/`
+so both services expose identical probe paths.
+
+### Liveness (`GET /health`)
+
+- Returns `200 { "status": "ok" }` as long as the process is running.
+- **Must not** touch Postgres, Redis, shop-api, or any RPC. A dependency outage must not
+  cause a liveness failure, otherwise a transient DB blip would trigger a restart loop.
+- Independent of `METRICS_ENABLED` / `REQUEST_LOGGING_ENABLED` so a metrics outage never
+  fails a pod's liveness.
+
+### Readiness (`GET /health/ready`)
+
+- Returns `200 { "status": "ok", "checks": { ... } }` only when **every** required
+dependency reports healthy.
+- Returns **503 Service Unavailable** with `{ "status": "error", "checks": { ... } }`
+  when any required dependency is down — **fail-closed**: an unknown or errored check is
+  treated as unhealthy, never as healthy.
+- Checks performed:
+  - **Postgres** — a lightweight `SELECT 1` against the pool.
+  - **Redis** — `PING` against the shared client.
+  - **shop-api** (backend only) — `GET <SHOP_API_URL>/health/ready`; the backend is not
+    ready to serve purchase reads/writes if the purchases source of truth is unreachable.
+- Each check is bounded by a short timeout so a hung dependency fails the probe instead of
+  hanging the kubelet.
+
+### Response shape
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "postgres": "up",
+    "redis": "up",
+    "shopApi": "up"
+  }
+}
+```
+
+On failure the same shape is returned with `status: "error"` and the failing check set to
+`"down"`, plus HTTP `503`. Check values are fixed enum strings (`up` / `down`) only — no
+connection strings, hostnames, credentials, or error messages are echoed, so the probe
+response is safe to expose and never leaks secrets or PII.
+
+### Kubernetes wiring
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 3
+```
+
+### Operator expectations
+
+- **Pod restarting in a loop** → check `/health` (liveness). A liveness failure means the
+  process itself is wedged; dependency outages should not appear here.
+- **Pod Running but not receiving traffic** → check `/health/ready` (readiness). A `503`
+  means a dependency is down; the pod is correctly held out of the Service endpoints.
+- **Backend ready but purchases failing** → confirm the `shopApi` check in
+  `/health/ready`; a `down` value means the backend is (correctly) not advertising
+  readiness for purchase traffic.
+- Probes are **read-only** and never mutate state; the server remains the source of truth
+  for money, dice, and inventory. No new admin or WS surfaces are introduced by this work.
+
+Verify locally:
+
+```bash
+# Liveness — always 200 while the process is up
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/health          # expect 200
+
+# Readiness — 200 when deps are up, 503 when any dep is down
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/health/ready    # expect 200
+
+# Fail-closed: stop Redis and confirm readiness flips to 503 while liveness stays 200
+docker compose stop redis
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/health          # expect 200
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/health/ready    # expect 503
+```
+
+---
+
 ## RED metrics — live Grafana dashboard
 
 The dashboard lives at `backend/grafana/dashboards/tycoon-http-overview.json` and is
@@ -180,7 +285,8 @@ shipping an empty dashboard:
   down instead of scraping stale/empty data.
 - **Probes** — `/health` (liveness) and `/health/ready` (readiness) are the only
   endpoints the k8s probes hit; they are independent of the metrics flag so a
-  metrics outage never fails a pod's readiness.
+  metrics outage never fails a pod's readiness. Readiness itself fails closed: any
+  dependency check that errors or times out is reported as `down` and returns `503`.
 
 Verify the fail-closed behaviour locally:
 
@@ -192,69 +298,3 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/metrics   # expec
 # Boot with an invalid value and confirm the process refuses to start
 METRICS_ENABLED=maybe docker compose up backend   # expect Joi validation error, non-zero exit
 ```
-
----
-
-## Health / readiness / probes
-
-| Probe | Path | Depends on metrics flag? |
-|---|---|---|
-| Liveness | `GET /health` | No |
-| Readiness | `GET /health/ready` | No |
-| Scrape | `GET /metrics` | Yes (`METRICS_ENABLED`) |
-
-k8s and compose probe definitions must point at `/health` and `/health/ready` only;
-`/metrics` is a Prometheus scrape target, never a probe. Validate the compose file
-before rollout:
-
-```bash
-docker compose config --quiet && echo "compose OK"
-```
-
----
-
-## Tests added / updated
-
-| File | What it tests |
-|---|---|
-| `src/common/middleware/correlation-id.middleware.spec.ts` | ID generation, header propagation, reuse of incoming ID, logging |
-| `src/config/observability-flags.spec.ts` | `METRICS_ENABLED=false` → 403, `REQUEST_LOGGING_ENABLED=false` → no recording |
-
-Existing specs for `HttpMetricsMiddleware`, `MetricsController`, `HealthController`,
-and `route-group` were not changed and continue to pass.
-
----
-
-## Rollout
-
-No schema migrations. No new packages (uses existing `prom-client`, `nest-winston`, `@nestjs/config`).
-
-1. Deploy as normal.
-2. Both feature flags default to `true` (existing behaviour preserved).
-3. To disable metrics scraping in an environment: set `METRICS_ENABLED=false`.
-4. To disable HTTP request metrics recording: set `REQUEST_LOGGING_ENABLED=false`.
-
-### Order of operations
-
-1. Apply the config/flag changes (no restart required for the dashboard itself).
-2. Restart `backend`, then `prometheus`, then `grafana` so the scrape target and
-   provisioned dashboard pick up the new series.
-3. Confirm the four `curl` checks above return `up` / the dashboard title.
-
-### Rollback
-
-- Revert the deploy; both flags default to `true`, so no data migration is needed.
-- If only the dashboard is wrong, re-provision Grafana from the previous
-  `tycoon-http-overview.json` revision — the backend series are unchanged.
-
----
-
-## Acceptance criteria checklist
-
-- [x] PR references Stellar Wave and issue id **SW-BE-025**
-- [x] No secrets in logs (correlation IDs are opaque UUIDs; `LoggerConfig` already redacts sensitive fields)
-- [x] Backward-compatible (all flags default to previous on-behaviour)
-- [x] Jest specs added for new behaviour
-- [x] No schema / migration changes
-- [x] RED metrics documented with copy-pasteable commands and dashboard contract
-- [x] ERROR_TRACKING ↔ backend `requestId` correlation contract documented (issue #1734)
