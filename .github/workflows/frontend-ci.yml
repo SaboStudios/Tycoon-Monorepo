@@ -201,10 +201,14 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
-  # ── Chromatic visual regression ─────────────────────────────────────────────
-  # Runs only when frontend source files change.
-  # Fork PRs: CHROMATIC_PROJECT_TOKEN will be empty → step is skipped, not failed.
-  # Merge to main: full snapshot run; diffs surface in the Chromatic UI.
+  # ── #1735: Chromatic visual regression for wallet/join/shop stories ─────────
+  # Publishes the Storybook build to Chromatic so wallet, join, and shop
+  # stories get deterministic visual baselines. Stories must use fixed
+  # props/mocks (see frontend/docs/CHROMATIC_BASELINES.md) so snapshots are
+  # stable across runs. Runs only when frontend source files change.
+  # Fork PRs: CHROMATIC_PROJECT_TOKEN will be empty → step is skipped, not
+  # failed. Merge to main: full snapshot run; diffs surface in the Chromatic UI
+  # where reviewers accept/reject per the baseline approval workflow.
   chromatic:
     name: Chromatic visual regression
     runs-on: ubuntu-latest
