@@ -1,34 +1,42 @@
-## Description
+# Contract PR Checklist
 
-<!-- What does this PR change and why? Link the issue: Closes #NNNN -->
+> Scope: `contract/*` Soroban workspace (soroban-sdk v23). Complete every item or explain why it does not apply.
 
-## CI Summary (`make ci`)
+## Workspace & SDK alignment
 
-<!--
-Paste the output of `make ci` run from the `contract/` directory.
-All checks must be green before requesting review.
+- [ ] Crate APIs match the `contract/README.md` roadmap and target `soroban-sdk` v23 (no mixed SDK versions across `contract/*`).
+- [ ] `contract/Cargo.toml` workspace members build together: `cargo build --workspace` succeeds (no partial workspace compile).
+- [ ] `cargo test -p <crate>` passes for every touched crate.
 
-```
-cd contract && make ci
-```
+## Auth & authorization
 
-Replace this block with your actual output:
--->
+- [ ] `AUTH_MATRIX` rows updated for every new/changed entrypoint (caller, required auth, role, effect).
+- [ ] Negative auth tests added that do **not** use `mock_all_auths` (missing/expired/forbidden auth must fail closed).
+- [ ] Admin-only / sensitive entrypoints are deny-by-default and explicitly authorized.
 
-```
-$ make ci
-make hygiene: OK (fmt --check + clippy -D warnings)
-make ci: OK (hygiene + build + wasm-check + test)
-```
+## Storage & economics
 
-## Checklist
+- [ ] `STORAGE_ECONOMICS` respected: TTL bumps, rent, and entry sizes accounted for on new persistent/temporary storage.
+- [ ] `contract/ci/wasm-size-budget.json` budget held; wasm size CI job green.
+- [ ] All amount math uses checked arithmetic (no unchecked overflow on balances/payouts).
 
-- [ ] `make ci` passes locally (output pasted above)
-- [ ] New or changed behaviour is covered by tests
-- [ ] `GAS_SNAPSHOT_DIFF.md` updated if storage ops changed
-- [ ] `docs/NEP_STANDARDS_CHECKLIST.md` updated if token interface changed
-- [ ] `contract/README.md` roadmap crates status table matches the workspace members in `contract/Cargo.toml` (no crate marked implemented/scaffolding that disagrees with `[workspace] members`)
-- [ ] No ungated Stellar UI claims introduced; Stellar surfaces remain deny-listed until the deploy checklist is satisfied (ADR-003)
-- [ ] No regressions in related flows
-- [ ] PR title follows `feat|fix|chore|docs(scope): summary [#issue]`
-- [ ] Changes comply with the [Workspace Security Review Checklist](../contract/SECURITY_REVIEW_CHECKLIST.md) (SW-CONTRACT-HYGIENE-001)
+## Events
+
+- [ ] Stable, versioned events emitted for any indexer/backend consumer (topics + payload documented).
+- [ ] Event payloads avoid PII and secrets; no spoofable/unauthenticated event emission.
+
+## Stellar UI gating
+
+- [ ] No ungated Stellar UI claims; Stellar surfaces stay behind the deploy checklist / deny-list until gated ready (NEAR-only per ADR-003).
+
+## CI & acceptance
+
+- [ ] CI contract jobs green (build, `cargo test`, wasm size budget).
+- [ ] Integration tests updated where applicable.
+- [ ] No secrets or keys committed; logs/telemetry redacted.
+
+## Rollback
+
+- [ ] Risky changes landed behind a flag with rollback notes below.
+
+<!-- Rollback notes: -->
