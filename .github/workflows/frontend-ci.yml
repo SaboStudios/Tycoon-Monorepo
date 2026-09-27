@@ -29,5 +29,14 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Lint frontend
+        run: npm run lint -- --max-warnings=0
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Check frontend bundle budget
+        run: npm run bundle:check
+
       - name: Build frontend
         run: npm run build

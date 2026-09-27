@@ -5,9 +5,14 @@ import { WaitlistService } from './waitlist.service';
 import { WaitlistController } from './waitlist.controller';
 import { WaitlistAdminController } from './waitlist-admin.controller';
 import { AdminLogsModule } from '../admin-logs/admin-logs.module';
+import { AuditTrailModule } from '../audit-trail/audit-trail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Waitlist]), AdminLogsModule],
+  imports: [
+    TypeOrmModule.forFeature([Waitlist]),
+    AdminLogsModule,
+    AuditTrailModule,
+  ],
   controllers: [WaitlistController, WaitlistAdminController],
   providers: [WaitlistService],
   exports: [WaitlistService],

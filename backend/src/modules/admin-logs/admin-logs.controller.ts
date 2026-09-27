@@ -5,6 +5,7 @@ import {
   UseGuards,
   Res,
   HttpStatus,
+  UseInterceptors,
 } from '@nestjs/common';
 import * as express from 'express';
 import {
@@ -21,11 +22,15 @@ import { AdminLogExportDto } from './dto/admin-log-export.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { Throttle } from '@nestjs/throttler';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @ApiTags('admin-logs')
 @ApiBearerAuth()
 @Controller('admin/logs')
 @UseGuards(JwtAuthGuard, AdminGuard)
+@UseInterceptors(AuditTrailInterceptor)
 export class AdminLogsController {
   constructor(private readonly adminLogsService: AdminLogsService) {}
 
@@ -42,6 +47,7 @@ export class AdminLogsController {
   }
 
   @Get('export')
+  @AuditLog(AuditAction.ADMIN_LOGS_EXPORTED)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Export admin audit logs as CSV' })
   async export(

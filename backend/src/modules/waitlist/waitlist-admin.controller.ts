@@ -38,11 +38,15 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 import { PaginatedResponse } from '../../common';
 import { Throttle } from '@nestjs/throttler';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @ApiTags('admin-waitlist')
 @ApiBearerAuth()
 @Controller('admin/waitlist')
 @UseGuards(JwtAuthGuard, AdminGuard)
+@UseInterceptors(AuditTrailInterceptor)
 export class WaitlistAdminController {
   constructor(
     private readonly waitlistService: WaitlistService,
@@ -73,6 +77,7 @@ export class WaitlistAdminController {
   }
 
   @Get('export')
+  @AuditLog(AuditAction.ADMIN_DATA_EXPORTED)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: 'Export waitlist entries as CSV or Excel',
@@ -98,6 +103,7 @@ export class WaitlistAdminController {
    * - Returns a detailed error report for any failed rows
    */
   @Post('bulk-import')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseInterceptors(
@@ -169,6 +175,7 @@ export class WaitlistAdminController {
   }
 
   @Patch(':id')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Update a waitlist entry',
@@ -205,6 +212,7 @@ export class WaitlistAdminController {
   }
 
   @Delete(':id')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
@@ -234,6 +242,7 @@ export class WaitlistAdminController {
   }
 
   @Delete(':id/permanent')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({

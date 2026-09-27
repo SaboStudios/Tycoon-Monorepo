@@ -34,3 +34,32 @@ jobs:
 
       - name: Run backend tests
         run: npm test -- --runInBand
+
+      - name: Verify admin route authorization
+        run: npm run test:e2e -- --runInBand admin-role-verification.e2e-spec.ts
+
+  shop-api-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shop-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: shop-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run shop API tests
+        run: npm test
+
+      - name: Build shop API
+        run: npm run build

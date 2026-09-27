@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AdminLogsService } from './admin-logs.service';
+import { AdminLogsService, redactAuditDetails } from './admin-logs.service';
 import { AdminLog } from './entities/admin-log.entity';
 import { PaginationService } from '../../common';
 import { repositoryMockFactory } from '../../../test/mocks/database.mock';
@@ -50,6 +50,9 @@ describe('AdminLogsService', () => {
         select: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
       };
+      jest
+        .spyOn(paginationService, 'paginate')
+        .mockResolvedValue({ data: [], meta: {} } as any);
       repositoryMock.createQueryBuilder.mockReturnValue(queryBuilderMock);
 
       await service.findAll(queryDto as any);
@@ -80,6 +83,9 @@ describe('AdminLogsService', () => {
         select: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
       };
+      jest
+        .spyOn(paginationService, 'paginate')
+        .mockResolvedValue({ data: [], meta: {} } as any);
       repositoryMock.createQueryBuilder.mockReturnValue(queryBuilderMock);
 
       await service.findAll(queryDto as any);
@@ -114,9 +120,9 @@ describe('AdminLogsService', () => {
         }),
       };
       const queryBuilderMock = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         stream: jest.fn().mockResolvedValue(streamMock),
       };
@@ -128,7 +134,31 @@ describe('AdminLogsService', () => {
         'Content-Type',
         'text/csv',
       );
+      expect(queryBuilderMock.select).toHaveBeenCalledWith([
+        'log.id',
+        'log.adminId',
+        'log.action',
+        'log.targetId',
+        'log.createdAt',
+      ]);
+      expect(queryBuilderMock.limit).toHaveBeenCalledWith(10_000);
       expect(queryBuilderMock.stream).toHaveBeenCalled();
+    });
+  });
+
+  it('redacts nested secrets and PII from audit details', () => {
+    expect(
+      redactAuditDetails({
+        operation: 'user:update',
+        email: 'player@example.test',
+        credentials: { accessToken: 'secret-value' },
+        nested: [{ walletAddress: 'wallet-value' }],
+      }),
+    ).toEqual({
+      operation: 'user:update',
+      email: '[REDACTED]',
+      credentials: { accessToken: '[REDACTED]' },
+      nested: [{ walletAddress: '[REDACTED]' }],
     });
   });
 });

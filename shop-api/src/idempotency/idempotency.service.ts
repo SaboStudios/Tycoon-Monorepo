@@ -45,12 +45,14 @@ export class IdempotencyService {
   async claimKey(
     idempotencyKey: string,
     operation: string,
+    requestHash: string,
   ): Promise<IdempotencyResult> {
     // Attempt optimistic insert first (fast path for new keys).
     try {
       const record = this.repo.create({
         idempotencyKey,
         operation,
+        requestHash,
         status: IdempotencyStatus.PROCESSING,
         responseBody: null,
         responseStatus: null,
@@ -66,17 +68,26 @@ export class IdempotencyService {
     // Key exists — fetch and inspect.
     const existing = await this.repo.findOneByOrFail({ idempotencyKey });
 
-    if (existing.status === IdempotencyStatus.COMPLETED) {
-      this.logger.log(`Replaying idempotent response [key=${this.mask(idempotencyKey)}]`);
-      return { isReplay: true, record: existing };
-    }
-
     if (existing.status === IdempotencyStatus.PROCESSING) {
       // Another request is actively processing this key right now.
       throw new ConflictException(
         'A request with this idempotency key is already being processed. ' +
           'Please wait and retry.',
       );
+    }
+
+    if (
+      existing.operation !== operation ||
+      existing.requestHash !== requestHash
+    ) {
+      throw new ConflictException(
+        'This idempotency key was already used with a different request.',
+      );
+    }
+
+    if (existing.status === IdempotencyStatus.COMPLETED) {
+      this.logger.log(`Replaying idempotent response [key=${this.mask(idempotencyKey)}]`);
+      return { isReplay: true, record: existing };
     }
 
     // FAILED → allow retry by removing the stale record.
@@ -88,6 +99,7 @@ export class IdempotencyService {
     const retryRecord = this.repo.create({
       idempotencyKey,
       operation,
+      requestHash,
       status: IdempotencyStatus.PROCESSING,
       responseBody: null,
       responseStatus: null,

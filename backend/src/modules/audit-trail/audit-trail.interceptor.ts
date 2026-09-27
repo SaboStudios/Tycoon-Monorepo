@@ -3,10 +3,9 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Logger,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Observable, defer, from } from 'rxjs';
+import { concatMap } from 'rxjs/operators';
 import { Request } from 'express';
 import { AuditTrailService } from './audit-trail.service';
 import { AuditAction } from './entities/audit-trail.entity';
@@ -17,8 +16,6 @@ export const AUDIT_ACTION_KEY = 'audit_action';
 
 @Injectable()
 export class AuditTrailInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(AuditTrailInterceptor.name);
-
   constructor(
     private readonly auditTrailService: AuditTrailService,
     private readonly reflector: Reflector,
@@ -39,23 +36,32 @@ export class AuditTrailInterceptor implements NestInterceptor {
       .getRequest<Request & { user?: JwtPayload }>();
     const user = request.user;
 
-    return next.handle().pipe(
-      tap(() => {
-        this.auditTrailService
-          .log(action, {
-            userId: user?.id,
-            userEmail: user?.email,
-            performedBy: user?.id,
-            ipAddress: request.ip,
-            userAgent: request.headers['user-agent'],
-          })
-          .catch((error) => {
-            this.logger.error(
-              `Failed to log audit trail for ${action}:`,
-              error,
-            );
-          });
-      }),
+    const numericTargetIds = Object.fromEntries(
+      Object.entries(request.params ?? {}).filter(
+        ([key, value]) =>
+          ['id', 'userId', 'itemId', 'perkId', 'boostId'].includes(key) &&
+          /^\d{1,20}$/.test(value),
+      ),
+    );
+    const bodyFields = Object.keys(request.body ?? {})
+      .slice(0, 32)
+      .sort();
+
+    return defer(() =>
+      from(
+        this.auditTrailService.log(action, {
+          userId: user?.id,
+          performedBy: user?.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          changes: {
+            phase: 'attempted',
+            method: request.method,
+            targetIds: numericTargetIds,
+            fields: bodyFields,
+          },
+        }),
+      ).pipe(concatMap(() => next.handle())),
     );
   }
 }

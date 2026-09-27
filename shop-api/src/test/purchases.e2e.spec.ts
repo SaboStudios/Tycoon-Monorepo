@@ -139,6 +139,21 @@ describe('POST /purchases (e2e)', () => {
     expect(count).toBe(1);
   });
 
+  it('409 when a completed key is reused with a different payload', async () => {
+    const key = 'key-e2e-payload-conflict';
+    await request(app.getHttpServer())
+      .post('/purchases')
+      .set('idempotency-key', key)
+      .send(validDto)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/purchases')
+      .set('idempotency-key', key)
+      .send({ ...validDto, amount: 50.0 })
+      .expect(409);
+  });
+
   // ── 409 – concurrent / in-flight ─────────────────────────────────────────
 
   it('409 when the same key is currently being processed', async () => {

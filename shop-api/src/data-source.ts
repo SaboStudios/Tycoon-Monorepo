@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 import { Purchase } from './purchases/entities/purchase.entity';
 import { IdempotencyRecord } from './idempotency/entities/idempotency-record.entity';
 import { CreateIdempotencyAndPurchases1714000000000 } from './migrations/1714000000000-CreateIdempotencyAndPurchases';
+import { AddRequestHashToIdempotencyRecords1714000000001 } from './migrations/1714000000001-AddRequestHashToIdempotencyRecords';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -16,7 +17,10 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'shop',
   entities: [Purchase, IdempotencyRecord],
-  migrations: [CreateIdempotencyAndPurchases1714000000000],
+  migrations: [
+    CreateIdempotencyAndPurchases1714000000000,
+    AddRequestHashToIdempotencyRecords1714000000001,
+  ],
   migrationsRun: false,
   synchronize: false,
 });

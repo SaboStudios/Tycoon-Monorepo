@@ -32,16 +32,20 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { ResponseInterceptor } from '../../common/interceptors/response.interceptor';
 import { PaginatedResponse } from '../../common';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @ApiTags('admin-perks')
 @ApiBearerAuth()
 @Controller('admin/perks')
 @UseGuards(JwtAuthGuard, AdminGuard)
-@UseInterceptors(ResponseInterceptor)
+@UseInterceptors(ResponseInterceptor, AuditTrailInterceptor)
 export class PerksAdminController {
   constructor(private readonly perksService: PerksService) {}
 
   @Post()
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new perk' })
   @ApiResponse({
@@ -81,6 +85,7 @@ export class PerksAdminController {
   }
 
   @Patch(':id')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiOperation({ summary: 'Update a perk' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -97,6 +102,7 @@ export class PerksAdminController {
   }
 
   @Delete(':id')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a perk (hard delete)' })
   @ApiParam({ name: 'id', type: Number })
@@ -107,6 +113,7 @@ export class PerksAdminController {
   }
 
   @Patch(':id/activate')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiOperation({ summary: 'Activate a perk' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -123,6 +130,7 @@ export class PerksAdminController {
   }
 
   @Patch(':id/deactivate')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiOperation({ summary: 'Deactivate a perk' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -151,6 +159,7 @@ export class PerksAdminController {
   }
 
   @Post(':perkId/boosts')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a boost for a perk' })
   @ApiParam({ name: 'perkId', type: Number })
@@ -167,6 +176,7 @@ export class PerksAdminController {
   }
 
   @Patch(':perkId/boosts/:boostId')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiOperation({ summary: 'Update a boost' })
   @ApiParam({ name: 'perkId', type: Number })
   @ApiParam({ name: 'boostId', type: Number })
@@ -184,6 +194,7 @@ export class PerksAdminController {
   }
 
   @Delete(':perkId/boosts/:boostId')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a boost' })
   @ApiParam({ name: 'perkId', type: Number })

@@ -3,6 +3,27 @@
 ## Overview
 This runbook covers the operational procedures for managing the Tycoon Shop and Purchases module, including troubleshooting failed transactions, managing coupons, and auditing financial activity.
 
+## Authoritative Purchase Path
+
+The backend `ShopModule` is currently the only path connected to the authoritative
+`shop_items`, coupon, purchase, and user-inventory tables. It calculates prices
+from catalog data and must remain the storefront write path. The standalone
+`shop-api` currently stores purchase records using a client-provided amount and
+has no catalog or stock model; do not route storefront purchases to it until a
+catalog-backed integration and migration are deployed. This boundary must be
+revisited before any shop-api cutover.
+
+Backend owned-item inventory consumption must use an atomic conditional update;
+do not implement stock reservations against `user_inventory`, which represents
+items already owned by a player rather than sellable catalog stock.
+
+## Rollback Notes
+
+For purchase or catalog regressions, disable the affected storefront write route
+at the API gateway and keep the backend catalog path as the only enabled writer.
+Do not switch traffic to `shop-api` as a rollback target until it can read the
+same authoritative catalog and enforce its inventory constraints.
+
 ## Common Issues & Troubleshooting
 
 ### 1. Failed Purchases

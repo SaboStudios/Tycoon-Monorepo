@@ -12,6 +12,7 @@ import { TestDbModule } from '../test/test-db.module';
 
 const KEY = 'test-key-001';
 const OP = 'purchases';
+const REQUEST_HASH = 'a'.repeat(64);
 
 describe('IdempotencyService', () => {
   let module: TestingModule;
@@ -39,7 +40,7 @@ describe('IdempotencyService', () => {
   // ── New key ────────────────────────────────────────────────────────────────
 
   it('claims a new key and returns isReplay=false', async () => {
-    const result = await service.claimKey(KEY, OP);
+    const result = await service.claimKey(KEY, OP, REQUEST_HASH);
 
     expect(result.isReplay).toBe(false);
     expect(result.record.idempotencyKey).toBe(KEY);
@@ -49,10 +50,10 @@ describe('IdempotencyService', () => {
   // ── Completed key (replay) ─────────────────────────────────────────────────
 
   it('returns isReplay=true for a COMPLETED key', async () => {
-    await service.claimKey(KEY, OP);
+    await service.claimKey(KEY, OP, REQUEST_HASH);
     await service.markCompleted(KEY, { status: 201, body: { id: 'abc' } });
 
-    const result = await service.claimKey(KEY, OP);
+    const result = await service.claimKey(KEY, OP, REQUEST_HASH);
 
     expect(result.isReplay).toBe(true);
     expect(result.record.status).toBe(IdempotencyStatus.COMPLETED);
@@ -60,10 +61,10 @@ describe('IdempotencyService', () => {
 
   it('getCachedResponse deserialises the stored body', async () => {
     const body = { id: 'abc', amount: 9.99 };
-    await service.claimKey(KEY, OP);
+    await service.claimKey(KEY, OP, REQUEST_HASH);
     await service.markCompleted(KEY, { status: 201, body });
 
-    const { record } = await service.claimKey(KEY, OP);
+    const { record } = await service.claimKey(KEY, OP, REQUEST_HASH);
     const cached = service.getCachedResponse(record);
 
     expect(cached.status).toBe(201);
@@ -73,9 +74,11 @@ describe('IdempotencyService', () => {
   // ── Concurrent / PROCESSING key ───────────────────────────────────────────
 
   it('throws ConflictException when key is still PROCESSING', async () => {
-    await service.claimKey(KEY, OP); // leaves status=PROCESSING
+    await service.claimKey(KEY, OP, REQUEST_HASH); // leaves status=PROCESSING
 
-    await expect(service.claimKey(KEY, OP)).rejects.toBeInstanceOf(
+    await expect(
+      service.claimKey(KEY, OP, REQUEST_HASH),
+    ).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -83,10 +86,10 @@ describe('IdempotencyService', () => {
   // ── Retry after failure ───────────────────────────────────────────────────
 
   it('allows retry after a FAILED key by resetting to PROCESSING', async () => {
-    await service.claimKey(KEY, OP);
+    await service.claimKey(KEY, OP, REQUEST_HASH);
     await service.markFailed(KEY);
 
-    const result = await service.claimKey(KEY, OP);
+    const result = await service.claimKey(KEY, OP, REQUEST_HASH);
 
     expect(result.isReplay).toBe(false);
     expect(result.record.status).toBe(IdempotencyStatus.PROCESSING);
@@ -95,10 +98,19 @@ describe('IdempotencyService', () => {
   // ── markFailed ────────────────────────────────────────────────────────────
 
   it('markFailed sets status to FAILED', async () => {
-    await service.claimKey(KEY, OP);
+    await service.claimKey(KEY, OP, REQUEST_HASH);
     await service.markFailed(KEY);
 
     const record = await repo.findOneByOrFail({ idempotencyKey: KEY });
     expect(record.status).toBe(IdempotencyStatus.FAILED);
+  });
+
+  it('rejects reuse of a key with a different request hash', async () => {
+    await service.claimKey(KEY, OP, REQUEST_HASH);
+    await service.markCompleted(KEY, { status: 201, body: { id: 'abc' } });
+
+    await expect(
+      service.claimKey(KEY, OP, 'b'.repeat(64)),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

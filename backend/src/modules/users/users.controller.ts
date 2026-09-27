@@ -12,6 +12,7 @@ import {
   Query,
   UseGuards,
   Request,
+  UseInterceptors,
 } from '@nestjs/common';
 import * as express from 'express';
 
@@ -41,12 +42,16 @@ import { User } from './entities/user.entity';
 import { PaginationDto, PaginatedResponse } from '../../common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 import {
   RedisRateLimitGuard,
   RateLimit,
 } from '../../common/guards/redis-rate-limit.guard';
 
 @Controller('users')
+@UseInterceptors(AuditTrailInterceptor)
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
@@ -165,6 +170,7 @@ export class UsersController {
    */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
@@ -179,6 +185,7 @@ export class UsersController {
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @Param('id', ParseIntPipe) id: number,
@@ -193,6 +200,7 @@ export class UsersController {
    */
   @Post('suspend')
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.OK)
   async suspendUser(
     @Body() dto: SuspendUserDto,
@@ -208,6 +216,7 @@ export class UsersController {
    */
   @Post('unsuspend')
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.OK)
   async unsuspendUser(
     @Body() dto: UnsuspendUserDto,
@@ -224,6 +233,7 @@ export class UsersController {
   @Post(':id/reset-password')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Idempotent()
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.OK)
   async resetPassword(
     @Param('id', ParseIntPipe) id: number,

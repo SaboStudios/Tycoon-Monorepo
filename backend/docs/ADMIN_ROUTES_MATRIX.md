@@ -37,6 +37,11 @@ The backend uses two primary guards for admin access control:
 | GET | `/admin/logs` | Retrieve admin audit logs with filters and pagination | AdminGuard |
 | GET | `/admin/logs/export` | Export admin audit logs as CSV | AdminGuard |
 
+Admin log exports are audited as `ADMIN_LOGS_EXPORTED`, limited to 10,000 rows,
+and contain only the allowlisted ID, admin ID, action, target ID, and timestamp
+columns. IP addresses, user agents, email addresses, and free-form details are
+not exported. The paginated view recursively redacts sensitive detail keys.
+
 ---
 
 ### 3. Users Module
@@ -121,6 +126,21 @@ The backend uses two primary guards for admin access control:
 |-------------|------|---------|------------|
 | POST | `/chances` | Create a new chance card | RolesGuard + @Roles(Role.ADMIN) |
 
+### 8. Admin Shop Module
+
+**Base Path**: `/admin/shop`  
+**Controller**: `AdminShopController`  
+**Guards**: `JwtAuthGuard`, `AdminGuard` (class level)  
+**Audit**: `AuditTrailInterceptor` writes an audit intent before each mutation;
+the write is denied if the audit store is unavailable.
+
+| HTTP Method | Path | Purpose | Guard Used |
+|-------------|------|---------|------------|
+| PATCH | `/admin/shop/:id/price` | Update item price and currency | AdminGuard |
+| PATCH | `/admin/shop/:id/status` | Change item active status | AdminGuard |
+| POST | `/admin/shop/:id/upload` | Upload item images | AdminGuard |
+| POST | `/admin/shop/bulk/update` | Bulk update catalog items | AdminGuard |
+
 ---
 
 ## Guard Implementations
@@ -179,7 +199,7 @@ The backend uses two primary guards for admin access control:
 
 3. **Integration Testing**: All admin-protected routes should have integration tests verifying 403 responses for non-admin users. See `test/admin-role-verification.e2e-spec.ts` for examples.
 
-4. **Admin Action Logging**: Consider logging all admin actions for audit purposes using `AdminLogsService`.
+4. **Admin Action Auditing**: Mark every admin mutation with `@AuditLog` and ensure its module imports `AuditTrailModule`. Audit intents are persisted before the handler runs, so an audit-store outage fails closed and failed mutation attempts remain visible.
 
 5. **Rate Limiting**: Apply stricter rate limits to admin endpoints to prevent abuse.
 

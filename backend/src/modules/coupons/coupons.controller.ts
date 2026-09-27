@@ -11,6 +11,7 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -31,14 +32,19 @@ import { Coupon } from './entities/coupon.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @ApiTags('coupons')
 @Controller('coupons')
+@UseInterceptors(AuditTrailInterceptor)
 export class CouponsController {
   constructor(private readonly couponsService: CouponsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new coupon (Admin only)' })
@@ -95,6 +101,7 @@ export class CouponsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a coupon (Admin only)' })
   @ApiParam({ name: 'id', description: 'Coupon ID' })
@@ -112,6 +119,7 @@ export class CouponsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a coupon (Admin only)' })

@@ -33,6 +33,9 @@ export class IdempotencyRecord {
   @Index()
   operation: string;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  requestHash: string | null;
+
   @Column({ type: 'varchar', default: IdempotencyStatus.PROCESSING })
   status: IdempotencyStatus;
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Purchase, PurchaseStatus } from './entities/purchase.entity';
@@ -35,10 +36,21 @@ export class PurchasesService {
     dto: CreatePurchaseDto,
     idempotencyKey: string,
   ): Promise<Purchase> {
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          userId: dto.userId,
+          itemId: dto.itemId,
+          amount: dto.amount,
+        }),
+      )
+      .digest('hex');
+
     // Step 1 — claim the key (throws on concurrent duplicate).
     const { isReplay, record } = await this.idempotencyService.claimKey(
       idempotencyKey,
       OPERATION,
+      requestHash,
     );
 
     if (isReplay) {
