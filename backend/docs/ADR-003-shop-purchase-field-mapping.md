@@ -162,28 +162,100 @@ own whether Stellar UI or the games WS surface is available.
    (or proxy) that evaluates flags server-side and returns the resolved
    booleans. The frontend consumes that response; it does not evaluate
    flags itself and does not trust any client-provided flag value.
-4. **ADR-003 chain policy.** While `stellar.ui` is `false`, the UI must
-   present NEAR as the only supported chain. Enabling `stellar.ui` is an
-   explicit operator action and must be accompanied by the Stellar
-   readiness checklist; it is not implied by any other flag.
-5. **WS gate.** The shop proxy games WS surface must reject connections
-   when `shop.proxy.games.ws` is `false`, using the same deny-by-default
-   evaluation as the read path.
+4. **ADR-003 chain policy.** Stellar UI remains gated behind `stellar.ui`
+   until the Stellar Wave readiness checklist is satisfied; NEAR is the
+   only supported chain UI in the meantime.
 
-### Rollback
+## On-chain Stake Vault Escrow Payout Refunds (issue #1741)
 
-Disabling either flag returns the surface to its default-off state without
-requiring a deploy. Rollback notes for the enabling PR must state which
-flag was flipped, the observed metrics, and the revert action.
+This section records the invariants for the on-chain stake vault escrow
+payout refund path. It is the source of truth for the contract package
+(`contract/`) and for any backend surface that reads or relays stake vault
+state. Any PR touching the stake vault escrow payout refund path must
+conform to it.
 
-## Consequences
+### Scope and ownership
 
-- No entity code changes in this ADR — this is a documentation and process
-  decision. Any PR that writes purchase data across the shop-api/backend
-  boundary must reference and follow `docs/SHOP_ARCHITECTURE.md`.
-- Follow-up work (out of scope here): implement and unit-test the actual
-  translator function once ADR-001's proxy cutover work begins.
-- Feature-flag evaluation for `shop.proxy.games.ws` and `stellar.ui` is
-  owned by the backend flag service; any new admin/WS/action surface added
-  under these flags is deny-by-default and must be authorized and
-  rate-limited at the server.
+- The **stake vault contract** (`contract/`, Soroban SDK v23 scaffolding)
+  is the source of truth for escrowed stake balances and for refund
+  payouts. No backend or frontend surface may compute, mutate, or infer an
+  escrow balance or refund amount on its own.
+- The backend may only **read** stake vault state (via the contract read
+  path or a cached read model) and relay it to clients. It never writes
+  escrow or refund state directly.
+- The frontend never trusts a client-supplied stake amount, escrow balance,
+  or refund amount. All such values are resolved on-chain and relayed
+  server-side.
+
+### Escrow invariants
+
+1. **Conservation of value.** For every escrow, the sum of released payouts
+   plus refunds plus the remaining escrowed balance equals the originally
+   deposited amount. No path may create or destroy value.
+2. **Escrow is per-stake and non-fungible across stakes.** A refund or
+   payout for one stake may never draw from another stake's escrow.
+3. **Refund eligibility is terminal.** A refund is only valid when the
+   stake is in a terminal, refundable state (e.g. cancelled or expired
+   without a completed payout). A refund against an already-paid-out or
+   already-refunded stake must fail closed.
+4. **Single settlement.** Each stake settles at most once — either a payout
+   or a refund, never both, and never twice. Settlement is guarded by an
+   on-chain state transition, not by application-level checks alone.
+5. **No partial refunds unless explicitly modeled.** If partial refunds
+   are supported, the remaining escrow must be tracked explicitly and the
+   conservation invariant must still hold after every partial refund.
+
+### Idempotency and concurrency
+
+- Refund and payout operations must be **idempotent** with respect to a
+  caller-supplied operation id (or equivalent on-chain nonce). A duplicate
+  request — including reconnect/retry duplicates — must not produce a
+  second transfer.
+- Concurrent duplicate requests must be serialized by the contract's state
+  transition: the first to observe the terminal state wins, and every
+  subsequent attempt fails closed with a typed error rather than
+  re-executing the transfer.
+- The backend must not retry a refund or payout write blindly. Retries are
+  only safe when the operation id is reused so the contract can dedupe.
+
+### Failure modes and fail-closed behavior
+
+- **Dependency outage (RPC/Postgres/Redis).** Writes fail closed. No
+  best-effort refund or payout is attempted, and no partial state is
+  persisted.
+- **Auth expiry mid-flow / forbidden role.** Refund and payout entrypoints
+  are authorized server-side; an expired or forbidden caller is rejected
+  before any contract write is attempted.
+- **Invalid or adversarial input.** Oversized payloads, spoofed events, and
+  enumeration attempts are rejected at the edge and rate-limited. Amounts
+  are integers in minor units; floats are rejected.
+- **Partial migration / canary.** While the escrow path is being rolled
+  out, reads must tolerate both pre- and post-migration states without
+  ever treating an unknown state as refundable.
+
+### Error mapping, requestId, and telemetry
+
+- Errors are mapped to `docs/API_ERROR_RESPONSE_STANDARDS.md` with explicit
+  error codes for: not-refundable, already-settled, unauthorized, and
+  dependency-unavailable.
+- The incoming `requestId` is propagated through the refund/payout path and
+  echoed in responses and logs so a settlement can be traced end to end.
+- RED metrics (rate, errors, duration) are emitted for refund and payout
+  operations. Telemetry labels must not contain secrets, tokens, or PII.
+
+### Auth
+
+- Refund and payout entrypoints are deny-by-default and authorized
+  server-side (JWT/AdminGuard/API-key as applicable). Untrusted clients
+  cannot bypass server authority to trigger a refund or payout.
+- Service-to-service calls use API keys only; no client-trusted stake,
+  escrow, or refund amount is accepted.
+
+### Feature flag and rollback
+
+- The escrow payout refund path is gated behind a server-side flag
+  (deny-by-default) while it is being rolled out. The flag is evaluated
+  server-side only; clients never decide whether the path is available.
+- Rollback: disable the flag to stop new refund/payout writes. On-chain
+  state already settled is immutable and must be reconciled by operators
+  per the runbook; rollback never attempts to reverse a settled transfer.
