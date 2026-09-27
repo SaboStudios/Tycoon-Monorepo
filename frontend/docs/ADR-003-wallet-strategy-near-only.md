@@ -2,7 +2,8 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-27  
-**Issue:** [#1454 — Reconcile Stellar copy vs NEAR-only wallet implementation](https://github.com/SaboStudios/Tycoon-Monorepo/issues/1454)
+**Issue:** [#1454 — Reconcile Stellar copy vs NEAR-only wallet implementation](https://github.com/SaboStudios/Tycoon-Monorepo/issues/1454)  
+**Follow-up:** [#1739 — Play with AI settings NEAR-only honest copy](https://github.com/SaboStudios/Tycoon-Monorepo/issues/1739)
 
 ---
 
@@ -43,6 +44,29 @@ contributors and players, and causes incorrect on-call triage.
 | `frontend/src/clients/PlayWithAISettingsClient.tsx` | "Stellar Network" → "NEAR wallet"; "registered" → "NEAR wallet connected" |
 | `frontend/src/lib/near/` | No change — canonical wallet library |
 | `contract/` | No change — deferred until Soroban integration is scoped |
+
+---
+
+## Play with AI settings — honest copy rules (#1739)
+
+The Play with AI settings surface must describe only the chain that is actually wired
+up. Until Stellar is gated ready, that is NEAR and nothing else.
+
+- **Do not** name Stellar, Soroban, or any second chain in Play with AI settings copy,
+  loading states, error messages, or empty states.
+- **Do not** imply multi-chain support (e.g. "choose your network", "Stellar or NEAR",
+  "connect a supported chain").
+- **Do** name the NEAR wallet explicitly when prompting the player to connect, and use
+  the `NEXT_PUBLIC_WALLET_NETWORK_LABEL` env var (default: "NEAR") for any dynamic
+  network label so the copy can be updated without a code release.
+- **Do** keep failure copy honest: if the NEAR RPC or wallet is unreachable, say the
+  NEAR network is unreachable — never fall back to a generic "network" that could be
+  read as a second chain.
+- **Do** keep the access-denied copy specific: the player must connect a NEAR wallet to
+  enter the AI Battle Arena.
+
+Any future Stellar support must land as a new ADR that supersedes this one, with the
+Play with AI settings copy updated in the same PR.
 
 ---
 

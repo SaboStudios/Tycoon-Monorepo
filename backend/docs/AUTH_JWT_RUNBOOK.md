@@ -7,6 +7,8 @@ backend (NestJS 11), and shop-api (NestJS purchases SoT).
 
 Related documents:
 
+- `frontend/docs/ADR-003-wallet-strategy-near-only.md` — wallet strategy
+  decision (NEAR-only until Stellar is gated ready).
 - `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md` — session token
   storage decision (httpOnly cookies).
 - `frontend/CSP_DOCUMENTATION.md` — Content Security Policy and cookie flags.
@@ -38,6 +40,10 @@ All auth cookies MUST be set with:
 - `Domain` scoped to the API host; never a wildcard parent domain.
 
 ## 3. Challenge / nonce flow (NEAR wallet)
+
+NEAR is the only supported wallet chain for authentication per ADR-003. Do not
+add Stellar/Soroban challenge or verification paths until Stellar is gated
+ready; any such surface is out of scope and MUST NOT be advertised in UI copy.
 
 1. Client calls `POST /auth/challenge` with the wallet `account_id`.
 2. Server generates a cryptographically random nonce, stores it with a short
@@ -158,37 +164,42 @@ Rules:
 
 - **Dependency outage (Postgres/Redis/shop-api/RPC):** fail closed on writes.
   Do not issue tokens if the nonce store or session store is unavailable.
-- **Auth expiry mid-flow:** return `401`; the client attempts a single refresh,
-  then redirects to login.
+- **Auth expiry mid-flow:** return `401`; the client attempts a single silent
+  refresh, and on failure routes to login without losing in-progress state.
 - **Forbidden role access:** return `403`; never leak resource existence.
-- **Adversarial input:** reject oversized payloads, enumeration attempts, and
-  spoofed events; rate-limit every external entrypoint touched here.
-- **User rejects sign:** the wallet returns no signature; the client aborts the
-  flow, the nonce is left to expire, and no session is created.
-- **Replayed nonce:** the nonce is single-use and deleted on first verify; a
-  second verify with the same nonce fails closed with `401`.
+- **Invalid or adversarial input:** reject oversized payloads, unknown enum
+  values, and spoofed events with `400`/`401`; count against rate-limit buckets.
+- **Partial migration / canary states:** if dual auth systems exist during a
+  rollout, deny by default on the new surface until the canary is fully cut
+  over; never accept tokens minted by a deprecated path.
+- **User rejects sign:** the challenge is left unconsumed and expires by TTL;
+  no session is created and no tokens are issued.
+- **Replayed nonce:** fail closed with `401`; the nonce is single-use and is
+  deleted on first successful verify.
 - **Parallel refresh:** serialized server-side; losers get `409` and retry once.
-- **Open redirect attempt:** non-allowlisted `returnTo` values fall back to the
-  default route; the rejected value is never reflected.
+- **Open redirect attempts:** rejected by the `returnTo` allowlist (§6) and
+  fall back to the default post-login route.
 
-## 10. Logging and secrets
+## 10. Honest player-facing copy (NEAR-only)
 
-- Never log access tokens, refresh tokens, nonces, signatures, or CSRF tokens.
-- Redact tokens in error traces and telemetry labels; avoid PII in labels.
-- No secrets in the repository.
+Player-facing copy in Play with AI settings and related auth surfaces MUST
+reflect the actual supported chain. Per ADR-003, NEAR is the only supported
+wallet chain until Stellar is gated ready.
 
-## 11. Verification checklist
+- Do NOT advertise Stellar, Soroban, or any non-NEAR wallet as a selectable or
+  supported option in Play with AI settings.
+- Do NOT show disabled-but-present Stellar toggles, placeholder chain pickers,
+  or “coming soon” chain copy that implies availability.
+- Copy MUST state that NEAR is the supported wallet and MUST NOT promise
+  features that are not implemented.
+- When Stellar is gated ready, update this section, ADR-003, and the UI copy in
+  the same PR; the documents and UI MUST stay consistent.
 
-- [ ] Access and refresh tokens are httpOnly, `Secure`, and correctly
-      `SameSite`-scoped; no JS-readable access tokens anywhere.
-- [ ] Challenge nonces are single-use, TTL-bound, and throttled.
-- [ ] Session identifier is rotated on login; fixated sessions are rejected.
-- [ ] Refresh rotation revokes the family on reuse detection.
-- [ ] CSRF double-submit enforced on all cookie-authenticated mutations.
-- [ ] `returnTo` redirects are allowlisted (deny-by-default).
-- [ ] WS handshake uses the same cookie parsing as REST.
-- [ ] CSP `connect-src` allowlists only the NEAR wallet/RPC, backend, and
-      shop-api origins above; no wildcards; consistent with
-      `frontend/CSP_DOCUMENTATION.md`.
-- [ ] `auth-token-security.e2e`, `auth.e2e`, signature-verify unit negatives,
-      and the frontend RTL wallet-reject path are green.
+## 11. References
+
+- `frontend/docs/ADR-003-wallet-strategy-near-only.md`
+- `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md`
+- `frontend/docs/SW-deny-list.md`
+- `frontend/CSP_DOCUMENTATION.md`
+- `TOKEN_REFRESH_SECURITY_GUIDE.md`
+- `NEAR_WALLET_TESTNET_CHECKLIST.md`
