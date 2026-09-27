@@ -13,20 +13,15 @@ export interface BoardSquareProps {
   name: string;
   position?: number;
   type?: SquareType;
-  color: string;
-  isFocused?: boolean;
-  onFocus?: () => void;
+  color?: string; // For future property color support (e.g., 'bg-red-500')
 }
 
 export const BoardSquare: React.FC<BoardSquareProps> = ({
   name,
   position,
   type = 'property',
-  color,
-  isFocused = false,
-  onFocus,
+  color = 'bg-gray-300',
 }) => {
-  if (!name || !color) return null;
   // Type-based styling
   const getSquareStyles = () => {
     const baseStyles = 'flex flex-col border-2 rounded overflow-hidden transition-all duration-200';
@@ -74,11 +69,7 @@ export const BoardSquare: React.FC<BoardSquareProps> = ({
 
   return (
     <div 
-      role="gridcell"
-      aria-label={`${name} square, position ${position}, type ${type}`}
-      tabIndex={isFocused ? 0 : -1}
-      onFocus={onFocus}
-      className={`${getSquareStyles()} w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36 ${isFocused ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
+      className={`${getSquareStyles()} w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36`}
       data-position={position}
       data-type={type}
     >

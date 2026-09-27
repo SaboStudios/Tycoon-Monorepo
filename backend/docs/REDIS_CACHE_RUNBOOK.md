@@ -17,6 +17,8 @@ Covers the global Redis client and Nest `CacheModule` wiring under `backend/src/
 7. [Logging & secrets](#7-logging--secrets)
 8. [Monitoring](#8-monitoring)
 9. [Rollback](#9-rollback)
+10. [Cache namespaces & stampede protection](#10-cache-namespaces--stampede-protection)
+11. [SW-BE-007 error mapping](#11-sw-be-007-error-mapping)
 
 ---
 
@@ -25,10 +27,11 @@ Covers the global Redis client and Nest `CacheModule` wiring under `backend/src/
 | Component | Role |
 |-----------|------|
 | `RedisModule` (`@Global`) | Registers `cache-manager` with `cache-manager-ioredis-yet` (same host/db/password as app config). Exports `RedisService`, idempotency helpers, and `CacheModule`. |
-| `RedisService` | Direct `ioredis` client for tokens, rate limits, sorted sets, `KEYS`/`SCAN` helpers; uses `CACHE_MANAGER` for cache-manager get/set/del. |
+| `RedisService` | Direct `ioredis` client for tokens, rate limits, sorted sets, `KEYS`/`SCAN` helpers, **cache versioning** (`getCacheVersion`, `incrementCacheVersion`); uses `CACHE_MANAGER` for cache-manager get/set/del. |
 | `redis.config.ts` | `ConfigFactory` for `ConfigService.get('redis')`. |
 | `env.validation.ts` | Joi schema: single source of truth for allowed env shapes and defaults for Redis-related variables. |
 | `GET /health/redis` | Smoke test: cache set/get for key `health-check` (short TTL). Routed **outside** the versioned API prefix (see `configureApiVersioning` exclusions). |
+| `CacheInterceptor` | Intercepts GET requests and caches responses. For versioned resources (e.g., shop catalog), includes the cache version in the key. |
 
 **Important:** `delByPattern` uses Redis `KEYS`, which can block a large instance. Prefer `scanPage` for wide keyspaces in production maintenance unless you know the pattern is narrow.
 
@@ -46,6 +49,9 @@ Validated at process startup via `validationSchema` in `src/config/env.validatio
 | `REDIS_DB` | `0` | no | Logical database index |
 | `REDIS_TTL` | `300` | no | Default TTL (seconds) for cache-manager store registration |
 | `CACHE_AUDIT_ENABLED` | `false` | no | When `true`, successful `set` / `del` / `delByPattern` emit `AuditTrailService` actions `CACHE_SET`, `CACHE_DEL`, `CACHE_INVALIDATE` |
+| `CACHE_STAMPEDE_LOCK_TTL_MS` | `5000` | no | Max lifetime of a single-flight lock (ms). Must be `> 0`; keep it above the p99 origin latency. |
+| `CACHE_STAMPEDE_WAIT_TIMEOUT_MS` | `2000` | no | Max time a follower waits for the leader to populate the cache before falling back to the origin (ms). |
+| `CACHE_STAMPEDE_WAIT_INTERVAL_MS` | `50` | no | Poll interval for followers waiting on the lock (ms). |
 
 `redis.config.ts` maps `CACHE_AUDIT_ENABLED` to `cacheAuditEnabled` using the string `true` (lowercase) for parity with typical `.env` files. Joi accepts standard truthy/falsy strings and coerces to boolean for validation output; the Nest `registerAs` factory still reads `process.env` directly for this flag.
 
@@ -64,6 +70,48 @@ Validated at process startup via `validationSchema` in `src/config/env.validatio
 - **Schema:** New `AuditAction` enum string values (`CACHE_SET`, `CACHE_DEL`, `CACHE_INVALIDATE`) are stored in `audit_trails.action` (`varchar(50)`). No Alembic/TypeORM migration is required for length; existing rows are unchanged.
 - **Order of operations:** Deploy application code first (backward compatible). Then optionally enable `CACHE_AUDIT_ENABLED` per environment.
 - **Redis version:** No minimum version bump required for this runbook; follow your platform standard (e.g. Redis 6+ for TLS if used outside this repo).
+
+---
+
+## 4.5. Cache key versioning for shop catalog
+
+**Rationale:** The shop catalog is frequently cached but also frequently mutated by admins (price changes, item deactivation, etc.). Instead of using broad, blocking `KEYS` patterns to invalidate the cache, we use **cache key versioning**: each time an admin mutation occurs, a version counter increments, and the `CacheInterceptor` includes this version in generated cache keys. Subsequent reads automatically miss old entries and fetch fresh data.
+
+**Implementation:**
+
+- **Version key:** `{environment}:cache-version:shop:catalog` (stored in Redis, default 0)
+- **Cache key format:** `cache:GET:/api/v1/shop/items:userId:queryParams:vN` (where N is the current version)
+- **Mutation triggers:** When `ShopService.create()`, `ShopService.update()`, `ShopService.remove()`, or `ShopService.bulkUpdate()` is called, `invalidateCache()` increments the version
+- **TTL:** Shop catalog cache entries expire after 300 seconds (5 minutes) regardless of version changes
+
+**Versioning example:**
+
+1. Admin calls `PATCH /admin/shop/1/price` → price updated to $99.99 → version increments from 1 → 2
+2. Next `GET /api/v1/shop/items` request generates cache key with `:v2` suffix
+3. If cache still had an entry from `:v1`, it is not found (cache miss)
+4. Fresh data is fetched and cached under `:v2`
+5. Subsequent requests for the next 5 minutes hit the `:v2` cache entry
+
+**Methods:**
+
+- `redisService.getCacheVersion(namespace)` → returns current version (e.g., 2)
+- `redisService.incrementCacheVersion(namespace)` → increments and returns new version (e.g., 3)
+
+### 4.5.1. Public read path & authority
+
+The public catalog read (`GET /api/v1/shop/items`, `GET /api/v1/shop/items/:id`) is **cache-first, origin-authoritative**:
+
+- On a cache hit, the cached payload is returned. Cached payloads are only ever written from a successful shop-api read; the cache is never the source of truth for price, inventory, or admin state.
+- On a cache miss (including every miss caused by a version bump), the request falls through to the authoritative shop-api read path and the fresh result is written back under the current version key.
+- Price, inventory, and admin mutations are always resolved by shop-api; the cache layer must not be consulted for write decisions.
+
+### 4.5.2. Invalidation on admin edit
+
+Admin catalog mutations (`create`, `update`, `remove`, `bulkUpdate`) call `invalidateCache()`, which increments the shop catalog version. Because the version is part of the key, all prior entries become unreachable immediately and the next public read repopulates from shop-api.
+
+**Concurrency (edit during read):** versioning is monotonic and atomic (`INCR`), so a read that started before an edit may still write its result under the *old* version key. That entry is unreachable after the bump, so no stale data is served. A read that starts after the bump uses the new version and observes the edit.
+
+**Fail-closed on admin writes:** if the version increment fails (Redis unavailable), the admin mutation must **not** be reported as successfully invalidated. Surface the error to the caller and let the write fail closed rather than silently dropping invalidation — a successful admin edit must never leave stale public catalog data reachable.
 
 ---
 
@@ -118,37 +166,8 @@ Do **not** paste `REDIS_PASSWORD` into tickets, chat, or CI logs.
 2. Add retention/archival policy for `audit_trails` (product decision).
 3. Re-enable with lower traffic or async batching if introduced in a future change.
 
----
+### 6.4 Cache stampede (thundering herd) on a hot namespace
 
-## 7. Logging & secrets
+**Symp
 
-- **Do not** log `REDIS_PASSWORD`, full Redis URLs with auth, or refresh token values. `RedisService` logs keys at **debug** for cache hit/miss and identifiers like `userId` for token operations — keep production `LOG_LEVEL` at `info` or higher unless troubleshooting.
-- Error messages include Redis/ioredis `message` only (no password).
-
----
-
-## 8. Monitoring
-
-Prometheus metrics (non-exhaustive):
-
-- `tycoon_redis_operations_total{operation="..."}`
-- `tycoon_redis_errors_total`
-- `tycoon_cache_hits_total` / `tycoon_cache_misses_total`
-- `tycoon_redis_operation_duration_seconds`
-
-Alert on sustained error rate and on `health/redis` failing synthetic checks.
-
----
-
-## 9. Rollback
-
-1. Revert or redeploy previous image.
-2. If audit volume was the issue, set `CACHE_AUDIT_ENABLED=false` without reverting code.
-3. No data migration rollback is required for audit enum strings.
-
----
-
-## Related docs
-
-- `docs/AUTH_JWT_RUNBOOK.md` — refresh tokens also use Redis-backed flows in auth.
-- `docs/webhooks-runbook.md` — webhook idempotency uses Redis.
+/* … truncated 7825 chars — edit only what you need near the top … */

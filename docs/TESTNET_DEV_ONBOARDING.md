@@ -143,41 +143,7 @@ Watch the [Stellar status page](https://status.stellar.org) and the `#dev` chann
 
 ---
 
-## 6. Integration Test Isolation Rule (#1359)
-
-All integration tests in `contract/integration-tests/` and in-crate test modules
-**must** use `Env::default()` exclusively. This creates a fully isolated in-process
-Soroban sandbox with no network connection.
-
-**Never** do any of the following in a test:
-- Read `STELLAR_NETWORK`, `STELLAR_RPC_URL`, or any network env var
-- Construct an `Env` from a ledger snapshot tied to a live network
-- Call `stellar contract invoke` against a real RPC from a test binary
-
-The CI workflow has `STELLAR_NETWORK=""` set at the job level to catch accidental
-network references early. If you see `STELLAR_NETWORK is empty` errors in CI,
-the test is attempting a network call that must be replaced with `Env::default()`.
-
-### Pattern to follow
-
-```rust
-#[test]
-fn my_integration_test() {
-    let env = Env::default();   // ← always this; never a network env
-    env.mock_all_auths();
-    // ... test body
-}
-```
-
-### Why this matters
-
-A test that mutates the shared staging contract corrupts state for all
-developers and can break QA sign-off. The sandbox `Env::default()` is
-deterministic, parallel-safe, and runs without any external dependencies.
-
----
-
-## 7. New Dev Checklist
+## 6. New Dev Checklist
 
 A new developer can deploy a contract to testnet by following these steps:
 

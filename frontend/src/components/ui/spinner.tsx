@@ -23,11 +23,9 @@ export function Spinner({
     <div
       role="status"
       aria-label="Loading"
-      aria-busy="true"
-      data-loading="true"
       className={cn(
         "rounded-full border-[#00F0FF]/30 border-t-[#00F0FF]",
-        "motion-safe:animate-spin motion-reduce:animate-none",
+        "animate-spin motion-safe:animate-spin motion-reduce:animate-none",
         sizeClasses[size],
         className
       )}

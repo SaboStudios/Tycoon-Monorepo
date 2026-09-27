@@ -9,7 +9,7 @@ import { DataSource } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { CreateGameDto } from './dto/create-game.dto';
 import { PaginationService } from '../../common';
-import { GetGamesDto, GameSortField } from './dto/get-games.dto';
+import { GetGamesDto } from './dto/get-games.dto';
 
 describe('GamesService', () => {
   let service: GamesService;
@@ -401,15 +401,20 @@ describe('GamesService', () => {
 
       expect(mockPaginationService.paginate).toHaveBeenCalledWith(
         qb,
-        expect.objectContaining({ page: 2, limit: 5 }),
+        expect.objectContaining({
+          page: 2,
+          limit: 5,
+          sortBy: 'created_at',
+          sortOrder: 'DESC',
+        }),
         ['code', 'chain'],
       );
       expect(result).toEqual(paginatedResult);
     });
 
-    it('should use created_at as default sortBy when not provided', async () => {
+    it('should apply default sorting when not provided', async () => {
       const dto: GetGamesDto = {};
-      mockPaginationService.paginate.mockResolvedValue({
+      const paginatedResult = {
         data: [],
         meta: {
           page: 1,
@@ -419,59 +424,18 @@ describe('GamesService', () => {
           hasNextPage: false,
           hasPreviousPage: false,
         },
-      });
+      };
+
+      mockPaginationService.paginate.mockResolvedValue(paginatedResult);
 
       await service.findAll(dto);
 
       expect(mockPaginationService.paginate).toHaveBeenCalledWith(
         qb,
-        expect.objectContaining({ sortBy: GameSortField.CREATED_AT }),
-        ['code', 'chain'],
-      );
-    });
-
-    it('should pass explicit sortBy field through to paginate', async () => {
-      const dto: GetGamesDto = { sortBy: GameSortField.STATUS };
-      mockPaginationService.paginate.mockResolvedValue({
-        data: [],
-        meta: {
-          page: 1,
-          limit: 10,
-          totalItems: 0,
-          totalPages: 0,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-      });
-
-      await service.findAll(dto);
-
-      expect(mockPaginationService.paginate).toHaveBeenCalledWith(
-        qb,
-        expect.objectContaining({ sortBy: GameSortField.STATUS }),
-        ['code', 'chain'],
-      );
-    });
-
-    it('should pass explicit sortBy=started_at through to paginate', async () => {
-      const dto: GetGamesDto = { sortBy: GameSortField.STARTED_AT };
-      mockPaginationService.paginate.mockResolvedValue({
-        data: [],
-        meta: {
-          page: 1,
-          limit: 10,
-          totalItems: 0,
-          totalPages: 0,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-      });
-
-      await service.findAll(dto);
-
-      expect(mockPaginationService.paginate).toHaveBeenCalledWith(
-        qb,
-        expect.objectContaining({ sortBy: GameSortField.STARTED_AT }),
+        expect.objectContaining({
+          sortBy: 'created_at',
+          sortOrder: 'DESC',
+        }),
         ['code', 'chain'],
       );
     });

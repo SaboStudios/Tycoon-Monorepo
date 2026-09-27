@@ -30,7 +30,7 @@ script-src 'self' 'nonce-{nonce}'
 style-src 'self' 'nonce-{nonce}'
 img-src 'self' data: https:
 font-src 'self' data:
-connect-src 'self' https://api.example.com
+connect-src 'self' https://api.example.com https://rpc.testnet.near.org https://rpc.mainnet.near.org https://helper.testnet.near.org https://helper.mainnet.near.org https://wallet.testnet.near.org https://wallet.mainnet.near.org https://testnet-api.kitwallet.app https://api.kitwallet.app
 frame-ancestors 'none'
 base-uri 'self'
 form-action 'self'
@@ -45,7 +45,7 @@ form-action 'self'
 | `style-src` | Controls stylesheet loading | `'self'` + nonce for inline styles |
 | `img-src` | Controls image sources | Same origin, data URIs, HTTPS |
 | `font-src` | Controls font sources | Same origin and data URIs |
-| `connect-src` | Controls fetch/XHR/WebSocket | Same origin + API endpoints |
+| `connect-src` | Controls fetch/XHR/WebSocket | Same origin + API + NEAR wallet/RPC hosts |
 | `frame-ancestors` | Prevents clickjacking | `'none'` - cannot be framed |
 | `base-uri` | Restricts base tag | `'self'` only |
 | `form-action` | Restricts form submissions | `'self'` only |
@@ -55,8 +55,16 @@ form-action 'self'
 ### Allowed Domains
 
 - **API**: `https://api.example.com` (update with actual API domain)
+- **Backend / shop-api**: add the deployed backend and shop-api origins to `connect-src`
+- **NEAR wallet**: `https://wallet.testnet.near.org`, `https://wallet.mainnet.near.org`
+- **NEAR RPC**: `https://rpc.testnet.near.org`, `https://rpc.mainnet.near.org`
+- **NEAR helper**: `https://helper.testnet.near.org`, `https://helper.mainnet.near.org`
+- **NEAR wallet selector / MyNearWallet API**: `https://testnet-api.kitwallet.app`, `https://api.kitwallet.app`
 - **Analytics**: Add analytics domain to `connect-src` if needed
-- **Wallet**: Add wallet provider domain to `connect-src` if needed
+
+### Deny-by-Default
+
+`connect-src` is an explicit allowlist. Any host not listed above is blocked by the browser. Do not add wildcards (`*`, `https:`) to `connect-src`; add the exact origin instead.
 
 ### Adding New Domains
 
@@ -103,6 +111,7 @@ npm run start
 - [ ] CSP headers configured in production
 - [ ] Nonce generation implemented and tested
 - [ ] Third-party domains documented and approved
+- [ ] `connect-src` allowlists NEAR wallet, NEAR RPC, backend, and shop-api origins
 - [ ] Report-only mode tested before enforcement
 - [ ] Violation monitoring configured
 - [ ] Team trained on CSP best practices
@@ -139,6 +148,14 @@ If you see CSP violations:
 - Add domain to appropriate CSP directive
 - Test in report-only mode first
 - Monitor for violations after enabling
+
+### NEAR Wallet or RPC Blocked
+
+If wallet connect or RPC calls fail with a CSP error:
+
+1. Confirm the exact origin in the violation message
+2. Add that origin to `connect-src` in `frontend/next.config.ts`
+3. Re-test in report-only mode, then enforce
 
 ## References
 

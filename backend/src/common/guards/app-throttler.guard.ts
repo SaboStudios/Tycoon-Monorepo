@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  ExecutionContext,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { Injectable, ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler';
 
 @Injectable()
@@ -21,16 +16,14 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       return `${req.ip}-${authHeader.substring(7)}`;
     }
-
+    
     return req.ip;
   }
 
   // Override to ensure the response shape is consistent with our global filter
-  // although HttpExceptionFilter would catch ThrottlerException,
+  // although HttpExceptionFilter would catch ThrottlerException, 
   // we can explicitly throw it with a clearer message.
-  protected async throwThrottlingException(
-    context: ExecutionContext,
-  ): Promise<void> {
+  protected async throwThrottlingException(context: ExecutionContext): Promise<void> {
     throw new HttpException(
       {
         success: false,

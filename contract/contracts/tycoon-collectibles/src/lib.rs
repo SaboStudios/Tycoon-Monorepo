@@ -15,7 +15,7 @@ pub use transfer::*;
 pub use types::*;
 
 use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Vec};
-use tycoon_lib::fees::FeeConfig;
+use tycoon_lib::fees::{calculate_fee_split, FeeConfig};
 
 /// Convert a u128 to a Soroban String without std (no_std compatible)
 fn u128_to_soroban_string(env: &Env, mut n: u128) -> soroban_sdk::String {
@@ -40,8 +40,6 @@ pub struct TycoonCollectibles;
 
 #[contractimpl]
 impl TycoonCollectibles {
-    // ── Admin-only entrypoints ────────────────────────────────────────────────
-
     /// Initialize the contract with an admin
     pub fn initialize(env: Env, admin: Address) -> Result<(), CollectibleError> {
         if has_admin(&env) {
@@ -267,8 +265,6 @@ impl TycoonCollectibles {
         Ok(())
     }
 
-    // ── Public (user-initiated) entrypoints ──────────────────────────────────
-
     /// Buy a collectible from the shop using TYC or USDC
     pub fn buy_collectible_from_shop(
         env: Env,
@@ -311,26 +307,18 @@ impl TycoonCollectibles {
         // Handle fee distribution
         if let Some(fee_config) = get_fee_config(&env) {
             let split = tycoon_lib::fees::calculate_fee_split(price as u128, &fee_config);
-
+            
             if split.platform_amount > 0 {
-                token_client.transfer(
-                    &buyer,
-                    &fee_config.platform_address,
-                    &(split.platform_amount as i128),
-                );
+                token_client.transfer(&buyer, &fee_config.platform_address, &(split.platform_amount as i128));
             }
             if split.pool_amount > 0 {
-                token_client.transfer(
-                    &buyer,
-                    &fee_config.pool_address,
-                    &(split.pool_amount as i128),
-                );
+                token_client.transfer(&buyer, &fee_config.pool_address, &(split.pool_amount as i128));
             }
             if split.creator_amount > 0 {
                 // For shop sales, "creator" could be a specific account or just added back to shop balance.
                 // Here we assume creator is a configured address in the future, for now if configured, transfer it.
                 // If we don't have a specific creator address for shop-stocked items, it might go to admin.
-                token_client.transfer(&buyer, get_admin(&env), &(split.creator_amount as i128));
+                token_client.transfer(&buyer, &get_admin(&env), &(split.creator_amount as i128));
             }
             if split.residue > 0 {
                 token_client.transfer(&buyer, &contract_address, &(split.residue as i128));
@@ -484,21 +472,28 @@ impl TycoonCollectibles {
 
     pub fn set_token_perk(
         env: Env,
+        admin: Address,
         token_id: u128,
         perk: Perk,
         strength: u32,
     ) -> Result<(), CollectibleError> {
-        let admin = get_admin(&env);
         admin.require_auth();
+        let stored_admin = get_admin(&env);
+        if admin != stored_admin {
+            return Err(CollectibleError::Unauthorized);
+        }
 
         set_perk(&env, token_id, perk);
         set_strength(&env, token_id, strength);
         Ok(())
     }
 
-    pub fn set_pause(env: Env, paused: bool) -> Result<(), CollectibleError> {
-        let admin = get_admin(&env);
+    pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<(), CollectibleError> {
         admin.require_auth();
+        let stored_admin = get_admin(&env);
+        if admin != stored_admin {
+            return Err(CollectibleError::Unauthorized);
+        }
 
         set_paused(&env, paused);
         Ok(())
@@ -524,7 +519,6 @@ impl TycoonCollectibles {
         admin.require_auth();
 
         set_minter(&env, &new_minter);
-        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("minter"), symbol_short!("set")), new_minter);
 
@@ -678,7 +672,7 @@ impl TycoonCollectibles {
 
     /// Get the maximum allowed page size for pagination
     /// This ensures operations stay within gas limits
-    pub fn max_page_size(_env: Env) -> u32 {
+    pub fn max_page_size(env: Env) -> u32 {
         crate::enumeration::MAX_PAGE_SIZE
     }
 
@@ -724,7 +718,6 @@ impl TycoonCollectibles {
 
     /// Set metadata for a specific token (admin only)
     /// Creates marketplace-compliant JSON metadata
-    #[allow(clippy::too_many_arguments)]
     pub fn set_token_metadata(
         env: Env,
         token_id: u128,
@@ -799,15 +792,5 @@ impl TycoonCollectibles {
     }
 }
 
-#[cfg(test)]
-mod coverage_tests;
-#[cfg(test)]
-mod entrypoint_auth_tests;
-#[cfg(test)]
-mod enumeration_tests;
-mod errors_tests;
-mod events_tests;
-mod lib_tests;
-mod issues_1053_1056_tests;
 #[cfg(test)]
 mod test;

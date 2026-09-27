@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 import { LocaleSwitcher } from "./LocaleSwitcher"
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
-import { gameSettingsSchema, mapServerErrors, type FieldErrors } from "@/lib/validation";
+import { gameSettingsSchema } from "@/lib/validation/schemas"
+import {
+  mapServerErrors,
+  type FieldErrors,
+} from "@/lib/validation/serverErrorMap"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,20 +20,15 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { ThemeSettingsCard } from "@/components/settings/ThemeSettingsCard"
 
-// SW-2: Strict option types for all select fields
-interface SelectOption {
-    value: string
-    label: string
-}
-
-const PIECES: SelectOption[] = [
+// Mock Data
+const PIECES = [
     { value: "rocket", label: "🚀 Stellar Rocket" },
     { value: "bull", label: "🐂 Market Bull" },
     { value: "racecar", label: "🏎️ Classic Racecar" },
     { value: "tophat", label: "🎩 Top Hat" },
 ]
 
-const PLAYER_COUNTS: SelectOption[] = [
+const PLAYER_COUNTS = [
     { value: "2", label: "2 Players" },
     { value: "3", label: "3 Players" },
     { value: "4", label: "4 Players" },
@@ -38,7 +37,7 @@ const PLAYER_COUNTS: SelectOption[] = [
     { value: "8", label: "8 Players (Max)" },
 ]
 
-const ENTRY_STAKES: SelectOption[] = [
+const ENTRY_STAKES = [
     { value: "100", label: "100 XLM" },
     { value: "500", label: "500 XLM" },
     { value: "1000", label: "1,000 XLM" },
@@ -46,38 +45,20 @@ const ENTRY_STAKES: SelectOption[] = [
     { value: "custom", label: "Custom Amount" },
 ]
 
-const DURATIONS: SelectOption[] = [
+const DURATIONS = [
     { value: "30", label: "30 Minutes" },
     { value: "60", label: "1 Hour" },
     { value: "90", label: "1.5 Hours" },
     { value: "0", label: "Untimed (Until Bankruptcy)" },
 ]
 
-const STARTING_CASH: SelectOption[] = [
+const STARTING_CASH = [
     { value: "1500", label: "1,500 XLM" },
     { value: "2500", label: "2,500 XLM" },
     { value: "5000", label: "5,000 XLM" },
 ]
 
-// SW-2: Typed lobby settings shape used in handleCreateLobby
-interface LobbySettings {
-    host: { name: string; piece: string }
-    lobby: { maxPlayers: string; isPrivate: boolean; entryFee: string | number }
-    rules: {
-        startingCash: string
-        duration: string
-        freeParkingBonus: boolean
-        doubleGoCash: boolean
-        auctionsEnabled: boolean
-    }
-}
-
-// SW-2: Null-safe helper — returns label for a value or empty string
-function labelFor(options: SelectOption[], value: string): string {
-    return options.find((o) => o.value === value)?.label ?? ""
-}
-
-export function GameSettings(): React.JSX.Element {
+export function GameSettings() {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState(false)
     const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({})
@@ -124,28 +105,20 @@ export function GameSettings(): React.JSX.Element {
 
         try {
             // Simulate API call
-            await new Promise<void>(resolve => setTimeout(resolve, 2000))
+            await new Promise(resolve => setTimeout(resolve, 2000))
 
-            // SW-2: null-guard — fall back to "0" if customStake is empty
-            const entryFee: string | number = isFreeGame
-                ? 0
-                : stakePreset === "custom"
-                ? (customStake.trim() !== "" ? customStake : "0")
-                : stakePreset
-
-            const settings: LobbySettings = {
+            const entryFee = isFreeGame ? 0 : (stakePreset === "custom" ? customStake : stakePreset)
+            const settings = {
                 host: { name: playerName, piece },
                 lobby: { maxPlayers, isPrivate, entryFee },
-                rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled },
+                rules: { startingCash, duration, freeParkingBonus, doubleGoCash, auctionsEnabled }
             }
-
-            const mockGameCode = Math.random().toString(36).substring(7).toUpperCase()
-
+            console.log("Creating lobby with settings:", settings)
+            const mockGameCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()
             toast.success("Deployed Smart Contract! Lobby Created.")
-
             router.push(`/game-waiting?gameCode=${mockGameCode}`)
-        } catch {
-            toast.error("Failed to create lobby. Please try again.")
+        } catch (err: unknown) {
+            setFieldErrors(mapServerErrors(err))
         } finally {
             setIsLoading(false)
         }
@@ -195,36 +168,33 @@ export function GameSettings(): React.JSX.Element {
                                     )}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label id="select-token-label">Select Token</Label>
+                                    <Label>Select Token</Label>
                                     <Select
                                         value={piece}
                                         onChange={setPiece}
                                         options={PIECES}
                                         placeholder="Choose your token"
-                                        aria-labelledby="select-token-label"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid gap-6 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label id="max-players-label">Max Players</Label>
+                                    <Label>Max Players</Label>
                                     <Select
                                         value={maxPlayers}
                                         onChange={setMaxPlayers}
                                         options={PLAYER_COUNTS}
-                                        aria-labelledby="max-players-label"
                                     />
                                 </div>
                                 <div className="flex items-center justify-between rounded-lg border border-neutral-200 p-3 shadow-sm dark:border-neutral-800">
                                     <div className="space-y-0.5">
-                                        <Label htmlFor="private-room" className="text-base">Private Room</Label>
+                                        <Label className="text-base">Private Room</Label>
                                         <div className="text-xs text-neutral-500">
-                                            {isPrivate ? <span className="flex items-center gap-1 text-amber-600"><Lock className="h-3 w-3" aria-hidden="true" /> Invite Only</span> : <span className="flex items-center gap-1 text-green-600"><Unlock className="h-3 w-3" aria-hidden="true" /> Public Listing</span>}
+                                            {isPrivate ? <span className="flex items-center gap-1 text-amber-600"><Lock className="h-3 w-3" /> Invite Only</span> : <span className="flex items-center gap-1 text-green-600"><Unlock className="h-3 w-3" /> Public Listing</span>}
                                         </div>
                                     </div>
                                     <Switch
-                                        id="private-room"
                                         checked={isPrivate}
                                         onCheckedChange={setIsPrivate}
                                     />
@@ -261,12 +231,11 @@ export function GameSettings(): React.JSX.Element {
                                 {!isFreeGame && (
                                     <div className="grid gap-4 sm:grid-cols-2 animate-in fade-in slide-in-from-top-2">
                                         <div className="space-y-2">
-                                            <Label id="stake-amount-label">Stake Amount</Label>
+                                            <Label>Stake Amount</Label>
                                             <Select
                                                 value={stakePreset}
                                                 onChange={setStakePreset}
                                                 options={ENTRY_STAKES}
-                                                aria-labelledby="stake-amount-label"
                                             />
                                         </div>
                                         {stakePreset === 'custom' && (
@@ -292,25 +261,23 @@ export function GameSettings(): React.JSX.Element {
 
                             <div className="grid gap-6 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label id="starting-liquidity-label" className="flex items-center gap-2">
-                                        <Coins className="h-4 w-4" aria-hidden="true" /> Starting Liquidity (XLM)
+                                    <Label className="flex items-center gap-2">
+                                        <Coins className="h-4 w-4" /> Starting Liquidity (XLM)
                                     </Label>
                                     <Select
                                         value={startingCash}
                                         onChange={setStartingCash}
                                         options={STARTING_CASH}
-                                        aria-labelledby="starting-liquidity-label"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label id="session-limit-label" className="flex items-center gap-2">
-                                        <Clock className="h-4 w-4" aria-hidden="true" /> Session Limit
+                                    <Label className="flex items-center gap-2">
+                                        <Clock className="h-4 w-4" /> Session Limit
                                     </Label>
                                     <Select
                                         value={duration}
                                         onChange={setDuration}
                                         options={DURATIONS}
-                                        aria-labelledby="session-limit-label"
                                     />
                                 </div>
                             </div>
@@ -370,8 +337,8 @@ export function GameSettings(): React.JSX.Element {
                                     <div className="space-y-1">
                                         <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Host Contract</p>
                                         <p className="text-xs text-blue-700 dark:text-blue-300">
-                                            You are deploying a room for up to {maxPlayers} players ({labelFor(PLAYER_COUNTS, maxPlayers)}).
-                                            {!isFreeGame && ` Entry fee set to ${stakePreset === 'custom' ? (customStake.trim() !== '' ? customStake : '0') : labelFor(ENTRY_STAKES, stakePreset)} XLM.`}
+                                            You are deploying a room for up to {maxPlayers} players.
+                                            {!isFreeGame && ` Entry fee set to ${stakePreset === 'custom' ? customStake : stakePreset} XLM.`}
                                         </p>
                                     </div>
                                 </div>

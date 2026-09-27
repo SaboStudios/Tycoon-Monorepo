@@ -1,41 +1,68 @@
 # Admin Routes Matrix
 
-This document provides a comprehensive overview of all admin-protected routes in the Tycoon-Monorepo backend application.
+This document is the source of truth for admin-only HTTP surfaces, their
+authorization requirements, and the invariants they must uphold. It is
+referenced by the in-game chat moderation ADR (see
+`docs/adr/ADR-CHAT-MODERATION.md`) and by the API error standards in
+`docs/API_ERROR_RESPONSE_STANDARDS.md`.
 
-## Overview
+## Authorization model
 
-The backend uses two primary guards for admin access control:
-- **AdminGuard**: Checks if `user.is_admin === true`
-- **RolesGuard**: Checks if user has required role(s) specified via `@Roles()` decorator
+- All admin routes are **deny-by-default**. A route is only reachable when it
+  is explicitly listed below with a required guard.
+- `AdminGuard` (JWT + role claim) is mandatory for every admin mutation.
+  Service-to-service callers must present a scoped API key in addition to the
+  guard; API keys never grant role escalation on their own.
+- WebSocket admin/seat actions are validated server-side against the seat
+  token issued at join time. Clients cannot self-assert a moderator seat.
+- The server is the sole source of truth for moderation state. Client-supplied
+  actor ids, roles, or timestamps are ignored and re-derived from the
+  authenticated principal.
 
-## Admin-Protected Routes by Module
+## Error codes
 
-### 1. Admin Analytics Module
+Admin and moderation routes map failures to the codes defined in
+`docs/API_ERROR_RESPONSE_STANDARDS.md`:
 
-**Base Path**: `/admin/analytics`  
-**Controller**: `AdminAnalyticsController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard`
+| Condition | HTTP | Code |
+| --- | --- | --- |
+| Missing/invalid credentials | 401 | `AUTH_UNAUTHENTICATED` |
+| Authenticated but not an admin/moderator | 403 | `AUTH_FORBIDDEN` |
+| Unknown target (player, message, room) | 404 | `RESOURCE_NOT_FOUND` |
+| Invalid or adversarial payload | 422 | `VALIDATION_FAILED` |
+| Duplicate/idempotent replay | 200 | (idempotent no-op) |
+| Dependency outage on a write | 503 | `DEPENDENCY_UNAVAILABLE` |
 
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| GET | `/admin/analytics/dashboard` | Get dashboard analytics overview | AdminGuard |
-| GET | `/admin/analytics/users/total` | Get total users count | AdminGuard |
-| GET | `/admin/analytics/users/active` | Get active users count | AdminGuard |
-| GET | `/admin/analytics/games/total` | Get total games count | AdminGuard |
-| GET | `/admin/analytics/games/players/total` | Get total game players count | AdminGuard |
+Writes fail closed: if Postgres/Redis/shop-api/RPC is unavailable, the
+moderation mutation is rejected with `DEPENDENCY_UNAVAILABLE` rather than
+silently succeeding.
 
----
+## Chat moderation routes
 
-### 2. Admin Logs Module
+| Method | Path | Guard | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/admin/chat/messages/:id/redact` | `AdminGuard` | Redacts a message; idempotent by message id. |
+| `POST` | `/admin/chat/players/:id/mute` | `AdminGuard` | Applies a timed mute; requires `durationSeconds` and `reason`. |
+| `POST` | `/admin/chat/players/:id/unmute` | `AdminGuard` | Lifts an active mute; idempotent. |
+| `POST` | `/admin/chat/players/:id/ban` | `AdminGuard` | Bans a player from chat; requires `reason`. |
+| `GET`  | `/admin/chat/reports` | `AdminGuard` | Lists pending abuse reports (paginated). |
 
-**Base Path**: `/admin/logs`  
-**Controller**: `AdminLogsController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard`
+### Invariants for chat abuse controls
 
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| GET | `/admin/logs` | Retrieve admin audit logs with filters and pagination | AdminGuard |
-| GET | `/admin/logs/export` | Export admin audit logs as CSV | AdminGuard |
+1. **Server authority** — moderation decisions are computed and persisted on
+   the server. The client only renders the resulting state.
+2. **Deny-by-default** — any new moderation surface must be added to this
+   matrix with an explicit guard before it can be enabled.
+3. **Fail-closed writes** — moderation writes never partially apply; on
+   dependency failure the request is rejected and no state changes.
+4. **Idempotency** — redact/unmute/ban accept a client-supplied idempotency
+   key; concurrent duplicate requests and reconnect retries resolve to a
+   single applied mutation.
+5. **Auditability** — every moderation action emits a structured log with
+   `requestId`/correlation id and the acting admin id. Tokens and PII are
+   redacted from telemetry labels.
+6. **Rate limiting** — moderation entrypoints are rate-limited per admin
+   principal to bound abuse and accidental loops.
 
 Admin log exports are audited as `ADMIN_LOGS_EXPORTED`, limited to 10,000 rows,
 and contain only the allowlisted ID, admin ID, action, target ID, and timestamp
@@ -44,168 +71,28 @@ not exported. The paginated view recursively redacts sensitive detail keys.
 
 ---
 
-### 3. Users Module
+## Kill switch
 
-**Base Path**: `/users`  
-**Controller**: `UsersController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard` (on specific endpoints)
+Chat moderation mutations are gated behind the `CHAT_MODERATION_ENABLED`
+feature flag. When disabled, the routes return `503 DEPENDENCY_UNAVAILABLE`
+and the in-game chat falls back to read-only. This provides a rollback path
+without a redeploy.
+
+## Related documents
 
 | HTTP Method | Path | Purpose | Guard Used |
 |-------------|------|---------|------------|
 | GET | `/users` | List all users with pagination | AdminGuard |
 | PATCH | `/users/:id` | Update a user by ID | AdminGuard |
-| DELETE | `/users/:id` | Delete a user by ID | AdminGuard |
-| POST | `/users/suspend` | Suspend a user account | AdminGuard |
-| POST | `/users/unsuspend` | Unsuspend a user account | AdminGuard |
-| GET | `/users/:id/suspensions` | Get suspension history for a user | AdminGuard |
 
----
+Chat moderation mutations are gated behind the `CHAT_MODERATION_ENABLED`
+feature flag. When disabled, the routes return `503 DEPENDENCY_UNAVAILABLE`
+and the in-game chat falls back to read-only. This provides a rollback path
+without a redeploy.
 
-### 4. Coupons Module
+## Related documents
 
-**Base Path**: `/coupons`  
-**Controller**: `CouponsController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard` (on specific endpoints)
-
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| POST | `/coupons` | Create a new coupon | AdminGuard |
-| PATCH | `/coupons/:id` | Update a coupon | AdminGuard |
-| DELETE | `/coupons/:id` | Delete a coupon | AdminGuard |
-| GET | `/coupons/:id/usage-logs` | Get coupon usage logs | AdminGuard |
-| GET | `/coupons/:id/statistics` | Get coupon usage statistics | AdminGuard |
-
----
-
-### 5. Perks Admin Module
-
-**Base Path**: `/admin/perks`  
-**Controller**: `PerksAdminController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard`
-
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| POST | `/admin/perks` | Create a new perk | AdminGuard |
-| GET | `/admin/perks` | List all perks with pagination and filters | AdminGuard |
-| GET | `/admin/perks/:id` | Get a perk by ID | AdminGuard |
-| PATCH | `/admin/perks/:id` | Update a perk | AdminGuard |
-| DELETE | `/admin/perks/:id` | Delete a perk (hard delete) | AdminGuard |
-| PATCH | `/admin/perks/:id/activate` | Activate a perk | AdminGuard |
-| PATCH | `/admin/perks/:id/deactivate` | Deactivate a perk | AdminGuard |
-| GET | `/admin/perks/:perkId/boosts` | List boosts for a perk | AdminGuard |
-| POST | `/admin/perks/:perkId/boosts` | Create a boost for a perk | AdminGuard |
-| PATCH | `/admin/perks/:perkId/boosts/:boostId` | Update a boost | AdminGuard |
-| DELETE | `/admin/perks/:perkId/boosts/:boostId` | Delete a boost | AdminGuard |
-
----
-
-### 6. Waitlist Admin Module
-
-**Base Path**: `/admin/waitlist`  
-**Controller**: `WaitlistAdminController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard`
-
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| GET | `/admin/waitlist` | Retrieve all waitlist entries with pagination and filtering | AdminGuard |
-| GET | `/admin/waitlist/export` | Export waitlist entries as CSV or Excel | AdminGuard |
-| POST | `/admin/waitlist/bulk-import` | Bulk import waitlist entries from CSV | AdminGuard |
-| PATCH | `/admin/waitlist/:id` | Update a waitlist entry | AdminGuard |
-| DELETE | `/admin/waitlist/:id` | Soft delete a waitlist entry | AdminGuard |
-| DELETE | `/admin/waitlist/:id/permanent` | Permanently delete a waitlist entry | AdminGuard |
-
----
-
-### 7. Chance Module
-
-**Base Path**: `/chances`  
-**Controller**: `ChanceController`  
-**Guards**: `JwtAuthGuard`, `RolesGuard` (on specific endpoints)
-
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| POST | `/chances` | Create a new chance card | RolesGuard + @Roles(Role.ADMIN) |
-
-### 8. Admin Shop Module
-
-**Base Path**: `/admin/shop`  
-**Controller**: `AdminShopController`  
-**Guards**: `JwtAuthGuard`, `AdminGuard` (class level)  
-**Audit**: `AuditTrailInterceptor` writes an audit intent before each mutation;
-the write is denied if the audit store is unavailable.
-
-| HTTP Method | Path | Purpose | Guard Used |
-|-------------|------|---------|------------|
-| PATCH | `/admin/shop/:id/price` | Update item price and currency | AdminGuard |
-| PATCH | `/admin/shop/:id/status` | Change item active status | AdminGuard |
-| POST | `/admin/shop/:id/upload` | Upload item images | AdminGuard |
-| POST | `/admin/shop/bulk/update` | Bulk update catalog items | AdminGuard |
-
----
-
-## Guard Implementations
-
-### AdminGuard
-
-**Location**: `src/modules/auth/guards/admin.guard.ts`
-
-**Behavior**:
-- Checks if `user.is_admin === true`
-- Throws `ForbiddenException` with message "Access denied. Admin role required." if not admin
-- Returns `true` if user is admin
-
-**Usage**:
-```typescript
-@UseGuards(JwtAuthGuard, AdminGuard)
-```
-
-### RolesGuard
-
-**Location**: `src/modules/auth/guards/roles.guard.ts`
-
-**Behavior**:
-- Checks if user has any of the required roles specified via `@Roles()` decorator
-- Returns `true` if no roles are required (permissive by default)
-- Returns `true` if user has at least one of the required roles
-- Returns `false` if user doesn't have required roles
-
-**Usage**:
-```typescript
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
-```
-
----
-
-## Security Notes
-
-1. **Always use JwtAuthGuard first**: Admin guards should always be paired with `JwtAuthGuard` to ensure the user is authenticated before checking admin status.
-
-2. **AdminGuard vs RolesGuard**: 
-   - Use `AdminGuard` for simple admin-only checks (checks `is_admin` field)
-   - Use `RolesGuard` with `@Roles()` decorator for role-based access (checks `role` field)
-
-3. **Default Behavior**: 
-   - `AdminGuard` denies by default (throws exception if not admin)
-   - `RolesGuard` **now denies by default** (throws exception if no `@Roles()` decorator present or user doesn't have required role)
-
----
-
-## Security Recommendations
-
-1. **✅ RolesGuard Default Deny**: RolesGuard has been updated to deny access by default when no `@Roles()` decorator is present. This ensures routes must explicitly declare required roles.
-
-2. **Consistent Guard Usage**: Ensure all admin endpoints use appropriate guards consistently.
-
-3. **Integration Testing**: All admin-protected routes should have integration tests verifying 403 responses for non-admin users. See `test/admin-role-verification.e2e-spec.ts` for examples.
-
-4. **Admin Action Auditing**: Mark every admin mutation with `@AuditLog` and ensure its module imports `AuditTrailModule`. Audit intents are persisted before the handler runs, so an audit-store outage fails closed and failed mutation attempts remain visible.
-
-5. **Rate Limiting**: Apply stricter rate limits to admin endpoints to prevent abuse.
-
----
-
-## Last Updated
-
-Document created: 2024
-Last reviewed: 2024
+- `docs/adr/ADR-CHAT-MODERATION.md` — design note and invariants.
+- `docs/API_ERROR_RESPONSE_STANDARDS.md` — canonical error codes.
+- `docs/adr/ADR-003-near-wallet.md` — NEAR is the only supported chain UI
+  until Stellar is explicitly gated ready.

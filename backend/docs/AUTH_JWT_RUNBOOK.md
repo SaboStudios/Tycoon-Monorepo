@@ -1,449 +1,205 @@
-# Auth & JWT — Operational Runbook
-
-**Stellar Wave batch · SW-BE-006**
-Covers the NestJS auth module at `backend/src/modules/auth/`.
-
----
-
-## Table of Contents
-
-1. [Architecture Overview](#1-architecture-overview)
-2. [Environment Variables](#2-environment-variables)
-3. [Normal Operations](#3-normal-operations)
-4. [Incident Playbooks](#4-incident-playbooks)
-   - 4.1 [Token Reuse / Replay Attack](#41-token-reuse--replay-attack)
-   - 4.2 [Suspended-User Login Attempts](#42-suspended-user-login-attempts)
-   - 4.3 [Elevated Login Failures](#43-elevated-login-failures)
-   - 4.4 [Expired / Invalid Token Flood](#44-expired--invalid-token-flood)
-   - 4.5 [Force-Logout a Specific User](#45-force-logout-a-specific-user)
-   - 4.6 [Rotate the JWT Secret](#46-rotate-the-jwt-secret)
-   - 4.7 [Clock Skew Errors](#47-clock-skew-errors)
-5. [Audit Log Reference](#5-audit-log-reference)
-6. [Database — refresh_tokens Table](#6-database--refresh_tokens-table)
-7. [Monitoring & Alerting](#7-monitoring--alerting)
-8. [Rollback Procedure](#8-rollback-procedure)
-9. [Migration Notes](#9-migration-notes)
-
----
-
-## 1. Architecture Overview
-
-```
-Client
-  │
-  ├─ POST /api/v1/auth/login          → LocalStrategy → AuthService.login()
-  ├─ POST /api/v1/auth/refresh        → AuthService.refreshTokens()
-  ├─ POST /api/v1/auth/logout         → AuthService.logout()
-  ├─ POST /api/v1/auth/wallet-login   → AuthService.walletLogin()
-  ├─ POST /api/v1/auth/register       → UsersService.create()
-  └─ POST /api/v1/admin/login         → AdminAuthController → AuthService.validateAdmin()
-```
-
-**Token lifecycle:**
-
-```
-login ──► access token (15 min, HS256)
-      └─► refresh token (7 days, stored as SHA-256 hash in refresh_tokens)
-              │
-              ├─ POST /refresh ──► new access + new refresh (rotation)
-              │                    old refresh token marked isRevoked=true
-              │
-              └─ reuse of revoked token ──► ALL user tokens revoked
-                                            AUTH_TOKEN_REUSE_DETECTED audit event
-```
-
-**Key security properties (implemented in SW-BE-003/004/005):**
-
-| Property | Implementation |
-|---|---|
-| Token hashing | SHA-256 stored in `tokenHash`; raw token never persisted |
-| Replay prevention | Single-use enforcement; reuse triggers family revocation |
-| DTO validation | `class-validator` on all auth DTOs; `ValidationPipe` global |
-| Audit trail | `AuthAuditService` emits structured log entries for every event |
-| No secrets in logs | Emails redacted (`p***@domain.com`); tokens never logged |
-| Clock skew | `JWT_CLOCK_SKEW_SECONDS` tolerance on verify |
-
----
-
-## 2. Environment Variables
-
-All variables are validated at startup via `src/config/jwt.config.ts`.
-
-| Variable | Default | Required in prod | Purpose |
-|---|---|---|---|
-| `JWT_SECRET` | `your-secret-key-change-this-in-production` | **YES** | HS256 signing key — must be ≥ 32 random bytes |
-| `JWT_EXPIRES_IN` | `15m` | no | Access token lifetime (e.g. `15m`, `1h`) |
-| `JWT_REFRESH_EXPIRES_IN` | `7d` | no | Refresh token lifetime |
-| `JWT_CLOCK_SKEW_SECONDS` | `60` | no | Clock tolerance for token verification |
-
-> **Production checklist:**
-> - `JWT_SECRET` must be set to a cryptographically random value (e.g. `openssl rand -hex 32`).
-> - Never commit `JWT_SECRET` to source control.
-> - Rotate the secret using the procedure in [§4.6](#46-rotate-the-jwt-secret).
-
----
-
-## 3. Normal Operations
-
-### Check auth service health
-
-```bash
-# Verify the API is up and JWT config is loaded
-curl -s https://<host>/api/v1/health | jq .
-```
-
-### Inspect active refresh tokens for a user
-
-```sql
--- Read-only query
-SELECT id, "userId", "expiresAt", "isRevoked", "ipAddress", "lastUsedAt"
-FROM refresh_tokens
-WHERE "userId" = <user_id>
-ORDER BY "createdAt" DESC;
-```
-
-### Count active (non-revoked) sessions
-
-```sql
-SELECT "userId", COUNT(*) AS active_sessions
-FROM refresh_tokens
-WHERE "isRevoked" = false AND "expiresAt" > NOW()
-GROUP BY "userId"
-ORDER BY active_sessions DESC
-LIMIT 20;
-```
-
-### Run auth tests
-
-```bash
-# Unit tests (fast, no DB)
-npx jest --config jest.config.ts --testPathPatterns="auth" --no-coverage
-
-# Token security integration tests (requires SQLite in-memory)
-npx jest --config jest.config.ts --testPathPatterns="auth-token-security" --no-coverage
-```
-
----
-
-## 4. Incident Playbooks
-
-### 4.1 Token Reuse / Replay Attack
-
-**Signal:** `WARN` log line containing `[AUDIT] AUTH_TOKEN_REUSE_DETECTED`
-
-**What happened:** A refresh token that was already consumed (rotated) was presented again. This indicates either a stolen token being replayed or a client bug (caching old tokens).
-
-**Automatic response (already in place):**
-- All refresh tokens for the affected user are immediately revoked.
-- The user must re-authenticate.
-
-**Manual investigation steps:**
-
-1. Find the event in logs:
-   ```
-   grep 'AUTH_TOKEN_REUSE_DETECTED' <log-file> | jq .
-   ```
-   The entry includes `userId`, `ipAddress`, and `userAgent`.
-
-2. Check if the IP is unusual for this user:
-   ```sql
-   SELECT DISTINCT "ipAddress", "userAgent", MAX("lastUsedAt") AS last_seen
-   FROM refresh_tokens
-   WHERE "userId" = <user_id>
-   GROUP BY "ipAddress", "userAgent"
-   ORDER BY last_seen DESC;
-   ```
-
-3. If the IP is foreign/suspicious, treat as account compromise:
-   - Notify the user to change their password.
-   - Check `admin_logs` for any admin actions taken under this account.
-   - Consider temporarily suspending the account (`users.is_suspended = true`) while investigating.
-
-4. If the IP matches the user's normal pattern, it is likely a client bug (double-submit, stale cache). No security action needed beyond the automatic revocation.
-
----
-
-### 4.2 Suspended-User Login Attempts
-
-**Signal:** `WARN` log line containing `[AUDIT] AUTH_LOGIN_SUSPENDED`
-
-**What happened:** A user whose `is_suspended = true` attempted to log in.
-
-**Steps:**
-
-1. Confirm the suspension is intentional:
-   ```sql
-   SELECT id, email, "is_suspended", "updatedAt" FROM users WHERE id = <user_id>;
-   ```
-
-2. Check `admin_logs` for the suspension action:
-   ```sql
-   SELECT * FROM admin_logs
-   WHERE "targetId" = <user_id> AND action LIKE '%SUSPEND%'
-   ORDER BY created_at DESC LIMIT 5;
-   ```
-
-3. If the suspension should be lifted, update via the admin API:
-   ```bash
-   PATCH /api/v1/admin/users/<user_id>
-   Authorization: Bearer <admin_token>
-   { "is_suspended": false }
-   ```
-
----
-
-### 4.3 Elevated Login Failures
-
-**Signal:** Spike in `[AUDIT] AUTH_LOGIN_FAILED` events from the same IP.
-
-**Steps:**
-
-1. Identify the source:
-   ```
-   grep 'AUTH_LOGIN_FAILED' <log-file> | jq -r '.ipAddress' | sort | uniq -c | sort -rn | head
-   ```
-
-2. If a single IP is responsible for > 20 failures in 5 minutes, it is likely a credential-stuffing or brute-force attempt.
-
-3. Block the IP at the load balancer / WAF level.
-
-4. The throttle guard (`@Throttle({ limit: 5, ttl: 60000 })`) on `/auth/login` and `/admin/login` already limits to 5 attempts per minute per IP. Verify it is active:
-   ```bash
-   grep -r 'Throttle' src/modules/auth/auth.controller.ts
-   ```
-
-5. If the target account exists, consider proactively suspending it and notifying the user.
-
----
-
-### 4.4 Expired / Invalid Token Flood
-
-**Signal:** Spike in `[AUDIT] AUTH_TOKEN_REFRESH_FAILED` with `reason: expired` or HTTP 401 responses on `/auth/refresh`.
-
-**Likely causes:**
-- Client not refreshing tokens before expiry (client bug).
-- `JWT_REFRESH_EXPIRES_IN` was shortened and existing tokens expired en masse.
-- Clock drift between client and server exceeding `JWT_CLOCK_SKEW_SECONDS`.
-
-**Steps:**
-
-1. Check current token lifetime config:
-   ```bash
-   echo $JWT_REFRESH_EXPIRES_IN   # should be 7d
-   echo $JWT_CLOCK_SKEW_SECONDS   # should be 60
-   ```
-
-2. If clock drift is suspected, check server time:
-   ```bash
-   date -u && timedatectl status
-   ```
-   Increase `JWT_CLOCK_SKEW_SECONDS` temporarily if NTP sync is lagging.
-
-3. If a config change shortened token lifetimes, communicate to clients that they must re-authenticate and restore the previous value.
-
----
-
-### 4.5 Force-Logout a Specific User
-
-Revokes all active refresh tokens for a user, forcing re-authentication on next request.
-
-**Via admin API (preferred):**
-```bash
-POST /api/v1/admin/users/<user_id>/revoke-tokens
-Authorization: Bearer <admin_token>
-```
-
-**Via database (break-glass only):**
-```sql
--- Confirm before running
-SELECT COUNT(*) FROM refresh_tokens WHERE "userId" = <user_id> AND "isRevoked" = false;
-
--- Execute
-UPDATE refresh_tokens
-SET "isRevoked" = true
-WHERE "userId" = <user_id> AND "isRevoked" = false;
-```
-
-> Always prefer the API route so the action is recorded in `admin_logs`.
-
----
-
-### 4.6 Rotate the JWT Secret
-
-Rotating `JWT_SECRET` immediately invalidates **all** existing access tokens. Refresh tokens are stored as hashes and are unaffected by the secret rotation, but the new access tokens issued after rotation will use the new secret.
-
-**Procedure:**
-
-1. Generate a new secret:
-   ```bash
-   openssl rand -hex 32
-   ```
-
-2. Update the secret in your secrets manager / environment (do **not** commit it).
-
-3. Deploy the new config. The rolling deploy will briefly have instances with both old and new secrets. During this window some access tokens will fail verification — clients will fall back to refresh, which is safe.
-
-4. After all instances are on the new secret, old access tokens (max 15 min lifetime) will expire naturally.
-
-5. Verify no `AUTH_TOKEN_REUSE_DETECTED` spike occurs post-rotation (there should be none — refresh tokens are not affected).
-
-**Zero-downtime option:** Run two instances temporarily — one with the old secret, one with the new — behind the load balancer, then drain the old instance.
-
----
-
-### 4.7 Clock Skew Errors
-
-**Signal:** Legitimate tokens rejected with `jwt not active` or `jwt expired` errors despite being recently issued.
-
-**Steps:**
-
-1. Check NTP sync on all app servers:
-   ```bash
-   timedatectl status | grep 'synchronized'
-   chronyc tracking   # if using chrony
-   ```
-
-2. Temporarily increase tolerance while fixing NTP:
-   ```bash
-   JWT_CLOCK_SKEW_SECONDS=120   # bump from 60 to 120
-   ```
-   Redeploy. Revert once clocks are synchronised.
-
-3. Do not set `JWT_CLOCK_SKEW_SECONDS` above `300` — this widens the replay window.
-
----
-
-## 5. Audit Log Reference
-
-All events are emitted by `AuthAuditService` and flow through the Winston logger pipeline. Each entry is a JSON object on a single log line.
-
-### Log format
-
-```json
-{
-  "level": "warn",
-  "message": "[AUDIT] AUTH_TOKEN_REUSE_DETECTED",
-  "context": "AuthAuditService",
-  "event": "AUTH_TOKEN_REUSE_DETECTED",
-  "userId": 42,
-  "email": null,
-  "ipAddress": "203.0.113.5",
-  "userAgent": "Mozilla/5.0 ...",
-  "timestamp": "2026-04-22T10:00:00.000Z"
-}
-```
-
-### Event catalogue
-
-| Event | Level | Trigger |
-|---|---|---|
-| `AUTH_LOGIN_SUCCESS` | INFO | Successful email/password login |
-| `AUTH_LOGOUT` | INFO | User called `/auth/logout` |
-| `AUTH_TOKEN_REFRESHED` | INFO | Successful token rotation |
-| `AUTH_WALLET_LOGIN_SUCCESS` | INFO | Successful wallet login |
-| `AUTH_REGISTER_SUCCESS` | INFO | New user registered |
-| `AUTH_LOGIN_FAILED` | WARN | Wrong password or unknown email |
-| `AUTH_LOGIN_SUSPENDED` | WARN | Login attempt by suspended user |
-| `AUTH_TOKEN_REUSE_DETECTED` | WARN | Revoked refresh token presented again |
-| `AUTH_TOKEN_REFRESH_FAILED` | WARN | Expired or invalid refresh token |
-| `AUTH_WALLET_LOGIN_FAILED` | WARN | Unknown address/chain combination |
-
-### Searching logs
-
-```bash
-# All security events in the last hour (jq + journald example)
-journalctl -u tycoon-api --since "1 hour ago" -o json \
-  | jq 'select(.message | test("AUTH_(LOGIN_FAILED|TOKEN_REUSE|LOGIN_SUSPENDED)"))'
-
-# Count by event type
-grep '\[AUDIT\]' app.log | jq -r '.event' | sort | uniq -c | sort -rn
-```
-
----
-
-## 6. Database — refresh_tokens Table
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID | Primary key |
-| `tokenHash` | VARCHAR | SHA-256 of the raw JWT; never store the raw token |
-| `userId` | INT | FK → `users.id` (CASCADE DELETE) |
-| `expiresAt` | TIMESTAMP | Set at creation; checked on every refresh |
-| `isRevoked` | BOOLEAN | `true` after rotation or logout |
-| `createdAt` | TIMESTAMP | Auto-set |
-| `lastUsedAt` | TIMESTAMP | Updated on each successful refresh |
-| `ipAddress` | VARCHAR(45) | IPv4 or IPv6 of the client |
-| `userAgent` | TEXT | Browser/client identifier |
-
-**Housekeeping — purge expired tokens (run weekly via cron or migration):**
-
-```sql
-DELETE FROM refresh_tokens
-WHERE "expiresAt" < NOW() - INTERVAL '1 day'
-  AND "isRevoked" = true;
-```
-
-> Keep revoked-but-not-yet-expired tokens for 24 h to support audit queries.
-
----
-
-## 7. Monitoring & Alerting
-
-### Recommended alert rules
-
-| Alert | Condition | Severity | Action |
-|---|---|---|---|
-| Token reuse spike | `AUTH_TOKEN_REUSE_DETECTED` > 5 in 5 min | P1 | Page on-call; investigate account compromise |
-| Login failure spike | `AUTH_LOGIN_FAILED` > 50 in 1 min from single IP | P2 | Block IP at WAF; notify security |
-| Suspended login spike | `AUTH_LOGIN_SUSPENDED` > 10 in 10 min | P3 | Review suspension list; check for automation |
-| Refresh failure spike | `AUTH_TOKEN_REFRESH_FAILED` > 100 in 5 min | P2 | Check clock skew; check token lifetime config |
-
-### Grafana dashboard queries (Loki / log-based)
-
-```logql
-# Token reuse rate (per minute)
-sum(rate({app="tycoon-api"} |= "AUTH_TOKEN_REUSE_DETECTED" [1m]))
-
-# Login failure rate
-sum(rate({app="tycoon-api"} |= "AUTH_LOGIN_FAILED" [1m]))
-```
-
----
-
-## 8. Rollback Procedure
-
-The SW-BE-003/004/005/006 changes are fully backward-compatible. No schema changes were introduced in SW-BE-004/005/006.
-
-**If a rollback is needed:**
-
-1. Revert the deployment to the previous image tag.
-2. No database migration revert is required for SW-BE-004/005/006.
-3. For SW-BE-003 (token hashing migration), revert requires:
-   ```bash
-   npm run migration:revert
-   ```
-   This restores the `token` column. All existing sessions will be invalidated — users must re-authenticate.
-
----
-
-## 9. Migration Notes
-
-| Batch item | Schema change | Migration file | Revert safe? |
-|---|---|---|---|
-| SW-BE-003 | `token` → `tokenHash`; added `lastUsedAt`, `ipAddress`, `userAgent` | `1740520000000-UpdateRefreshTokensForSecurity.ts` | Yes — `migration:revert` |
-| SW-BE-004 | None | — | N/A |
-| SW-BE-005 | None | — | N/A |
-| SW-BE-006 | None | — | N/A |
-
-**Pre-deploy checklist (all environments):**
-
-- [ ] `JWT_SECRET` is set and not the default placeholder value
-- [ ] `JWT_EXPIRES_IN` and `JWT_REFRESH_EXPIRES_IN` match expected values
-- [ ] `JWT_CLOCK_SKEW_SECONDS` is set (default 60 is fine)
-- [ ] NTP is synchronised on all app servers
-- [ ] Auth unit tests pass: `npx jest --testPathPatterns="auth" --no-coverage`
-- [ ] Audit log pipeline (Winston → your log aggregator) is receiving events
-
----
-
-*Last updated: SW-BE-006 · Stellar Wave batch*
+# AUTH JWT RUNBOOK
+
+Operational runbook for Tycoon session authentication. This document is the
+source of truth for how access tokens, refresh tokens, and CSRF protection are
+issued, rotated, and revoked across the frontend (Next.js 16 / React 19),
+backend (NestJS 11), and shop-api (NestJS purchases SoT).
+
+Related documents:
+
+- `frontend/docs/ADR-003-wallet-strategy-near-only.md` — wallet strategy
+  decision (NEAR-only until Stellar is gated ready).
+- `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md` — session token
+  storage decision (httpOnly cookies).
+- `frontend/CSP_DOCUMENTATION.md` — Content Security Policy and cookie flags.
+- `TOKEN_REFRESH_SECURITY_GUIDE.md` — refresh rotation and reuse detection.
+- `NEAR_WALLET_TESTNET_CHECKLIST.md` — wallet signature verification checklist.
+
+## 1. Token model
+
+| Token         | Storage                          | Lifetime | Notes |
+| ------------- | -------------------------------- | -------- | ----- |
+| Access token  | httpOnly `Secure` `SameSite=Lax` cookie | 15 min | Never exposed to JS. |
+| Refresh token | httpOnly `Secure` `SameSite=Strict` cookie, path-scoped to `/auth/refresh` | 30 days | Rotated on every use. |
+| CSRF token    | Non-httpOnly cookie + `X-CSRF-Token` header | session | Double-submit pattern. |
+
+Per ADR-004, **JS-readable access tokens are banned**. Do not return access or
+refresh tokens in JSON response bodies, do not persist them in `localStorage`,
+`sessionStorage`, or in-memory stores that survive a reload, and do not log
+them. The API client must rely on the browser to attach cookies
+(`credentials: 'include'`).
+
+## 2. Cookie flags
+
+All auth cookies MUST be set with:
+
+- `HttpOnly` — inaccessible to JavaScript.
+- `Secure` — TLS only (enforced in staging and production).
+- `SameSite=Lax` for the access token; `SameSite=Strict` for the refresh token.
+- `Path=/` for the access token; `Path=/auth/refresh` for the refresh token.
+- `Domain` scoped to the API host; never a wildcard parent domain.
+
+## 3. Challenge / nonce flow (NEAR wallet)
+
+NEAR is the only supported wallet chain for authentication per ADR-003. Do not
+add Stellar/Soroban challenge or verification paths until Stellar is gated
+ready; any such surface is out of scope and MUST NOT be advertised in UI copy.
+
+1. Client calls `POST /auth/challenge` with the wallet `account_id`.
+2. Server generates a cryptographically random nonce, stores it with a short
+   TTL (default 5 minutes) keyed by `account_id`, and returns the challenge
+   message. Challenges are throttled per `account_id` and per IP.
+3. Client signs the challenge with the NEAR wallet. The signed payload MUST be
+   domain-separated (include the API origin and a fixed prefix) and MUST bind
+   the `account_id`.
+4. Client calls `POST /auth/verify` with `account_id`, `public_key`,
+   `signature`, and the nonce.
+5. Server verifies the signature against the bound `account_id`, checks the
+   nonce is present and unexpired, then **deletes the nonce** before issuing
+   tokens. A replayed nonce MUST fail closed.
+
+Signature verification failures (bad signature, mismatched `account_id`,
+unknown or expired nonce, oversized payload) return `401` and are counted in
+rate-limit buckets. Never echo the nonce or signature back in error bodies.
+
+### 3.1 Session fixation prevention
+
+Login MUST NOT reuse a pre-authentication session identifier. On successful
+`POST /auth/verify`:
+
+1. Rotate the session identifier before issuing tokens (issue a fresh session
+   id; never promote the anonymous/pre-login session).
+2. Invalidate any prior session cookies presented with the verify request so a
+   fixated identifier cannot be replayed.
+3. Bind the new session to the verified `account_id` and `public_key`; a session
+   whose bound `account_id` does not match the verified signature MUST be
+   rejected.
+4. If a session id is presented that was already authenticated for a different
+   `account_id`, fail closed with `401` and revoke the conflicting session.
+
+## 4. Refresh / rotation flow
+
+1. Client calls `POST /auth/refresh`; the browser sends the refresh cookie.
+2. Server validates the refresh token, checks it is not revoked, and issues a
+   new access token plus a new refresh token (rotation).
+3. The consumed refresh token is marked used. If a used token is presented
+   again, treat it as **reuse detection**: revoke the entire refresh family for
+   that session and force re-authentication.
+4. Parallel refreshes from the same client are serialized server-side; the
+   losing request receives `409` and the client retries once with the new
+   cookie. Clients MUST NOT fan out concurrent refresh calls.
+
+## 5. CSRF strategy
+
+Cookie-authenticated mutations require CSRF protection:
+
+- On session start, the server sets a non-httpOnly `csrf_token` cookie.
+- The API client reads that cookie and sends it as `X-CSRF-Token` on every
+  `POST`, `PUT`, `PATCH`, and `DELETE` request.
+- The server compares the header against the cookie (double-submit) and rejects
+  mismatches with `403`.
+- `GET`/`HEAD`/`OPTIONS` are exempt but MUST NOT mutate state.
+- Requests with `Origin`/`Referer` outside the allowlist are rejected even if
+  the CSRF token matches.
+
+## 6. Redirect allowlist (`returnTo`)
+
+Any `returnTo` / `redirect` parameter MUST be validated against an explicit
+allowlist of same-origin paths. Reject absolute URLs, protocol-relative URLs
+(`//evil.example`), and encoded variants. On failure, fall back to the default
+post-login route rather than reflecting the supplied value. This prevents open
+redirects during login and refresh flows.
+
+### 6.1 Allowlist rules (deny-by-default)
+
+- Only same-origin, root-relative paths are permitted (e.g. `/lobby`, `/game/42`).
+- Reject any value containing a scheme (`https:`, `javascript:`, `data:`), a
+  host, or a leading `//` or `/\`.
+- Decode percent-encoding and Unicode normalization **before** matching, then
+  re-check; reject double-encoded and mixed-encoding variants.
+- Reject control characters, backslashes, and whitespace-padded values.
+- Match against an explicit allowlist of known routes; anything not on the list
+  falls back to the default post-login route (`/`).
+- Never reflect the rejected value back into the response body or `Location`
+  header.
+
+## 7. WebSocket handshake
+
+The WS handshake MUST parse the same httpOnly access cookie as REST. Do not
+accept tokens via query string. Unauthenticated or expired handshakes are
+closed with `4401`; forbidden roles are closed with `4403`. Deny by default for
+any new WS action surface.
+
+## 8. CSP `connect-src` allowlist (NEAR wallet and API hosts)
+
+The Content Security Policy `connect-src` directive is deny-by-default. Only
+the following origins may be contacted by `fetch`, `XMLHttpRequest`, WebSocket,
+and `EventSource` from the frontend. Everything else is blocked by the browser.
+
+| Origin | Purpose |
+| ------ | ------- |
+| `'self'` | Same-origin backend and Next.js routes. |
+| `https://rpc.testnet.near.org` | NEAR testnet RPC (read-only chain queries). |
+| `https://rpc.mainnet.near.org` | NEAR mainnet RPC (gated behind readiness issue). |
+| `https://helper.testnet.near.org` | NEAR testnet wallet helper. |
+| `https://helper.mainnet.near.org` | NEAR mainnet wallet helper. |
+| `https://wallet.testnet.near.org` | NEAR testnet wallet UI. |
+| `https://wallet.mainnet.near.org` | NEAR mainnet wallet UI. |
+| `https://api.tycoon.example` | Backend (NestJS 11) API origin. |
+| `https://shop-api.tycoon.example` | shop-api (purchases SoT) origin. |
+| `wss://api.tycoon.example` | Authenticated WebSocket endpoint (same cookie parsing as REST). |
+
+Rules:
+
+- No wildcard hosts (`*.near.org`, `https://*`) in `connect-src`.
+- No `http:` origins in staging or production; TLS only.
+- Stellar/Soroban RPC hosts are **not** allowlisted until Stellar is gated
+  ready per ADR-003. Do not add them speculatively.
+- Any new host requires a PR that updates both this runbook and
+  `frontend/CSP_DOCUMENTATION.md`; the two documents MUST stay consistent.
+- `connect-src` violations are reported via `report-to`/`report-uri`; reports
+  MUST NOT include tokens, nonces, or PII.
+
+## 9. Failure modes
+
+- **Dependency outage (Postgres/Redis/shop-api/RPC):** fail closed on writes.
+  Do not issue tokens if the nonce store or session store is unavailable.
+- **Auth expiry mid-flow:** return `401`; the client attempts a single silent
+  refresh, and on failure routes to login without losing in-progress state.
+- **Forbidden role access:** return `403`; never leak resource existence.
+- **Invalid or adversarial input:** reject oversized payloads, unknown enum
+  values, and spoofed events with `400`/`401`; count against rate-limit buckets.
+- **Partial migration / canary states:** if dual auth systems exist during a
+  rollout, deny by default on the new surface until the canary is fully cut
+  over; never accept tokens minted by a deprecated path.
+- **User rejects sign:** the challenge is left unconsumed and expires by TTL;
+  no session is created and no tokens are issued.
+- **Replayed nonce:** fail closed with `401`; the nonce is single-use and is
+  deleted on first successful verify.
+- **Parallel refresh:** serialized server-side; losers get `409` and retry once.
+- **Open redirect attempts:** rejected by the `returnTo` allowlist (§6) and
+  fall back to the default post-login route.
+
+## 10. Honest player-facing copy (NEAR-only)
+
+Player-facing copy in Play with AI settings and related auth surfaces MUST
+reflect the actual supported chain. Per ADR-003, NEAR is the only supported
+wallet chain until Stellar is gated ready.
+
+- Do NOT advertise Stellar, Soroban, or any non-NEAR wallet as a selectable or
+  supported option in Play with AI settings.
+- Do NOT show disabled-but-present Stellar toggles, placeholder chain pickers,
+  or “coming soon” chain copy that implies availability.
+- Copy MUST state that NEAR is the supported wallet and MUST NOT promise
+  features that are not implemented.
+- When Stellar is gated ready, update this section, ADR-003, and the UI copy in
+  the same PR; the documents and UI MUST stay consistent.
+
+## 11. References
+
+- `frontend/docs/ADR-003-wallet-strategy-near-only.md`
+- `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md`
+- `frontend/docs/SW-deny-list.md`
+- `frontend/CSP_DOCUMENTATION.md`
+- `TOKEN_REFRESH_SECURITY_GUIDE.md`
+- `NEAR_WALLET_TESTNET_CHECKLIST.md`

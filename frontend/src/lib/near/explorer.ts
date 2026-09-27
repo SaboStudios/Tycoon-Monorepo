@@ -8,8 +8,7 @@ const EXPLORER_BASE: Record<NetworkId, string> = {
 export function getExplorerTransactionUrl(
   networkId: NetworkId,
   transactionHash: string,
-): string | undefined {
-  if (!transactionHash) return undefined;
+): string {
   const base = EXPLORER_BASE[networkId];
   return `${base}/transactions/${encodeURIComponent(transactionHash)}`;
 }

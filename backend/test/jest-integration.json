@@ -1,0 +1,22 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".*\\.integration\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "ignoreDeprecations": "5.0"
+        }
+      }
+    ]
+  },
+  "setupFiles": ["<rootDir>/test/setup-jest.ts"],
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "testTimeout": 30000,
+  "verbose": true
+}

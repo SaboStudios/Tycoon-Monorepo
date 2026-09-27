@@ -4,7 +4,7 @@
  */
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { BoardSquare } from "./BoardSquare";
 import type { SquareType } from "./BoardSquare";
 import CenterArea from "./CenterArea";
@@ -23,33 +23,34 @@ export interface TrackSquareConfig {
   position: number;
   name: string;
   type: SquareType;
-  color: string;
+  color?: string;
 }
 
+/** Classic 40-square track: GO → right (bottom) → up (right) → left (top) → down (left) → back to GO */
 const TRACK_CONFIG: TrackSquareConfig[] = [
-  { position: 0, name: "GO", type: "go", color: "bg-[#00F0FF]" },
+  { position: 0, name: "GO", type: "go" },
   { position: 1, name: "Mediterranean", type: "property", color: "bg-[#8B4513]" },
-  { position: 2, name: "Community", type: "community", color: "bg-[#0E1415]" },
+  { position: 2, name: "Community", type: "community" },
   { position: 3, name: "Baltic", type: "property", color: "bg-[#8B4513]" },
-  { position: 4, name: "Income Tax", type: "tax", color: "bg-[#0E1415]" },
+  { position: 4, name: "Income Tax", type: "tax" },
   { position: 5, name: "Reading RR", type: "property", color: "bg-gray-700" },
   { position: 6, name: "Oriental", type: "property", color: "bg-[#87CEEB]" },
-  { position: 7, name: "Chance", type: "chance", color: "bg-[#0E1415]" },
+  { position: 7, name: "Chance", type: "chance" },
   { position: 8, name: "Vermont", type: "property", color: "bg-[#87CEEB]" },
   { position: 9, name: "Connecticut", type: "property", color: "bg-[#87CEEB]" },
-  { position: 10, name: "Jail", type: "corner", color: "bg-[#0E1415]" },
+  { position: 10, name: "Jail", type: "corner" },
   { position: 11, name: "St. Charles", type: "property", color: "bg-[#CD853F]" },
   { position: 12, name: "Electric", type: "property", color: "bg-gray-700" },
   { position: 13, name: "States", type: "property", color: "bg-[#CD853F]" },
   { position: 14, name: "Virginia", type: "property", color: "bg-[#CD853F]" },
   { position: 15, name: "Penn RR", type: "property", color: "bg-gray-700" },
   { position: 16, name: "St. James", type: "property", color: "bg-[#FF6347]" },
-  { position: 17, name: "Community", type: "community", color: "bg-[#0E1415]" },
+  { position: 17, name: "Community", type: "community" },
   { position: 18, name: "Tennessee", type: "property", color: "bg-[#FF6347]" },
   { position: 19, name: "New York", type: "property", color: "bg-[#FF6347]" },
-  { position: 20, name: "Free Parking", type: "corner", color: "bg-[#0E1415]" },
+  { position: 20, name: "Free Parking", type: "corner" },
   { position: 21, name: "Kentucky", type: "property", color: "bg-[#FFD700]" },
-  { position: 22, name: "Chance", type: "chance", color: "bg-[#0E1415]" },
+  { position: 22, name: "Chance", type: "chance" },
   { position: 23, name: "Indiana", type: "property", color: "bg-[#FFD700]" },
   { position: 24, name: "Illinois", type: "property", color: "bg-[#FFD700]" },
   { position: 25, name: "B&O RR", type: "property", color: "bg-gray-700" },
@@ -57,15 +58,15 @@ const TRACK_CONFIG: TrackSquareConfig[] = [
   { position: 27, name: "Ventnor", type: "property", color: "bg-[#FF69B4]" },
   { position: 28, name: "Water Works", type: "property", color: "bg-gray-700" },
   { position: 29, name: "Marvin Gardens", type: "property", color: "bg-[#FF69B4]" },
-  { position: 30, name: "Go to Jail", type: "jail", color: "bg-[#0E1415]" },
+  { position: 30, name: "Go to Jail", type: "jail" },
   { position: 31, name: "Pacific", type: "property", color: "bg-[#FF4500]" },
   { position: 32, name: "North Carolina", type: "property", color: "bg-[#FF4500]" },
-  { position: 33, name: "Community", type: "community", color: "bg-[#0E1415]" },
+  { position: 33, name: "Community", type: "community" },
   { position: 34, name: "Pennsylvania", type: "property", color: "bg-[#FF4500]" },
   { position: 35, name: "Short Line", type: "property", color: "bg-gray-700" },
-  { position: 36, name: "Chance", type: "chance", color: "bg-[#0E1415]" },
+  { position: 36, name: "Chance", type: "chance" },
   { position: 37, name: "Park Place", type: "property", color: "bg-[#00008B]" },
-  { position: 38, name: "Luxury Tax", type: "tax", color: "bg-[#0E1415]" },
+  { position: 38, name: "Luxury Tax", type: "tax" },
   { position: 39, name: "Boardwalk", type: "property", color: "bg-[#00008B]" },
 ];
 
@@ -100,20 +101,9 @@ function isCenterCell(row: number, col: number): boolean {
 
 export default function GameBoard(): React.JSX.Element {
   const [activeOverlay, setActiveOverlay] = useState<'inventory' | 'shop' | 'settings' | 'help' | null>(null);
-  const [focusedPosition, setFocusedPosition] = useState<number | null>(null);
-  const boardRef = useRef<HTMLDivElement>(null);
 
   const toggleOverlay = (overlay: 'inventory' | 'shop' | 'settings' | 'help') => {
-    setActiveOverlay((prev) => {
-      const newOverlay = prev === overlay ? null : overlay;
-      if (newOverlay) {
-        // When opening overlay, focus will be managed by the modal
-      } else {
-        // When closing, return focus to board
-        setTimeout(() => boardRef.current?.focus(), 0);
-      }
-      return newOverlay;
-    });
+    setActiveOverlay((prev) => (prev === overlay ? null : overlay));
   };
 
   useKeyboardShortcuts({
@@ -123,42 +113,7 @@ export default function GameBoard(): React.JSX.Element {
     onHelp: () => toggleOverlay('help'),
   });
 
-  const closeOverlay = () => {
-    setActiveOverlay(null);
-    setTimeout(() => boardRef.current?.focus(), 0);
-  };
-
-  const handleBoardKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (focusedPosition === null) return;
-
-    let newPosition = focusedPosition;
-    switch (e.key) {
-      case 'ArrowRight':
-        newPosition = (focusedPosition + 1) % 40;
-        break;
-      case 'ArrowLeft':
-        newPosition = focusedPosition === 0 ? 39 : focusedPosition - 1;
-        break;
-      case 'ArrowUp':
-        // Navigate to previous row in grid, but since it's a track, maybe cycle
-        // For simplicity, move to previous square
-        newPosition = focusedPosition === 0 ? 39 : focusedPosition - 1;
-        break;
-      case 'ArrowDown':
-        newPosition = (focusedPosition + 1) % 40;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    setFocusedPosition(newPosition);
-  }, [focusedPosition]);
-
-  const handleBoardFocus = () => {
-    if (focusedPosition === null) {
-      setFocusedPosition(0); // Start at GO
-    }
-  };
+  const closeOverlay = () => setActiveOverlay(null);
 
   return (
     <>
@@ -166,13 +121,7 @@ export default function GameBoard(): React.JSX.Element {
       
       {/* Game Board Container */}
       <div
-        ref={boardRef}
-        role="grid"
-        aria-label="Monopoly-style game board with 40 squares"
-        tabIndex={0}
-        onFocus={handleBoardFocus}
-        onKeyDown={handleBoardKeyDown}
-        className="relative w-full aspect-square mx-auto rounded-xl border-2 border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] shadow-2xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="relative w-full aspect-square mx-auto rounded-xl border-2 border-[var(--tycoon-border)] bg-[var(--tycoon-bg)] shadow-2xl overflow-hidden"
         style={{
           width: "min(92vw, 900px)",
           maxWidth: "900px",
@@ -207,7 +156,7 @@ export default function GameBoard(): React.JSX.Element {
             }
 
             const track = getTrackAt(row, col);
-            if (track && track.name) {
+            if (track) {
               return (
                 <div key={i} className="flex items-center justify-center p-0.5 sm:p-1 min-w-0 min-h-0 overflow-hidden">
                   <BoardSquare
@@ -215,8 +164,6 @@ export default function GameBoard(): React.JSX.Element {
                     position={track.position}
                     type={track.type}
                     color={track.color}
-                    isFocused={focusedPosition === track.position}
-                    onFocus={() => setFocusedPosition(track.position)}
                   />
                 </div>
               );

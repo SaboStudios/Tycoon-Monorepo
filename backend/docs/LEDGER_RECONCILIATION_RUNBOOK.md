@@ -1,115 +1,86 @@
-# Ledger Reconciliation — Manual Resolution Runbook
+# Ledger Reconciliation Runbook
 
-## Overview
+Operational runbook for reconciling the Tycoon ledger (Postgres) against the
+shop-api purchase source of truth and the on-chain stake vault escrow.
 
-The nightly reconciliation job compares internal `purchases` records against the payment provider's order list and flags discrepancies. This runbook covers how to investigate and resolve them.
+Related docs:
 
----
+- `docs/API_ERROR_RESPONSE_STANDARDS.md` — error envelope + error codes.
+- `frontend/docs/ADR-003-wallet-strategy-near-only.md` — NEAR-only wallet UI
+  until Stellar is gated ready.
+- `backend/docs/AUTH_JWT_RUNBOOK.md` — JWT/AdminGuard authz for admin paths.
+- `contract/README.md` — stake vault contract surface and invariants.
 
-## Discrepancy Types
+## Scope
 
-| Type | Meaning |
-|---|---|
-| `amount_mismatch` | Ledger `final_price` differs from provider amount by > $0.01 |
-| `status_mismatch` | Ledger `status` differs from provider status |
-| `missing_in_provider` | Purchase exists in DB but not in provider export |
-| `missing_in_ledger` | Provider has a transaction not found in DB |
+This runbook covers reconciliation of:
 
----
+1. Shop purchases (shop-api is the source of truth) vs. backend ledger rows.
+2. On-chain stake vault escrow deposits, payouts, and refunds vs. ledger rows.
 
-## Alert Threshold
+## Stake vault escrow invariants
 
-The job emits a `WARN` log and sets `alertThresholdBreached: true` in the report when **> 5 %** of ledger records for the period have discrepancies. The CI workflow also fails the run so the on-call engineer is notified.
+These invariants MUST hold at all times. Any drift is an incident.
 
----
+- **Conservation of value**: for every stake vault, the sum of escrowed
+  deposits equals the sum of settled payouts plus refunds plus the current
+  escrow balance. No value is created or destroyed by payout/refund paths.
+- **Idempotency**: a payout or refund is applied at most once per
+  `(vault_id, stake_id, operation)` tuple. Duplicate submissions (client
+  retries, reconnect replays, RPC re-delivery) MUST be rejected with the
+  documented conflict error code and MUST NOT move funds twice.
+- **Authorization**: only the vault owner (or an authorized admin via
+  `AdminGuard`) may trigger a payout or refund. Untrusted clients cannot
+  bypass server authority; the server is the source of truth for money.
+- **Fail-closed on writes**: if Postgres, Redis, shop-api, or the chain RPC is
+  unavailable, payout/refund writes MUST fail closed. Never partially apply a
+  refund.
+- **Refund eligibility**: a refund is only valid while the stake is in an
+  escrowed, unsettled state. Settled or already-refunded stakes are terminal.
 
-## Step-by-Step Resolution
+## Reconciliation procedure
 
-### 1. Identify the run
+1. Snapshot the ledger: export ledger rows for the reconciliation window
+   (deposits, payouts, refunds) keyed by `requestId`/correlation id.
+2. Snapshot the chain: export stake vault escrow events for the same window.
+3. Join on `(vault_id, stake_id, operation)` and classify each row:
+   - `matched` — ledger and chain agree.
+   - `ledger_only` — ledger row with no chain event (possible failed write).
+   - `chain_only` — chain event with no ledger row (possible missed write).
+   - `amount_mismatch` — both present, amounts differ.
+4. For every non-`matched` row, capture the `requestId` and the error code
+   returned to the caller (see `docs/API_ERROR_RESPONSE_STANDARDS.md`).
+5. Do NOT auto-correct. Escalate per the severity table below.
 
-```bash
-# List recent discrepancies for a specific run
-GET /api/admin/ledger-reconciliation/discrepancies?runId=<runId>
-```
+## Severity and escalation
 
-Or query the DB directly (read-only):
+| Condition | Severity | Action |
+| --- | --- | --- |
+| `amount_mismatch` on any payout/refund | SEV1 | Page on-call; freeze refunds via kill switch. |
+| `chain_only` refund | SEV1 | Page on-call; investigate missed ledger write. |
+| `ledger_only` refund | SEV2 | Verify chain state before retrying; retry is idempotent. |
+| Duplicate refund attempts rejected | INFO | Expected; confirm idempotency guard fired. |
 
-```sql
-SELECT * FROM ledger_discrepancies
-WHERE "runId" = '<runId>'
-ORDER BY created_at DESC;
-```
+## Kill switch / feature flag
 
-### 2. Investigate each discrepancy
+Refund and payout writes are gated behind the stake vault escrow feature
+flag. To halt refunds during an incident:
 
-#### `amount_mismatch`
+1. Disable the stake vault escrow flag (fail-closed: new refunds are
+   rejected with the documented unavailable error code).
+2. Record the flag change and the `requestId`s of in-flight requests.
+3. Reconcile the window before re-enabling.
 
-1. Pull the purchase from the DB: `SELECT * FROM purchases WHERE id = <purchaseId>;`
-2. Cross-check with the provider dashboard using `transactionId`.
-3. Determine which side is authoritative (provider is usually source of truth for real money).
-4. If the ledger is wrong, create a corrective audit entry — **do not UPDATE the purchase directly**; raise a support ticket for the finance team.
+## Rollback notes
 
-#### `status_mismatch`
+- Reverting the refund code path does not move funds; escrow balances are
+  unchanged by a code rollback.
+- After rollback, re-run reconciliation for the affected window and confirm
+  all rows are `matched` or explicitly escalated.
 
-1. Check if the webhook for this transaction was received (`admin_logs` table, action `payment.success` / `payment.failed`).
-2. If the webhook was missed, replay it via the provider dashboard or re-trigger the webhook endpoint manually.
-3. If the provider shows `refunded` but ledger shows `completed`, confirm with finance before updating.
+## Observability
 
-#### `missing_in_provider`
-
-1. Verify the `transaction_id` is not a test/sandbox transaction.
-2. Check if the purchase was made via an internal balance (no provider record expected) — these can be safely ignored.
-3. If a real money transaction is missing from the provider, escalate to the payment provider's support.
-
-#### `missing_in_ledger`
-
-1. Check if the provider transaction maps to a known `purchaseId`.
-2. If the purchase exists but `transaction_id` was never set (webhook failure), update the purchase record and mark the discrepancy resolved.
-3. If no matching purchase exists, investigate for potential fraud or double-charge.
-
-### 3. Mark as resolved
-
-```bash
-PATCH /api/admin/ledger-reconciliation/discrepancies/<id>/resolve
-Content-Type: application/json
-Authorization: Bearer <admin_token>
-
-{
-  "resolutionNote": "Confirmed internal balance purchase — no provider record expected."
-}
-```
-
-### 4. Escalation
-
-| Severity | Condition | Action |
-|---|---|---|
-| P1 | `missing_in_ledger` with real money | Page on-call + notify finance |
-| P2 | `alertThresholdBreached = true` | Notify engineering lead within 1 h |
-| P3 | Isolated `amount_mismatch` < $1 | Log and resolve async |
-
----
-
-## Dry-Run Mode
-
-In staging (`NODE_ENV=staging`) or when `RECONCILIATION_DRY_RUN=true`, the job produces a full report but **writes nothing to the database**. The report is returned in the API response and uploaded as a CI artifact.
-
-To run a dry-run manually:
-
-```bash
-POST /api/admin/ledger-reconciliation/run
-{ "dryRun": true, "startDate": "2026-03-27T00:00:00Z", "endDate": "2026-03-28T00:00:00Z" }
-```
-
----
-
-## Environment Variables
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `RECONCILIATION_DRY_RUN` | `false` | Force dry-run in any environment |
-
----
-
-## Read-Only Guarantee
-
-The reconciliation service only issues `SELECT` queries against the `purchases` table. It never mutates payment or user data. Resolution is a separate explicit admin action.
+- Every payout/refund path logs `requestId`/correlation id, `vault_id`,
+  `stake_id`, and the resulting error code. No tokens or PII in labels.
+- Emit metrics for refund attempts, successes, idempotent rejections, and
+  fail-closed rejections so drift is detectable before reconciliation.

@@ -2,7 +2,6 @@
 import React, { useState } from 'react'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination, Autoplay } from 'swiper/modules'
-import type { Swiper as SwiperType } from 'swiper'
 import { Dice6, Pyramid, Tangent, Unplug } from 'lucide-react'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import 'swiper/css'
@@ -16,15 +15,15 @@ const slidesData = [
     { icon: <Pyramid className="w-[24px] h-[24px] text-[#0FF0FC]" />, outOf: "4 of 4", title: "Rise to the Top", description: "The more you play, the higher you go! Win games, finish challenges, and earn rewards to move up the leaderboard." }
 ]
 
-const HowItWorks: React.FC = () => {
-    const [currentSlide, setCurrentSlide] = useState<number>(0)
+const HowItWorks = () => {
+    const [currentSlide, setCurrentSlide] = useState(0)
     const prefersReducedMotion = useReducedMotion()
-    const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [swiperInstance, setSwiperInstance] = useState<any>(null)
 
 
     return (
-        <section aria-label="How it works carousel" className="relative w-full h-[856px] overflow-hidden flex flex-col items-center justify-center border-y-[1px] border-[#0FF0FC]/20">
-            {/* PERF: Background gradients use CSS opacity transitions (not layout-affecting) to prevent CLS */}
+        <section className="relative w-full h-[856px] overflow-hidden flex flex-col items-center justify-center border-y-[1px] border-[#0FF0FC]/20">
             {/* Background Layers (gradients per slide) */}
             <div
                 className={`absolute inset-0 z-0 ${!prefersReducedMotion ? 'transition-opacity duration-700 ease-in-out' : ''}`}
@@ -47,7 +46,7 @@ const HowItWorks: React.FC = () => {
             {/* Foreground content */}
             <div className="absolute inset-0 bg-gradient-to-b from-[#010F1000] via-[#010F10] z-0 w-full px-4 flex flex-col items-center justify-center">
                 <div className=' w-full flex flex-col justify-center items-center gap-2 mb-6'>
-                    <h2 className="text-center text-[#F0F7F7] font-[900] md:text-[48px] text-[32px] font-orbitron leading-normal">How it works</h2>
+                    <h1 className="text-center text-[#F0F7F7] font-[900] md:text-[48px] text-[32px] font-orbitron leading-normal">How it works</h1>
                     <p className='md:max-w-[60%]  w-full text-center text-[20px] font-[400] font-dmSans leading-[30px] text-[#F0F7F7]'>It&apos;s super simple how Tycoon works. The flow has been designed to help you not to stress too much.</p>
                 </div>
 
@@ -65,7 +64,6 @@ const HowItWorks: React.FC = () => {
                 >
                     {
                         slidesData.map((item, index) => (
-                            // PERF: Fixed h-[350px] with scale transform (not height/width changes) to prevent CLS; blur/opacity use GPU-accelerated properties
                             <SwiperSlide key={index} className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center ${!prefersReducedMotion ? 'transition-all duration-500' : ''} ${currentSlide !== index ? 'blur-[1.5px] opacity-40 scale-[0.95]' : 'opacity-100 blur-0 scale-100'
                                 }`}>
                                 <div className="w-full h-full bg-[#091F201F] border-[1px] border-[#55656D] rounded-[12px] custom-glow-blur p-6 md:p-10 flex flex-col justify-between items-center">
@@ -90,13 +88,10 @@ const HowItWorks: React.FC = () => {
                 <div className='w-full max-w-[620px] flex justify-between items-center gap-6 mt-6 md:px-6'>
                     <div className="swiper-pagination hidden" />
                     {/* Dots Navigation */}
-                    <div className="flex gap-2" role="tablist" aria-label="Slide selection">
+                    <div className=" flex gap-2 ">
                         {[0, 1, 2, 3].map((i) => (
                             <button
                                 key={i}
-                                role="tab"
-                                aria-selected={currentSlide === i}
-                                aria-label={`Go to slide ${i + 1}`}
                                 onClick={() => {
                                     setCurrentSlide(i);
                                     swiperInstance?.slideTo(i)
@@ -105,15 +100,30 @@ const HowItWorks: React.FC = () => {
                             />
                         ))}
                     </div>
-                    <div
-                        data-testid="carousel-live-region"
-                        role="status"
-                        aria-live="polite"
-                        aria-atomic="true"
-                        className="sr-only"
+{/* 
+                    <button
+                        type="button"
+                        className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
                     >
-                        Slide {currentSlide + 1} of 4: {slidesData[currentSlide]?.title}
-                    </div>
+                        <svg
+                            width="260"
+                            height="52"
+                            viewBox="0 0 260 52"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
+                        >
+                            <path
+                                d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                                fill="#00F0FF"
+                                stroke="#0E282A"
+                                strokeWidth={1}
+                            />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-1">
+                            Let&apos;s Go!
+                        </span>
+                    </button> */}
                 </div>
 
             </div>

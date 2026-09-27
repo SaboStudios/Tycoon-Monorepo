@@ -61,19 +61,10 @@ export class UsersService {
   ): Promise<PaginatedResponse<User>> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
     const searchableFields = ['email', 'firstName', 'lastName'];
-    const allowedSortFields = [
-      'id',
-      'email',
-      'firstName',
-      'lastName',
-      'created_at',
-      'updated_at',
-    ];
     return await this.paginationService.paginate(
       queryBuilder,
       paginationDto,
       searchableFields,
-      allowedSortFields,
     );
   }
 
@@ -327,31 +318,6 @@ export class UsersService {
   }
 
   /**
-   * Admin-initiated password reset with audit logging.
-   */
-  async adminResetPassword(
-    id: number,
-    newPassword: string,
-    adminId: number,
-    req?: Request,
-  ): Promise<{ message: string }> {
-    const user = await this.findOne(id);
-    user.password = await bcrypt.hash(newPassword, 10);
-    await this.userRepository.save(user);
-
-    await this.adminLogsService.createLog(
-      adminId,
-      'USER_PASSWORD_RESET',
-      id,
-      { resetBy: 'admin' },
-      req,
-    );
-
-    await this.invalidateUserCache(id);
-    return { message: 'Password reset successfully' };
-  }
-
-  /**
    * Get leaderboard of users sorted by wins
    */
   async getLeaderboard(
@@ -371,18 +337,8 @@ export class UsersService {
       .orderBy('user.game_won', 'DESC')
       .addOrderBy('user.total_earned', 'DESC');
 
-    const allowedSortFields = [
-      'id',
+    return await this.paginationService.paginate(queryBuilder, paginationDto, [
       'username',
-      'game_won',
-      'games_played',
-      'total_earned',
-    ];
-    return await this.paginationService.paginate(
-      queryBuilder,
-      paginationDto,
-      ['username'],
-      allowedSortFields,
-    );
+    ]);
   }
 }

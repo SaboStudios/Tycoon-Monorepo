@@ -3,11 +3,7 @@ import { TourAnalyticsService } from './tour-analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 interface TourEventDto {
-  event:
-    | 'tour_started'
-    | 'tour_completed'
-    | 'tour_skipped'
-    | 'tour_step_viewed';
+  event: 'tour_started' | 'tour_completed' | 'tour_skipped' | 'tour_step_viewed';
   data: {
     step?: number;
     totalSteps?: number;
@@ -26,11 +22,7 @@ export class TourAnalyticsController {
     @Request() req: { user: { id: number } },
     @Body() eventDto: TourEventDto,
   ): Promise<{ success: boolean }> {
-    await this.tourAnalyticsService.trackEvent(
-      req.user.id,
-      eventDto.event,
-      eventDto.data,
-    );
+    await this.tourAnalyticsService.trackEvent(req.user.id, eventDto.event, eventDto.data);
     return { success: true };
   }
 }

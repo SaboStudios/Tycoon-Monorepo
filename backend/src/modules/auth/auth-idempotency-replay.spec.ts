@@ -27,7 +27,6 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { Role } from './enums/role.enum';
-import { AuthAuditService } from './audit/auth-audit.service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,21 +72,19 @@ function buildRefreshTokenRepo(store: Map<string, RefreshToken>) {
       store.set(entity.id ?? entity.tokenHash, entity);
       return entity;
     }),
-    findOne: jest
-      .fn()
-      .mockImplementation(
-        async ({ where }: { where: Partial<RefreshToken> }) => {
-          for (const entity of store.values()) {
-            if (
-              (where.tokenHash && entity.tokenHash === where.tokenHash) ||
-              (where.id && entity.id === where.id)
-            ) {
-              return entity;
-            }
+    findOne: jest.fn().mockImplementation(
+      async ({ where }: { where: Partial<RefreshToken> }) => {
+        for (const entity of store.values()) {
+          if (
+            (where.tokenHash && entity.tokenHash === where.tokenHash) ||
+            (where.id && entity.id === where.id)
+          ) {
+            return entity;
           }
-          return null;
-        },
-      ),
+        }
+        return null;
+      },
+    ),
     update: jest
       .fn()
       .mockImplementation(
@@ -175,10 +172,6 @@ describe('Auth — idempotency & replay (SW-BE-003)', () => {
           provide: getRepositoryToken(User),
           useValue: userRepo,
         },
-        {
-          provide: AuthAuditService,
-          useValue: { record: jest.fn() },
-        },
       ],
     }).compile();
 
@@ -186,7 +179,7 @@ describe('Auth — idempotency & replay (SW-BE-003)', () => {
     jwtService = module.get<JwtService>(JwtService);
 
     // Spy on Logger.warn to assert no raw tokens are logged
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     loggerWarnSpy = jest.spyOn((authService as any).logger, 'warn');
   });
 
@@ -246,7 +239,7 @@ describe('Auth — idempotency & replay (SW-BE-003)', () => {
       const user = makeUser();
       const { accessToken } = await authService.login(user);
 
-      const decoded = jwtService.decode(accessToken);
+      const decoded = jwtService.decode(accessToken) as Record<string, unknown>;
       expect(decoded).not.toHaveProperty('password');
       expect(decoded).not.toHaveProperty('tokenHash');
     });

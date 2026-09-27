@@ -12,7 +12,6 @@ import { AdminLoginDto } from './dto/admin-login.dto';
 import { Throttle } from '@nestjs/throttler';
 
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
-import { AuthAuditService } from './audit/auth-audit.service';
 import * as express from 'express';
 import { Req } from '@nestjs/common';
 
@@ -32,54 +31,44 @@ export class AdminAuthController {
     @Body() adminLoginDto: AdminLoginDto,
     @Req() req: express.Request,
   ) {
-    const redactedEmail = AuthAuditService.redactEmail(adminLoginDto.email);
-    this.logger.log(`Admin login attempt for email: ${redactedEmail}`);
-
-    const ipAddress = req.ip;
-    const userAgent = req.headers?.['user-agent'];
+    this.logger.log(`Admin login attempt for email: ${adminLoginDto.email}`);
 
     const user = await this.authService.validateAdmin(
       adminLoginDto.email,
       adminLoginDto.password,
-      ipAddress,
-      userAgent,
     );
 
     if (!user) {
       this.logger.warn(
-        `Failed admin login attempt for email: ${redactedEmail}`,
+        `Failed admin login attempt for email: ${adminLoginDto.email}`,
       );
 
       await this.adminLogsService.createLog(
         undefined,
         'ADMIN_LOGIN_FAILED',
         undefined,
-        { email: redactedEmail },
+        { email: adminLoginDto.email },
         req,
       );
 
       throw new UnauthorizedException('Invalid admin credentials');
     }
 
-    this.logger.log(`Successful admin login for email: ${redactedEmail}`);
+    this.logger.log(`Successful admin login for email: ${adminLoginDto.email}`);
 
     await this.adminLogsService.createLog(
       user.id,
       'ADMIN_LOGIN_SUCCESS',
       user.id,
-      { email: redactedEmail },
+      { email: user.email },
       req,
     );
 
-    return this.authService.login(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        is_admin: user.is_admin,
-      },
-      ipAddress,
-      userAgent,
-    );
+    return this.authService.login({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      is_admin: user.is_admin,
+    });
   }
 }

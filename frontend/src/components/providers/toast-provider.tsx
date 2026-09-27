@@ -1,57 +1,11 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { Component, type ReactNode } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useTheme } from '@/components/providers/theme-provider';
 
-interface ToastErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface ToastErrorBoundaryState {
-  hasError: boolean;
-}
-
-class ToastErrorBoundary extends Component<
-  ToastErrorBoundaryProps,
-  ToastErrorBoundaryState
-> {
-  constructor(props: ToastErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('ToastProvider error:', error);
-    }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // Render a fallback that doesn't depend on ToastContainer
-      return (
-        <div
-          id="toast-announcements"
-          role="region"
-          aria-live="polite"
-          aria-atomic="true"
-          className="sr-only"
-        />
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-function ToastProviderContent() {
+export function ToastProvider() {
   const { resolvedTheme } = useTheme();
   const isDarkTheme = resolvedTheme === 'dark';
 
@@ -91,13 +45,5 @@ function ToastProviderContent() {
         className="sr-only"
       />
     </>
-  );
-}
-
-export function ToastProvider() {
-  return (
-    <ToastErrorBoundary>
-      <ToastProviderContent />
-    </ToastErrorBoundary>
   );
 }

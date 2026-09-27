@@ -14,7 +14,7 @@ import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { JoinGameDto } from './dto/join-game.dto';
 import { GamePlayer } from './entities/game-player.entity';
-import { PaginatedResponse, PaginationService } from '../../common';
+import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
 import { secureRandomAlphaNumeric } from '../../common/crypto-secure-random';
 
@@ -80,13 +80,15 @@ export class GamesService {
       });
     }
 
+    const sortBy = dto.sortBy || 'created_at';
+    const sortOrder = dto.sortOrder || SortOrder.DESC;
+
     qb.leftJoinAndSelect('g.settings', 'settings');
 
-    return this.paginationService.paginate(
-      qb,
-      { ...dto, sortBy: dto.sortBy ?? 'created_at' },
-      ['code', 'chain'],
-    );
+    return this.paginationService.paginate(qb, { ...dto, sortBy, sortOrder }, [
+      'code',
+      'chain',
+    ]);
   }
 
   /**
@@ -358,7 +360,7 @@ export class GamesService {
     return this.findById(gameId);
   }
 
-  async joinGame(
+async joinGame(
     gameId: number,
     userId: number,
     dto: JoinGameDto,
@@ -488,3 +490,4 @@ export class GamesService {
     };
   }
 }
+

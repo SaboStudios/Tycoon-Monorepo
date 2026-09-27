@@ -140,20 +140,18 @@ fn test_inv_04_total_supply_never_negative() {
 
 // ── INV-05 ────────────────────────────────────────────────────────────────────
 
-/// INV-05: minting zero is a no-op (balance and supply unchanged).
+/// INV-05: minting zero is rejected.
 #[test]
-fn test_inv_05a_mint_zero_is_noop() {
+#[should_panic(expected = "Amount must be positive")]
+fn test_inv_05a_mint_zero_rejected() {
     let (_, client, _) = setup();
     let user = Address::generate(&client.env);
-    let before = client.total_supply();
     client.mint(&user, &0);
-    assert_eq!(client.balance(&user), 0);
-    assert_eq!(client.total_supply(), before);
 }
 
 /// INV-05: minting a negative amount is rejected.
 #[test]
-#[should_panic(expected = "Amount cannot be negative")]
+#[should_panic(expected = "Amount must be positive")]
 fn test_inv_05b_mint_negative_rejected() {
     let (_, client, _) = setup();
     let user = Address::generate(&client.env);
@@ -162,20 +160,17 @@ fn test_inv_05b_mint_negative_rejected() {
 
 // ── INV-06 ────────────────────────────────────────────────────────────────────
 
-/// INV-06: burning zero is a no-op (balance and supply unchanged).
+/// INV-06: burning zero is rejected.
 #[test]
-fn test_inv_06a_burn_zero_is_noop() {
+#[should_panic(expected = "Amount must be positive")]
+fn test_inv_06a_burn_zero_rejected() {
     let (_, client, admin) = setup();
-    let before = client.balance(&admin);
-    let supply_before = client.total_supply();
     client.burn(&admin, &0);
-    assert_eq!(client.balance(&admin), before);
-    assert_eq!(client.total_supply(), supply_before);
 }
 
 /// INV-06: burning a negative amount is rejected.
 #[test]
-#[should_panic(expected = "Amount cannot be negative")]
+#[should_panic(expected = "Amount must be positive")]
 fn test_inv_06b_burn_negative_rejected() {
     let (_, client, admin) = setup();
     client.burn(&admin, &-1);
@@ -256,7 +251,7 @@ fn test_inv_09b_mint_balance_overflow_guard() {
 /// INV-10: mint then burn of the same amount is a no-op on total_supply.
 #[test]
 fn test_inv_10_mint_burn_round_trip_restores_supply() {
-    let (_, client, _admin) = setup();
+    let (_, client, admin) = setup();
     let user = Address::generate(&client.env);
     let amount: i128 = 42_000_000_000_000_000_000_000;
     let before = client.total_supply();
@@ -265,11 +260,7 @@ fn test_inv_10_mint_burn_round_trip_restores_supply() {
     assert_eq!(client.total_supply(), before + amount);
 
     client.burn(&user, &amount);
-    assert_eq!(
-        client.total_supply(),
-        before,
-        "Round-trip should restore supply"
-    );
+    assert_eq!(client.total_supply(), before, "Round-trip should restore supply");
 }
 
 // ── INV-11 ────────────────────────────────────────────────────────────────────
@@ -345,21 +336,9 @@ fn test_inv_14_burn_from_reduces_balance_and_allowance() {
 
     client.burn_from(&spender, &admin, &burn_amount);
 
-    assert_eq!(
-        client.balance(&admin),
-        balance_before - burn_amount,
-        "INV-14: balance"
-    );
-    assert_eq!(
-        client.allowance(&admin, &spender),
-        allowance - burn_amount,
-        "INV-14: allowance"
-    );
-    assert_eq!(
-        client.total_supply(),
-        supply_before - burn_amount,
-        "INV-14: supply"
-    );
+    assert_eq!(client.balance(&admin), balance_before - burn_amount, "INV-14: balance");
+    assert_eq!(client.allowance(&admin, &spender), allowance - burn_amount, "INV-14: allowance");
+    assert_eq!(client.total_supply(), supply_before - burn_amount, "INV-14: supply");
 }
 
 /// INV-14: burn_from exhausting the full allowance leaves allowance at zero.
@@ -449,10 +428,7 @@ fn test_inv_16b_initialize_emits_mint_event() {
     client.initialize(&admin, &INITIAL_SUPPLY);
 
     let events = e.events().all();
-    assert!(
-        !events.is_empty(),
-        "INV-16b: expected MintEvent on initialize"
-    );
+    assert!(!events.is_empty(), "INV-16b: expected MintEvent on initialize");
     let last = events.last().unwrap();
     let event_data: i128 = last.2.into_val(&e);
     assert_eq!(event_data, INITIAL_SUPPLY);
@@ -488,10 +464,7 @@ fn test_inv_17b_burn_from_emits_event_with_correct_fields() {
     let events = e.events().all();
     let last = events.last().expect("expected at least one event");
     let event_data: i128 = last.2.into_val(&e);
-    assert_eq!(
-        event_data, burn_amount,
-        "INV-17b: BurnEvent amount mismatch"
-    );
+    assert_eq!(event_data, burn_amount, "INV-17b: BurnEvent amount mismatch");
 }
 
 // ── Additional edge-case / fuzz-style table tests ─────────────────────────────
@@ -505,33 +478,15 @@ fn test_supply_invariant_mixed_operations_table() {
     }
 
     let ops = [
-        Op {
-            is_mint: true,
-            amount: 1_000_000_000_000_000_000_000,
-        },
-        Op {
-            is_mint: true,
-            amount: 2_000_000_000_000_000_000_000,
-        },
-        Op {
-            is_mint: false,
-            amount: 500_000_000_000_000_000_000,
-        },
-        Op {
-            is_mint: true,
-            amount: 5_000_000_000_000_000_000_000,
-        },
-        Op {
-            is_mint: false,
-            amount: 3_000_000_000_000_000_000_000,
-        },
-        Op {
-            is_mint: false,
-            amount: 1_000_000_000_000_000_000_000,
-        },
+        Op { is_mint: true,  amount: 1_000_000_000_000_000_000_000 },
+        Op { is_mint: true,  amount: 2_000_000_000_000_000_000_000 },
+        Op { is_mint: false, amount: 500_000_000_000_000_000_000 },
+        Op { is_mint: true,  amount: 5_000_000_000_000_000_000_000 },
+        Op { is_mint: false, amount: 3_000_000_000_000_000_000_000 },
+        Op { is_mint: false, amount: 1_000_000_000_000_000_000_000 },
     ];
 
-    let (_, client, _admin) = setup();
+    let (_, client, admin) = setup();
     let user = Address::generate(&client.env);
     // Give user enough balance for burns
     client.mint(&user, &10_000_000_000_000_000_000_000);

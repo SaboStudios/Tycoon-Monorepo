@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 
-export class CreateLedgerDiscrepanciesTable1743120000000 implements MigrationInterface {
+export class CreateLedgerDiscrepanciesTable1743120000000
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({
@@ -15,39 +17,12 @@ export class CreateLedgerDiscrepanciesTable1743120000000 implements MigrationInt
           },
           { name: 'runId', type: 'varchar', length: '100' },
           { name: 'purchaseId', type: 'int', isNullable: true },
-          {
-            name: 'transactionId',
-            type: 'varchar',
-            length: '100',
-            isNullable: true,
-          },
+          { name: 'transactionId', type: 'varchar', length: '100', isNullable: true },
           { name: 'type', type: 'varchar', length: '50' },
-          {
-            name: 'ledgerAmount',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-            isNullable: true,
-          },
-          {
-            name: 'providerAmount',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-            isNullable: true,
-          },
-          {
-            name: 'ledgerStatus',
-            type: 'varchar',
-            length: '50',
-            isNullable: true,
-          },
-          {
-            name: 'providerStatus',
-            type: 'varchar',
-            length: '50',
-            isNullable: true,
-          },
+          { name: 'ledgerAmount', type: 'decimal', precision: 10, scale: 2, isNullable: true },
+          { name: 'providerAmount', type: 'decimal', precision: 10, scale: 2, isNullable: true },
+          { name: 'ledgerStatus', type: 'varchar', length: '50', isNullable: true },
+          { name: 'providerStatus', type: 'varchar', length: '50', isNullable: true },
           { name: 'status', type: 'varchar', length: '50', default: "'open'" },
           { name: 'resolutionNote', type: 'text', isNullable: true },
           { name: 'metadata', type: 'jsonb', isNullable: true },

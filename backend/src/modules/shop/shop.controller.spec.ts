@@ -5,7 +5,6 @@ import { PurchaseService } from './purchase.service';
 import { InventoryService } from './inventory.service';
 import { PurchaseAndGiftDto } from './dto/purchase-and-gift.dto';
 import { RedisService } from '../redis/redis.service';
-import { AuditTrailService } from '../audit-trail/audit-trail.service';
 
 describe('ShopController', () => {
   let controller: ShopController;
@@ -42,8 +41,6 @@ describe('ShopController', () => {
     delByPattern: jest.fn(),
   };
 
-  const mockAuditTrailService = { log: jest.fn() };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ShopController],
@@ -63,10 +60,6 @@ describe('ShopController', () => {
         {
           provide: RedisService,
           useValue: mockRedisService,
-        },
-        {
-          provide: AuditTrailService,
-          useValue: mockAuditTrailService,
         },
       ],
     }).compile();

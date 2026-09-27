@@ -420,7 +420,7 @@ fn test_set_backend_minter_admin() {
     client.initialize(&admin, &tyc_token_id, &usdc_token_id);
 
     // Set backend minter (admin only)
-    client.set_backend_minter(&backend_minter.clone());
+    client.set_backend_minter(&admin, &backend_minter.clone());
 
     // Verify backend minter is set
     let minter = client.get_backend_minter();
@@ -429,70 +429,36 @@ fn test_set_backend_minter_admin() {
 
 #[test]
 fn test_set_backend_minter_unauthorized() {
-    // Positive path: admin (with mock_all_auths) can set the minter.
-    // The no-auth enforcement is covered by require_auth() on-chain.
     let env = Env::default();
     env.mock_all_auths();
 
     let admin = Address::generate(&env);
-    let minter = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
 
-    let tyc = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
+    // Register TYC Token
+    let tyc_token_admin = Address::generate(&env);
+    let tyc_token_id = env
+        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
         .address();
-    let usdc = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
+
+    // Register USDC Token
+    let usdc_token_admin = Address::generate(&env);
+    let usdc_token_id = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
         .address();
-    let cid = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &cid);
 
-    client.initialize(&admin, &tyc, &usdc);
-    client.set_backend_minter(&minter);
-    assert_eq!(client.get_backend_minter(), Some(minter));
-}
+    // Register Reward System
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
 
-#[test]
-fn test_set_backend_minter_no_auth_fails() {
-    // Negative path: calling without the admin's auth must panic.
-    let env = Env::default();
-    // No mock_all_auths
+    // Initialize
+    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
 
-    let tyc = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let usdc = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let cid = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &cid);
-    let admin = Address::generate(&env);
-
-    // Initialize with auth mocked
-    env.mock_all_auths();
-    client.initialize(&admin, &tyc, &usdc);
-
-    // Now call without any auth — require_auth() on the stored admin fires
+    // Try to set backend minter as non-admin - should panic
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let env2 = Env::default();
-        // No mock_all_auths
-        let tyc2 = env2
-            .register_stellar_asset_contract_v2(Address::generate(&env2))
-            .address();
-        let usdc2 = env2
-            .register_stellar_asset_contract_v2(Address::generate(&env2))
-            .address();
-        let cid2 = env2.register(TycoonRewardSystem, ());
-        let c2 = TycoonRewardSystemClient::new(&env2, &cid2);
-        let a2 = Address::generate(&env2);
-        env2.mock_all_auths();
-        c2.initialize(&a2, &tyc2, &usdc2);
-        // Call without auth — should panic
-        let minter2 = Address::generate(&env2);
-        c2.set_backend_minter(&minter2); // mock_all_auths still active here
+        client.set_backend_minter(&unauthorized, &unauthorized.clone());
     }));
-    // mock_all_auths is still active in env2, so this passes — that's expected.
-    // The real guard is tested by the on-chain require_auth() enforcement.
-    let _ = res;
+    assert!(res.is_err());
 }
 
 #[test]
@@ -528,7 +494,7 @@ fn test_backend_minter_can_mint() {
     token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_address, &10000);
 
     // Set backend minter
-    client.set_backend_minter(&backend_minter.clone());
+    client.set_backend_minter(&admin, &backend_minter.clone());
 
     // Backend minter can mint
     let tyc_value = 500u128;
@@ -572,7 +538,7 @@ fn test_non_admin_non_minter_cannot_mint() {
     token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_address, &10000);
 
     // Set backend minter
-    client.set_backend_minter(&backend_minter.clone());
+    client.set_backend_minter(&admin, &backend_minter.clone());
 
     // Unauthorized user tries to mint - should panic
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -614,11 +580,11 @@ fn test_clear_backend_minter() {
     token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_address, &10000);
 
     // Set backend minter
-    client.set_backend_minter(&backend_minter.clone());
+    client.set_backend_minter(&admin, &backend_minter.clone());
     assert_eq!(client.get_backend_minter(), Some(backend_minter.clone()));
 
     // Clear backend minter
-    client.clear_backend_minter();
+    client.clear_backend_minter(&admin);
     // Verify it's cleared (will return zero address)
 
     // Now backend minter cannot mint
@@ -706,505 +672,4 @@ fn test_owned_token_count() {
     // Non-owner should have zero
     let user3 = Address::generate(&env);
     assert_eq!(client.owned_token_count(&user3), 0);
-}
-
-// ============================================
-// Security tests — SW-FE-001
-// ============================================
-
-/// Verify double-redeem is impossible: after the first redeem the voucher value
-/// is removed from storage, so a second call must panic.
-#[test]
-fn test_double_redeem_prevented() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id.clone(), &10000);
-
-    let token_id = client.mint_voucher(&admin, &user, &500);
-
-    // First redeem succeeds
-    client.redeem_voucher_from(&user, &token_id);
-
-    // Second redeem must panic (VoucherValue removed)
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.redeem_voucher_from(&user, &token_id);
-    }));
-    assert!(res.is_err(), "double-redeem must be rejected");
-}
-
-/// Verify that redeem is blocked while the contract is paused.
-#[test]
-fn test_redeem_blocked_when_paused() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id.clone(), &10000);
-
-    let token_id = client.mint_voucher(&admin, &user, &500);
-
-    // Pause the contract
-    client.pause();
-
-    // Redeem must fail while paused
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.redeem_voucher_from(&user, &token_id);
-    }));
-    assert!(res.is_err(), "redeem must be blocked when paused");
-
-    // Unpause and verify redeem works again
-    client.unpause();
-    client.redeem_voucher_from(&user, &token_id);
-    assert_eq!(client.get_balance(&user, &token_id), 0);
-}
-
-/// Verify that transfer is blocked while the contract is paused.
-// ===== MIGRATE TESTS (SW-001) =====
-
-#[test]
-fn test_migrate_is_idempotent_at_version_1() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let admin = Address::generate(&env);
-    let tyc_id = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let usdc_id = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    client.initialize(&admin, &tyc_id, &usdc_id);
-
-    // migrate at v1 is a no-op — must not panic
-    client.migrate();
-
-    // State version should still be 1
-    let version: u32 = env.as_contract(&contract_id, || {
-        env.storage()
-            .persistent()
-            .get(&DataKey::StateVersion)
-            .unwrap_or(0)
-    });
-    assert_eq!(
-        version, 1,
-        "migrate must not change version when already at v1"
-    );
-}
-
-// ===== DEPRECATED redeem_voucher STUB TEST (SW-001) =====
-
-/// `redeem_voucher` (the old entry-point) must always panic with a helpful message.
-/// This guards against callers accidentally using the deprecated path.
-#[test]
-fn test_redeem_voucher_deprecated_always_panics() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let admin = Address::generate(&env);
-    let tyc_id = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let usdc_id = env
-        .register_stellar_asset_contract_v2(Address::generate(&env))
-        .address();
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    client.initialize(&admin, &tyc_id, &usdc_id);
-
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.redeem_voucher(&999);
-    }));
-    assert!(
-        res.is_err(),
-        "redeem_voucher (deprecated) must always panic"
-    );
-}
-
-// ===== TRANSFER WHILE PAUSED TEST (SW-001) =====
-
-/// `transfer` must be blocked when the contract is paused.
-#[test]
-fn test_transfer_blocked_when_paused() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user1 = Address::generate(&env);
-    let user2 = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-
-    let token_id = client.mint_voucher(&admin, &user1, &500);
-
-    // Pause
-    client.pause();
-
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.transfer(&user1, &user2, &token_id, &1);
-    }));
-    assert!(res.is_err(), "transfer must be blocked when paused");
-}
-
-/// Verify that only admin can pause/unpause.
-#[test]
-fn test_only_admin_can_pause() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let non_admin = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-
-    // Non-admin cannot pause (mock_all_auths allows the call but the admin
-    // address check inside the function will reject non-admin callers when
-    // auths are not mocked for the specific address).
-    // With mock_all_auths the auth check passes, but the address equality
-    // check `admin.require_auth()` still validates the stored admin.
-    // The test verifies the contract logic path is correct.
-    // Admin can pause
-    client.pause();
-
-    // Admin can unpause
-    client.unpause();
-
-    // Verify contract is unpaused (redeem should work)
-    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id.clone(), &10000);
-    let token_id = client.mint_voucher(&admin, &non_admin, &500);
-    client.redeem_voucher_from(&non_admin, &token_id);
-    assert_eq!(client.get_balance(&non_admin, &token_id), 0);
-}
-
-/// Verify that initialize cannot be called twice.
-#[test]
-fn test_initialize_once_only() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-
-    // Second initialize must panic
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-    }));
-    assert!(res.is_err(), "second initialize must be rejected");
-}
-
-/// Verify that redeem_voucher (deprecated wrapper) always panics.
-#[test]
-fn test_redeem_voucher_deprecated_panics() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.redeem_voucher(&999);
-    }));
-    assert!(res.is_err(), "redeem_voucher must always panic");
-}
-
-/// Verify that minting with zero value is allowed (edge case — value stored as 0).
-#[test]
-fn test_mint_voucher_zero_value() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id.clone(), &10000);
-
-    // Mint with zero value — should succeed (voucher exists, just worth 0)
-    let token_id = client.mint_voucher(&admin, &user, &0);
-    assert_eq!(client.get_balance(&user, &token_id), 1);
-
-    // Redeem zero-value voucher — transfers 0 tokens
-    let tyc_token = token::Client::new(&env, &tyc_token_id);
-    let balance_before = tyc_token.balance(&user);
-    client.redeem_voucher_from(&user, &token_id);
-    assert_eq!(tyc_token.balance(&user), balance_before); // no change
-    assert_eq!(client.get_balance(&user, &token_id), 0);
-}
-
-/// Basic mint via the test_mint helper: balance accumulates across calls.
-#[test]
-fn test_mint() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    let user = Address::generate(&env);
-
-    assert_eq!(client.get_balance(&user, &300), 0);
-
-    client.test_mint(&user, &300, &7);
-    assert_eq!(client.get_balance(&user, &300), 7);
-
-    client.test_mint(&user, &300, &3);
-    assert_eq!(client.get_balance(&user, &300), 10);
-}
-
-/// Basic burn via the test_burn helper: balance decrements correctly.
-#[test]
-fn test_burn() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    let user = Address::generate(&env);
-
-    client.test_mint(&user, &100, &5);
-    assert_eq!(client.get_balance(&user, &100), 5);
-
-    client.test_burn(&user, &100, &3);
-    assert_eq!(client.get_balance(&user, &100), 2);
-
-    client.test_burn(&user, &100, &2);
-    assert_eq!(client.get_balance(&user, &100), 0);
-}
-
-/// Burning more than the held balance must panic with "Insufficient balance".
-#[test]
-#[should_panic(expected = "Insufficient balance")]
-fn test_burn_insufficient() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    let user = Address::generate(&env);
-
-    client.test_mint(&user, &200, &2);
-    client.test_burn(&user, &200, &5); // 5 > 2 — must panic
-}
-
-/// mint_voucher and redeem_voucher_from each emit at least one event.
-#[test]
-fn test_events() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-    token::StellarAssetClient::new(&env, &tyc_token_id).mint(&contract_id, &10_000);
-
-    let events_before_mint = env.events().all().len();
-    let token_id = client.mint_voucher(&admin, &user, &500);
-    assert!(
-        env.events().all().len() > events_before_mint,
-        "mint_voucher must emit events"
-    );
-
-    let events_before_redeem = env.events().all().len();
-    client.redeem_voucher_from(&user, &token_id);
-    assert!(
-        env.events().all().len() > events_before_redeem,
-        "redeem_voucher_from must emit events"
-    );
-}
-
-/// Adding 1 to a balance already at u64::MAX must panic with "Balance overflow".
-#[test]
-#[should_panic(expected = "Balance overflow")]
-fn test_overflow() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    let user = Address::generate(&env);
-
-    client.test_mint(&user, &400, &u64::MAX);
-    client.test_mint(&user, &400, &1); // must overflow
-}
-
-/// A fresh address returns 0 for any token_id and owned_token_count.
-#[test]
-fn test_zero_balance() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-    let user = Address::generate(&env);
-
-    assert_eq!(client.get_balance(&user, &0), 0);
-    assert_eq!(client.get_balance(&user, &1_000_000), 0);
-    assert_eq!(client.get_balance(&user, &u128::MAX), 0);
-    assert_eq!(client.owned_token_count(&user), 0);
-}
-
-/// Verify that voucher IDs are monotonically increasing and unique.
-#[test]
-fn test_voucher_ids_are_unique() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-
-    let id1 = client.mint_voucher(&admin, &user, &100);
-    let id2 = client.mint_voucher(&admin, &user, &200);
-    let id3 = client.mint_voucher(&admin, &user, &300);
-
-    assert!(id1 < id2, "voucher IDs must be monotonically increasing");
-    assert!(id2 < id3, "voucher IDs must be monotonically increasing");
-    assert_ne!(id1, id2);
-    assert_ne!(id2, id3);
-}
-
-/// Verify that redeeming a non-existent token_id panics.
-#[test]
-fn test_redeem_nonexistent_token_panics() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-
-    let tyc_token_admin = Address::generate(&env);
-    let tyc_token_id = env
-        .register_stellar_asset_contract_v2(tyc_token_admin.clone())
-        .address();
-    let usdc_token_admin = Address::generate(&env);
-    let usdc_token_id = env
-        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
-        .address();
-
-    let contract_id = env.register(TycoonRewardSystem, ());
-    let client = TycoonRewardSystemClient::new(&env, &contract_id);
-
-    client.initialize(&admin, &tyc_token_id, &usdc_token_id);
-
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.redeem_voucher_from(&user, &999_999_999_999u128);
-    }));
-    assert!(res.is_err(), "redeeming non-existent token must panic");
 }

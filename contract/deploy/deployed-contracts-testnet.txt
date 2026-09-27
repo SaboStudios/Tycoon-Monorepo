@@ -1,21 +1,4 @@
 # Deployed Contracts — Testnet
-#
-# Registry of all Tycoon contracts deployed to Stellar Testnet.
-#
-# Format: <contract_name> <contract_id> <wasm_hash> <deployed_at_iso8601>
-#
-# Validation Rules:
-#   - contract_name: Must match one of: tycoon_token, tycoon_reward_system,
-#     tycoon_collectibles, tycoon_boost_system, tycoon_game, tycoon_main_game
-#   - contract_id: Must be a valid Soroban contract ID (56 chars, alphanumeric)
-#   - wasm_hash: Must be a valid SHA-256 hex digest (64 chars, lowercase hex)
-#   - deployed_at_iso8601: Must be in format YYYY-MM-DDTHH:MM:SSZ
-#
-# Maintenance:
-#   - Added automatically by scripts/deploy.sh during deployment
-#   - DO NOT edit manually; use deploy.sh to add entries
-#   - To validate entries: ./scripts/validate-deploy-registry.sh testnet
-#   - To remove a deployment: contact maintainers (implies redeployment)
-#   - Stale entries (> 90 days without activity) should be reviewed quarterly
-#
-# Note: Expired/stale entries should be preserved for audit trail purposes.
+# Format: <contract_name> <contract_id> <wasm_hash> <deployed_at>
+# Updated automatically by scripts/deploy.sh
+# DO NOT edit manually — use deploy.sh to add entries

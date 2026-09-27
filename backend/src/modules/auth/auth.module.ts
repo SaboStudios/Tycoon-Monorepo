@@ -29,13 +29,14 @@ import { AuthAuditService } from './audit/auth-audit.service';
           expiresIn: configService.get<number>('jwt.expiresIn') || 900,
         },
         verifyOptions: {
-          clockTolerance: configService.get<number>('jwt.clockTolerance') || 60,
+          clockTolerance:
+            configService.get<number>('jwt.clockTolerance') || 60,
         },
       }),
     }),
   ],
   controllers: [AuthController, AdminAuthController],
   providers: [AuthService, JwtStrategy, LocalStrategy, AuthAuditService],
-  exports: [AuthService, JwtModule, JwtStrategy],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

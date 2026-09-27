@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -19,15 +18,19 @@ import { Gift } from '../gifts/entities/gift.entity';
 import { GiftStatus } from '../gifts/enums/gift-status.enum';
 import { RedisService } from '../redis/redis.service';
 import { secureRandomHex } from '../../common/crypto-secure-random';
-import { PaginationService, PaginatedResponse } from '../../common';
 
-/** @deprecated Use PaginatedResponse<ShopItem> from common instead. */
-export type PaginatedShopItems = PaginatedResponse<ShopItem>;
+export interface PaginatedShopItems {
+  data: ShopItem[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
 @Injectable()
 export class ShopService {
-  private readonly logger = new Logger(ShopService.name);
-
   constructor(
     @InjectRepository(ShopItem)
     private readonly shopItemRepository: Repository<ShopItem>,
@@ -37,7 +40,6 @@ export class ShopService {
     private readonly giftsService: GiftsService,
     private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
-    private readonly paginationService: PaginationService,
   ) {}
 
   /**
@@ -49,22 +51,22 @@ export class ShopService {
       price: String(createShopItemDto.price),
     });
     const saved = await this.shopItemRepository.save(item);
-    this.logger.log(`Created shop item: ${saved.id} (${saved.name})`);
     await this.invalidateCache();
     return saved;
   }
 
   /**
-   * List shop items with optional filters, sorting, and pagination.
-   * Uses PaginationService for stable, consistent page results.
+   * List shop items with optional filters and pagination
    */
   async findAll(
     filterDto: FilterShopItemsDto,
     userId?: number,
   ): Promise<PaginatedShopItems> {
-    const { type, rarity, active = true } = filterDto;
+    const { type, rarity, active = true, page = 1, limit = 20 } = filterDto;
 
-    const qb = this.shopItemRepository.createQueryBuilder('item');
+    const qb = this.shopItemRepository
+      .createQueryBuilder('item')
+      .orderBy('item.created_at', 'DESC');
 
     if (type !== undefined) {
       qb.andWhere('item.type = :type', { type });
@@ -78,24 +80,39 @@ export class ShopService {
       qb.andWhere('item.active = :active', { active });
     }
 
-    const paginated = await this.paginationService.paginate(qb, filterDto);
+    const total = await qb.getCount();
+    const data = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
 
-    // If userId is provided, annotate each item with ownership flag.
+    // If userId is provided, check ownership
+    let itemsWithOwnership = data as (ShopItem & { is_owned?: boolean })[];
     if (userId) {
       const userInventory = await this.dataSource
         .getRepository(UserInventory)
-        .find({ where: { user_id: userId } });
+        .find({
+          where: { user_id: userId },
+        });
 
       const ownedItemIds = new Set(
         userInventory.map((inv) => inv.shop_item_id),
       );
-      paginated.data = paginated.data.map((item) => ({
+      itemsWithOwnership = data.map((item) => ({
         ...item,
         is_owned: ownedItemIds.has(item.id),
-      })) as ShopItem[];
+      }));
     }
 
-    return paginated;
+    return {
+      data: itemsWithOwnership,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
@@ -119,7 +136,6 @@ export class ShopService {
     const item = await this.findOne(id);
     Object.assign(item, updateShopItemDto);
     const saved = await this.shopItemRepository.save(item);
-    this.logger.log(`Updated shop item: ${id}`);
     await this.invalidateCache(id);
     return saved;
   }
@@ -132,7 +148,6 @@ export class ShopService {
     const item = await this.findOne(id);
     item.active = false;
     const saved = await this.shopItemRepository.save(item);
-    this.logger.log(`Deactivated shop item: ${id}`);
     await this.invalidateCache(id);
     return saved;
   }
@@ -151,10 +166,6 @@ export class ShopService {
       message,
       payment_method = 'balance',
     } = dto;
-
-    this.logger.log(
-      `Initiating purchaseAndGift: sender ${senderId}, receiver ${receiver_id}, item ${shop_item_id}`,
-    );
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -231,9 +242,6 @@ export class ShopService {
       await queryRunner.manager.save(savedPurchase);
 
       await queryRunner.commitTransaction();
-      this.logger.log(
-        `purchaseAndGift successful: purchase ${savedPurchase.id}, gift ${savedGift.id}`,
-      );
 
       // 9. TODO: Notify receiver (implement notification service)
       // await this.notificationService.notifyGiftReceived(receiver_id, savedGift);
@@ -243,7 +251,6 @@ export class ShopService {
         gift: savedGift,
       };
     } catch (err) {
-      this.logger.error(`purchaseAndGift failed: ${err.message}`, err.stack);
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
@@ -260,64 +267,43 @@ export class ShopService {
   }
 
   /**
-   * Get purchase history for a user with stable pagination.
+   * Get purchase history for a user
    */
   async getPurchaseHistory(
     userId: number,
     page: number = 1,
     limit: number = 20,
-  ): Promise<PaginatedResponse<Purchase>> {
+  ): Promise<{
+    data: Purchase[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
     const qb = this.purchaseRepository
       .createQueryBuilder('purchase')
       .leftJoinAndSelect('purchase.shop_item', 'shop_item')
-      .where('purchase.user_id = :userId', { userId });
+      .where('purchase.user_id = :userId', { userId })
+      .orderBy('purchase.created_at', 'DESC');
 
-    return this.paginationService.paginate(qb, { page, limit });
-  }
+    const total = await qb.getCount();
+    const data = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
 
-  /**
-   * Bulk update multiple shop items
-   * Supports updating price and/or active status for multiple items in a single operation
-   */
-  async bulkUpdate(
-    updates: Array<{ id: number; price?: number; active?: boolean }>,
-  ): Promise<ShopItem[]> {
-    const updatedItems: ShopItem[] = [];
-
-    for (const update of updates) {
-      try {
-        const item = await this.findOne(update.id);
-
-        if (update.price !== undefined) {
-          item.price = String(update.price);
-        }
-
-        if (update.active !== undefined) {
-          item.active = update.active;
-        }
-
-        const saved = await this.shopItemRepository.save(item);
-        updatedItems.push(saved);
-        this.logger.log(
-          `Bulk updated shop item ${update.id}: ${JSON.stringify(update)}`,
-        );
-        await this.invalidateCache(update.id);
-      } catch (error) {
-        this.logger.error(
-          `Failed to bulk update item ${update.id}: ${error.message}`,
-        );
-        // Continue with other items instead of throwing
-      }
-    }
-
-    return updatedItems;
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
    * Invalidate shop caches
    */
   private async invalidateCache(id?: number): Promise<void> {
-    this.logger.debug(`Invalidating shop cache${id ? ` for item ${id}` : ''}`);
     // Invalidate the list cache
     await this.redisService.delByPattern('tycoon:shop:items:*');
 

@@ -3,19 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Chance } from './entities/chance.entity';
 import { ChanceService } from './chance.service';
 import { ChanceController } from './chance.controller';
-import { ChanceValidationFilter, ChanceExceptionFilter } from './filters/chance-validation.filter';
-import { ChanceObservabilityService } from './chance-observability.service';
-import { LoggerModule } from '../../common/logger/logger.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Chance], LoggerModule)],
-  providers: [
-    ChanceService,
-    ChanceValidationFilter,
-    ChanceExceptionFilter,
-    ChanceObservabilityService,
-  ],
+  imports: [TypeOrmModule.forFeature([Chance])],
+  providers: [ChanceService],
   controllers: [ChanceController],
-  exports: [TypeOrmModule, ChanceObservabilityService],
+  exports: [TypeOrmModule],
 })
 export class ChanceModule {}

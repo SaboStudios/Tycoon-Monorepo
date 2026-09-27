@@ -1,82 +1,73 @@
-import type { NextConfig } from "next";
-import withBundleAnalyzer from "@next/bundle-analyzer";
+import type { NextConfig } from "next/server";
+
+/**
+ * Content-Security-Policy for Tycoon frontend.
+ *
+ * Source of truth: frontend/CSP_DOCUMENTATION.md
+ *
+ * connect-src is deny-by-default: only the NEAR wallet, NEAR RPC, and the
+ * first-party backend / shop-api origins are allowlisted. Everything else is
+ * blocked by the browser. Keep this list in sync with CSP_DOCUMENTATION.md.
+ */
+
+const isDev = process.env.NODE_ENV !== "production";
+
+// NEAR wallet + RPC hosts (testnet + mainnet). NEAR wallet is the only
+// supported chain UI per ADR-003 until Stellar is gated ready.
+const NEAR_CONNECT_SRC = [
+  "https://wallet.testnet.near.org",
+  "https://wallet.near.org",
+  "https://rpc.testnet.near.org",
+  "https://rpc.mainnet.near.org",
+  "https://helper.testnet.near.org",
+  "https://helper.mainnet.near.org",
+];
+
+// First-party API origins. Overridable per environment so previews and
+// staging can point at their own backend / shop-api without widening the
+// policy to a wildcard.
+const API_ORIGINS = [
+  process.env.NEXT_PUBLIC_API_URL,
+  process.env.NEXT_PUBLIC_SHOP_API_URL,
+].filter((origin): origin is string => Boolean(origin));
+
+const connectSrc = [
+  "'self'",
+  ...NEAR_CONNECT_SRC,
+  ...API_ORIGINS,
+  // Dev-only: Next.js HMR / websocket transport.
+  ...(isDev ? ["ws:", "wss:"] : []),
+];
+
+const cspDirectives = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  `connect-src ${connectSrc.join(" ")}`,
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self'${isDev ? " 'unsafe-eval'" : ""}`,
+  "upgrade-insecure-requests",
+];
+
+const contentSecurityPolicy = cspDirectives.join("; ");
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
-  transpilePackages: [
-    "@near-wallet-selector/core",
-    "@near-wallet-selector/modal-ui",
-    "@near-wallet-selector/my-near-wallet",
-    "@near-wallet-selector/wallet-utils",
-  ],
-  // Emit detailed build output consumed by scripts/check-bundle-size.mjs
-  experimental: {
-    webpackBuildWorker: true,
-  },
-  headers: async () => {
-    const isDev = process.env.NODE_ENV === "development";
-    const isReportOnly = process.env.CSP_REPORT_ONLY === "true";
-
-    // CSP directives for production
-    const cspDirectives = [
-      "default-src 'self'",
-      "script-src 'self' 'nonce-{nonce}'",
-      "style-src 'self' 'nonce-{nonce}'",
-      "img-src 'self' data: https:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://api.example.com",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ];
-
-    const cspHeader = isDev
-      ? "Content-Security-Policy-Report-Only"
-      : isReportOnly
-        ? "Content-Security-Policy-Report-Only"
-        : "Content-Security-Policy";
-
+  async headers() {
     return [
       {
-        source: "/sw.js",
+        source: "/:path*",
         headers: [
           {
-            key: "Cache-Control",
-            value: "no-cache, no-store, must-revalidate",
-          },
-          {
-            key: "Service-Worker-Allowed",
-            value: "/",
-          },
-        ],
-      },
-      {
-        source: "/manifest.json",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "no-cache, no-store, must-revalidate",
-          },
-        ],
-      },
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: cspHeader,
-            value: cspDirectives.join("; "),
+            key: "Content-Security-Policy",
+            value: contentSecurityPolicy,
           },
           {
             key: "X-Content-Type-Options",
             value: "nosniff",
-          },
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
-          {
-            key: "X-XSS-Protection",
-            value: "1; mode=block",
           },
           {
             key: "Referrer-Policy",
@@ -88,8 +79,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-const analyzer = withBundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-});
-
-export default analyzer(nextConfig);
+export default nextConfig;

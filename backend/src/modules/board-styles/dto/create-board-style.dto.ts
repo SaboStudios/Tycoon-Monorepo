@@ -5,11 +5,8 @@ import {
   IsOptional,
   IsNumber,
   Min,
-  Max,
   IsObject,
-  IsNotEmpty,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class CreateBoardStyleDto {
   @ApiProperty({
@@ -17,7 +14,6 @@ export class CreateBoardStyleDto {
     example: 'Cyberpunk Theme',
   })
   @IsString()
-  @IsNotEmpty({ message: 'board style name is required' })
   name: string;
 
   @ApiProperty({
@@ -41,11 +37,9 @@ export class CreateBoardStyleDto {
     example: 9.99,
     required: false,
   })
-  @IsOptional()
-  @Type(() => Number)
   @IsNumber()
-  @Min(0, { message: 'price must be a non-negative number' })
-  @Max(99999999.99, { message: 'price exceeds maximum allowed value' })
+  @Min(0)
+  @IsOptional()
   price?: number;
 
   @ApiProperty({

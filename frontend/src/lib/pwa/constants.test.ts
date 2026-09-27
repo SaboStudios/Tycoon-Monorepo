@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isShellAssetPath, PWA_CACHE_NAME, PWA_OFFLINE_FALLBACK_URL } from ".";
+import { isShellAssetPath, PWA_CACHE_NAME, PWA_OFFLINE_FALLBACK_URL } from "./constants";
 
 describe("PWA constants", () => {
   it("uses an explicit versioned cache name", () => {

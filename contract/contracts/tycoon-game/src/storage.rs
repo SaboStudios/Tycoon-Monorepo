@@ -1,29 +1,7 @@
 #![allow(dead_code)]
-// NOTE (SW-FE-001): The blanket allow is intentional — storage helper functions
-// are the public API surface for the contract's persistence layer. Individual
-// getters/setters may appear unused to the compiler when called only through
-// the contractimpl macro expansion. Removing this attribute produces spurious
-// dead_code warnings on every storage accessor.
 use soroban_sdk::{contracttype, Address, Env, String};
 
-/// Storage keys for the contract.
-///
-/// ### Storage Rent and TTL Governance:
-/// In Soroban, storage is metered and subject to state expiration (TTL).
-///
-/// 1. **Instance Storage**:
-///    - Keys: `Owner`, `TycToken`, `UsdcToken`, `IsInitialized`, `RewardSystem`,
-///      `BackendGameController`, `StateVersion`.
-///    - These keys are bundled with the contract instance. When the contract is called,
-///      its instance TTL is checked and can be bumped. They are appropriate for configuration
-///      and core control variables that share the lifecycle of the contract itself.
-///
-/// 2. **Persistent Storage**:
-///    - Keys: `Collectible(u128)`, `CashTier(u32)`, `User(Address)`, `Registered(Address)`.
-///    - These keys are stored independently of the contract instance. They have independent
-///      TTL metrics and must be managed carefully. If a persistent entry (e.g., user profile)
-///      expires, it is archived and must be restored via a network fee. Users or indexing
-///      services should trigger TTL bumps to maintain these entries active.
+/// Storage keys for the contract
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
@@ -213,7 +191,5 @@ pub fn get_state_version(env: &Env) -> u32 {
 
 /// Set the current state version
 pub fn set_state_version(env: &Env, version: u32) {
-    env.storage()
-        .instance()
-        .set(&DataKey::StateVersion, &version);
+    env.storage().instance().set(&DataKey::StateVersion, &version);
 }

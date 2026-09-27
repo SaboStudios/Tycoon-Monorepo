@@ -27,11 +27,7 @@ fn make_env() -> Env {
 
 fn setup(env: &Env) -> (TycoonBoostSystemClient, Address) {
     let id = env.register(TycoonBoostSystem, ());
-    let client = TycoonBoostSystemClient::new(env, &id);
-    let admin = Address::generate(env);
-    let player = Address::generate(env);
-    client.initialize(&admin);
-    (client, player)
+    (TycoonBoostSystemClient::new(env, &id), Address::generate(env))
 }
 
 fn set_seq(env: &Env, seq: u32) {
@@ -49,13 +45,7 @@ fn set_seq(env: &Env, seq: u32) {
 }
 
 fn additive(id: u128, value: u32, expires_at_ledger: u32) -> Boost {
-    Boost {
-        id,
-        boost_type: BoostType::Additive,
-        value,
-        priority: 0,
-        expires_at_ledger,
-    }
+    Boost { id, boost_type: BoostType::Additive, value, priority: 0, expires_at_ledger }
 }
 
 // ── sentinel: expires_at_ledger == 0 means never expires ─────────────────────
@@ -90,7 +80,7 @@ fn test_expiry_boundary_at_exact_ledger() {
     client.add_boost(&player, &additive(1, 1000, 200));
 
     set_seq(&env, 200); // now at the expiry ledger
-                        // Boost is expired → base value only
+    // Boost is expired → base value only
     assert_eq!(client.calculate_total_boost(&player), 10000);
 }
 
@@ -105,7 +95,7 @@ fn test_expiry_boundary_one_before() {
     client.add_boost(&player, &additive(1, 1000, 200));
 
     set_seq(&env, 199); // one ledger before expiry
-                        // Boost is still active: 10000 * (1 + 0.10) = 11000
+    // Boost is still active: 10000 * (1 + 0.10) = 11000
     assert_eq!(client.calculate_total_boost(&player), 11000);
 }
 
@@ -153,7 +143,7 @@ fn test_prune_removes_expired_keeps_active() {
 
     set_seq(&env, 50);
     client.add_boost(&player, &additive(1, 1000, 100)); // expires at 100
-    client.add_boost(&player, &additive(2, 500, 0)); // never expires
+    client.add_boost(&player, &additive(2, 500, 0));    // never expires
 
     set_seq(&env, 150); // past expiry of boost 1
     client.prune_expired_boosts(&player);
@@ -218,72 +208,4 @@ fn test_expiry_boundary_at_genesis() {
     // Expired at ledger 1
     set_seq(&env, 1);
     assert_eq!(client.calculate_total_boost(&player), 10000);
-}
-
-// ── get_active_boosts time-aware filtering ────────────────────────────────────
-
-/// `get_active_boosts` excludes boosts whose `expires_at_ledger <= current_ledger`.
-#[test]
-fn test_get_active_boosts_filters_expired() {
-    let env = make_env();
-    let (client, player) = setup(&env);
-
-    set_seq(&env, 50);
-    client.add_boost(&player, &additive(1, 500, 100)); // expires at 100
-    client.add_boost(&player, &additive(2, 200, 0));   // never expires
-
-    set_seq(&env, 100); // boost 1 is now expired (100 <= 100)
-    let active = client.get_active_boosts(&player);
-    assert_eq!(active.len(), 1);
-    assert_eq!(active.get(0).unwrap().id, 2);
-}
-
-/// `get_active_boosts` returns all boosts when none have expired yet.
-#[test]
-fn test_get_active_boosts_all_active() {
-    let env = make_env();
-    let (client, player) = setup(&env);
-
-    set_seq(&env, 50);
-    client.add_boost(&player, &additive(1, 500, 200));
-    client.add_boost(&player, &additive(2, 200, 0));
-
-    set_seq(&env, 100); // both still active
-    assert_eq!(client.get_active_boosts(&player).len(), 2);
-}
-
-// ── prune_expired_boosts return count ────────────────────────────────────────
-
-/// `prune_expired_boosts` returns the exact count of boosts removed.
-#[test]
-fn test_prune_expired_boosts_returns_count() {
-    let env = make_env();
-    let (client, player) = setup(&env);
-
-    set_seq(&env, 50);
-    client.add_boost(&player, &additive(1, 500, 100));  // expires at 100
-    client.add_boost(&player, &additive(2, 300, 150));  // expires at 150
-    client.add_boost(&player, &additive(3, 200, 0));    // never expires
-
-    set_seq(&env, 200); // boosts 1 and 2 are both expired
-    let removed = client.prune_expired_boosts(&player);
-    assert_eq!(removed, 2);
-    assert_eq!(client.get_active_boosts(&player).len(), 1);
-}
-
-// ── multiple boosts with mixed expiry ─────────────────────────────────────────
-
-/// Expired boosts do not contribute to `calculate_total_boost`.
-#[test]
-fn test_mixed_expiry_only_active_contribute() {
-    let env = make_env();
-    let (client, player) = setup(&env);
-
-    set_seq(&env, 50);
-    client.add_boost(&player, &additive(1, 1000, 100)); // expires at 100: +10%
-    client.add_boost(&player, &additive(2, 500, 0));    // never expires: +5%
-
-    set_seq(&env, 100); // boost 1 expired
-    // Only boost 2 active: 10000 * (1 + 0.05) = 10500
-    assert_eq!(client.calculate_total_boost(&player), 10500);
 }

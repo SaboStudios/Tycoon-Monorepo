@@ -103,19 +103,6 @@ describe('UsersService', () => {
       expect(result).toEqual(paginatedResponse);
       expect(mockPaginationService.paginate).toHaveBeenCalled();
     });
-
-    it('passes an allowedSortFields array to PaginationService', async () => {
-      mockPaginationService.paginate.mockResolvedValue({ data: [], meta: {} });
-      repositoryMock.createQueryBuilder = jest.fn().mockReturnValue({});
-
-      await service.findAll({ page: 1, sortBy: 'email' });
-
-      const [, , , allowedSortFields] =
-        mockPaginationService.paginate.mock.calls[0];
-      expect(Array.isArray(allowedSortFields)).toBe(true);
-      expect(allowedSortFields).toContain('email');
-      expect(allowedSortFields).toContain('id');
-    });
   });
 
   describe('findOne', () => {
@@ -220,26 +207,6 @@ describe('UsersService', () => {
       const setCall = setSpy.mock.calls[0][0] as Record<string, () => string>;
       expect(setCall.game_won()).toBe('game_won'); // Should not increment
       expect(setCall.game_lost()).toBe('game_lost + 1');
-    });
-  });
-
-  describe('adminResetPassword', () => {
-    it('should reset password and create an admin audit log', async () => {
-      const user = { id: 1, email: 'test@example.com', password: 'old' };
-      repositoryMock.findOne!.mockResolvedValue(user);
-      repositoryMock.save!.mockResolvedValue({ ...user, password: 'hashed' });
-
-      const result = await service.adminResetPassword(1, 'new-password', 99);
-
-      expect(result).toEqual({ message: 'Password reset successfully' });
-      expect(repositoryMock.save).toHaveBeenCalled();
-      expect(mockAdminLogsService.createLog).toHaveBeenCalledWith(
-        99,
-        'USER_PASSWORD_RESET',
-        1,
-        { resetBy: 'admin' },
-        undefined,
-      );
     });
   });
 });

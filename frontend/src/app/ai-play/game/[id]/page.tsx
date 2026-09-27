@@ -17,24 +17,15 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-interface AiGameContentProps {
-  id: string;
-}
-
-export function AiGameContent({ id }: AiGameContentProps): React.ReactNode {
-  const trimmedId = id ? id.trim() : "";
-  const gameCode = trimmedId.toUpperCase();
-  const isInvalid = gameCode.length === 0;
+function AiGameContent({ id }: { id: string }) {
+  const gameCode = id?.trim().toUpperCase() || "";
+  const isInvalid = !gameCode || gameCode.length === 0;
 
   if (isInvalid) {
     return (
-      <section
-        aria-label="Invalid game error"
-        role="alert"
-        className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4"
-      >
+      <section className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4">
         <div className="max-w-md w-full space-y-6 text-center bg-[#0A1A1B]/80 p-8 rounded-2xl border border-red-500/50 shadow-xl">
-          <Bot aria-hidden="true" className="w-16 h-16 mx-auto text-red-400" />
+          <Bot className="w-16 h-16 mx-auto text-red-400" />
           <h1 className="text-xl font-bold font-orbitron text-[#F0F7F7]">
             Invalid Game
           </h1>
@@ -55,28 +46,16 @@ export function AiGameContent({ id }: AiGameContentProps): React.ReactNode {
   }
 
   return (
-    <section
-      aria-label="AI game loading"
-      className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4"
-    >
-      <div
-        aria-busy="true"
-        aria-label={`Loading AI game ${gameCode}`}
-        className="max-w-md w-full space-y-6 text-center bg-[#0A1A1B]/80 p-8 rounded-2xl border border-[#00F0FF]/50 shadow-xl backdrop-blur-md"
-      >
-        <Bot aria-hidden="true" className="w-16 h-16 mx-auto text-[#00F0FF]" />
+    <section className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4">
+      <div className="max-w-md w-full space-y-6 text-center bg-[#0A1A1B]/80 p-8 rounded-2xl border border-[#00F0FF]/50 shadow-xl backdrop-blur-md">
+        <Bot className="w-16 h-16 mx-auto text-[#00F0FF]" />
         <h1 className="text-2xl sm:text-3xl font-bold font-orbitron text-[#F0F7F7] tracking-wider">
           AI Game – {gameCode}
         </h1>
         <p className="text-[#869298] text-sm">
           Game session initialized. Board loading...
         </p>
-        <div
-          role="status"
-          aria-live="polite"
-          aria-label="Loading spinner"
-          className="pt-4"
-        >
+        <div className="pt-4">
           <Spinner size="md" />
         </div>
         <Link
@@ -91,20 +70,12 @@ export function AiGameContent({ id }: AiGameContentProps): React.ReactNode {
   );
 }
 
-function AiGameLoading(): React.ReactNode {
+function AiGameLoading() {
   return (
-    <section
-      aria-label="Game loading"
-      aria-busy="true"
-      className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4"
-    >
+    <section className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4">
       <div className="flex flex-col items-center gap-4">
         <Spinner size="lg" />
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-[#00F0FF] text-lg font-semibold font-orbitron animate-pulse"
-        >
+        <p className="text-[#00F0FF] text-lg font-semibold font-orbitron animate-pulse">
           Loading game...
         </p>
       </div>
@@ -112,7 +83,7 @@ function AiGameLoading(): React.ReactNode {
   );
 }
 
-export default async function AiPlayGamePage({ params }: PageProps): Promise<React.ReactNode> {
+export default async function AiPlayGamePage({ params }: PageProps) {
   const { id } = await params;
 
   return (

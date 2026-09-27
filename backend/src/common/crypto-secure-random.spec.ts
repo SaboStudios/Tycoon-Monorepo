@@ -12,9 +12,7 @@ import {
 
 describe('crypto-secure-random', () => {
   const mockRandomInt = randomInt as jest.MockedFunction<typeof randomInt>;
-  const mockRandomBytes = randomBytes as jest.MockedFunction<
-    typeof randomBytes
-  >;
+  const mockRandomBytes = randomBytes as jest.MockedFunction<typeof randomBytes>;
 
   beforeEach(() => {
     jest.clearAllMocks();

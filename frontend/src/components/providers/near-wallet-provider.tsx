@@ -1,7 +1,6 @@
 "use client";
 
-// Modal UI styles are loaded lazily inside the useEffect that bootstraps the
-// wallet selector — keeping them off the critical CSS path improves LCP.
+import "@near-wallet-selector/modal-ui/styles.css";
 
 import React, {
   createContext,
@@ -23,23 +22,18 @@ import {
   DEFAULT_FUNCTION_CALL_GAS,
   getNearContractId,
   getNearNetworkId,
-  isValidNearAccountId,
+} from "@/lib/near/config";
+import {
   isLikelyUserRejectedError,
   nearErrorMessage,
   NEAR_SIGNATURE_REJECTED_MESSAGE,
+} from "@/lib/near/errors";
+import {
   getTransactionHashFromOutcome,
   isFinalExecutionSuccess,
-  getExplorerTransactionUrl,
-  isDepositSafe,
-  sanitizeErrorMessage,
-  MAX_DEPOSIT_YOCTO,
-  trackNearWalletConnected,
-  trackNearWalletDisconnected,
-  trackNearTxSubmitted,
-  trackNearTxConfirmed,
-  trackNearTxFailed,
-} from "@/lib/near";
-import type { NearTxRecord } from "@/lib/near";
+} from "@/lib/near/execution";
+import { getExplorerTransactionUrl } from "@/lib/near/explorer";
+import type { NearTxRecord } from "@/lib/near/types";
 
 export interface CallContractMethodParams {
   contractId: string;
@@ -52,8 +46,6 @@ export interface CallContractMethodParams {
 export interface NearWalletContextValue {
   ready: boolean;
   initError: string | null;
-  connectError: string | null;
-  disconnectError: string | null;
   networkId: ReturnType<typeof getNearNetworkId>;
   contractId: string;
   accountId: string | null;
@@ -61,7 +53,6 @@ export interface NearWalletContextValue {
   transactions: NearTxRecord[];
   connect: () => void;
   disconnect: () => Promise<void>;
-  clearError: () => void;
   callContractMethod: (
     params: CallContractMethodParams,
   ) => Promise<FinalExecutionOutcome | void>;
@@ -79,8 +70,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
 
   const [ready, setReady] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [connectError, setConnectError] = useState<string | null>(null);
-  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<NearTxRecord[]>([]);
@@ -91,17 +80,9 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
   const syncAccounts = useCallback((selector: WalletSelector) => {
     const s = selector.store.getState();
     const active = s.accounts.find((a) => a.active);
-    const nextAccountId = active?.accountId ?? null;
-    setAccountId((prev) => {
-      if (prev === null && nextAccountId !== null) {
-        trackNearWalletConnected(networkId);
-      } else if (prev !== null && nextAccountId === null) {
-        trackNearWalletDisconnected(networkId);
-      }
-      return nextAccountId;
-    });
+    setAccountId(active?.accountId ?? null);
     setAccounts(s.accounts.map((a) => a.accountId));
-  }, [networkId]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,9 +95,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
             import("@near-wallet-selector/core"),
             import("@near-wallet-selector/modal-ui"),
             import("@near-wallet-selector/my-near-wallet"),
-            // Load modal CSS only when the selector is actually bootstrapped so
-            // it stays off the critical CSS path and does not block LCP.
-            import("@near-wallet-selector/modal-ui/styles.css"),
           ]);
 
         const selector = await setupWalletSelector({
@@ -143,9 +121,7 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
 
         setReady(true);
       } catch (e) {
-        if (process.env.NODE_ENV !== "production") {
-          console.error(e);
-        }
+        console.error(e);
         setInitError(nearErrorMessage(e));
       }
     })();
@@ -156,35 +132,20 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
     };
   }, [contractId, networkId, syncAccounts]);
 
-  const clearError = useCallback(() => {
-    setConnectError(null);
-    setDisconnectError(null);
+  const connect = useCallback(() => {
+    modalRef.current?.show();
   }, []);
 
-  const connect = useCallback(() => {
-    clearError();
-    try {
-      modalRef.current?.show();
-    } catch (e) {
-      const msg = nearErrorMessage(e);
-      setConnectError(msg);
-      toast.error(`Failed to open wallet: ${msg}`);
-    }
-  }, [clearError]);
-
   const disconnect = useCallback(async () => {
-    clearError();
     const selector = selectorRef.current;
     if (!selector) return;
     try {
       const wallet = await selector.wallet();
       await wallet.signOut();
     } catch (e) {
-      const msg = nearErrorMessage(e);
-      setDisconnectError(msg);
-      toast.error(`Failed to disconnect wallet: ${msg}`);
+      toast.error(nearErrorMessage(e));
     }
-  }, [clearError]);
+  }, []);
 
   const clearTransactions = useCallback(() => {
     setTransactions([]);
@@ -198,21 +159,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         throw new Error("NEAR wallet is not ready");
       }
 
-      // Validate contractId and methodName before use to prevent injection.
-      if (!isValidNearAccountId(params.contractId)) {
-        throw new Error(`Invalid NEAR contract ID: "${params.contractId}"`);
-      }
-      if (!/^[a-zA-Z0-9_]{1,64}$/.test(params.methodName)) {
-        throw new Error(`Invalid NEAR method name: "${params.methodName}"`);
-      }
-
-      const deposit = params.deposit ?? BigInt(0);
-      if (!isDepositSafe(deposit)) {
-        throw new Error(
-          `Deposit ${deposit.toString()} yoctoNEAR exceeds the safe limit of ${MAX_DEPOSIT_YOCTO.toString()} (1 NEAR). Pass a smaller deposit.`,
-        );
-      }
-
       const id = crypto.randomUUID();
       const pending: NearTxRecord = {
         id,
@@ -221,7 +167,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         contractId: params.contractId,
       };
       setTransactions((prev) => [pending, ...prev].slice(0, 8));
-      trackNearTxSubmitted(networkId, params.methodName);
 
       try {
         const wallet = await selector.wallet();
@@ -232,6 +177,7 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         }
 
         const gas = params.gas ?? DEFAULT_FUNCTION_CALL_GAS;
+        const deposit = params.deposit ?? BigInt(0);
 
         const actions: Action[] = [
           {
@@ -252,7 +198,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         });
 
         if (outcome === undefined || outcome === null) {
-          trackNearTxFailed(networkId, params.methodName, "no_outcome");
           setTransactions((prev) =>
             prev.map((t) =>
               t.id === id
@@ -290,17 +235,10 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
           ),
         );
 
-        if (success) {
-          trackNearTxConfirmed(networkId, params.methodName);
-        } else {
-          trackNearTxFailed(networkId, params.methodName, "on_chain");
-        }
-
         return outcome;
       } catch (e) {
-        const msg = sanitizeErrorMessage(nearErrorMessage(e));
+        const msg = nearErrorMessage(e);
         if (isLikelyUserRejectedError(e)) {
-          trackNearTxFailed(networkId, params.methodName, "rejected");
           toast.error(NEAR_SIGNATURE_REJECTED_MESSAGE);
         } else {
           toast.error(msg);
@@ -326,8 +264,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
     () => ({
       ready,
       initError,
-      connectError,
-      disconnectError,
       networkId,
       contractId,
       accountId,
@@ -335,15 +271,12 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
       transactions,
       connect,
       disconnect,
-      clearError,
       callContractMethod,
       clearTransactions,
     }),
     [
       ready,
       initError,
-      connectError,
-      disconnectError,
       networkId,
       contractId,
       accountId,
@@ -351,7 +284,6 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
       transactions,
       connect,
       disconnect,
-      clearError,
       callContractMethod,
       clearTransactions,
     ],

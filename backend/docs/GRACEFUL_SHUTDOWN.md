@@ -1,82 +1,92 @@
-# Graceful Shutdown
+# Graceful Shutdown & Health/Readiness Probes
 
-## Overview
+This document describes how Tycoon backend services (backend and shop-api)
+shut down gracefully and how orchestrators should probe them.
 
-On `SIGTERM` (or `SIGINT`) the backend drains HTTP traffic, stops accepting new
-queue work, and cleanly closes all connection pools before the process exits.
-This prevents connection-error spikes during Kubernetes rolling deployments.
+## Liveness vs Readiness
 
-## Shutdown Sequence
+Tycoon exposes two distinct probe endpoints on every NestJS service
+(`backend` and `shop-api`). They must not be conflated.
 
-```
-SIGTERM received
-│
-├─ 1. Kubernetes removes pod from Service endpoints (no new traffic routed in)
-│
-├─ 2. NestJS app.close() → server.close()
-│      HTTP keep-alive connections are drained.
-│      keepAliveTimeout = SHUTDOWN_TIMEOUT_MS (15 s)
-│
-└─ 3. OnApplicationShutdown hooks (GracefulShutdownService)
-       a. BullMQ queues paused  — workers stop picking up new jobs;
-                                   in-flight jobs run to completion.
-       b. TypeORM DataSource.destroy() — PostgreSQL connection pool closed.
-       c. ioredis quit()              — Redis connection closed gracefully.
-```
+| Probe | Endpoint | Meaning | Orchestrator action |
+|-------|----------|---------|---------------------|
+| Liveness | `GET /health` | The process is alive and the event loop is responsive. It does **not** check dependencies. | Restart the container only if this fails repeatedly. |
+| Readiness | `GET /ready` | The process can serve traffic: required dependencies (Postgres, Redis) are reachable. | Remove the instance from the load balancer / do not route traffic. |
 
-## Timeout Values
+### Semantics
 
-| Variable | Default | Where set | Purpose |
-|---|---|---|---|
-| `SHUTDOWN_TIMEOUT_MS` | `15000` ms | `.env` / K8s env | Max time for in-flight work before forced exit |
-| `keepAliveTimeout` | `SHUTDOWN_TIMEOUT_MS` | `main.ts` | HTTP server stops accepting keep-alive connections |
-| `headersTimeout` | `SHUTDOWN_TIMEOUT_MS + 1000` | `main.ts` | Must be > keepAliveTimeout |
-| `terminationGracePeriodSeconds` | `30` s | `k8s/deployment.yaml` | Total K8s grace window |
-| `preStop sleep` | `5` s | `k8s/deployment.yaml` | Delay before SIGTERM so endpoint removal propagates |
+- **`/health` (liveness)** returns `200` with a minimal body
+  (`{ "status": "ok" }`). It must never depend on Postgres, Redis, or any
+  downstream service. A dependency outage must not cause a liveness failure,
+  otherwise the orchestrator will restart-loop healthy processes.
+- **`/ready` (readiness)** returns `200` only when all required dependencies
+  are reachable. If any required dependency is down it returns `503` with
+  `{ "status": "unavailable", "checks": { ... } }`.
 
-**Rule:** `SHUTDOWN_TIMEOUT_MS` < `terminationGracePeriodSeconds × 1000`
+### Fail-closed behavior
 
-With defaults: `15 000 ms` < `30 000 ms` ✓
+Readiness is **fail-closed**: if a required dependency cannot be verified, the
+probe reports not-ready. Writes (purchases, inventory, admin mutations) must
+never be served by an instance that is not ready. The server remains the source
+of truth for money, dice, and inventory.
 
-The remaining ~15 s covers the `preStop` sleep (5 s), HTTP drain, and process
-exit overhead.
+## Probe responses
 
-## Kubernetes Alignment
+Probe responses are intentionally minimal and must not leak secrets or PII.
 
-See [`k8s/deployment.yaml`](../k8s/deployment.yaml).
+- Do **not** include connection strings, credentials, hostnames, or user data.
+- Dependency check results are reported as coarse status only
+  (e.g. `"postgres": "up" | "down"`), never with error messages that could
+  contain connection details.
+- Telemetry labels for probe metrics must use bounded values
+  (service name, probe name, status) and must not include request payloads,
+  tokens, or PII.
 
-Key settings:
-- `terminationGracePeriodSeconds: 30`
-- `lifecycle.preStop` exec sleep of 5 s (lets endpoint removal propagate before SIGTERM)
-- `strategy.rollingUpdate.maxUnavailable: 0` — zero-downtime rollouts
+Example readiness response when healthy:
 
-## Changing the Timeout
-
-1. Update `SHUTDOWN_TIMEOUT_MS` in your `.env` / K8s `env` block.
-2. Ensure `terminationGracePeriodSeconds` in `k8s/deployment.yaml` is at least
-   `SHUTDOWN_TIMEOUT_MS / 1000 + 10` seconds.
-
-Example for longer-running jobs (30 s):
-```yaml
-# k8s/deployment.yaml
-terminationGracePeriodSeconds: 50
-
-# env
-- name: SHUTDOWN_TIMEOUT_MS
-  value: "30000"
+```json
+{ "status": "ok", "checks": { "postgres": "up", "redis": "up" } }
 ```
 
-## Testing
+Example readiness response when a dependency is down:
 
-Unit tests covering the shutdown service live in
-`backend/test/graceful-shutdown.spec.ts`.
-
-To verify manually during a rolling deployment:
-```bash
-# Watch for connection errors while rolling out
-kubectl rollout restart deployment/tycoon-backend
-kubectl get events --watch --field-selector reason=Killing
+```json
+{ "status": "unavailable", "checks": { "postgres": "up", "redis": "down" } }
 ```
 
-No `Error: connect ECONNREFUSED` or `ECONNRESET` events should appear in
-application logs during the rollout.
+## Metrics
+
+Probe outcomes are recorded using the existing observability conventions
+(RED metrics). Each probe emits a counter/histogram labelled with the service
+name, probe name (`health` / `ready`), and outcome (`ok` / `unavailable`).
+Labels stay bounded and free of secrets or PII.
+
+## Graceful shutdown sequence
+
+On `SIGTERM` / `SIGINT`:
+
+1. The service stops accepting new connections (readiness flips to not-ready
+   so the orchestrator drains traffic first).
+2. In-flight requests are allowed to complete within the shutdown grace period.
+3. Database and Redis connections are closed cleanly.
+4. The process exits `0`.
+
+If the grace period elapses, the process exits non-zero and the orchestrator
+may force-kill it.
+
+## Operator expectations
+
+- Configure liveness probes against `/health` and readiness probes against
+  `/ready` for both `backend` and `shop-api`.
+- Do not point liveness probes at `/ready`; a dependency outage would then
+  trigger unnecessary restarts.
+- During a Postgres or Redis outage, expect instances to report not-ready and
+  be removed from rotation. Writes fail closed until dependencies recover.
+- After dependencies recover, readiness returns to `200` automatically; no
+  manual restart is required.
+
+## Related documents
+
+- `docs/API_ERROR_RESPONSE_STANDARDS.md` — error response shape and status codes.
+- `SHOP_PURCHASES_RUNBOOK.md` — purchase write path and idempotency semantics.
+- `ADR-001` / `ADR-003` — architecture and chain gating notes.

@@ -23,8 +23,7 @@ import { AdminLogsModule } from './modules/admin-logs/admin-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { ChanceModule } from './modules/chance/chance.module';
 import { CacheInterceptor } from './common/interceptors/cache.interceptor';
-import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
-import { ObservabilityModule } from './observability/observability.module';
+import { HealthController } from './health/health.controller';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { CommunityChestModule } from './modules/community-chest/community-chest.module';
 import { GamesModule } from './modules/games/games.module';
@@ -44,25 +43,17 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { TourAnalyticsModule } from './modules/tour-analytics/tour-analytics.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { NearModule } from './modules/near/near.module';
 import { LedgerReconciliationModule } from './modules/ledger-reconciliation/ledger-reconciliation.module';
-import { NotificationsModule } from './modules/fetch-notification/notifications.module';
 
 @Module({
   imports: [
     // Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [
-        appConfig,
-        databaseConfig,
-        gameConfig,
-        jwtConfig,
-        redisConfig,
-        uploadConfig,
-        nearConfig,
-      ],
+      load: [appConfig, databaseConfig, gameConfig, jwtConfig, redisConfig, uploadConfig, nearConfig],
       envFilePath: '.env',
       validationSchema,
       // Report ALL missing/invalid vars at once instead of stopping at the first.
@@ -80,7 +71,7 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
       },
     ]),
 
-    ObservabilityModule,
+    MetricsModule,
 
     // TypeORM Module
     TypeOrmModule.forRootAsync({
@@ -130,19 +121,14 @@ import { NotificationsModule } from './modules/fetch-notification/notifications.
     TourAnalyticsModule,
     LedgerReconciliationModule,
     NearModule,
-    NotificationsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     SuspensionCheckMiddleware,
     {
       provide: APP_GUARD,
       useClass: AppThrottlerGuard,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: RequestLoggerInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

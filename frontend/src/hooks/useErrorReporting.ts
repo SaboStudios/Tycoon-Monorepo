@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { sanitizeError, type SanitizedError } from "@/lib/errors/types";
 
 export interface ErrorReportOptions {
@@ -45,16 +45,10 @@ export interface UseErrorReportingReturn {
  * ```
  */
 export function useErrorReporting(): UseErrorReportingReturn {
-  const [lastError, setLastError] = useState<SanitizedError | null>(null);
-  const [errorHistory, setErrorHistory] = useState<SanitizedError[]>([]);
-
   const reportError = useCallback(
     (error: unknown, options?: ErrorReportOptions) => {
       // Sanitize error (removes PII and sensitive data)
       const sanitized = sanitizeError(error);
-
-      setLastError(sanitized);
-      setErrorHistory((prev) => [...prev.slice(-9), sanitized]);
 
       // Create safe report (no PII, tokens, or sensitive URLs)
       const report = {
@@ -72,8 +66,8 @@ export function useErrorReporting(): UseErrorReportingReturn {
             : undefined,
       };
 
-      // Log to console outside production (includes test/dev)
-      if (process.env.NODE_ENV !== "production") {
+      // Log to console in development
+      if (process.env.NODE_ENV === "development") {
         console.error("[Error Report]", report);
       }
 
@@ -86,8 +80,7 @@ export function useErrorReporting(): UseErrorReportingReturn {
   );
 
   const clearErrors = useCallback(() => {
-    setLastError(null);
-    setErrorHistory([]);
+    // Clear any stored errors
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("tycoon_errors");
     }
@@ -96,8 +89,8 @@ export function useErrorReporting(): UseErrorReportingReturn {
   return {
     reportError,
     clearErrors,
-    lastError,
-    errorHistory,
+    lastError: null,
+    errorHistory: [],
   };
 }
 

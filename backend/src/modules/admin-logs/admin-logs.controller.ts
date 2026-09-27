@@ -8,12 +8,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import * as express from 'express';
-import {
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminLogsService } from './admin-logs.service';
 import { PaginatedResponse } from '../../common';
 import { AdminLog } from './entities/admin-log.entity';
@@ -36,9 +31,7 @@ export class AdminLogsController {
 
   @Get()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
-  @ApiOperation({
-    summary: 'Retrieve admin audit logs with filters and pagination',
-  })
+  @ApiOperation({ summary: 'Retrieve admin audit logs with filters and pagination' })
   @ApiResponse({ status: HttpStatus.OK, type: [AdminLog] })
   async findAll(
     @Query() queryDto: AdminLogQueryDto,

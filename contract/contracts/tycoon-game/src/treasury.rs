@@ -9,12 +9,10 @@ pub struct TreasurySnapshot {
 impl TreasurySnapshot {
     /// Returns true iff the balance sheet invariant holds.
     pub fn invariant_holds(&self) -> bool {
-        let lhs = self.sum_of_balances.checked_add(self.escrow);
-        let rhs = self.liabilities.checked_add(self.treasury);
-        match (lhs, rhs) {
-            (Some(l), Some(r)) => l == r,
-            _ => false,
-        }
+        self.sum_of_balances
+            .checked_add(self.escrow)
+            .map(|lhs| lhs == self.liabilities.saturating_add(self.treasury))
+            .unwrap_or(false)
     }
 
     /// Panics with a descriptive message if the invariant is violated.

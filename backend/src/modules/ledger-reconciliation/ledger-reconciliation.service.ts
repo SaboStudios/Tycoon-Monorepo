@@ -205,13 +205,8 @@ export class LedgerReconciliationService {
   }
 
   /** Resolve a discrepancy with a note (admin action, no data mutation). */
-  async resolveDiscrepancy(
-    id: number,
-    note: string,
-  ): Promise<LedgerDiscrepancy> {
-    const discrepancy = await this.discrepancyRepo.findOneOrFail({
-      where: { id },
-    });
+  async resolveDiscrepancy(id: number, note: string): Promise<LedgerDiscrepancy> {
+    const discrepancy = await this.discrepancyRepo.findOneOrFail({ where: { id } });
     discrepancy.status = DiscrepancyStatus.RESOLVED;
     discrepancy.resolutionNote = note;
     return this.discrepancyRepo.save(discrepancy);

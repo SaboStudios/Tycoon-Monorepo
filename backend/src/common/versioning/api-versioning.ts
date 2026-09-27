@@ -1,8 +1,4 @@
-import {
-  INestApplication,
-  RequestMethod,
-  VersioningType,
-} from '@nestjs/common';
+import { INestApplication, RequestMethod, VersioningType } from '@nestjs/common';
 
 type ApiVersioningOptions = {
   apiPrefix: string;

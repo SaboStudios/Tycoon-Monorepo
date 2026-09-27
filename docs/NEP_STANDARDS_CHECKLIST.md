@@ -132,10 +132,6 @@ No standardized royalty interface exists for Stellar Soroban. Royalty logic woul
 - [x] Storage deposit pattern differences documented
 - [x] Royalty gap identified and legal review items listed
 - [x] All deviations from NEAR standards documented with rationale
-- [x] `transfer`, `transfer_from`, `total_supply`, `balance`, `approve`, `allowance`, `burn`, `burn_from` — all implemented in `tycoon-token/src/lib.rs`
-- [x] `name()` → "Tycoon", `symbol()` → "TYC", `decimals()` → 18 verified in lib.rs and test snapshots
-- [x] `_mint`/`_burn` storage-branch behaviour verified by `gas_snapshot_tests.rs` (#1356)
-- [x] Zero-amount mint/burn treated as no-op (not error) — confirmed in `invariant_tests.rs`
 
 ### Action Items ⚠️
 - [ ] Add `media_hash` and `reference_hash` to `CollectibleMetadata`
@@ -148,4 +144,4 @@ No standardized royalty interface exists for Stellar Soroban. Royalty logic woul
 
 ---
 
-*Generated for Issue #404 — Last updated: 2026-07-23 (synced with tycoon-token lib.rs, #1358)*
+*Generated for Issue #404 — Last updated: 2026-03-28*

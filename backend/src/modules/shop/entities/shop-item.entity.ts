@@ -47,9 +47,6 @@ export class ShopItem {
   @Column({ type: 'boolean', default: true })
   active: boolean;
 
-  @Column({ type: 'json', nullable: true, default: () => "'[]'" })
-  images: string[];
-
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 

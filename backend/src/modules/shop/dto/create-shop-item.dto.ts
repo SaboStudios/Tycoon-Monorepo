@@ -1,5 +1,4 @@
 import {
-  IsArray,
   IsBoolean,
   IsEnum,
   IsNotEmpty,
@@ -8,12 +7,11 @@ import {
   IsOptional,
   IsPositive,
   IsString,
-  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ShopItemType, ShopItemRarity } from '../enums/shop-item-type.enum';
+import { ShopItemType } from '../enums/shop-item-type.enum';
 import { Transform, Type } from 'class-transformer';
 
 export class CreateShopItemDto {
@@ -35,23 +33,20 @@ export class CreateShopItemDto {
   @IsEnum(ShopItemType)
   type: ShopItemType;
 
-  @ApiProperty({ description: 'Price of the item (min 0.01)', example: 9.99 })
+  @ApiProperty({ description: 'Price of the item', example: 9.99 })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
+  @IsPositive()
   price: number;
 
   @ApiPropertyOptional({
-    description: 'ISO 4217 currency code (e.g. USD, EUR)',
+    description: 'Currency code',
     default: 'USD',
-    maxLength: 3,
-    pattern: '^[A-Z]{3}$',
+    maxLength: 10,
   })
   @IsOptional()
   @IsString()
-  @Matches(/^[A-Z]{3}$/, {
-    message: 'currency must be a 3-letter ISO 4217 code (e.g. USD)',
-  })
+  @MaxLength(10)
   currency?: string;
 
   @ApiPropertyOptional({
@@ -62,13 +57,14 @@ export class CreateShopItemDto {
   metadata?: Record<string, unknown>;
 
   @ApiPropertyOptional({
-    enum: ShopItemRarity,
-    description: 'Rarity tier',
-    default: ShopItemRarity.COMMON,
+    description: 'Rarity tier (common, rare, epic, legendary)',
+    default: 'common',
+    maxLength: 50,
   })
   @IsOptional()
-  @IsEnum(ShopItemRarity)
-  rarity?: ShopItemRarity;
+  @IsString()
+  @MaxLength(50)
+  rarity?: string;
 
   @ApiPropertyOptional({
     description: 'Whether the item is available in the shop',
@@ -82,13 +78,4 @@ export class CreateShopItemDto {
   })
   @IsBoolean()
   active?: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Image URLs for the shop item',
-    type: [String],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  images?: string[];
 }

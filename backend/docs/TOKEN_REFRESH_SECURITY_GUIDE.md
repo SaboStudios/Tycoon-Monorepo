@@ -1,338 +1,139 @@
-# Token Refresh Security - Developer Guide
-
-## Quick Start
-
-### Running the Migration
-
-Before using the new security features, run the database migration:
-
-```bash
-npm run migration:run
-```
-
-This will:
-- Update the `refresh_tokens` table schema
-- Add metadata tracking columns
-- Clear existing tokens (users will need to re-authenticate)
-
-### Environment Configuration
-
-Add to your `.env` file:
-
-```bash
-# Optional: Clock skew tolerance (default: 60 seconds)
-JWT_CLOCK_SKEW_SECONDS=60
-```
-
-## Key Changes for Developers
-
-### 1. Token Storage
-
-**Before:**
-```typescript
-// Tokens stored in plaintext
-token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-```
-
-**After:**
-```typescript
-// Tokens stored as SHA-256 hashes
-tokenHash: "ebd917958fc7b45aa35d972f7babc2331c0776a4a2aed01a6d54f799d0407735"
-```
-
-### 2. Token Creation
-
-The `createRefreshToken` method now:
-- Returns an object with `{ token, entity }` instead of just the entity
-- Accepts optional `ipAddress` and `userAgent` parameters
-- Generates unique tokens using JWT ID (jti)
-
-**Usage:**
-```typescript
-const { token, entity } = await authService.createRefreshToken(
-  userId,
-  '192.168.1.1',  // optional
-  'Mozilla/5.0'    // optional
-);
-
-// Use token for response
-return { refreshToken: token };
-```
-
-### 3. Token Refresh
-
-The `refreshTokens` method now:
-- Accepts optional `ipAddress` and `userAgent` parameters
-- Implements reuse detection
-- Logs security events
-
-**Usage:**
-```typescript
-const result = await authService.refreshTokens(
-  refreshToken,
-  req.ip,                      // optional
-  req.headers['user-agent']    // optional
-);
-```
-
-### 4. Security Events
-
-Monitor logs for token reuse detection:
-
-```typescript
-// Log format
-[AuthService] Refresh token reuse detected for user 123. Revoking all tokens.
-```
-
-## Testing
-
-### Running Security Tests
-
-```bash
-# Run token security integration tests
-npm run test:e2e -- auth-token-security.e2e-spec.ts
-
-# Run all auth tests
-npm test -- auth.service.spec.ts
-```
-
-### Writing Tests
-
-When testing token refresh:
-
-```typescript
-// Create a token
-const { token } = await authService.createRefreshToken(userId);
-
-// Use it once (this revokes it)
-await authService.refreshTokens(token);
-
-// Trying to use it again should fail
-await expect(
-  authService.refreshTokens(token)
-).rejects.toThrow('Token reuse detected');
-```
-
-## Common Scenarios
-
-### Scenario 1: Normal Token Refresh
-
-```typescript
-// Client sends refresh token
-POST /api/v1/auth/refresh
-{
-  "refreshToken": "eyJhbGc..."
-}
-
-// Server response
-{
-  "accessToken": "new-access-token",
-  "refreshToken": "new-refresh-token"  // Old token is now invalid
-}
-```
-
-### Scenario 2: Token Reuse Attack
-
-```typescript
-// Attacker tries to reuse an old token
-POST /api/v1/auth/refresh
-{
-  "refreshToken": "old-revoked-token"
-}
-
-// Server response
-401 Unauthorized
-{
-  "statusCode": 401,
-  "message": "Token reuse detected"
-}
-
-// All user tokens are now revoked
-// User must re-authenticate
-```
-
-### Scenario 3: User Logout
-
-```typescript
-// User logs out
-POST /api/v1/auth/logout
-
-// All refresh tokens for this user are revoked
-// Any subsequent refresh attempts will fail
-```
-
-## Security Best Practices
-
-### 1. Always Pass Metadata
-
-When calling auth service methods, always pass IP address and user agent:
-
-```typescript
-// ✅ Good
-await authService.refreshTokens(
-  token,
-  req.ip,
-  req.headers['user-agent']
-);
-
-// ❌ Bad (missing metadata)
-await authService.refreshTokens(token);
-```
-
-### 2. Handle Token Reuse Errors
-
-```typescript
-try {
-  const result = await authService.refreshTokens(token);
-  return result;
-} catch (error) {
-  if (error.message === 'Token reuse detected') {
-    // Log security event
-    logger.warn('Potential security breach detected');
-    
-    // Force user to re-authenticate
-    throw new UnauthorizedException('Please log in again');
-  }
-  throw error;
-}
-```
-
-### 3. Monitor Token Metrics
-
-Track these metrics in production:
-- Token refresh rate
-- Token reuse detection frequency
-- Failed refresh attempts
-- Token lifetime distribution
-
-### 4. Clock Synchronization
-
-Ensure server clocks are synchronized:
-- Use NTP (Network Time Protocol)
-- Monitor clock drift
-- Adjust `JWT_CLOCK_SKEW_SECONDS` if needed
-
-## Troubleshooting
-
-### Issue: "Token reuse detected" on legitimate requests
-
-**Possible Causes:**
-1. Client is caching old tokens
-2. Multiple requests using the same token
-3. Race condition in token refresh
-
-**Solutions:**
-1. Ensure client updates stored token after each refresh
-2. Implement request queuing on client side
-3. Add retry logic with exponential backoff
-
-### Issue: "Invalid refresh token" errors
-
-**Possible Causes:**
-1. Token expired
-2. Token was revoked (logout)
-3. Database migration cleared tokens
-
-**Solutions:**
-1. Check token expiration time
-2. Verify user hasn't logged out
-3. Prompt user to re-authenticate
-
-### Issue: Clock skew errors
-
-**Possible Causes:**
-1. Server clocks out of sync
-2. `JWT_CLOCK_SKEW_SECONDS` too low
-
-**Solutions:**
-1. Synchronize server clocks with NTP
-2. Increase clock skew tolerance
-3. Monitor server time drift
-
-## API Reference
-
-### AuthService Methods
-
-#### `createRefreshToken(userId, ipAddress?, userAgent?)`
-
-Creates a new refresh token with metadata.
-
-**Parameters:**
-- `userId` (number): User ID
-- `ipAddress` (string, optional): Client IP address
-- `userAgent` (string, optional): Client user agent
-
-**Returns:**
-```typescript
-{
-  token: string;      // The actual JWT token
-  entity: RefreshToken;  // Database entity
-}
-```
-
-#### `refreshTokens(token, ipAddress?, userAgent?)`
-
-Refreshes access and refresh tokens.
-
-**Parameters:**
-- `token` (string): Current refresh token
-- `ipAddress` (string, optional): Client IP address
-- `userAgent` (string, optional): Client user agent
-
-**Returns:**
-```typescript
-{
-  accessToken: string;
-  refreshToken: string;
-}
-```
-
-**Throws:**
-- `UnauthorizedException`: Invalid, expired, or reused token
-
-#### `logout(userId)`
-
-Revokes all refresh tokens for a user.
-
-**Parameters:**
-- `userId` (number): User ID
-
-**Returns:** `Promise<void>`
-
-## Migration Guide
-
-### For Existing Applications
-
-1. **Backup Database**
-   ```bash
-   pg_dump your_database > backup.sql
-   ```
-
-2. **Run Migration**
-   ```bash
-   npm run migration:run
-   ```
-
-3. **Update Environment**
-   ```bash
-   echo "JWT_CLOCK_SKEW_SECONDS=60" >> .env
-   ```
-
-4. **Notify Users**
-   - All users will need to re-authenticate
-   - Existing refresh tokens are invalidated
-
-5. **Monitor Logs**
-   - Watch for "Token reuse detected" warnings
-   - Track authentication failures
-
-6. **Rollback Plan**
-   ```bash
-   npm run migration:revert
-   ```
-
-## Additional Resources
-
-- [Implementation Documentation](../TOKEN_REFRESH_SECURITY_IMPLEMENTATION.md)
-- [Integration Tests](../test/auth-token-security.e2e-spec.ts)
-- [OWASP JWT Security](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)
+# Token Refresh Security Guide
+
+This guide defines how Tycoon issues, refreshes, and revokes session credentials across the
+frontend (Next.js 16 / React 19), backend (NestJS 11), and shop-api (NestJS purchases SoT).
+It is the source of truth for the session httpOnly cookie + CSRF work tracked in issue #1729
+and must be read together with `frontend/docs/ADR-004-session-tokens-httpOnly-cookies.md` and
+`AUTH_JWT_RUNBOOK.md`.
+
+## 1. Token model
+
+- **Access token**: short-lived JWT (default 15 minutes). Never exposed to JavaScript.
+- **Refresh token**: opaque, high-entropy (>= 256 bits), single-use, rotated on every refresh.
+- **Session binding**: every refresh token is bound to a `session_id` and a `family_id`.
+- **Storage**: both tokens are delivered only as cookies (see section 2). No token is ever
+  returned in a JSON body, `localStorage`, `sessionStorage`, or any JS-readable location.
+
+## 2. Cookie policy (ADR-004)
+
+All session cookies MUST be set with:
+
+| Attribute  | Value                                                        |
+| ---------- | ------------------------------------------------------------ |
+| `HttpOnly` | `true` — JS-readable access tokens are banned                |
+| `Secure`   | `true` in every non-local environment                        |
+| `SameSite` | `Lax` for the session cookie, `Strict` for the CSRF cookie   |
+| `Path`     | `/` for the session cookie, `/` for the CSRF cookie          |
+| `Domain`   | unset (host-only) unless a documented cross-subdomain need   |
+| `Max-Age`  | access `900`, refresh `604800` (7 days)                      |
+
+Cookie names:
+
+- `tycoon_at` — access token (httpOnly, Secure, SameSite=Lax)
+- `tycoon_rt` — refresh token (httpOnly, Secure, SameSite=Lax, Path=`/api/auth`)
+- `tycoon_csrf` — CSRF token (readable by JS, Secure, SameSite=Strict)
+
+`tycoon_rt` is scoped to `/api/auth` so it is only sent to refresh/logout endpoints.
+
+## 3. CSRF strategy for cookie-authenticated mutations
+
+Because cookies are attached automatically by the browser, every state-changing request must
+prove it originated from the Tycoon origin.
+
+1. On login (and on refresh), the server issues a random `tycoon_csrf` cookie and returns the
+   same value in the `X-CSRF-Token` response header.
+2. The frontend api client reads `tycoon_csrf` and echoes it in the `X-CSRF-Token` request
+   header for every `POST`, `PUT`, `PATCH`, and `DELETE`.
+3. The backend rejects any cookie-authenticated mutation whose `X-CSRF-Token` header is
+   missing or does not match the `tycoon_csrf` cookie with `403 CSRF_TOKEN_INVALID`.
+4. `GET`/`HEAD`/`OPTIONS` are exempt but MUST NOT mutate state.
+5. The CSRF token is rotated whenever the session is refreshed or the user re-authenticates.
+
+Double-submit alone is not sufficient for privileged admin routes: those additionally require
+an `Origin`/`Referer` allowlist check (section 5).
+
+## 4. Refresh and rotation flow
+
+1. Client calls `POST /api/auth/refresh` with credentials included; the browser sends
+   `tycoon_rt` and `tycoon_csrf`.
+2. Server validates the refresh token, checks it is unused and unexpired, and verifies the
+   CSRF header matches the cookie.
+3. Server rotates: the presented refresh token is marked consumed and a new one is issued in
+   the same `family_id`.
+4. Server issues a new access token and a new CSRF token; both cookies are re-set.
+5. **Reuse detection**: if a refresh token that was already consumed is presented, the entire
+   `family_id` is revoked immediately, all sessions in the family are invalidated, and a
+   `refresh_reuse_detected` security event is emitted (no token values in the event).
+6. **Parallel refresh**: concurrent refreshes for the same token are serialized server-side.
+   The first wins; the losers receive `409 REFRESH_IN_PROGRESS` and must retry with the new
+   cookie. The client must not treat `409` as a logout.
+
+Refresh tokens are single-use. There is no grace window that allows a consumed token to be
+replayed.
+
+## 5. Redirect allowlist (`returnTo`)
+
+`returnTo` (and any equivalent post-auth redirect parameter) MUST be validated against an
+allowlist before use:
+
+- Only relative paths beginning with a single `/` are accepted.
+- Protocol-relative (`//evil.com`), absolute (`https://evil.com`), and backslash (`/\evil.com`)
+  values are rejected and replaced with the default landing route.
+- Encoded traversal (`%2f%2f`, `%5c`) is decoded once and re-validated.
+- Rejections are logged as `open_redirect_blocked` without the raw value.
+
+## 6. WebSocket handshake auth
+
+The WS gateway MUST parse the same `tycoon_at` cookie as REST. Handshake auth rules:
+
+- Read the access token from the cookie; do not accept tokens from query strings or the
+  first WS message.
+- Validate the JWT signature, expiry, and `session_id` exactly as REST does.
+- Reject the handshake with `4401` when the token is missing, expired, or revoked.
+- Re-check authorization on every privileged message; a valid handshake is not a standing
+  grant.
+
+## 7. NEAR signature verification
+
+- Challenges are domain-separated: the signed payload includes the Tycoon domain, the
+  `account_id`, a random nonce, and an issued-at timestamp.
+- The `account_id` is bound to the challenge and to the resulting session; a signature valid
+  for one account cannot be replayed for another.
+- Nonces are single-use and expire (default 5 minutes). Replayed nonces are rejected with
+  `401 NONCE_REPLAYED`.
+- Challenge issuance is throttled per IP and per `account_id` to prevent enumeration and
+  brute force.
+- A user rejecting the wallet signature results in `401 SIGNATURE_REJECTED`; the client shows
+  a retry affordance and does not create a session.
+
+## 8. Failure modes and fail-closed behavior
+
+- **Dependency outage** (Postgres, Redis, shop-api, RPC): writes fail closed. Reads may serve
+  cached data only when explicitly documented; auth and money paths never do.
+- **Auth expiry mid-flow**: the api client attempts a single refresh, then retries the original
+  request once. If refresh fails, the user is redirected to login and in-flight mutations are
+  abandoned.
+- **Forbidden role access**: `403` with a generic message; no role or resource enumeration.
+- **Idempotency**: mutating endpoints accept an idempotency key so duplicate requests and
+  reconnect retries do not double-apply.
+- **Oversized payloads**: rejected at the edge with `413` before reaching handlers.
+
+## 9. Logging and telemetry
+
+- Never log access tokens, refresh tokens, CSRF tokens, signatures, or raw cookies.
+- Redact `Authorization`, `Cookie`, and `Set-Cookie` headers in all logs.
+- Security events (`refresh_reuse_detected`, `open_redirect_blocked`, `nonce_replayed`,
+  `csrf_rejected`) carry identifiers only, never token values or PII.
+
+## 10. Checklist
+
+- [ ] Access and refresh tokens are httpOnly, Secure, SameSite cookies only.
+- [ ] No JS-readable access token anywhere in the frontend or api client.
+- [ ] CSRF token issued, echoed on mutations, and verified server-side.
+- [ ] Refresh rotation with reuse detection revokes the whole family.
+- [ ] Parallel refresh returns `409` and is retried, not treated as logout.
+- [ ] `returnTo` validated against the allowlist; open redirects blocked.
+- [ ] WS handshake parses the same cookie as REST and re-authorizes per message.
+- [ ] NEAR challenges are domain-separated, account-bound, throttled, and nonce-protected.
+- [ ] Writes fail closed on dependency outage.
+- [ ] No secrets or PII in logs or telemetry.

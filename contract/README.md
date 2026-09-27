@@ -1,177 +1,112 @@
-# Tycoon Smart Contracts
+# Tycoon Soroban Contracts
 
-Soroban smart contracts for the Tycoon gaming platform on Stellar blockchain.
+Soroban smart contracts for the Tycoon monorepo, built against **soroban-sdk v23**.
 
-## 🎮 Production Contracts
+## Workspace layout
 
-The following production contracts are part of the main workspace:
-
-| Contract                 | Description                                   | Path                              |
-| ------------------------ | --------------------------------------------- | --------------------------------- |
-| **tycoon-main-game**     | Main game logic — players, games, and lobbies | `contracts/tycoon-main-game/`     |
-| **tycoon-game**          | Core game mechanics and state management      | `contracts/tycoon-game/`          |
-| **tycoon-token**         | ERC-20 style token for in-game currency       | `contracts/tycoon-token/`         |
-| **tycoon-reward-system** | Reward distribution and achievements          | `contracts/tycoon-reward-system/` |
-| **tycoon-collectibles**  | NFT collectibles and items                    | `contracts/tycoon-collectibles/`  |
-| **tycoon-boost-system**  | Power-ups and boost mechanics                 | `contracts/tycoon-boost-system/`  |
-| **tycoon-lib**           | Shared library with common utilities          | `contracts/tycoon-lib/`           |
-
-## 📁 Project Structure
-
-```text
+```
 contract/
-├── Makefile                # Single entry: fmt, clippy, test, WASM release, CI parity
-├── Cargo.toml              # Workspace configuration
-├── README.md               # This file
-├── deploy/                 # wasm-hashes.txt, wasm-size-report.md (pipeline / local make)
-├── archive/                # Archived/experimental contracts (excluded from workspace)
-│   ├── README.md
-│   └── hello-world/        # Sample contract (reference only)
-└── contracts/              # Production contracts
-    ├── tycoon-main-game/
-    ├── tycoon-game/
-    ├── tycoon-token/
-    ├── tycoon-reward-system/
-    ├── tycoon-collectibles/
-    ├── tycoon-boost-system/
-    └── tycoon-lib/
+├── Cargo.toml                 # workspace manifest (soroban-sdk v23)
+├── README.md                  # this file
+├── ci/
+│   └── wasm-size-budget.json  # per-crate wasm size budget enforced in CI
+└── contracts/
+    └── <crate>/               # one crate per contract
 ```
 
-## 🚀 Quick Start
+Each crate under `contracts/*` is a workspace member. Crate APIs are expected to
+track the roadmap below and the `soroban-sdk` v23 surface; do not pin older SDK
+lines or vendor SDK types into crate public APIs.
 
-### Prerequisites
+## Roadmap / API alignment
 
-- [Rust](https://www.rust-lang.org/tools/install) (stable) with `wasm32-unknown-unknown`:
-  `rustup target add wasm32-unknown-unknown`
-- [GNU Make](https://www.gnu.org/software/make/)
-- [jq](https://jqlang.org/) — required for `make ci` / `make wasm-check` (WASM size budget)
-- Optional: [cargo-audit](https://github.com/rustsec/rustsec) for `make audit`
-- [Stellar CLI](https://developers.stellar.org/docs/build/smart-contracts/getting-started/install) — for legacy per-crate `stellar contract build` flows only; CI and this Makefile use `cargo` only
+- Target `soroban-sdk = "23"` for every crate; keep the workspace dependency
+  single-sourced in `contract/Cargo.toml`.
+- Public entrypoints use SDK-native types (`Address`, `Env`, `Symbol`, `Bytes`,
+  `i128`/`u128`) and return `Result<T, ContractError>` rather than panicking.
+- All arithmetic on balances, payouts, and counters uses checked operations
+  (`checked_add`, `checked_sub`, `checked_mul`, `checked_div`) and maps overflow
+  to an explicit error variant.
+- Storage keys are explicit enums/structs with `#[contracttype]`; no ad-hoc
+  string keys.
+- Events are emitted through `env.events().publish(...)` with stable topic
+  tuples (see *Events* below) so indexers and backend consumers can rely on them.
 
-From the `contract/` directory, use **one target** for local development (format, clippy, tests, release WASM):
+## AUTH_MATRIX
 
-```bash
-cd contract
-make dev
-```
+Every state-changing entrypoint must be authorized. The matrix below is the
+source of truth; update it in the same PR that adds or changes an entrypoint.
 
-That runs the same **release WASM** build as GitHub Actions (`cargo build --target wasm32-unknown-unknown --release`). For **exact CI parity** (build + size check + tests):
+| Entrypoint            | Caller            | Auth mechanism                          | Notes                                             |
+| --------------------- | ----------------- | --------------------------------------- | ------------------------------------------------- |
+| `initialize`          | deployer / admin  | `admin.require_auth()`                  | Callable once; re-init must fail closed.          |
+| `set_admin`           | current admin     | `admin.require_auth()`                  | Admin-only; emits `admin_changed`.                |
+| `mint` / `issue`      | admin             | `admin.require_auth()`                  | Admin-only; checked supply arithmetic.            |
+| `transfer`            | token holder      | `from.require_auth()`                   | Holder-authorized; checked balance arithmetic.    |
+| `payout`              | admin / treasury  | `admin.require_auth()`                  | Admin-only; unauthorized payout must fail closed. |
+| `pause` / `unpause`   | admin             | `admin.require_auth()`                  | Admin-only; gates all writes while paused.        |
+| read-only views       | anyone            | none                                    | Must not mutate storage or emit events.           |
 
-```bash
-make ci
-```
+Rules:
 
-Full parity with `contract-build.yml` (adds integration tests):
+- Deny by default: a new entrypoint without an explicit matrix row and an
+  `require_auth()` call is a review blocker.
+- Negative tests must exercise the unauthorized path **without**
+  `env.mock_all_auths()`, asserting the call fails with the expected auth error.
+- Auth expiry mid-flow and forbidden-role access are covered by the same
+  negative tests; do not rely on mocked auth to prove authorization.
 
-```bash
-make ci-full
-```
+## Events
 
-### Makefile reference
+Events are part of the public contract surface. Keep topics stable; additive
+changes only, and document any new event in this section.
 
-| Target | Purpose |
-|--------|---------|
-| `make help` | List all targets |
-| `make dev` | `fmt` + `clippy` + `test` + `build-wasm` (quickstart) |
-| `make ci` | Same commands as `.github/workflows/ci.yml` Contracts job |
-| `make ci-full` | `ci` + `test-integration` (matches extra tests in `contract-build.yml`) |
-| `make fmt` / `make clippy` / `make test` / `make build-wasm` | Workspace-wide |
-| `make wasm-check` | `bash scripts/check-wasm-sizes.sh` |
-| `make test-integration` | `cargo test --package tycoon-integration-tests -- --nocapture` |
-| `make wasm-hashes` | Write `deploy/wasm-hashes.txt` (after `build-wasm`) |
-| `make clean` | `cargo clean` |
-| `make audit` | `cargo audit` (if installed) |
-| `make fmt-PKG` …`wasm-PKG` | Per-crate, e.g. `make wasm-tycoon-game` |
+| Event            | Topics                          | Data                          |
+| ---------------- | ------------------------------- | ----------------------------- |
+| `admin_changed`  | `(Symbol("admin_changed"),)`    | `(old: Address, new: Address)`|
+| `transfer`       | `(Symbol("transfer"), from)`   | `(to: Address, amount: i128)` |
+| `payout`         | `(Symbol("payout"), to)`       | `(amount: i128)`              |
+| `paused`         | `(Symbol("paused"),)`          | `bool`                        |
 
-### Build All Contracts (without Make)
+Consumers (indexer, backend) must treat unknown topics as forward-compatible
+and ignore them rather than failing.
 
-```bash
-cd contract
+## Storage economics
 
-# Build for WASM (production) — same as `make build-wasm`
-cargo build --target wasm32-unknown-unknown --release
+- Follow `STORAGE_ECONOMICS` guidance: minimize persistent entries, prefer
+  `temporary` for short-lived data, and extend TTLs explicitly on hot keys.
+- Avoid unbounded iteration over storage in a single invocation; cap collection
+  sizes and fail closed when a cap would be exceeded.
+- Reject oversized payloads (e.g. `Bytes`/`Vec` inputs) before writing storage.
 
-# Build for testing (native)
-cargo build
-```
+## CI
 
-### Run Tests
+Contract jobs must stay green:
 
-```bash
-# Run all tests — same as `make test`
-cargo test --all
+- `cargo test -p <crate>` for each workspace member, including auth negatives.
+- `cargo build --target wasm32-unknown-unknown --release` for the workspace.
+- **wasm size job**: each crate's release wasm must stay within
+  `contract/ci/wasm-size-budget.json`. A budget overrun fails CI; shrink the
+  contract or raise the budget with justification in the PR.
+- Partial workspace compile is not acceptable: the whole `contracts/*`
+  workspace must build, not just the crate under change.
 
-# Run tests for a specific contract
-cargo test --package tycoon-main-game
-```
+## Stellar UI gating
 
-### Build Specific Contract
+Per ADR-003, NEAR is the only supported chain UI until Stellar is gated ready.
+Do **not** add or re-enable Stellar-facing UI claims (buttons, copy, feature
+flags) from contract work. Contract changes land behind the deploy checklist;
+UI exposure is a separate, gated change and is deny-listed here.
 
-```bash
-# Same as: make wasm-tycoon-main-game
-cargo build --package tycoon-main-game --target wasm32-unknown-unknown --release
+## PR checklist
 
-# Output will be in:
-# target/wasm32-unknown-unknown/release/tycoon_main_game.wasm
-```
-
-## 📦 Artifacts and deploy pipeline
-
-Paths are stable for CI and local builds. Use these when wiring uploads or verifying deployments.
-
-| Artifact | Path (relative to `contract/`) | Notes |
-|----------|-------------------------------|--------|
-| Release WASM (all binaries) | `target/wasm32-unknown-unknown/release/*.wasm` | Primary deploy inputs |
-| WASM size report | `deploy/wasm-size-report.md` | Created by `make wasm-check` / CI |
-| WASM SHA-256 list | `deploy/wasm-hashes.txt` | `make wasm-hashes` locally; CI generates in `contract-build.yml` |
-| CI artifact upload | `contract/target/**/release/*.wasm`, `contract/deploy/wasm-hashes.txt`, `contract/deploy/wasm-size-report.md` | See `.github/workflows/contract-build.yml` |
-
-Example filenames: `tycoon_main_game.wasm`, `tycoon_game.wasm`, `tycoon_token.wasm`, etc. (see `ci/wasm-size-budget.json`).
-
-## 🧪 Testing
-
-Each contract includes unit tests. Prefer `make test` (same as CI); or:
-
-```bash
-cargo test --all
-```
-
-For test output with logs:
-
-```bash
-cargo test --all -- --nocapture
-```
-
-## 📦 Deployment
-
-See the [Tycoon Deployment Guide](../../docs/CONTRACT_DEPLOYMENT.md) for deployment instructions.
-
-## 🧑‍💻 Testnet Dev Onboarding
-
-New to the project? See [docs/TESTNET_DEV_ONBOARDING.md](../../docs/TESTNET_DEV_ONBOARDING.md) for:
-- How to get free XLM on testnet (Friendbot)
-- Personal dev subaccount setup (`./scripts/create-dev-subaccounts.sh <alias>`)
-- Shared contract state policy and reset procedure
-
-## 🗄️ Archived Contracts
-
-The `archive/` directory contains experimental or sample contracts that are **not** part of the production workspace. These are kept for reference and educational purposes only.
-
-- **hello-world**: Basic Soroban contract example (archived)
-
-## 🗄️ Storage Economics
-
-See [docs/STORAGE_ECONOMICS.md](docs/STORAGE_ECONOMICS.md) for:
-
-- Per-user and per-item state size estimates for every contract
-- Refund patterns when keys are removed
-- Product implications and recommended item limits
-- Links to Stellar storage fee documentation
-
-## 🔗 Dependencies
-
-All contracts use Soroban SDK v23 as specified in the workspace `Cargo.toml`.
-
-## 📝 License
-
-MIT
+- [ ] Crate APIs align with this roadmap and `soroban-sdk` v23.
+- [ ] `AUTH_MATRIX` updated for any new/changed entrypoint.
+- [ ] Negative auth tests added **without** `env.mock_all_auths()`.
+- [ ] Checked arithmetic on all money/counter paths; overflow maps to an error.
+- [ ] Events documented above and topics kept stable.
+- [ ] `STORAGE_ECONOMICS` respected; no unbounded storage iteration.
+- [ ] wasm size within `contract/ci/wasm-size-budget.json`.
+- [ ] No secrets or keys committed; no PII in event data.
+- [ ] No ungated Stellar UI claims introduced.
+- [ ] Rollback notes included if the change is risky.

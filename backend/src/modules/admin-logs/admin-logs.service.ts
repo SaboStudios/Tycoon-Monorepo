@@ -6,7 +6,10 @@ import * as fastcsv from 'fast-csv';
 import { AdminLog } from './entities/admin-log.entity';
 import { AdminLogQueryDto } from './dto/admin-log-query.dto';
 import { AdminLogExportDto } from './dto/admin-log-export.dto';
-import { PaginationService, PaginatedResponse } from '../../common';
+import {
+  PaginationService,
+  PaginatedResponse,
+} from '../../common';
 
 const ADMIN_LOG_EXPORT_LIMIT = 10_000;
 const SENSITIVE_DETAIL_KEY =
