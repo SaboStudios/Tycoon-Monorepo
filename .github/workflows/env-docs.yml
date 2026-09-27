@@ -1,0 +1,24 @@
+name: Environment docs
+
+on:
+  push:
+    branches: [main, master]
+    paths: ['docs/ENVIRONMENT.md', '**/.env.example', 'scripts/check-env-docs.sh',
+            '.github/workflows/env-docs.yml']
+  pull_request:
+    paths: ['docs/ENVIRONMENT.md', '**/.env.example', 'scripts/check-env-docs.sh',
+            '.github/workflows/env-docs.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: env-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  env-docs-parity:
+    name: ENVIRONMENT.md matches every .env.example
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check-env-docs.sh

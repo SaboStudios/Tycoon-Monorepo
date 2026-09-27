@@ -52,12 +52,14 @@ Used by the top-level `docker-compose` and any tooling that bootstraps the whole
 
 | Variable | Required in prod | Default | Secret | Notes |
 |---|---|---|---|---|
-| `DB_HOST` | ✅ | `localhost` | | PostgreSQL host |
-| `DB_PORT` | | `5432` | | PostgreSQL port |
-| `DB_USERNAME` | ✅ | `postgres` | | DB username |
-| `DB_PASSWORD` | ✅ | `postgres` | ✅ | DB password |
-| `DB_NAME` | ✅ | `admin_user_db` | | Database name |
-| `JWT_SECRET` | ✅ | *(must change)* | ✅ | Signing key for JWTs — minimum 32 chars in prod |
+| `NODE_ENV` | ✅ | `development` | | `development` \| `staging` \| `production` \| `test` |
+| `PORT` | | `3000` | | Port the composed stack publishes |
+| `DATABASE_URL` | ✅ | `postgres://tycoon:tycoon@localhost:5432/tycoon` | ✅ | Full PostgreSQL DSN — contains the password |
+| `REDIS_URL` | ✅ | `redis://localhost:6379` | ✅ | Full Redis DSN |
+| `PGADMIN_DEFAULT_EMAIL` | | `admin@local.test` | | PgAdmin login — `local` profile only |
+| `PGADMIN_DEFAULT_PASSWORD` | | `local-only-change-me` | ✅ | PgAdmin password — `local` profile only |
+| `PGADMIN_PORT` | | `5050` | | PgAdmin port — bind to `127.0.0.1` |
+| `DEBUG_PORT` | | `9229` | | Node inspector port — `local` profile only |
 
 ---
 
@@ -216,11 +218,18 @@ Next.js app. Only `NEXT_PUBLIC_*` variables reach the browser.
 
 | Variable | Required in prod | Default | Secret | Notes |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | ✅ | `http://localhost:3000/api` | | Backend base URL |
-| `NEXT_PUBLIC_WS_URL` | ✅ | `ws://localhost:3000` | | WebSocket base URL |
+| `NEXT_PUBLIC_APP_ENV` | ✅ | `development` | | Environment label used in analytics and error reports |
+| `NEXT_PUBLIC_APP_URL` | ✅ | `http://localhost:3001` | | Public origin of the frontend itself |
+| `NEXT_PUBLIC_API_URL` | ✅ | `http://localhost:3000/api` | | Backend API base URL |
+| `NEXT_PUBLIC_BACKEND_URL` | ✅ | `http://localhost:3000` | | Backend origin (no `/api` suffix) |
+| `NEXT_PUBLIC_SHOP_API_URL` | ✅ | `http://localhost:3002` | | shop-api origin — purchases source of truth |
+| `NEXT_PUBLIC_GAME_WS_URL` | ✅ | `ws://localhost:3000` | | Game WebSocket URL |
 | `NEXT_PUBLIC_NEAR_NETWORK` | ✅ | `testnet` | | `testnet` \| `mainnet` |
 | `NEXT_PUBLIC_NEAR_CONTRACT_ID` | ✅ | *(empty)* | | NEAR contract account |
-| `NEXT_PUBLIC_FEATURE_STELLAR` | | `false` | | Mirror of `FEATURE_STELLAR_ENABLED`; keep `false` until gated ready |
+| `NEXT_PUBLIC_ENABLE_ANALYTICS` | | `false` | | Master switch for analytics providers |
+| `NEXT_PUBLIC_ANALYTICS_PROVIDERS` | | *(empty)* | | Comma-separated provider ids |
+| `NEXT_PUBLIC_ANALYTICS_DEBUG` | | `false` | | Log analytics events to the console |
+| `NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT` | | *(empty)* | | Ingest URL for client error reports |
 
 ---
 
@@ -234,12 +243,27 @@ NestJS purchases service — source of truth for shop purchases.
 | `PORT` | | `3002` | | HTTP listen port |
 | `DB_HOST` | ✅ | `localhost` | | PostgreSQL host |
 | `DB_PORT` | | `5432` | | PostgreSQL port |
-| `DB_USERNAME` | ✅ | `postgres` | | DB username |
-| `DB_PASSWORD` | ✅ | `postgres` | ✅ | DB password |
-| `DB_DATABASE` | ✅ | `shop_db` | | Database name |
+| `DB_USER` | ✅ | `postgres` | | DB username |
+| `DB_PASSWORD` | ✅ | `changeme` | ✅ | DB password |
+| `DB_NAME` | ✅ | `shop` | | Database name |
 | `DB_SYNCHRONIZE` | | `false` | | **Never `true` in production** — use migrations |
+| `SHOP_API_KEY` | ✅ | *(empty)* | ✅ | `x-api-key` value for `POST /purchases`; rotate by redeploying |
 | `JWT_SECRET` | ✅ | *(must change)* | ✅ | Must match backend signing secret |
-| `BACKEND_API_URL` | ✅ | `http://localhost:3000/api` | | Backend base URL for cross-service calls |
+| `ENABLE_SWAGGER` | | `false` | | Force Swagger UI on in production |
+| `IDEMPOTENCY_TTL_DAYS` | | `7` | | Retention for successful idempotency records |
+| `IDEMPOTENCY_FAILED_TTL_DAYS` | | `30` | | Retention for failed idempotency records |
+
+---
+
+## Keeping this doc honest
+
+`scripts/check-env-docs.sh` fails when a variable is documented here but absent
+from the matching `.env.example`, or declared there and undocumented here. It
+runs in CI on any change to this doc or to an example file:
+
+```bash
+./scripts/check-env-docs.sh
+```
 
 ---
 
