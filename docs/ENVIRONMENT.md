@@ -149,6 +149,10 @@ NestJS API server. Run from `backend/`.
 |---|---|---|---|---|
 | `DATA_EXPORT_DIR` | | `./storage/data-exports` | | Path for GDPR data export files |
 | `DATA_EXPORT_TTL_HOURS` | | `24` | | Hours before export files are purged |
+| `DATA_EXPORT_ENABLED` | | `true` | | Kill switch for **new** export requests (`false` → `503`); status polling and downloads keep working |
+| `DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS` | | `300` | | Step-up window: the access token must come from a primary login (`auth_time`) no older than this. Bounded 30–3600 |
+| `DATA_EXPORT_STEP_UP_METHODS` | | `pwd,wallet` | | Primary-login methods (`amr`) accepted for step-up. Comma-separated subset of `pwd`, `wallet` |
+| `DATA_EXPORT_ENQUEUE_TIMEOUT_MS` | | `5000` | | Max wait for the `user-data` queue (Redis). On timeout the request fails with `503` and no job row is kept |
 
 ### Graceful Shutdown
 

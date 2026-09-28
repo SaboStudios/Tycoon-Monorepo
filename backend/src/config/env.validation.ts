@@ -89,6 +89,21 @@ export const validationSchema = Joi.object({
   // ─── Data Export (Privacy module) ───────────────────────────────────────────
   DATA_EXPORT_DIR: Joi.string().default('./storage/data-exports'),
   DATA_EXPORT_TTL_HOURS: Joi.number().default(24),
+  DATA_EXPORT_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+  // Bounded so a typo cannot silently disable step-up (e.g. 0 or 86400).
+  DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS: Joi.number()
+    .integer()
+    .min(30)
+    .max(3600)
+    .default(300),
+  DATA_EXPORT_STEP_UP_METHODS: Joi.string()
+    .pattern(/^(pwd|wallet)(,(pwd|wallet))*$/)
+    .default('pwd,wallet'),
+  DATA_EXPORT_ENQUEUE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30000)
+    .default(5000),
 
   // ─── Graceful Shutdown ──────────────────────────────────────────────────────
   // Must be < Kubernetes terminationGracePeriodSeconds (30 s).

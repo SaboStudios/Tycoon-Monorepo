@@ -22,4 +22,10 @@ export interface StandardResponse<T> {
    * HTTP status code of the response
    */
   statusCode: number;
+
+  /**
+   * Optional stable machine-readable error code (e.g. `STEP_UP_REQUIRED`).
+   * Only present on error responses whose exception supplied one.
+   */
+  error?: string;
 }

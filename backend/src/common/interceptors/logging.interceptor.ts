@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { redactUrl } from '../logger/redact-url';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -17,7 +18,8 @@ export class LoggingInterceptor implements NestInterceptor {
       method: string;
       url: string;
     }>();
-    const { method, url } = request;
+    const { method } = request;
+    const url = redactUrl(request.url);
     const now = Date.now();
 
     return next

@@ -17,7 +17,14 @@ export type UserDataExportJobStatus =
   | 'expired';
 
 @Entity({ name: 'user_data_export_jobs' })
-@Index(['user_id', 'created_at'])
+@Index(['userId', 'createdAt'])
+// At most one active export per user; concurrent/duplicate requests collapse
+// onto it (see UserDataExportService.requestExport and migration
+// 1759000000000-AddActiveUserDataExportUniqueIndex).
+@Index('UQ_user_data_export_jobs_active_user', ['userId'], {
+  unique: true,
+  where: `"status" IN ('pending', 'processing')`,
+})
 export class UserDataExportJob {
   @PrimaryGeneratedColumn()
   id: number;

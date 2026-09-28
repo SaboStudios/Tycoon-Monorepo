@@ -27,6 +27,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { Role } from './enums/role.enum';
+import { AuthAuditService } from './audit/auth-audit.service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -171,6 +172,10 @@ describe('Auth — idempotency & replay (SW-BE-003)', () => {
         {
           provide: getRepositoryToken(User),
           useValue: userRepo,
+        },
+        {
+          provide: AuthAuditService,
+          useValue: { record: jest.fn() },
         },
       ],
     }).compile();

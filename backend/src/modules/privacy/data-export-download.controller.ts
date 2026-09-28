@@ -2,17 +2,20 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Logger,
   NotFoundException,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { JwtService } from '@nestjs/jwt';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { createReadStream } from 'fs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserDataExportJob } from './entities/user-data-export-job.entity';
+import { UserDataExportService } from './user-data-export.service';
 
 interface DataExportJwtPayload {
   sub: number;
@@ -20,18 +23,29 @@ interface DataExportJwtPayload {
   jobId: number;
 }
 
-@SkipThrottle()
+/**
+ * Token-authenticated download (no Authorization header). The token is a
+ * `typ: data-export` JWT bound to one job and user, issued by the status
+ * endpoint. It is redacted from request logs (common/logger/redact-url.ts).
+ */
 @Controller('data-export')
 export class DataExportDownloadController {
+  private readonly logger = new Logger(DataExportDownloadController.name);
+
   constructor(
     private readonly jwt: JwtService,
     @InjectRepository(UserDataExportJob)
     private readonly jobs: Repository<UserDataExportJob>,
+    private readonly exports: UserDataExportService,
   ) {}
 
+  // Rate-limited per IP to bound token guessing / scraping; a real user
+  // downloads a handful of times per export.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Get('download')
   async download(
     @Query('token') token: string,
+    @Req() req: Request,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
     if (!token) {
@@ -45,7 +59,11 @@ export class DataExportDownloadController {
       throw new BadRequestException('Invalid or expired download token');
     }
 
-    if (payload.typ !== 'data-export') {
+    if (
+      payload.typ !== 'data-export' ||
+      !Number.isInteger(payload.jobId) ||
+      !Number.isInteger(payload.sub)
+    ) {
       throw new BadRequestException('Invalid token type');
     }
 
@@ -66,6 +84,24 @@ export class DataExportDownloadController {
     );
 
     const stream = createReadStream(job.filePath);
+    stream.on('open', () =>
+      this.exports.recordDownload(payload.sub, job.id, {
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      }),
+    );
+    stream.on('error', (error) => {
+      // File purged/missing on disk: never leave the request hanging.
+      this.logger.error(
+        `Export file for job ${job.id} unreadable: ${error.message}`,
+      );
+      if (!res.headersSent) {
+        res.removeHeader('Content-Disposition');
+        res.status(404).json({ statusCode: 404, message: 'Export not available' });
+      } else {
+        res.destroy(error);
+      }
+    });
     stream.pipe(res);
   }
 }

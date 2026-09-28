@@ -4,10 +4,14 @@ import {
   BadRequestException,
   ConflictException,
   HttpStatus,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { Reflector } from '@nestjs/core';
-import { IdempotencyInterceptor } from './idempotency.interceptor';
+import {
+  IdempotencyInterceptor,
+  hashRequestBody,
+} from './idempotency.interceptor';
 import { RedisService } from '../../modules/redis/redis.service';
 import { IDEMPOTENT_KEY } from '../decorators/idempotent.decorator';
 
@@ -32,6 +36,7 @@ const buildContext = (
   const res = {
     statusCode: overrides.statusCode ?? HttpStatus.CREATED,
     status: jest.fn().mockReturnThis(),
+    setHeader: jest.fn(),
   };
   const ctx = {
     getHandler: jest.fn().mockReturnValue('handler'),
@@ -354,6 +359,90 @@ describe('IdempotencyInterceptor (common)', () => {
       expect(setArgs.length).toBeGreaterThanOrEqual(3);
       expect(typeof setArgs[2]).toBe('number');
       expect(setArgs[2]).toBeGreaterThan(0);
+    });
+  });
+
+  // ── fail-closed & adversarial input (#1765) ───────────────────────────────
+
+  describe('fail-closed and input validation', () => {
+    it('in-flight duplicate is a 409 ConflictException', async () => {
+      jest.spyOn(reflector, 'get').mockReturnValue(true);
+      const ctx = buildContext({ headers: { 'x-idempotency-key': 'dup-key' } });
+      mockRedisService.get.mockResolvedValue(null);
+      mockRedisService.incrementRateLimit.mockResolvedValue(2);
+
+      await expect(
+        interceptor.intercept(ctx, { handle: jest.fn() } as any),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('returns 503 and never runs the handler when Redis is unavailable', async () => {
+      jest.spyOn(reflector, 'get').mockReturnValue(true);
+      const ctx = buildContext({ headers: { 'x-idempotency-key': 'redis-down' } });
+      const next = { handle: jest.fn() };
+      mockRedisService.get.mockResolvedValue(undefined);
+      // RedisService.incrementRateLimit returns 0 when the store is down.
+      mockRedisService.incrementRateLimit.mockResolvedValue(0);
+
+      await expect(interceptor.intercept(ctx, next as any)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      expect(next.handle).not.toHaveBeenCalled();
+    });
+
+    it('rejects oversized or malformed keys with 400', async () => {
+      jest.spyOn(reflector, 'get').mockReturnValue(true);
+      for (const key of ['k'.repeat(129), 'has space', 'semi;colon']) {
+        const ctx = buildContext({ headers: { 'x-idempotency-key': key } });
+        await expect(
+          interceptor.intercept(ctx, { handle: jest.fn() } as any),
+        ).rejects.toThrow(BadRequestException);
+      }
+      expect(mockRedisService.get).not.toHaveBeenCalled();
+    });
+
+    it('accepts the Idempotency-Key header alias', async () => {
+      jest.spyOn(reflector, 'get').mockReturnValue(true);
+      const ctx = buildContext({ headers: { 'idempotency-key': 'alias-key' } });
+      mockRedisService.get.mockResolvedValue(null);
+      mockRedisService.incrementRateLimit.mockResolvedValue(1);
+      const next = { handle: jest.fn().mockReturnValue(of({ ok: true })) };
+
+      const result$ = await interceptor.intercept(ctx, next as any);
+      await new Promise((resolve) => result$.subscribe((v) => resolve(v)));
+      expect(next.handle).toHaveBeenCalled();
+    });
+
+    it('marks replays with X-Idempotency-Replayed and never stores the raw key', async () => {
+      jest.spyOn(reflector, 'get').mockReturnValue(true);
+      const body = { sku: 'sku-1', quantity: 1 };
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'raw-secret-key' },
+        body,
+      });
+      mockRedisService.get.mockResolvedValue({
+        statusCode: HttpStatus.CREATED,
+        body: { id: 1 },
+        bodyHash: hashRequestBody(body),
+      });
+
+      const result$ = await interceptor.intercept(ctx, { handle: jest.fn() } as any);
+      await new Promise((resolve) => result$.subscribe((v) => resolve(v)));
+
+      const res = ctx.switchToHttp().getResponse();
+      expect(res.setHeader).toHaveBeenCalledWith('X-Idempotency-Replayed', 'true');
+      expect(mockRedisService.get.mock.calls[0][0]).not.toContain('raw-secret-key');
+    });
+  });
+
+  describe('hashRequestBody', () => {
+    it('is stable across key order and sensitive to value changes', () => {
+      expect(hashRequestBody({ a: 1, b: { c: 2, d: 3 } })).toBe(
+        hashRequestBody({ b: { d: 3, c: 2 }, a: 1 }),
+      );
+      expect(hashRequestBody({ quantity: 1 })).not.toBe(
+        hashRequestBody({ quantity: 2 }),
+      );
     });
   });
 });

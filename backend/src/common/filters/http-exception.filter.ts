@@ -9,6 +9,7 @@ import {
 import { Request, Response } from 'express';
 import { StandardResponse } from '../interfaces/standard-response.interface';
 import { LoggerService } from '../logger/logger.service';
+import { redactUrl } from '../logger/redact-url';
 
 /**
  * Global exception filter that wraps all error responses in the standardized format.
@@ -35,6 +36,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let statusCode: number;
     let message: string | string[];
     let stack: string | undefined;
+    let errorCode: string | undefined;
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
@@ -50,6 +52,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
         // Handle validation errors (which have an array of messages)
         message =
           (responseObj.message as string | string[]) || exception.message;
+        // Only forward UPPER_SNAKE codes (e.g. STEP_UP_REQUIRED), not Nest's
+        // default reason phrases like "Bad Request".
+        if (
+          typeof responseObj.error === 'string' &&
+          /^[A-Z][A-Z0-9_]+$/.test(responseObj.error)
+        ) {
+          errorCode = responseObj.error;
+        }
       } else {
         message = exception.message;
       }
@@ -71,11 +81,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ? message.join(', ')
       : message;
 
+    // Never log credentials carried in the query string (e.g. ?token=).
+    const url = redactUrl(request.url);
+
     // Log the error with context
     const logContext = {
       statusCode,
       method: request.method,
-      url: request.url,
+      url,
       ip: request.ip,
       userAgent: request.headers['user-agent'],
       errorMessage: formattedMessage,
@@ -85,7 +98,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (statusCode >= 500) {
       // Server errors (5xx) - log as error
       this.logger.error(
-        `${request.method} ${request.url} - ${statusCode} - ${formattedMessage}`,
+        `${request.method} ${url} - ${statusCode} - ${formattedMessage}`,
         stack,
         'HttpExceptionFilter',
       );
@@ -93,7 +106,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     } else if (statusCode >= 400) {
       // Client errors (4xx) - log as warning
       this.logger.warn(
-        `${request.method} ${request.url} - ${statusCode} - ${formattedMessage}`,
+        `${request.method} ${url} - ${statusCode} - ${formattedMessage}`,
         'HttpExceptionFilter',
       );
       this.logger.logWithMeta('warn', 'Client Error Details', logContext);
@@ -104,6 +117,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message: formattedMessage,
       data: null,
       statusCode,
+      ...(errorCode && { error: errorCode }),
     };
 
     response.status(statusCode).json(standardResponse);

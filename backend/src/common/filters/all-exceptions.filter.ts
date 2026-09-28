@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { LoggerService } from '../logger/logger.service';
+import { redactUrl } from '../logger/redact-url';
 
 @Catch()
 @Injectable()
@@ -87,7 +88,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const logContext = {
       statusCode: httpStatus,
       method: request.method,
-      url: request.url,
+      url: redactUrl(request.url),
       ip: request.ip,
       userAgent: request.headers['user-agent'],
       errorMessage: message,
@@ -104,7 +105,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const responseBody: Record<string, unknown> = {
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(ctx.getRequest()),
+      path: redactUrl(httpAdapter.getRequestUrl(ctx.getRequest())),
       message,
       ...(error && { error }),
     };

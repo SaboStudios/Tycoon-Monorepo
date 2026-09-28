@@ -8,6 +8,14 @@ import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { UserDataExportJob } from './entities/user-data-export-job.entity';
 import { UserDataCollectorService } from './user-data-collector.service';
+import { DataExportMetrics } from './data-export.metrics';
+
+/**
+ * Stored on the job row and shown to the user. Raw exception text can carry
+ * SQL fragments or file paths, so it is only logged server-side.
+ */
+export const EXPORT_FAILED_MESSAGE =
+  'Export could not be generated; please request a new export.';
 
 export type UserDataExportJobPayload = {
   jobId: number;
@@ -23,6 +31,7 @@ export class UserDataExportProcessor extends WorkerHost {
     private readonly collector: UserDataCollectorService,
     @InjectRepository(UserDataExportJob)
     private readonly jobs: Repository<UserDataExportJob>,
+    private readonly metrics: DataExportMetrics,
   ) {
     super();
   }
@@ -62,12 +71,15 @@ export class UserDataExportProcessor extends WorkerHost {
       row.expiresAt = expiresAt;
       row.errorMessage = null;
       await this.jobs.save(row);
+      this.metrics.recordJob('ready');
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.error(`Export job ${jobId} failed: ${msg}`);
+      // Never publish a partial package: the row goes to `failed`, not `ready`.
       row.status = 'failed';
-      row.errorMessage = msg;
+      row.errorMessage = EXPORT_FAILED_MESSAGE;
       await this.jobs.save(row);
+      this.metrics.recordJob('failed');
     }
   }
 }
