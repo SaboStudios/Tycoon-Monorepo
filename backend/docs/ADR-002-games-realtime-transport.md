@@ -93,7 +93,7 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
 - The gateway uses the Socket.IO Redis adapter so events fan out across all
   gateway instances. A Redis partition degrades to per-instance delivery; the
 gateway logs the failure and clients fall back to REST polling until the
-  adapter reconnects.
+adapter reconnects.
 - `roll` events are rate limited per socket and per game to bound abuse.
 - Every payload includes a `schemaVersion` field so clients can negotiate
   compatible event shapes as the protocol evolves.
@@ -155,6 +155,55 @@ chat abuse controls referenced by issue #1786.
 - **Server authority.** The gateway is the only component that accepts, filters,
   and fans out chat. Clients never broadcast directly to a room; a `chat:send`
   event is validated server-side before any fanout.
-- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED` f
+- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED`
 
-/* … truncated 2749 chars — edit only what you need near the top … */
+### 8. Server-only chance/community RNG auditability
+
+Chance and Community Chest tiles resolve economic outcomes (money transfers,
+`Get Out of Jail Free` grants, property repairs, player-to-player payments).
+These outcomes are **server-only** and must be auditable and replayable. This
+section is the source of truth for issue #1772.
+
+**Invariants:**
+- **Server-only resolution.** The server is the only component that draws a
+  Chance/Community card and applies its effect. Clients never send a card id,
+  deck index, or outcome; any `chance`/`community` action payload containing a
+  card, index, or effect field is rejected with a `forbidden` error and is not
+  broadcast.
+- **Pure rules module.** Card definitions and effect rules from
+  `docs/BOARD_TILE_MODEL.md` are encoded in a pure, side-effect-free server
+  module (no I/O, no clock, no RNG globals). The module takes the deck state and
+  an injected RNG and returns the drawn card plus the resulting effect
+  descriptor. HTTP and WS actions consume this module; they do not re-implement
+  rules.
+- **Ruleset pinning.** Each game row pins a `rulesetVersion` and a
+  `rulesetHash` (hash of the encoded card/effect rules) at creation. Draws are
+  resolved against the pinned ruleset, never against client-supplied constants
+  or the current head of the module. A game whose pinned hash no longer matches
+  a known ruleset fails closed on the next draw rather than silently changing
+  behavior.
+- **Transactional apply.** Money and property mutations from a card effect are
+  applied in a single transaction with the draw record. Either the draw and its
+  effect commit together or neither does; a partial apply is never persisted.
+- **Event emission for replay.** Each resolved draw emits a game event
+  (`chance.drawn` / `community.drawn`) carrying the pinned `rulesetVersion`,
+  `rulesetHash`, the drawn card id, the effect descriptor, and the resulting
+  state delta. Replaying the event stream against the pinned ruleset must
+  rebuild identical game state.
+- **Idempotency.** Draws are keyed by an idempotency key coordinated with the
+  REST write path so a reconnect replay or concurrent duplicate request does not
+  draw twice or double-apply an effect.
+- **Fail-closed on dependency outage.** If Postgres, Redis, or the shop-api is
+  unavailable, the draw write fails closed; no card is drawn and no effect is
+  applied until the dependency recovers.
+- **Frontend renders server results only.** The client displays the server's
+  quoted draw and effect; it performs no local finalization of economic
+  outcomes.
+
+**Test plan:** table-driven golden vectors for the Chance/Community rule family
+(deck composition, draw order, each effect's money/property delta), concurrency
+vectors for duplicate draws, and a replay-equality check that rebuilding from
+emitted events matches the live state.
+
+**Acceptance criteria:** rule vectors pass; the client cannot override economic
+outcomes; the ruleset is pinned per game; docs match code.

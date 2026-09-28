@@ -26,6 +26,61 @@ Clients never finalize economic outcomes — they render server quotes/results o
 | JAIL     | Enter/exit per `JAIL_RULES`.                                     |
 | FREE     | No-op.                                                          |
 
+## Chance / Community RNG auditability
+
+Chance and Community Chest draws are server-only and fully auditable. The deck
+order is never trusted from the client; the server derives each draw from a
+committed seed and records the draw so any game can be replayed and audited.
+
+### Deck model
+
+- `CHANCE_DECK` and `COMMUNITY_DECK` are ordered arrays of card ids defined in the
+  pure module. Each card id maps to a deterministic effect (money move, move-to
+  tile, jail, get-out-of-jail, per-player debit/credit, etc.).
+- The deck is shuffled server-side at game start using a seed derived from the
+  game's `rulesetHash` and a server-held `rngSeed`. The seed is stored on the game
+  row and never exposed to clients.
+- Draws advance a per-deck cursor. When the cursor reaches the end of the deck the
+  server reshuffles deterministically from the same seed lineage and emits
+  `DECK_RESHUFFLED`.
+
+### Draw rules
+
+1. **Server-only draw** — only the server may draw. A client-supplied card id,
+   deck index, or seed is ignored; the server draws from its own cursor.
+2. **Deterministic** — given the same `rngSeed`, `rulesetHash`, and draw sequence,
+   the server produces the identical card sequence. This is what makes replay
+   equality possible.
+3. **Auditable** — every draw emits `CARD_DRAWN` with `{ deck, cardId, cursor,
+   rulesetVersion }`. The event carries no seed material.
+4. **Idempotent** — a draw is keyed by `(gameId, turnId, deck)`; a duplicate draw
+   request for the same turn is rejected with `DUPLICATE_DRAW` and no state change.
+5. **Transactional** — the card effect (money/property mutation) and the
+   `CARD_DRAWN` event commit atomically or not at all.
+6. **Fail-closed** — if the RNG seed is missing or the deck is exhausted without a
+   valid reshuffle, the draw is rejected with `RNG_UNAVAILABLE` and no mutation.
+
+### Events
+
+Chance/Community draws emit `CARD_DRAWN` and, on wrap, `DECK_RESHUFFLED`.
+Replaying these events together with the money/property events MUST rebuild an
+identical board state and identical deck cursors.
+
+### Golden vectors
+
+Table-driven vectors in `backend/test/chance-rng.audit-spec.ts` cover:
+
+- a full deck traversal producing the exact expected card sequence for a fixed
+  `rngSeed` and `rulesetHash`;
+- reshuffle wrap producing the expected `DECK_RESHUFFLED` event and continued
+  sequence;
+- duplicate draw for the same `(gameId, turnId, deck)` rejected with
+  `DUPLICATE_DRAW`;
+- client-supplied card id / seed ignored (server draw wins);
+- missing seed rejected with `RNG_UNAVAILABLE` and no state change.
+
+Vectors assert both the drawn card and the emitted event sequence.
+
 ## Economic rules
 
 - Money mutations are transactional: debit and credit commit atomically or not at all.
