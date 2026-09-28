@@ -171,6 +171,19 @@ NestJS API server. Run from `backend/`.
 | `DEFAULT_RANDOMIZE_PLAY_ORDER` | | `true` | | Randomize turn order at game start |
 | `DEFAULT_STARTING_CASH` | | `1500` | | Starting cash per player |
 
+### Game code anti-enumeration
+
+Limits for `GET /games/code/:code`. Out-of-range values fail boot. Runbook:
+[`GAMES_MATCHMAKING_RUNBOOK.md`](../backend/docs/GAMES_MATCHMAKING_RUNBOOK.md#game-code-anti-enumeration).
+
+| Variable | Required in prod | Default | Secret | Notes |
+|---|---|---|---|---|
+| `GAME_CODE_LOOKUP_WINDOW_SECONDS` | | `60` | | Attempt window, 1–3600 |
+| `GAME_CODE_LOOKUP_PER_USER_LIMIT` | | `20` | | Lookups per user per window, 1–200 |
+| `GAME_CODE_LOOKUP_PER_IP_LIMIT` | | `60` | | Lookups per client IP per window, 1–1000 |
+| `GAME_CODE_LOOKUP_MISS_LIMIT` | | `10` | | Misses (unknown/invalid code) before lockout, 1–100 |
+| `GAME_CODE_LOOKUP_LOCKOUT_SECONDS` | | `900` | | Miss-counter lifetime / lockout length, 60–86400 |
+
 ### Audit
 
 | Variable | Required in prod | Default | Secret | Notes |
