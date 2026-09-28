@@ -37,15 +37,32 @@ lines or vendor SDK types into crate public APIs.
 Every state-changing entrypoint must be authorized. The matrix below is the
 source of truth; update it in the same PR that adds or changes an entrypoint.
 
-| Entrypoint            | Caller            | Auth mechanism                          | Notes                                             |
-| --------------------- | ----------------- | --------------------------------------- | ------------------------------------------------- |
-| `initialize`          | deployer / admin  | `admin.require_auth()`                  | Callable once; re-init must fail closed.          |
-| `set_admin`           | current admin     | `admin.require_auth()`                  | Admin-only; emits `admin_changed`.                |
-| `mint` / `issue`      | admin             | `admin.require_auth()`                  | Admin-only; checked supply arithmetic.            |
-| `transfer`            | token holder      | `from.require_auth()`                   | Holder-authorized; checked balance arithmetic.    |
-| `payout`              | admin / treasury  | `admin.require_auth()`                  | Admin-only; unauthorized payout must fail closed. |
-| `pause` / `unpause`   | admin             | `admin.require_auth()`                  | Admin-only; gates all writes while paused.        |
-| read-only views       | anyone            | none                                    | Must not mutate storage or emit events.           |
+| Entrypoint                      | Caller            | Auth mechanism                          | Notes                                                                        |
+| ------------------------------- | ----------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| `initialize`                    | deployer / admin  | `admin.require_auth()`                  | Callable once; re-init must fail closed.                                     |
+| `set_admin`                     | current admin     | `admin.require_auth()`                  | Admin-only; emits `admin_changed`.                                           |
+| `mint` / `issue`                | admin             | `admin.require_auth()`                  | Admin-only; checked supply arithmetic.                                       |
+| `transfer`                      | token holder      | `from.require_auth()`                   | Holder-authorized; checked balance arithmetic.                               |
+| `payout`                        | admin / treasury  | `admin.require_auth()`                  | Admin-only; unauthorized payout must fail closed.                            |
+| `pause` / `unpause`             | admin             | `admin.require_auth()`                  | Admin-only; gates all writes while paused.                                   |
+| `mint_voucher`                  | admin / minter    | `admin.require_auth()` or `minter_auth` | Checks role; emits `voucher_minted`.                                         |
+| `redeem_voucher_from`           | token holder      | `from.require_auth()`                   | Holder-authorized; burns voucher, transfers underlying token.                |
+| `withdraw_funds`                | admin             | `admin.require_auth()`                  | Admin-only; checked balance; emits `withdraw`.                               |
+| `set_backend_minter`            | admin             | `admin.require_auth()`                  | Admin-only; grants minting role; emits `minter_set`.                         |
+| `clear_backend_minter`          | admin             | `admin.require_auth()`                  | Admin-only; revokes minting role; emits `minter_cleared`.                    |
+| `burn`                          | token holder      | `from.require_auth()`                   | Holder-authorized; removes balance entirely if balance reaches zero.         |
+| `buy_collectible`               | buyer             | `buyer.require_auth()`                  | Buyer-authorized; mints collectible; emits `collectible_bought`.             |
+| `set_token_perk`                | admin             | `admin.require_auth()`                  | Admin-only; assigns perk to a token type.                                    |
+| `burn_collectible_for_perk`     | token holder      | `from.require_auth()`                   | Holder-authorized; burns collectible and grants perk benefit.                |
+| `stock_shop`                    | admin             | `admin.require_auth()`                  | Admin-only; creates new collectible listing in shop.                         |
+| `restock_collectible`           | admin             | `admin.require_auth()`                  | Admin-only; adds inventory to existing listing.                              |
+| `update_collectible_prices`     | admin             | `admin.require_auth()`                  | Admin-only; updates TYC/USDC prices for a listing.                           |
+| `set_base_uri`                  | admin             | `admin.require_auth()`                  | Admin-only; sets metadata base URI; supports freeze.                         |
+| `set_token_metadata`            | admin             | `admin.require_auth()`                  | Admin-only; fails if URI frozen.                                             |
+| `init_shop`                     | admin             | `admin.require_auth()`                  | Admin-only; one-time shop initialization with token addresses.               |
+| `add_boost`                     | player / admin    | `caller.require_auth()`                 | Player-authorized; applies boost with expiry.                                |
+| `clear_boosts`                  | player / admin    | `caller.require_auth()`                 | Clears all boosts for the caller's address.                                  |
+| read-only views                 | anyone            | none                                    | Must not mutate storage or emit events.                                      |
 
 Rules:
 
@@ -61,12 +78,24 @@ Rules:
 Events are part of the public contract surface. Keep topics stable; additive
 changes only, and document any new event in this section.
 
-| Event            | Topics                          | Data                          |
-| ---------------- | ------------------------------- | ----------------------------- |
-| `admin_changed`  | `(Symbol("admin_changed"),)`    | `(old: Address, new: Address)`|
-| `transfer`       | `(Symbol("transfer"), from)`   | `(to: Address, amount: i128)` |
-| `payout`         | `(Symbol("payout"), to)`       | `(amount: i128)`              |
-| `paused`         | `(Symbol("paused"),)`          | `bool`                        |
+| Event                  | Topics                                              | Data                                              |
+| ---------------------- | --------------------------------------------------- | ------------------------------------------------- |
+| `admin_changed`        | `(Symbol("admin_changed"),)`                        | `(old: Address, new: Address)`                    |
+| `transfer`             | `(Symbol("transfer"), from)`                        | `(to: Address, amount: i128)`                     |
+| `payout`               | `(Symbol("payout"), to)`                            | `(amount: i128)`                                  |
+| `paused`               | `(Symbol("paused"),)`                               | `(paused_by: Address, paused_at: u64, expiry: u32, reason: Symbol)` |
+| `unpaused`             | `(Symbol("unpaused"),)`                             | `(unpaused_by: Address, unpaused_at: u64, paused_duration: u64, original_paused_by: Address)` |
+| `voucher_minted`       | `(Symbol("voucher_minted"), to)`                    | `(token_id: u128, amount: i128)`                  |
+| `voucher_redeemed`     | `(Symbol("voucher_redeemed"), from)`                | `(token_id: u128, amount: i128)`                  |
+| `withdraw`             | `(Symbol("withdraw"), to)`                          | `(token: Address, amount: i128)`                  |
+| `minter_set`           | `(Symbol("minter"), Symbol("set"))`                 | `(minter: Address)`                               |
+| `minter_cleared`       | `(Symbol("minter"), Symbol("cleared"))`             | `()`                                              |
+| `collectible_bought`   | `(Symbol("collectible_bought"), buyer)`             | `(token_id: u128, amount: i128)`                  |
+| `coll_mint`            | `(Symbol("coll_mint"), to)`                         | `(token_id: u128, perk: u32, strength: u32)`      |
+| `stock_new`            | `(Symbol("stock"), Symbol("new"))`                  | `(token_id: u128, amount: i128)`                  |
+| `restock`              | `(Symbol("restock"),)`                              | `(token_id: u128, amount: i128)`                  |
+| `price_update`         | `(Symbol("price"), Symbol("update"))`               | `(tyc_price: i128, usdc_price: i128)`             |
+| `backend_minter_set`   | `(Symbol("bminter"), Symbol("set"))`                | `(minter: Address)`                               |
 
 Consumers (indexer, backend) must treat unknown topics as forward-compatible
 and ignore them rather than failing.
