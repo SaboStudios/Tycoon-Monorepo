@@ -81,6 +81,64 @@ Table-driven vectors in `backend/test/chance-rng.audit-spec.ts` cover:
 
 Vectors assert both the drawn card and the emitted event sequence.
 
+## Trade offers
+
+Trade offers are server-authoritative and expire deterministically. The offer
+lifecycle and accept rules are encoded in the pure module and consumed by the
+HTTP/WS trade actions; clients never finalize a trade.
+
+### Offer lifecycle
+
+- An offer is created with `tradeId`, `gameId`, `fromPlayerId`, `toPlayerId`,
+  `give`/`receive` asset sets, and an `expiresAt` derived server-side from
+  `TRADE_OFFER_TTL_MS` and the server clock. A client-supplied `expiresAt` is
+  ignored.
+- An offer is `OPEN` until it is accepted, cancelled, or expires. Expiry is
+  evaluated server-side against the pinned ruleset and the server clock; a client
+  clock is never trusted.
+- Only the addressed `toPlayerId` may accept; any other actor is rejected with
+  `NOT_TRADE_RECIPIENT` and no state change.
+
+### Atomic accept rules
+
+1. **Server-only finalization** — only the server may accept. Client-supplied
+   asset sets, prices, or `expiresAt` are ignored; the server re-reads the offer
+   from its own store.
+2. **Expiry check** — if `now >= expiresAt`, the accept is rejected with
+   `TRADE_EXPIRED` and no state change. Expiry is checked inside the same
+   transaction that applies the trade so a race cannot slip past it.
+3. **Idempotent** — an accept is keyed by `(gameId, tradeId)`. A duplicate accept
+   (concurrent request or reconnect retry) returns the original result and MUST NOT
+   double-apply assets. A repeat accept of an already-accepted trade is rejected
+   with `STALE_TRADE_ACCEPT`.
+4. **Stale accept** — accepting an offer that is already accepted, cancelled, or
+   expired is rejected with `STALE_TRADE_ACCEPT` and no state change.
+5. **Transactional** — the asset transfer (money/property) and the
+   `TRADE_ACCEPTED` event commit atomically or not at all. A partial transfer is a
+   fatal invariant breach.
+6. **Fail-closed** — if the store or lock is unavailable, the accept is rejected
+   and no mutation occurs.
+
+### Events
+
+Trade lifecycle mutations emit `TRADE_OFFERED`, `TRADE_ACCEPTED`,
+`TRADE_CANCELLED`, and `TRADE_EXPIRED`. Replaying these events MUST rebuild an
+identical board state and identical open-offer set.
+
+### Golden vectors
+
+Table-driven vectors in `backend/test/trade-accept.audit-spec.ts` cover:
+
+- a valid accept transferring the exact assets and emitting `TRADE_ACCEPTED`;
+- accept at/after `expiresAt` rejected with `TRADE_EXPIRED` and no state change;
+- duplicate/concurrent accept of the same `(gameId, tradeId)` applied exactly once;
+- accept of an already accepted/cancelled/expired offer rejected with
+  `STALE_TRADE_ACCEPT`;
+- non-recipient accept rejected with `NOT_TRADE_RECIPIENT`;
+- client-supplied `expiresAt`/asset set ignored (server offer wins).
+
+Vectors assert both the resulting asset state and the emitted event sequence.
+
 ## Economic rules
 
 - Money mutations are transactional: debit and credit commit atomically or not at all.
