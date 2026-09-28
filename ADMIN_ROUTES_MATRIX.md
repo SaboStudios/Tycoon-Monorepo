@@ -30,6 +30,8 @@ not permitted for admin surfaces; add a new row here instead.
 | POST   | `/auth/login`                 | public | —                                   | Issues user JWT.                        |
 | GET    | `/me`                         | user   | `JwtAuthGuard`                      | Current user profile.                  |
 | GET    | `/admin/users`                | admin  | `JwtAuthGuard`, `AdminGuard`        | Paginated; PII minimized in response.  |
+| POST   | `/admin/users/invite`         | admin  | `JwtAuthGuard`, `AdminGuard`        | Invite admin; no shared passwords.     |
+| POST   | `/admin/users/:id/disable`    | admin  | `JwtAuthGuard`, `AdminGuard`        | Disable admin; writes `AuditTrail`.    |
 | GET    | `/admin/audit`                | admin  | `JwtAuthGuard`, `AdminGuard`        | Redacts secrets/tokens in log views.   |
 | POST   | `/admin/actions`              | admin  | `JwtAuthGuard`, `AdminGuard`        | Mutation; writes `AuditTrail` entry.   |
 | GET    | `/admin/exports`              | admin  | `JwtAuthGuard`, `AdminGuard`        | Column allowlist; range-limited.       |
@@ -49,6 +51,25 @@ this check; a failing check blocks merge.
 - Export endpoints MUST record who exported, the requested range, and the
   applied column allowlist.
 - Failure paths MUST still emit an audit record (deny-by-default, fail-closed).
+
+## Admin invite/disable without shared passwords
+
+Admin onboarding and offboarding MUST NOT rely on shared or static passwords.
+
+- **Invite** (`POST /admin/users/invite`): the server issues a single-use,
+  time-boxed invite token bound to the invitee's email and the inviting admin.
+  The token is delivered out-of-band; it is never logged, returned in API
+  responses, or stored in plaintext. The invitee sets their own credential on
+  first use. Invites are idempotent per `(email, inviter)` within the token TTL
+  so reconnect/duplicate retries do not mint multiple tokens.
+- **Disable** (`POST /admin/users/:id/disable`): disabling revokes active
+  sessions and pending invites for the target admin. The operation is
+  idempotent; disabling an already-disabled admin is a no-op that still records
+  an audit entry.
+- Both endpoints are deny-by-default: a missing/invalid token or a non-admin
+  role receives `403` and the failure is audited.
+- Audit records for invite/disable capture actor, action, target, and outcome,
+  and redact the invite token and any credential material.
 
 ## MSW tree-shake prod bundle audit (SW-FE-1462)
 
