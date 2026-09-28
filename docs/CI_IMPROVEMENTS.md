@@ -205,7 +205,7 @@ If an integration spec flakes in CI:
   workflows/
     backend-ci.yml                        (modified — #1512, #1515)
     frontend-ci.yml                       (modified — #1512)
-    contract-ci.yml                       (modified — #1512)
+    contract-ci.yml                       (created — #1744, path filters from #1512)
     openapi-parity.yml                    (new — #1514)
 backend/
   package.json                            (modified — #1515, added test:integration)

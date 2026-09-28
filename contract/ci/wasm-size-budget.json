@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "regression_threshold_percent": 3,
+  "baseline_bytes": {
+    "tycoon_boost_system.wasm": 9115,
+    "tycoon_token.wasm": 16893,
+    "tycoon_reward_system.wasm": 22698,
+    "tycoon_main_game.wasm": 23613,
+    "tycoon_game.wasm": 26555,
+    "tycoon_collectibles.wasm": 31977
+  }
+}
