@@ -19,11 +19,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Hygiene: cargo fmt --check + clippy -D warnings ────────────────────────
-  # Mirrors `make hygiene` from contract/Makefile.
+  # ── Job: fmt + clippy ──────────────────────────────────────────────────────
+  # Runs formatting check and lint with deny-by-default warnings.
+  # Uses the rust-toolchain.toml in contract/ to resolve the correct toolchain.
   contract-hygiene:
-    name: Format & clippy
+    name: fmt & clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: contract
@@ -32,31 +34,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        run: rustup show
-
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            contract/target
-          key: ${{ runner.os }}-cargo-contract-${{ hashFiles('contract/Cargo.lock', 'contract/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-contract-
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Restore cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contract
 
       - name: cargo fmt --check
-        run: cargo fmt --all -- --check
+        run: cargo fmt --check --manifest-path Cargo.toml
 
-      - name: cargo clippy -D warnings
+      - name: cargo clippy --workspace --all-targets -- -D warnings
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-  # ── Contract checks: build WASM, size budget, tests ──────────────────────
-  # Mirrors `make ci` from contract/Makefile, excluding hygiene (run above).
-  contract-checks:
-    name: Build, WASM size & tests
+  # ── Job: unit tests ────────────────────────────────────────────────────────
+  # Runs all unit tests across the contract workspace.
+  contract-test:
+    name: cargo test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: contract
@@ -65,73 +65,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (with wasm target)
-        run: |
-          rustup show
-          rustup target add wasm32-unknown-unknown
-
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            contract/target
-          key: ${{ runner.os }}-cargo-contract-${{ hashFiles('contract/Cargo.lock', 'contract/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-contract-
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
 
-      - name: Install jq (for wasm size check)
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Restore cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contract
+
+      - name: cargo test --workspace
+        run: cargo test --workspace
+
+  # ── Job: WASM release build + size check ───────────────────────────────────
+  # Builds release WASM for all deployable crates and checks against budget.
+  contract-wasm:
+    name: WASM build & size check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: contract
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Restore cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contract
 
       - name: Build release WASM
-        run: cargo build --target wasm32-unknown-unknown --release
+        run: cargo build --target wasm32-unknown-unknown --release --workspace
 
-      # ── #1743: WASM size budget enforcement ──────────────────────────────
-      # Compares release WASM sizes against contract/ci/wasm-size-budget.json.
-      # Fails if any contract exceeds baseline + regression_threshold_percent%.
-      - name: Check WASM size budget
+      - name: Check WASM sizes against budget
         run: bash scripts/check-wasm-sizes.sh
-        env:
-          GITHUB_STEP_SUMMARY: ${{ runner.temp }}/wasm-size-summary.md
 
-      - name: Upload WASM size report
-        if: ${{ !cancelled() }}
+      - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wasm-size-report
-          path: contract/deploy/wasm-size-report.md
-          retention-days: 30
-
-      - name: Run unit tests (all workspace members)
-        run: cargo test --all
-
-  # ── Integration tests (separate job, depends on checks) ──────────────────
-  contract-integration:
-    name: Integration tests
-    runs-on: ubuntu-latest
-    needs: contract-checks
-    defaults:
-      run:
-        working-directory: contract
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        run: rustup show
-
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            contract/target
-          key: ${{ runner.os }}-cargo-contract-${{ hashFiles('contract/Cargo.lock', 'contract/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-contract-
-
-      - name: Run integration tests
-        run: cargo test --package tycoon-integration-tests -- --nocapture
+          name: contract-wasm-release
+          path: target/wasm32-unknown-unknown/release/*.wasm
+          retention-days: 7
