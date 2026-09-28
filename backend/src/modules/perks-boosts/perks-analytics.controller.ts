@@ -1,8 +1,11 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Res, UseGuards } from '@nestjs/common';
 import { PerkAnalyticsService } from './services/perk-analytics.service';
 import type { Response } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller('perks/analytics')
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class PerksAnalyticsController {
   constructor(private readonly analyticsService: PerkAnalyticsService) {}
 

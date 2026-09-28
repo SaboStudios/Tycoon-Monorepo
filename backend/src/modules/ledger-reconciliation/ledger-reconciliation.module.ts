@@ -6,9 +6,13 @@ import { LedgerReconciliationScheduler } from './ledger-reconciliation.scheduler
 import { LedgerReconciliationController } from './ledger-reconciliation.controller';
 import { StubPaymentProviderClient } from './providers/stub-payment-provider.client';
 import { Purchase } from '../shop/entities/purchase.entity';
+import { AuditTrailModule } from '../audit-trail/audit-trail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LedgerDiscrepancy, Purchase])],
+  imports: [
+    TypeOrmModule.forFeature([LedgerDiscrepancy, Purchase]),
+    AuditTrailModule,
+  ],
   providers: [
     LedgerReconciliationService,
     LedgerReconciliationScheduler,

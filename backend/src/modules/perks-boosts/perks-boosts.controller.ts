@@ -6,6 +6,8 @@ import {
   Param,
   UseGuards,
   Delete,
+  UseInterceptors,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { PerkService } from './services/perk.service';
 import { BoostActivationService } from './services/boost-activation.service';
@@ -13,8 +15,14 @@ import { InventoryService } from './services/inventory.service';
 import { Perk } from './entities/perk.entity';
 import { ActiveBoost } from './entities/active-boost.entity';
 import { PlayerPerk } from './entities/player-perk.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @Controller('perks')
+@UseInterceptors(AuditTrailInterceptor)
 export class PerksController {
   constructor(
     private readonly perkService: PerkService,
@@ -28,13 +36,16 @@ export class PerksController {
   }
 
   @Get('inventory/:playerId')
+  @UseGuards(JwtAuthGuard)
   async getInventory(
-    @Param('playerId') playerId: number,
+    @Param('playerId', ParseIntPipe) playerId: number,
   ): Promise<PlayerPerk[]> {
     return this.inventoryService.getPlayerInventory(playerId);
   }
 
   @Post('inventory/bulk')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async addBulk(
     @Body()
     body: {
@@ -47,6 +58,8 @@ export class PerksController {
   }
 
   @Post('equip')
+  @UseGuards(JwtAuthGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async equip(
     @Body() body: { playerId: number; perkId: number },
   ): Promise<PlayerPerk> {
@@ -54,6 +67,8 @@ export class PerksController {
   }
 
   @Post('unequip')
+  @UseGuards(JwtAuthGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async unequip(
     @Body() body: { playerId: number; perkId: number },
   ): Promise<PlayerPerk> {
@@ -61,6 +76,8 @@ export class PerksController {
   }
 
   @Post('use')
+  @UseGuards(JwtAuthGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async usePerk(
     @Body() body: { playerId: number; gameId: number; perkId: number },
   ): Promise<ActiveBoost> {
@@ -72,6 +89,8 @@ export class PerksController {
   }
 
   @Post('activate')
+  @UseGuards(JwtAuthGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async activate(
     @Body() body: { playerId: number; gameId: number; perkId: number },
   ): Promise<ActiveBoost> {
@@ -83,6 +102,8 @@ export class PerksController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async create(@Body() data: Partial<Perk>): Promise<Perk> {
     return this.perkService.create(data);
   }

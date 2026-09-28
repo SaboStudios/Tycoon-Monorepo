@@ -19,7 +19,7 @@ import { join, relative } from 'path';
 const REPO_ROOT = join(__dirname, '..', '..');
 const BACKEND_SRC = join(REPO_ROOT, 'backend', 'src');
 
-const CLASS_GUARD_RE = /@UseGuards\s*\(\s*JwtAuthGuard\s*,\s*AdminGuard\s*\)/;
+const CLASS_GUARD_RE = /@UseGuards\s*\([^)]*\bJwtAuthGuard\b[^)]*\bAdminGuard\b[^)]*\)/;
 const CONTROLLER_RE = /@Controller\s*\(/;
 const MUTATION_RE = /@(Post|Put|Patch|Delete)\s*\(/;
 const AUDIT_RE = /AuditTrail|auditTrail|@Audit\b/;
