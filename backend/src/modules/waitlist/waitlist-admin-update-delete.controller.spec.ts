@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
 import { Reflector } from '@nestjs/core';
 import { WaitlistAdminController } from './waitlist-admin.controller';
 import { WaitlistService } from './waitlist.service';
@@ -30,6 +31,8 @@ describe('WaitlistAdminController - Update/Delete', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WaitlistAdminController],
       providers: [
+        // AuditTrailInterceptor (#1840) needs AuditTrailService.
+        { provide: AuditTrailService, useValue: { log: jest.fn().mockResolvedValue(undefined) } },
         { provide: WaitlistService, useValue: mockWaitlistService },
         { provide: AdminLogsService, useValue: mockAdminLogsService },
         { provide: RedisService, useValue: mockRedisService },

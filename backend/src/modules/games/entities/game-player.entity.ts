@@ -99,6 +99,7 @@ export class GamePlayer {
   })
   trade_locked_balance: string;
 
-  @Column({ type: 'tinyint', unsigned: true, nullable: true })
+  // smallint (not MySQL-only tinyint) so Postgres can synchronize this table.
+  @Column({ type: 'smallint', nullable: true })
   rolled: number | null;
 }

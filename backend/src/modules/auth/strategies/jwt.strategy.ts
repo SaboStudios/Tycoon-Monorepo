@@ -26,6 +26,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email,
       role: role,
       is_admin: is_admin,
+      auth_time:
+        typeof payload.auth_time === 'number' ? payload.auth_time : undefined,
+      amr: Array.isArray(payload.amr) ? payload.amr : undefined,
     };
   }
 }

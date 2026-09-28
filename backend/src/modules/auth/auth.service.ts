@@ -20,6 +20,17 @@ import { Role } from './enums/role.enum';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthAuditEvent } from './audit/auth-audit.events';
 
+/**
+ * Claims stamped only on tokens minted by a primary login (password or
+ * wallet). Tokens minted by /auth/refresh deliberately omit them, so step-up
+ * checks (e.g. data export, see RecentAuthGuard) can require a *fresh* login
+ * rather than a long-lived refresh chain. `auth_time` / `amr` follow OIDC
+ * Core §2 and RFC 8176 naming.
+ */
+function primaryAuthClaims(method: 'pwd' | 'wallet') {
+  return { auth_time: Math.floor(Date.now() / 1000), amr: [method] };
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -136,6 +147,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       is_admin: user.is_admin,
+      ...primaryAuthClaims('pwd'),
     };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(Number(user.id), ipAddress, userAgent);
@@ -174,6 +186,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       is_admin: user.is_admin,
+      ...primaryAuthClaims('wallet'),
     };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = await this.createRefreshToken(user.id, ipAddress, userAgent);

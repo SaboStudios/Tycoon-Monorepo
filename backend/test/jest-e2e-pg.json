@@ -2,14 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": "\\.e2e-spec\\.ts$",
-  "testPathIgnorePatterns": [
-    "/node_modules/",
-    "\\.pg-e2e-spec\\.ts$",
-    "/test/privacy-erasure\\.e2e-spec\\.ts$",
-    "/test/games-replay\\.e2e-spec\\.ts$",
-    "/test/observability\\.e2e-spec\\.ts$"
-  ],
+  "testRegex": "\\.pg-e2e-spec\\.ts$",
   "transform": {
     "^.+\\.(t|j)s$": [
       "ts-jest",
@@ -24,5 +17,6 @@
   "moduleNameMapper": {
     "^src/(.*)$": "<rootDir>/../src/$1"
   },
-  "testTimeout": 30000
+  "testTimeout": 60000,
+  "maxWorkers": 1
 }

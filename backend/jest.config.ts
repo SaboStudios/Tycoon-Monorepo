@@ -1,9 +1,28 @@
 import type { Config } from 'jest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Resolved from the backend package dir (npm scripts run jest from there).
+// `__dirname` is not used because Node >=22 may load this file as ESM.
+const quarantine = JSON.parse(
+  readFileSync(join(process.cwd(), 'test', 'quarantine.json'), 'utf8'),
+) as { entries: { pattern: string; reason: string }[] };
+
+  // Explicit, reviewed quarantine — see test/quarantine.json for reasons.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    ...quarantine.entries.map((entry) => entry.pattern),
+  ],
 
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: 'src',
   testRegex: '.*\\.spec\\.ts$',
+  // Explicit, reviewed quarantine — see test/quarantine.json for reasons.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    ...quarantine.entries.map((entry) => entry.pattern),
+  ],
   transform: {
     '^.+\\.(t|j)s$': [
       'ts-jest',

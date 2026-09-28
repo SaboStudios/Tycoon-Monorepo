@@ -27,11 +27,17 @@ import { UserDataExportService } from './user-data-export.service';
 import { UserDataExportProcessor } from './user-data-export.processor';
 import { UserMeDataExportController } from './user-me-data-export.controller';
 import { DataExportDownloadController } from './data-export-download.controller';
+import { AuditTrailModule } from '../audit-trail/audit-trail.module';
+import { MetricsModule } from '../metrics/metrics.module';
+import { DataExportMetrics } from './data-export.metrics';
+import { RecentAuthGuard } from './recent-auth.guard';
 
 @Module({
   imports: [
     JobsModule,
     AuthModule,
+    AuditTrailModule,
+    MetricsModule,
     BullModule.registerQueue({ name: 'user-data' }),
     TypeOrmModule.forFeature([
       User,
@@ -60,6 +66,8 @@ import { DataExportDownloadController } from './data-export-download.controller'
     UserDataCollectorService,
     UserDataExportService,
     UserDataExportProcessor,
+    DataExportMetrics,
+    RecentAuthGuard,
   ],
   exports: [UserDataExportService],
 })

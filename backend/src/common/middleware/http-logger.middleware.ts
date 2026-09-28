@@ -1,6 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { LoggerService } from '../logger/logger.service';
+import { redactUrl } from '../logger/redact-url';
 
 /**
  * HTTP Logger Middleware
@@ -12,7 +13,9 @@ export class HttpLoggerMiddleware implements NestMiddleware {
   constructor(private readonly logger: LoggerService) {}
 
   use(req: Request, res: Response, next: NextFunction) {
-    const { method, originalUrl, ip, headers } = req;
+    const { method, ip, headers } = req;
+    // Never log credentials carried in the query string (e.g. ?token=).
+    const originalUrl = redactUrl(req.originalUrl);
     const userAgent = headers['user-agent'] || 'Unknown';
     const startTime = Date.now();
 

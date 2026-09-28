@@ -13,9 +13,9 @@
       }
     ]
   },
-  "setupFiles": ["<rootDir>/test/setup-jest.ts"],
+  "setupFiles": ["<rootDir>/setup-jest.ts"],
   "moduleNameMapper": {
-    "^src/(.*)$": "<rootDir>/src/$1"
+    "^src/(.*)$": "<rootDir>/../src/$1"
   },
   "testTimeout": 30000,
   "verbose": true

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
 import { CouponsController } from './coupons.controller';
 import { CouponsService } from './coupons.service';
 import { CouponType } from './enums/coupon-type.enum';
@@ -37,6 +38,8 @@ describe('CouponsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CouponsController],
       providers: [
+        // AuditTrailInterceptor (#1840) needs AuditTrailService.
+        { provide: AuditTrailService, useValue: { log: jest.fn().mockResolvedValue(undefined) } },
         {
           provide: CouponsService,
           useValue: mockCouponsService,

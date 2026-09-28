@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuditTrailService } from '../audit-trail/audit-trail.service';
 import { WaitlistAdminController } from './waitlist-admin.controller';
 import { WaitlistService } from './waitlist.service';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
@@ -27,6 +28,8 @@ describe('WaitlistAdminController – bulkImport', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WaitlistAdminController],
       providers: [
+        // AuditTrailInterceptor (#1840) needs AuditTrailService.
+        { provide: AuditTrailService, useValue: { log: jest.fn().mockResolvedValue(undefined) } },
         {
           provide: WaitlistService,
           useValue: mockWaitlistService,

@@ -86,5 +86,19 @@ export const appConfig = registerAs('app', () => {
     /** Directory for async JSON user data exports (see privacy module). */
     dataExportDir: process.env.DATA_EXPORT_DIR || './storage/data-exports',
     dataExportTtlHours: parseInt(process.env.DATA_EXPORT_TTL_HOURS || '24', 10),
+    /** Kill switch for new export requests (docs/support/user-data-export-runbook.md). */
+    dataExportEnabled: process.env.DATA_EXPORT_ENABLED !== 'false',
+    dataExportStepUpMaxAgeSeconds: parseInt(
+      process.env.DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS || '300',
+      10,
+    ),
+    dataExportStepUpMethods: (process.env.DATA_EXPORT_STEP_UP_METHODS || 'pwd,wallet')
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean),
+    dataExportEnqueueTimeoutMs: parseInt(
+      process.env.DATA_EXPORT_ENQUEUE_TIMEOUT_MS || '5000',
+      10,
+    ),
   };
 });
