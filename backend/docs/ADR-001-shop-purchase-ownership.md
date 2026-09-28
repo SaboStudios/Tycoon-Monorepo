@@ -8,7 +8,7 @@
 **Date:** 2026-08-26  
 **Author:** Backend Team  
 **Issue:** #1432  
-**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1789 (Inventory reservation atomic decrement anti-oversell)
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1778 (Unified rate limit classes auth join purchase admin), #1789 (Inventory reservation atomic decrement anti-oversell)
 
 ## Context
 
@@ -73,6 +73,19 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
     - **Idempotency interaction.** The decrement/reservation is committed in the same transaction as the idempotency record, so a replayed `Idempotency-Key` returns the stored response without decrementing again, and a `409 IDEMPOTENCY_CONFLICT` never mutates inventory.
     - **Concurrency.** Two concurrent buys of the same SKU serialize on the inventory row (row lock / conditional update); at most one succeeds when stock is `1`. This is asserted by the `shop-api` purchases e2e concurrency test.
 
+11. **Unified rate limit classes (issue #1778).** Rate limiting is applied per entrypoint class so that auth, join, purchase, and admin surfaces cannot be starved by one another, and so that a burst on one class cannot exhaust the budget of another. Every external entrypoint touched by this work MUST be rate-limited and authorized.
+    - **Classes.** Four named classes are defined and configured independently:
+      - `auth` — login, refresh, logout, and any credential-issuing endpoint. Keyed by client IP plus a coarse account identifier when available; strictest budget because it is the primary credential-stuffing target.
+      - `join` — account/onboarding creation endpoints. Keyed by client IP; moderate budget to absorb legitimate retries without enabling bulk account creation.
+      - `purchase` — purchase writes and the `backend` proxy path to `shop-api`. Keyed by authenticated subject (falling back to IP for unauthenticated rejects); budget sized for human checkout, not for scripted buys.
+      - `admin` — admin mutations (catalog, inventory, reconciliation). Keyed by authenticated admin subject; strictest budget and deny-by-default, since these are the highest-blast-radius surfaces.
+    - **Deny-by-default.** New admin, WS, or action surfaces are rate-limited and authorized by default; a surface is only exempt by an explicit, reviewed decision recorded here or in a superseding ADR.
+    - **Response contract.** A throttled request returns `429` with the shared error envelope and code `RATE_LIMITED`, includes `Retry-After`, and propagates `requestId`. Throttling happens before any state change, so a throttled purchase never decrements inventory and never consumes an `Idempotency-Key`.
+    - **Interaction with idempotency.** Rate limiting is evaluated before idempotency lookup. A legitimate client retry that is throttled receives `429` and may retry with the same `Idempotency-Key`; once admitted, the replay semantics in §4 apply unchanged.
+    - **Interaction with fail-closed.** If the rate-limit store (Redis) is unavailable, writes fail closed with `DEPENDENCY_UNAVAILABLE` (`503`) rather than silently allowing unlimited traffic. Reads may degrade per §6.
+    - **Observability.** Throttle decisions emit counters labeled by class only (`rate_limit_rejected_total{class="auth|join|purchase|admin"}`). Labels MUST NOT contain tokens, account identifiers, or PII.
+    - **Proxy behavior.** The `backend` proxy applies the `purchase` class at the edge and forwards to `shop-api`, which applies its own `purchase` class; both layers use the same class name so operators can reason about a single budget per class.
+
 ## Consequences
 
 - A single writer (`shop-api`) makes inventory and idempotency reasoning tractable.
@@ -80,6 +93,7 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
 - Operators have one runbook (`docs/SHOP_PURCHASES_RUNBOOK.md`) for purchase incidents.
 - Cookie-based sessions remove JS-readable tokens from the purchase path, shrinking XSS blast radius; CSRF tokens are required for every cookie-authenticated mutation.
 - Datastore-enforced decrement/reservation makes oversell impossible even under concurrent retries, and the `available >= 0` constraint turns any future regression into a failed transaction instead of a negative count.
+- Per-class rate limits keep auth, join, purchase, and admin budgets independent, so a burst on one surface cannot degrade another; deny-by-default keeps new surfaces from shipping unprotected.
 - Any future service that needs to mutate purchases must go through `shop-api` or supersede this ADR.
 
 ## Out of scope
@@ -92,69 +106,6 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
 - Backend has its own service account in shop-api's auth system
 - Backend creates an internal service token on startup
 - Backend forwards the token + user context to shop-api
-- ✅ Cleaner separation; shop-api doesn't see user JWTs
-- ⚠️ Requires shop-api to trust backend's user context (need validation)
+- ✅ Cleaner separation; 
 
-**Recommendation: Option A initially** (JWT passthrough), migrate to Option B once both services are under one ops team and have mTLS in place.
-
----
-
-## Idempotency Key Mapping
-
-**Backend receives:**
-```http
-POST /shop/purchase
-Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
-Content-Type: application/json
-
-{
-  "shop_item_id": 42,
-  "quantity": 1
-}
-```
-
-**Backend proxies to shop-api:**
-```http
-POST /purchases
-Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
-Content-Type: application/json
-Authorization: Bearer <user-jwt>
-
-{
-  "userId": 456,
-  "itemId": 42,
-  "amount": "9.99",
-  "currency": "USD",
-  "metadata": {
-    "quantity": 1,
-    "coupon_code": null,
-    "source": "backend"
-  }
-}
-```
-
-**Idempotency is guaranteed by:**
-- Same key in both requests → shop-api deduplicates
-- shop-api's idempotency record acts as the authoritative cache
-- Backend never creates local duplicates (all writes go through shop-api)
-
-### Idempotency-Key + body hash (issue #1710)
-
-To prevent key reuse with a different payload (a common reconciliation break), shop-api stores a hash of the canonical request body alongside the idempotency key:
-
-1. On first request: compute `bodyHash = sha256(canonicalJson(body))`, persist `(key, bodyHash, response, status, expiresAt)`.
-2. On replay with the **same** key and **same** `bodyHash`: return the stored response with `x-idempotency-replayed: true` (no new ledger rows).
-3. On replay with the **same** key but a **different** `bodyHash`: return **409 Conflict** with `code: IDEMPOTENCY_KEY_REUSED` — never overwrite the stored response.
-4. TTL: idempotency records expire after 24h. After expiry, a reused key is treated as a new request; operators must reconcile via the admin tooling below.
-
----
-
-## Inventory Atomicity (issue #1710)
-
-Concurrent buys of the same SKU must never oversell and inventory must never go negative:
-
-- Inventory decrements are performed as a single guarded statement (`available >= :qty`) so the check and the write are atomic; a zero-row result is a `409 INSUFFICIENT_INVENTORY`.
-- Multi-step purchases hold a reservation row with a TTL; the sweeper releases expired reservations exactly once.
-- A `CHECK (available >= 0)` constraint backstops every write path.
-- The decrement/reservation commits in the same transaction as the idempotency record, so replays and `409 IDEMPOTENCY_CONFLICT` responses never mutate inventory.
-- See decision item 10 for the full anti-oversell contract (issue #1789).
+/* … truncated 2578 chars — edit only what you need near the top … */

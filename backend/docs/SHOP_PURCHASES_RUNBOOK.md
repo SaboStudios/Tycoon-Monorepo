@@ -13,6 +13,31 @@ read path.
 - **frontend** renders catalog data only; it must not trust client-supplied
   price or inventory.
 
+## Rate limit classes
+
+Every external entrypoint is rate-limited by class. Classes are enforced at
+the edge (backend gateway) and again at shop-api for the write path, so a
+misconfigured or bypassed edge cannot remove the limit on authoritative
+writes. Limits are keyed by the authenticated principal when present and by
+client IP otherwise; keys never include tokens or PII.
+
+| Class | Applies to | Key | Default limit | On exceed |
+| --- | --- | --- | --- | --- |
+| `auth` | login, token refresh, wallet challenge/verify | principal or IP | `RATE_LIMIT_AUTH_PER_MIN` (default 10/min) | `429` |
+| `join` | account/onboarding creation, invite acceptance | principal or IP | `RATE_LIMIT_JOIN_PER_MIN` (default 5/min) | `429` |
+| `purchase` | shop-api purchase writes | principal | `RATE_LIMIT_PURCHASE_PER_MIN` (default 30/min) | `429` |
+| `admin` | admin catalog mutations and admin reads | principal (admin) | `RATE_LIMIT_ADMIN_PER_MIN` (default 60/min) | `429` |
+
+- `429` responses map to `docs/API_ERROR_RESPONSE_STANDARDS.md` and include
+  `Retry-After`; they never leak whether a key/principal exists.
+- Rate-limit counters are stored in Redis. When Redis is unavailable, the
+  `purchase` and `admin` classes fail closed (reject the write); `auth` and
+  `join` fail closed as well to prevent credential-stuffing during an outage.
+- Rate-limit rejections are counted with RED metrics labeled by class and
+  outcome only (no PII, no tokens).
+- The `purchase` class is applied before idempotency lookup so replays are
+  also bounded; a replayed request still consumes a token.
+
 ## Health vs readiness probes
 
 Both **backend** and **shop-api** expose two distinct probes. They are not
@@ -173,6 +198,5 @@ reported as successful.
 - If the conditional update affects zero rows, the purchase fails with a
   conflict/out-of-stock error and no inventory change is committed.
 - Reservation TTL (if used) must expire reservations back to available
-  inventory; expired reservations 
-
-/* … truncated 2656 chars — edit only what you need near the top … */
+  inventory; expired reservations are reclaimed by a background sweeper and
+  never counted as sold.
