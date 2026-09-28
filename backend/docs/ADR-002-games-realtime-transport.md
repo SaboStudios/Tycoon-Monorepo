@@ -15,7 +15,7 @@ a realtime transport that:
 
 - authenticates players using the same JWT issued by the auth service (ADR-004),
 - keeps turn state authoritative on the server so clients cannot spoof dice or
-turns,
+  turns,
 - fans out events across multiple gateway instances for horizontal scale,
 - survives reconnects without replaying or duplicating actions.
 
@@ -155,55 +155,6 @@ chat abuse controls referenced by issue #1786.
 - **Server authority.** The gateway is the only component that accepts, filters,
   and fans out chat. Clients never broadcast directly to a room; a `chat:send`
   event is validated server-side before any fanout.
-- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED` feature flag
-  is explicitly enabled for the environment. When the flag is off, `chat:send`
-  is rejected with a stable `chat_disabled` error and no message is stored or
-  broadcast. This is the current default in production.
-- **Fail-closed on writes.** If the moderation dependency (Redis for rate-limit
-  buckets, or the moderation service) is unavailable, chat writes are rejected
-  (`chat_unavailable`) rather than passed through unfiltered. Reads of existing
-  history may continue from cache.
-- **Authz.** Only authenticated principals in the game's room may send chat.
-  The sender identity is taken from `socket.data` (the verified JWT principal),
-  never from the payload. Spoofed `userId`/`seat` fields are ignored.
-- **Rate limiting.** Per-socket and per-game token buckets bound message rate;
-  exceeding the bucket returns `rate_limited` and is not broadcast.
-- **Input bounds.** Messages are length-bounded and normalized (trim, strip
-  control characters); oversized or malformed payloads are rejected with
-  `invalid_payload` before moderation.
-- **Moderation actions.** Mute/ban are admin-only (AdminGuard / API-key) and
-  reuse the ban path in §6 so a banned principal is detached from the room and
-  cannot continue chatting. Moderation actions are idempotent.
+- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED` f
 
-**Error mapping:** chat rejections use stable codes per
-`docs/API_ERROR_RESPONSE_STANDARDS.md` (`chat_disabled`, `chat_unavailable`,
-`rate_limited`, `invalid_payload`, `forbidden`) and carry `requestId` for
-correlation. Telemetry labels use the stable code and `gameId` only — never
-message content, tokens, or other PII.
-
-**Rollout / rollback:** chat stays behind `GAMES_CHAT_ENABLED`. Enabling it is a
-config change (no deploy); disabling it immediately restores the deny-by-default
-behavior and is the documented rollback. Operators should follow
-`GAMES_MATCHMAKING_RUNBOOK.md` for the enable/disable procedure.
-
-### Minimal Event Set
-
-**Server → Client:**
-- `join` — player joined a game session
-- `turn` — turn changed to a specific player
-- `roll` — player rolled dice (dice value + player info)
-- `disconnect` — player left the session
-- `unsubscribed` — socket detached from a game room (reason: `banned` | `force_end`)
-- `chat:message` — moderated chat message fanned out to the room (only when `GAMES_CHAT_ENABLED`)
-
-**Client → Server:**
-- `join` — player joins a specific game room
-- `roll` — player initiates a dice roll
-- `turn-ready` — player signals ready for next turn
-- `chat:send` — player sends a chat message (rejected with `chat_disabled` when the flag is off)
-
-### CORS & Origin Restrictions
-
-- Uses `getWsCorsConfig()` (same as `PerkBoostGateway`).
-- No `*` wildcard allowed (enforced at startup for production).
-- Respects `WS_CORS_ORIGINS` en
+/* … truncated 2749 chars — edit only what you need near the top … */
