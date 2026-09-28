@@ -318,7 +318,7 @@ stellar contract invoke \
   --source "$DEPLOYER_ACCOUNT" \
   --network testnet \
   -- initialize \
-  --owner "$DEPLOYER_ACCOUNT" \
+  --admin "$DEPLOYER_ACCOUNT" \
   --reward_system <REWARD_SYSTEM_ID> \
   --usdc_token <USDC_TOKEN_ID>
 ```

@@ -62,6 +62,9 @@ source of truth; update it in the same PR that adds or changes an entrypoint.
 | `init_shop`                     | admin             | `admin.require_auth()`                  | Admin-only; one-time shop initialization with token addresses.               |
 | `add_boost`                     | player / admin    | `caller.require_auth()`                 | Player-authorized; applies boost with expiry.                                |
 | `clear_boosts`                  | player / admin    | `caller.require_auth()`                 | Clears all boosts for the caller's address.                                  |
+| `register_player`               | player / user     | `address.require_auth()`                | User-authorized; blocked when paused.                                        |
+| `leave_pending_game`            | player            | `player.require_auth()`                 | Player-authorized; refunds stake via USDC.                                   |
+| `migrate`                       | admin             | `admin.require_auth()`                  | Admin-only; state schema migration.                                          |
 | read-only views                 | anyone            | none                                    | Must not mutate storage or emit events.                                      |
 
 Rules:
@@ -96,6 +99,8 @@ changes only, and document any new event in this section.
 | `restock`              | `(Symbol("restock"),)`                              | `(token_id: u128, amount: i128)`                  |
 | `price_update`         | `(Symbol("price"), Symbol("update"))`               | `(tyc_price: i128, usdc_price: i128)`             |
 | `backend_minter_set`   | `(Symbol("bminter"), Symbol("set"))`                | `(minter: Address)`                               |
+| `PlayerLeft`           | `(Symbol("PlayerLeft"),)`                           | `PlayerLeftPendingData`                           |
+| `GameEnded`            | `(Symbol("GameEnded"),)`                            | `PendingGameEndedData`                            |
 
 Consumers (indexer, backend) must treat unknown topics as forward-compatible
 and ignore them rather than failing.

@@ -1,0 +1,19 @@
+[package]
+name = "tycoon-integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Cross-contract integration tests for Tycoon Soroban contracts."
+
+[lib]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+tycoon-game = { path = "../contracts/tycoon-game" }
+tycoon-token = { path = "../contracts/tycoon-token" }
+tycoon-reward-system = { path = "../contracts/tycoon-reward-system" }
+tycoon-main-game = { path = "../contracts/tycoon-main-game" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

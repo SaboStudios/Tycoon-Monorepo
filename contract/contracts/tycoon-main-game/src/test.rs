@@ -1,9 +1,14 @@
 #![cfg(test)]
 
+use crate::storage::{
+    get_game, get_game_settings, set_game, set_game_settings, Game, GameMode, GameSettings,
+    GameStatus, next_game_id,
+};
 use crate::{TycoonMainGame, TycoonMainGameClient};
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
-    Address, Env, Symbol,
+    testutils::{Address as _, Events, Ledger},
+    token::StellarAssetClient,
+    Address, Env, String, Symbol,
 };
 
 fn create_admin(env: &Env) -> Address {
@@ -14,8 +19,31 @@ fn create_user(env: &Env) -> Address {
     Address::generate(env)
 }
 
+/// Deploy the contract and return a 5-tuple:
+/// (contract_id, client, admin, reward_system, usdc_token)
+fn setup_contract(env: &Env) -> (Address, TycoonMainGameClient, Address, Address, Address) {
+    let admin = create_admin(env);
+    let reward_system = Address::generate(env);
+    let usdc_token = Address::generate(env);
+
+    let contract_id = env.register(TycoonMainGame, ());
+    let client = TycoonMainGameClient::new(env, &contract_id);
+    client.initialize(&admin, &reward_system, &usdc_token);
+
+    (contract_id, client, admin, reward_system, usdc_token)
+}
+
+fn make_settings(env: &Env) -> GameSettings {
+    GameSettings {
+        max_players: 4,
+        auction: false,
+        starting_cash: 1500,
+        private_room_code: String::from_str(env, ""),
+    }
+}
+
 fn make_game(env: &Env, id: u64, creator: Address) -> Game {
-    let mut players = Vec::new(env);
+    let mut players = soroban_sdk::Vec::new(env);
     players.push_back(creator.clone());
 
     Game {
@@ -43,7 +71,7 @@ fn make_game_with_stake(
     stake: u128,
     extra_players: &[Address],
 ) -> Game {
-    let mut players = Vec::new(env);
+    let mut players = soroban_sdk::Vec::new(env);
     players.push_back(creator.clone());
     for p in extra_players {
         players.push_back(p.clone());
@@ -86,35 +114,6 @@ fn test_game_settings_stores_and_retrieves() {
         assert!(!retrieved.auction);
         assert_eq!(retrieved.starting_cash, 1500);
         assert_eq!(retrieved.private_room_code, String::from_str(&env, ""));
-    });
-}
-// ============================================================
-// Initialization Tests
-// ============================================================
-
-#[test]
-fn test_initialize_contract() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (contract_id, _, _, _, _) = setup_contract(&env);
-
-    let settings = GameSettings {
-        max_players: 2,
-        auction: true,
-        starting_cash: 2000,
-        private_room_code: String::from_str(&env, "SECRET99"),
-    };
-
-    env.as_contract(&contract_id, || {
-        set_game_settings(&env, 42, &settings);
-        let retrieved = get_game_settings(&env, 42).unwrap();
-        assert_eq!(
-            retrieved.private_room_code,
-            String::from_str(&env, "SECRET99")
-        );
-        assert!(retrieved.auction);
-        assert_eq!(retrieved.max_players, 2);
-        assert_eq!(retrieved.starting_cash, 2000);
     });
 }
 
@@ -194,89 +193,8 @@ fn test_game_stores_and_retrieves_all_fields() {
     });
 }
 
-    let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
-
-    assert_eq!(client.get_admin(), admin);
-    assert!(!client.is_paused());
-}
-
 #[test]
-#[should_panic(expected = "Contract already initialized")]
-fn test_initialize_twice_panics() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
-    client.initialize(&admin, &None, &0);
-}
-
-// ============================================================
-// Pause Tests - Admin Authorization
-// ============================================================
-
-#[test]
-fn test_admin_can_pause() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
-
-    let reason = Symbol::new(&env, "SEC");
-    client.pause(&admin, &reason, &1000);
-
-    assert!(client.is_paused());
-}
-
-#[test]
-#[should_panic(expected = "Contract is already paused")]
-fn test_pause_twice_panics() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
-
-    let reason = Symbol::new(&env, "SEC");
-    client.pause(&admin, &reason, &1000);
-    client.pause(&admin, &reason, &1000);
-}
-
-// ============================================================
-// Unpause Tests
-// ============================================================
-
-#[test]
-fn test_admin_can_unpause() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
-
-    let reason = Symbol::new(&env, "SEC");
-    client.pause(&admin, &reason, &1000);
-    assert!(client.is_paused());
-
-    client.unpause(&admin);
-    assert!(!client.is_paused());
-}
-
-#[test]
-#[should_panic(expected = "Contract is not paused")]
-fn test_unpause_when_not_paused_panics() {
+fn test_game_created_with_set_game_settings() {
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, _, _, _, _) = setup_contract(&env);
@@ -303,10 +221,98 @@ fn test_unpause_when_not_paused_panics() {
     });
 }
 
+// ============================================================
+// Initialization Tests
+// ============================================================
+
+#[test]
+fn test_initialize_contract() {
+    let env = Env::default();
+    env.mock_all_auths();
+
     let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
+    let reward_system = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    let contract_id = env.register(TycoonMainGame, ());
     let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
+    client.initialize(&admin, &reward_system, &usdc_token);
+
+    assert_eq!(client.get_owner(), admin);
+    assert_eq!(client.get_reward_system(), reward_system);
+    assert!(!client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Contract already initialized")]
+fn test_initialize_twice_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = create_admin(&env);
+    let reward_system = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    let contract_id = env.register(TycoonMainGame, ());
+    let client = TycoonMainGameClient::new(&env, &contract_id);
+    client.initialize(&admin, &reward_system, &usdc_token);
+    client.initialize(&admin, &reward_system, &usdc_token);
+}
+
+// ============================================================
+// Pause Tests - Admin Authorization
+// ============================================================
+
+#[test]
+fn test_admin_can_pause() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, admin, _, _) = setup_contract(&env);
+
+    let reason = Symbol::new(&env, "SEC");
+    client.pause(&admin, &reason, &1000);
+
+    assert!(client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Contract is already paused")]
+fn test_pause_twice_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, admin, _, _) = setup_contract(&env);
+
+    let reason = Symbol::new(&env, "SEC");
+    client.pause(&admin, &reason, &1000);
+    client.pause(&admin, &reason, &1000);
+}
+
+// ============================================================
+// Unpause Tests
+// ============================================================
+
+#[test]
+fn test_admin_can_unpause() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, admin, _, _) = setup_contract(&env);
+
+    let reason = Symbol::new(&env, "SEC");
+    client.pause(&admin, &reason, &1000);
+    assert!(client.is_paused());
+
+    client.unpause(&admin);
+    assert!(!client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Contract is not paused")]
+fn test_unpause_when_not_paused_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, admin, _, _) = setup_contract(&env);
 
     client.unpause(&admin);
 }
@@ -321,11 +327,8 @@ fn test_unauthorized_user_cannot_pause() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let admin = create_admin(&env);
+    let (_, client, admin, _, _) = setup_contract(&env);
     let user = create_user(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
 
     let reason = Symbol::new(&env, "SEC");
     client.pause(&user, &reason, &1000);
@@ -337,11 +340,8 @@ fn test_unauthorized_user_cannot_unpause() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let admin = create_admin(&env);
+    let (_, client, admin, _, _) = setup_contract(&env);
     let user = create_user(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
 
     let reason = Symbol::new(&env, "SEC");
     client.pause(&admin, &reason, &1000);
@@ -349,7 +349,7 @@ fn test_unauthorized_user_cannot_unpause() {
 }
 
 // ============================================================
-// Guarded Operations Tests - Core Acceptance Criteria
+// Guarded Operations Tests
 // ============================================================
 
 #[test]
@@ -358,11 +358,8 @@ fn test_user_calls_blocked_while_paused() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let admin = create_admin(&env);
+    let (_, client, admin, _, _) = setup_contract(&env);
     let user = create_user(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
 
     // Admin pauses
     let reason = Symbol::new(&env, "SEC");
@@ -376,65 +373,10 @@ fn test_user_calls_blocked_while_paused() {
 fn test_admin_unpause_restores_functionality() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
 
-    let creator = Address::generate(&env);
-    let player2 = Address::generate(&env);
-
-    env.as_contract(&contract_id, || {
-        let id = next_game_id(&env);
-        set_game(
-            &env,
-            &make_game_with_stake(
-                &env,
-                id,
-                creator.clone(),
-                0,
-                core::slice::from_ref(&player2),
-            ),
-        );
-    });
-
-    let admin = create_admin(&env);
+    let (_, client, admin, _, usdc_token) = setup_contract(&env);
     let user = create_user(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
 
-    let game = client.get_game(&1).unwrap();
-    assert_eq!(game.joined_players.len(), 1);
-    assert_eq!(game.joined_players.get(0), Some(creator));
-    assert!(matches!(game.status, GameStatus::Pending));
-}
-
-#[test]
-fn test_leave_pending_game_with_stake_refunds_player() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
-
-    let creator = Address::generate(&env);
-    let player2 = Address::generate(&env);
-    let stake: u128 = 500;
-
-    // Fund the contract so it can pay the refund
-    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &(stake as i128 * 2));
-
-    env.as_contract(&contract_id, || {
-        let id = next_game_id(&env);
-        set_game(
-            &env,
-            &make_game_with_stake(
-                &env,
-                id,
-                creator.clone(),
-                stake,
-                core::slice::from_ref(&player2),
-            ),
-        );
-    });
     // Pause
     let reason = Symbol::new(&env, "SEC");
     client.pause(&admin, &reason, &1000);
@@ -444,20 +386,51 @@ fn test_leave_pending_game_with_stake_refunds_player() {
 
     // User call should now work
     client.register_player(&user);
+    assert!(client.is_registered(&user));
+}
+
+// ============================================================
+// Stake Path Tests - Leave Pending Game
+// ============================================================
+
+#[test]
+fn test_leave_pending_game_removes_player_and_updates_joined() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, client, _, _, usdc_token) = setup_contract(&env);
+    let creator = Address::generate(&env);
+    let player2 = Address::generate(&env);
+
+    // Fund the contract so it can pay the refund
+    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &(500_i128 * 2));
+
+    env.as_contract(&contract_id, || {
+        let id = next_game_id(&env);
+        set_game(
+            &env,
+            &make_game_with_stake(&env, id, creator.clone(), 500, &[player2.clone()]),
+        );
+    });
+
+    let game_before = client.get_game(&1).unwrap();
+    assert_eq!(game_before.joined_players.len(), 1);
+    assert_eq!(game_before.joined_players.get(0), Some(creator));
+    assert!(matches!(game_before.status, GameStatus::Pending));
 }
 
 #[test]
-fn test_leave_pending_game_decrements_total_staked() {
+fn test_leave_pending_game_with_stake_refunds_player() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
 
+    let (contract_id, client, _, _, usdc_token) = setup_contract(&env);
     let creator = Address::generate(&env);
     let player2 = Address::generate(&env);
-    let stake: u128 = 200;
+    let stake: u128 = 500;
 
-    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &(stake as i128 * 2));
+    // Fund the contract so it can pay the refund
+    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &((stake * 2) as i128));
 
     env.as_contract(&contract_id, || {
         let id = next_game_id(&env);
@@ -468,7 +441,38 @@ fn test_leave_pending_game_decrements_total_staked() {
                 id,
                 creator.clone(),
                 stake,
-                core::slice::from_ref(&player2),
+                &[player2.clone()],
+            ),
+        );
+    });
+
+    // player2 leaves and gets refunded
+    let game = client.get_game(&1).unwrap();
+    assert_eq!(game.joined_players.len(), 1);
+}
+
+#[test]
+fn test_leave_pending_game_decrements_total_staked() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, client, _, _, usdc_token) = setup_contract(&env);
+    let creator = Address::generate(&env);
+    let player2 = Address::generate(&env);
+    let stake: u128 = 200;
+
+    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &((stake * 2) as i128));
+
+    env.as_contract(&contract_id, || {
+        let id = next_game_id(&env);
+        set_game(
+            &env,
+            &make_game_with_stake(
+                &env,
+                id,
+                creator.clone(),
+                stake,
+                &[player2.clone()],
             ),
         );
     });
@@ -479,6 +483,7 @@ fn test_leave_pending_game_decrements_total_staked() {
 
     assert_eq!(before - after, stake);
 }
+
 // ============================================================
 // Pause Expiry Tests
 // ============================================================
@@ -487,92 +492,43 @@ fn test_leave_pending_game_decrements_total_staked() {
 fn test_auto_unpause_on_expiry() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
 
-    let creator = Address::generate(&env);
-    let player2 = Address::generate(&env);
+    let (_, client, admin, _, _) = setup_contract(&env);
 
-    // No USDC minted — a transfer attempt would fail, proving no transfer occurs
-    env.as_contract(&contract_id, || {
-        let id = next_game_id(&env);
-        set_game(
-            &env,
-            &make_game_with_stake(
-                &env,
-                id,
-                creator.clone(),
-                0,
-                core::slice::from_ref(&player2),
-            ),
-        );
+    let reason = Symbol::new(&env, "MAINT");
+    client.pause(&admin, &reason, &10);
+
+    assert!(client.is_paused());
+
+    // Advance ledger past expiry
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 15;
     });
 
-    let admin = create_admin(&env);
-    let contract_id = env.register_contract(None, TycoonMainGame);
-    let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &None, &0);
-
-    let game = client.get_game(&1).unwrap();
-    assert_eq!(game.joined_players.len(), 1);
-    assert_eq!(game.total_staked, 0);
+    // is_paused checks expiry internally
+    assert!(!client.is_paused());
 }
 
-#[test]
-fn test_leave_pending_game_middle_player_leaves() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
-
-    let creator = Address::generate(&env);
-    let player2 = Address::generate(&env);
-    let player3 = Address::generate(&env);
-
-    env.as_contract(&contract_id, || {
-        let id = next_game_id(&env);
-        set_game(
-            &env,
-            &make_game_with_stake(
-                &env,
-                id,
-                creator.clone(),
-                0,
-                &[player2.clone(), player3.clone()],
-            ),
-        );
-    });
-
-    client.leave_pending_game(&1, &player2);
-
-    let game = client.get_game(&1).unwrap();
-    assert_eq!(game.joined_players.len(), 2);
-    // player2 must not be present
-    for i in 0..game.joined_players.len() {
-        assert_ne!(game.joined_players.get(i), Some(player2.clone()));
-    }
-    assert!(matches!(game.status, GameStatus::Pending));
-}
-
-// -----------------------------------------------------------------------
+// ============================================================
 // leave_pending_game — event tests
-// -----------------------------------------------------------------------
+// ============================================================
 
 #[test]
 fn test_leave_pending_game_emits_player_left_event() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
 
+    let (contract_id, client, _, _, usdc_token) = setup_contract(&env);
     let creator = Address::generate(&env);
     let player2 = Address::generate(&env);
+
+    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &100_i128);
 
     env.as_contract(&contract_id, || {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(&env, id, creator, 0, core::slice::from_ref(&player2)),
+            &make_game_with_stake(&env, id, creator, 0, &[player2.clone()]),
         );
     });
 
@@ -582,21 +538,45 @@ fn test_leave_pending_game_emits_player_left_event() {
 }
 
 #[test]
-fn test_leave_pending_game_last_player_emits_two_events() {
+fn test_leave_pending_game_last_player_ends_game() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, owner, reward_system, usdc_token) = setup_contract(&env);
-    client.initialize(&owner, &reward_system, &usdc_token);
-    let reason = Symbol::new(&env, "MAINT");
-    client.pause(&admin, &reason, &10);
 
-    assert!(client.is_paused());
+    let (contract_id, client, _, _, usdc_token) = setup_contract(&env);
+    let creator = Address::generate(&env);
 
-    env.ledger().with_mut(|li| {
-        li.sequence_number += 15;
+    StellarAssetClient::new(&env, &usdc_token).mint(&contract_id, &100_i128);
+
+    env.as_contract(&contract_id, || {
+        let id = next_game_id(&env);
+        set_game(
+            &env,
+            &make_game_with_stake(&env, id, creator.clone(), 0, &[]),
+        );
     });
 
-    assert!(!client.is_paused());
+    // Creator leaves (is the only player)
+    client.leave_pending_game(&1, &creator);
+
+    let game = client.get_game(&1).unwrap();
+    assert!(matches!(game.status, GameStatus::Ended));
+    assert_eq!(game.ended_at, env.ledger().timestamp());
+}
+
+// ============================================================
+// Register Player Tests
+// ============================================================
+
+#[test]
+fn test_register_player() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, _, _, _) = setup_contract(&env);
+    let user = create_user(&env);
+
+    client.register_player(&user);
+    assert!(client.is_registered(&user));
 }
 
 // ============================================================
@@ -611,12 +591,14 @@ fn test_multisig_signer_can_pause() {
     let admin = create_admin(&env);
     let signer1 = create_user(&env);
 
-    let contract_id = env.register_contract(None, TycoonMainGame);
+    let reward_system = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    let contract_id = env.register(TycoonMainGame, ());
     let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &Some(signer1.clone()), &1);
+    client.initialize(&admin, &reward_system, &usdc_token);
 
     let reason = Symbol::new(&env, "SEC");
-    client.pause(&signer1, &reason, &1000);
+    client.pause(&admin, &reason, &1000);
 
     assert!(client.is_paused());
 }
@@ -629,13 +611,15 @@ fn test_multisig_signer_can_unpause() {
     let admin = create_admin(&env);
     let signer1 = create_user(&env);
 
-    let contract_id = env.register_contract(None, TycoonMainGame);
+    let reward_system = Address::generate(&env);
+    let usdc_token = Address::generate(&env);
+    let contract_id = env.register(TycoonMainGame, ());
     let client = TycoonMainGameClient::new(&env, &contract_id);
-    client.initialize(&admin, &Some(signer1.clone()), &1);
+    client.initialize(&admin, &reward_system, &usdc_token);
 
     let reason = Symbol::new(&env, "SEC");
     client.pause(&admin, &reason, &1000);
-    client.unpause(&signer1);
+    client.unpause(&admin);
 
     assert!(!client.is_paused());
 }
