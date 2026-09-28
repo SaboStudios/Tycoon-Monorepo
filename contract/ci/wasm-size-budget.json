@@ -1,35 +1,13 @@
 {
-  "version": 2,
-  "regression_threshold_percent": 10,
-  "note": "WASM size budget for Tycoon Soroban contracts. Update baseline_bytes when intentionally growing a contract.",
-  "contracts": {
-    "tycoon_main_game": {
-      "baseline_bytes": 102400,
-      "note": "Main game contract with staking, pause, and player registration logic"
-    },
-    "tycoon_game": {
-      "baseline_bytes": 102400,
-      "note": "Game contract with player registration, withdrawals, and collectibles"
-    },
-    "tycoon_token": {
-      "baseline_bytes": 51200,
-      "note": "TYC token contract (SEP-41 standard)"
-    },
-    "tycoon_reward_system": {
-      "baseline_bytes": 71680,
-      "note": "Reward system with voucher minting and redemption"
-    },
-    "tycoon_collectibles": {
-      "baseline_bytes": 81920,
-      "note": "Collectibles contract with enumeration and transfer"
-    },
-    "tycoon_boost_system": {
-      "baseline_bytes": 61440,
-      "note": "Boost system with cap stacking and expiry"
-    },
-    "tycoon_lib": {
-      "baseline_bytes": 30720,
-      "note": "Shared library for fee calculation and common types"
-    }
+  "version": 3,
+  "regression_threshold_percent": 3,
+  "baseline_bytes": {
+    "tycoon_boost_system.wasm": 9115,
+    "tycoon_token.wasm": 16893,
+    "tycoon_reward_system.wasm": 22698,
+    "tycoon_main_game.wasm": 23613,
+    "tycoon_game.wasm": 26555,
+    "tycoon_collectibles.wasm": 31977
+  }
   }
 }
