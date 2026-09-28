@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { generateBaseMetadata } from '@/lib/metadata';
+import { AnalyticsConsentSettings } from '@/components/analytics/AnalyticsConsentSettings';
 
 export const metadata: Metadata = generateBaseMetadata({
   title: 'Privacy Policy',
@@ -84,8 +85,16 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
+          <section id="analytics-choices" aria-labelledby="analytics-choices-heading">
+            <h2 id="analytics-choices-heading" className="text-2xl font-bold text-[var(--tycoon-accent)]">6. Analytics Choices</h2>
+            <p className="text-[var(--tycoon-text)]/80">
+              Usage analytics are off until you allow them. When allowed, events are anonymous: wallet addresses, emails, account ids, and room codes are removed before anything is sent. You can change your choice here at any time and it applies immediately.
+            </p>
+            <AnalyticsConsentSettings />
+          </section>
+
           <section>
-            <h2 className="text-2xl font-bold text-[var(--tycoon-accent)]">6. Contact Us</h2>
+            <h2 className="text-2xl font-bold text-[var(--tycoon-accent)]">7. Contact Us</h2>
             <p className="text-[var(--tycoon-text)]/80">
               If you have questions or comments about this Privacy Policy, please contact us at:
             </p>

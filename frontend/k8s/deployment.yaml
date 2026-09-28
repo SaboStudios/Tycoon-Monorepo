@@ -85,6 +85,26 @@ spec:
                 secretKeyRef:
                   name: frontend-secrets
                   key: NEXT_PUBLIC_API_URL
+            # Farcaster manifest (#1760). Optional: when absent the route
+            # /.well-known/farcaster.json fails closed with 404.
+            - name: FARCASTER_ACCOUNT_ASSOCIATION_HEADER
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-secrets
+                  key: FARCASTER_ACCOUNT_ASSOCIATION_HEADER
+                  optional: true
+            - name: FARCASTER_ACCOUNT_ASSOCIATION_PAYLOAD
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-secrets
+                  key: FARCASTER_ACCOUNT_ASSOCIATION_PAYLOAD
+                  optional: true
+            - name: FARCASTER_ACCOUNT_ASSOCIATION_SIGNATURE
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-secrets
+                  key: FARCASTER_ACCOUNT_ASSOCIATION_SIGNATURE
+                  optional: true
           # Next.js does not expose a dedicated /health endpoint out of the box.
           # The root path `/` returns 200 once the server is ready.
           # Add a custom `/api/health` route and update these paths for stricter checks.

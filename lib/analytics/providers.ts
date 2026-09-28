@@ -1,22 +1,33 @@
-// Analytics provider configuration.
+// Analytics provider configuration (repo-root shim).
+//
+// The allowlist lives in exactly one place:
+//   frontend/src/lib/analytics/allowlist.ts
+// This module re-exports it so root-level tooling and the frontend can never
+// disagree about which providers exist (#1761). Previously this file listed
+// `google-analytics` while the frontend used `ga4`, so a value accepted here
+// was silently dropped at runtime.
 //
 // NEXT_PUBLIC_ANALYTICS_PROVIDERS is a comma-separated list of enabled
 // analytics providers. An empty value disables analytics entirely.
 // Unknown provider names are rejected so typos fail fast instead of
-// silently disabling analytics.
+// silently disabling analytics; next.config.ts runs the same check so an
+// unknown provider fails `next build`.
 //
 // Consent-aware telemetry (SW-FE-039): analytics must only be emitted after
-// the user has granted explicit consent. The provider registry below is
-// deny-by-default — any provider name that is not registered here fails the
-// build rather than silently shipping unvetted telemetry.
+// the user has granted explicit consent. The runtime consent store is
+// frontend/src/lib/analytics/consent.ts.
 
-export const ALLOWED_ANALYTICS_PROVIDERS = [
-  'google-analytics',
-  'plausible',
-  'posthog',
-] as const;
+import {
+  ANALYTICS_PROVIDER_IDS,
+  parseAnalyticsProviders,
+  type AnalyticsProviderName,
+} from '../../frontend/src/lib/analytics/allowlist';
 
-export type AnalyticsProvider = (typeof ALLOWED_ANALYTICS_PROVIDERS)[number];
+export { parseAnalyticsProviders };
+
+export const ALLOWED_ANALYTICS_PROVIDERS = ANALYTICS_PROVIDER_IDS;
+
+export type AnalyticsProvider = AnalyticsProviderName;
 
 // Keys that must never appear in telemetry labels or payloads. Consent-aware
 // telemetry scrubs PII before events leave the client.
@@ -25,32 +36,6 @@ const PII_KEY_PATTERN =
 
 const PII_VALUE_PATTERN =
   /([\w.+-]+@[\w-]+\.[\w.-]+)|(\b0x[a-f0-9]{6,}\b)|(\bG[A-Z2-7]{20,}\b)/i;
-
-export function parseAnalyticsProviders(
-  raw: string | undefined,
-): AnalyticsProvider[] {
-  const value = (raw ?? '').trim();
-  if (value === '') {
-    return [];
-  }
-
-  const names = value
-    .split(',')
-    .map((name) => name.trim())
-    .filter((name) => name !== '');
-
-  const unknown = names.filter(
-    (name) => !(ALLOWED_ANALYTICS_PROVIDERS as readonly string[]).includes(name),
-  );
-  if (unknown.length > 0) {
-    throw new Error(
-      `Unknown NEXT_PUBLIC_ANALYTICS_PROVIDERS value(s): ${unknown.join(', ')}. ` +
-        `Allowed values: ${ALLOWED_ANALYTICS_PROVIDERS.join(', ')}.`,
-    );
-  }
-
-  return names as AnalyticsProvider[];
-}
 
 export const analyticsProviders = parseAnalyticsProviders(
   process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS,

@@ -1,4 +1,13 @@
-import type { NextConfig } from "next/server";
+import type { NextConfig } from "next";
+import { assertAnalyticsBuildEnv } from "./src/lib/analytics/allowlist";
+
+// #1761: unknown analytics providers (or a malformed enable flag) fail the
+// build here instead of shipping unvetted telemetry. See
+// frontend/docs/SW-FE-1761-analytics-allowlist-consent.md.
+assertAnalyticsBuildEnv({
+  NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
+  NEXT_PUBLIC_ANALYTICS_PROVIDERS: process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS,
+});
 
 /**
  * Content-Security-Policy for Tycoon frontend.

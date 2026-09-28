@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { kronaOne, orbitron, dmSans } from "@/lib/fonts";
 import { AnalyticsProvider } from "@/components/providers/analytics-provider";
+import { ConsentBanner } from "@/components/analytics/ConsentBanner";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
@@ -52,6 +53,7 @@ export default function RootLayout({
                 {children}
                 <NavbarMobile />
               </ErrorBoundary>
+              <ConsentBanner />
               <ToastProvider />
               <PWAProvider />
               <ScrollToTopBtn />

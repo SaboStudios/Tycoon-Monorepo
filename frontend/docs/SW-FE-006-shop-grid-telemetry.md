@@ -42,6 +42,11 @@ Uses the existing `track()` / `sanitizeAnalyticsPayload` pipeline already in
 
 ## Feature flag / rollout
 
+> **Consent (#1761):** events are sent only when `NEXT_PUBLIC_ENABLE_ANALYTICS=true`
+> **and** the player has accepted the analytics consent banner. When verifying
+> the steps below, accept the banner first. See
+> [SW-FE-1761](SW-FE-1761-analytics-allowlist-consent.md).
+
 Telemetry respects the existing `NEXT_PUBLIC_ENABLE_ANALYTICS` flag:
 
 ```bash

@@ -1,6 +1,11 @@
 import { AnalyticsEventName, AnalyticsEventPayload } from "./taxonomy";
+import {
+  AnalyticsConfigError,
+  AnalyticsProviderName,
+  parseAnalyticsProviders,
+} from "./allowlist";
 
-export type AnalyticsProviderName = "plausible" | "ga4" | "posthog";
+export type { AnalyticsProviderName } from "./allowlist";
 
 export interface AnalyticsProvider {
   name: AnalyticsProviderName;
@@ -54,22 +59,31 @@ function createPostHogProvider(): AnalyticsProvider {
   };
 }
 
+// Typed against the allowlist: adding an id to ANALYTICS_PROVIDER_IDS without
+// a factory here is a compile error.
 const providerFactories: Record<AnalyticsProviderName, () => AnalyticsProvider> = {
   plausible: createPlausibleProvider,
   ga4: createGa4Provider,
   posthog: createPostHogProvider,
 };
 
-export function resolveAnalyticsProviders(): AnalyticsProvider[] {
-  const configuredProviders = process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS;
-
-  if (!configuredProviders) {
+/**
+ * Resolve configured providers. Unknown ids fail the build via next.config.ts;
+ * if one still reaches the browser (e.g. a misconfigured preview), analytics
+ * fails closed — no providers, no telemetry — rather than crashing the page.
+ */
+export function resolveAnalyticsProviders(
+  raw: string | undefined = process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS,
+): AnalyticsProvider[] {
+  let names: AnalyticsProviderName[];
+  try {
+    names = parseAnalyticsProviders(raw);
+  } catch (error) {
+    if (error instanceof AnalyticsConfigError && process.env.NODE_ENV !== "production") {
+      console.error(`[analytics] disabled: ${error.message}`);
+    }
     return [];
   }
 
-  return configuredProviders
-    .split(",")
-    .map((providerName) => providerName.trim().toLowerCase() as AnalyticsProviderName)
-    .filter((providerName): providerName is AnalyticsProviderName => providerName in providerFactories)
-    .map((providerName) => providerFactories[providerName]());
+  return names.map((name) => providerFactories[name]());
 }

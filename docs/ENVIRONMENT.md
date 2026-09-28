@@ -243,10 +243,13 @@ Next.js app. Only `NEXT_PUBLIC_*` variables reach the browser.
 | `NEXT_PUBLIC_GAME_WS_URL` | ✅ | `ws://localhost:3000` | | Game WebSocket URL |
 | `NEXT_PUBLIC_NEAR_NETWORK` | ✅ | `testnet` | | `testnet` \| `mainnet` |
 | `NEXT_PUBLIC_NEAR_CONTRACT_ID` | ✅ | *(empty)* | | NEAR contract account |
-| `NEXT_PUBLIC_ENABLE_ANALYTICS` | | `false` | | Master switch for analytics providers |
-| `NEXT_PUBLIC_ANALYTICS_PROVIDERS` | | *(empty)* | | Comma-separated provider ids |
+| `NEXT_PUBLIC_ENABLE_ANALYTICS` | | `false` | | Master switch for analytics providers. Must be exactly `true` or `false`; any other value fails `next build`. Events also require player consent (see `frontend/docs/SW-FE-1761-analytics-allowlist-consent.md`) |
+| `NEXT_PUBLIC_ANALYTICS_PROVIDERS` | | *(empty)* | | Comma-separated provider ids from the allowlist in `frontend/src/lib/analytics/allowlist.ts` (`plausible`, `ga4`, `posthog`). Unknown ids fail `next build` |
 | `NEXT_PUBLIC_ANALYTICS_DEBUG` | | `false` | | Log analytics events to the console |
 | `NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT` | | *(empty)* | | Ingest URL for client error reports |
+| `FARCASTER_ACCOUNT_ASSOCIATION_HEADER` | | *(empty)* | | Server-only. Farcaster account association header (base64url). All three must be set, and the payload's domain must equal the `NEXT_PUBLIC_APP_URL` host; otherwise `/.well-known/farcaster.json` returns 404. See `frontend/docs/SW-FE-1760-farcaster-manifest.md` |
+| `FARCASTER_ACCOUNT_ASSOCIATION_PAYLOAD` | | *(empty)* | | Server-only. Signed payload (base64url JSON `{"domain":"<host>"}`) |
+| `FARCASTER_ACCOUNT_ASSOCIATION_SIGNATURE` | | *(empty)* | | Server-only. Signature over header + payload. Rotate by redeploying with new values |
 
 ---
 

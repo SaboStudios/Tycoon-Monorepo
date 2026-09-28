@@ -59,6 +59,51 @@ describe("sanitizeAnalyticsPayload", () => {
   });
 });
 
+describe("sanitizeAnalyticsPayload value scrubbing (#1761)", () => {
+  it("drops identifier-looking values even under allowed keys", () => {
+    expect(
+      sanitizeAnalyticsPayload("purchase_click", {
+        route: "/shop",
+        item_name: "player@example.com",
+        item_id: "alice.near",
+        item_category: "a".repeat(64),
+        currency: "0x1234567890abcdef1234",
+        value: 5,
+      }),
+    ).toEqual({ route: "/shop", value: 5 });
+  });
+
+  it("drops JWT-like and oversized strings", () => {
+    expect(
+      sanitizeAnalyticsPayload("view_shop", {
+        route: "/shop",
+        source: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig",
+        shop_section: "x".repeat(201),
+      }),
+    ).toEqual({ route: "/shop" });
+  });
+
+  it("strips query strings and fragments from routes", () => {
+    expect(
+      sanitizeAnalyticsPayload("view_home", { route: "/?ref=abc&token=secret#frag" }),
+    ).toEqual({ route: "/" });
+  });
+
+  it("drops non-finite numbers and non-primitive values", () => {
+    expect(
+      sanitizeAnalyticsPayload("purchase_click", {
+        route: "/shop",
+        value: Number.NaN,
+        item_id: { nested: true },
+      }),
+    ).toEqual({ route: "/shop" });
+  });
+
+  it("returns an empty payload for an unknown event name", () => {
+    expect(sanitizeAnalyticsPayload("not_an_event" as never, { route: "/" })).toEqual({});
+  });
+});
+
 describe("getViewEventForPath", () => {
   it("maps supported routes to taxonomy view events", () => {
     expect(getViewEventForPath("/")).toBe("view_home");

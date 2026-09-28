@@ -43,23 +43,24 @@ npm run test:e2e:smoke  # join-room smoke path
 npm run storybook       # Storybook
 ```
 
-Before opening a PR for frontend work, run the relevant checks locally. Current CI expectations are `npm run typecheck`, `npm test -- --run`, `npm run build`, and `npm run bundle:check` for the touched app.
+Before opening a PR for frontend work, run the relevant checks locally. Current CI expectations are `npm run typecheck`, `npm test -- --run`, `npm run build`, and `node scripts/check-bundle-size.mjs` (after the build) for the touched app.
 
 ### Frontend CI jobs
 
 | Job | What it does | Blocks merge? |
 |-----|-------------|---------------|
 | `frontend-typecheck` | `tsc --noEmit` — catches type errors fast (~30 s), before the full build | Yes |
+| `frontend-gates` | `node --test scripts/*.test.mjs`: self-tests for the zero-dependency gates (no `npm ci`) | Yes |
 | `frontend-checks` | Vitest, Next.js production build, then bundle budget check | Yes |
 | `frontend-lint` | ESLint (advisory until backlog cleared) | No (`continue-on-error`) |
-| `frontend-e2e` | Playwright smoke + critical journeys | Smoke blocks; journeys advisory |
+| `frontend-e2e` | Playwright smoke, critical journeys, analytics consent, Farcaster manifest | Yes |
 | `chromatic` | Storybook visual regression snapshots | Advisory (skipped on forks) |
 
 The `frontend-typecheck` job runs first so a type error fails in ~30 s instead of burning 3–5 minutes waiting for the production build.
 
 > **Note:** The `frontend-typecheck` job is a hard-fail gate. There are pre-existing type errors in several test files (tracked separately). New PRs must not introduce additional type errors — running `npm run typecheck` locally before opening a PR will show the current baseline. Once the backlog of pre-existing errors is cleared, the job will turn fully green.
 
-After the build, `npm run bundle:check` (script: `scripts/check-bundle-size.mjs`) compares gzip sizes of all `.next/static/chunks` against the budgets in `.size-limit.json`. A breach fails the job. The report is uploaded as a `bundle-size-report` artifact (retained 30 days). See [`frontend/BUNDLE_BUDGET.md`](frontend/BUNDLE_BUDGET.md) for thresholds and the exemption process.
+After the build, `node scripts/check-bundle-size.mjs` compares gzip sizes of the shared, per-route, and total client JS against the budgets in `.size-limit.json` and the regression baseline in `bundle-baseline.json`. It also fails if MSW code reaches a client chunk. A breach fails the job. The report is uploaded as a `bundle-size-report` artifact (retained 30 days). See [`frontend/BUNDLE_BUDGET.md`](frontend/BUNDLE_BUDGET.md) for thresholds and the exemption process.
 
 ### Playwright critical journeys
 
@@ -75,7 +76,7 @@ matching journey in the same PR:
 Journeys must exercise live APIs (no MSW in the production bundle) and assert keyboard
 focus order and visible focus for the primary controls. Keep heavy wallet/board deps
 code-split so the journeys do not regress the bundle/CLS budgets enforced by
-`npm run bundle:check`.
+`node scripts/check-bundle-size.mjs`.
 
 ## Backend setup
 
@@ -147,7 +148,58 @@ From the repo root, `npm run install:all`, `npm run test:all`, and
 2. Implement the change and add or update tests alongside it.
 3. Run the checks relevant to the area you touched.
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) (`feat(...)`, `fix(...)`, `docs(...)`, etc.).
-5. Open a PR against `main` using the PR template and reference the issue with `closes #<issue-number>`.
+5. Add a CHANGELOG entry for each package you changed (see [Changelog and PR template](#changelog-and-pr-template)).
+6. Open a PR against `main` using the PR template and reference the issue with `closes #<issue-number>`.
+
+## Changelog and PR template
+
+CI (`PR compliance`, [`.github/workflows/pr-compliance.yml`](.github/workflows/pr-compliance.yml)) enforces these rules on every pull request, from forks too. The logic is in [`scripts/check-changelog.mjs`](scripts/check-changelog.mjs).
+
+### 1. One CHANGELOG entry per touched package
+
+Add at least one `- ...` bullet under `## [Unreleased]` in the changelog that owns each file you changed:
+
+| You changed | Add an entry to |
+|---|---|
+| `frontend/**` | [`frontend/CHANGELOG.md`](frontend/CHANGELOG.md) |
+| `backend/**` | [`backend/CHANGELOG.md`](backend/CHANGELOG.md) |
+| `shop-api/**` | [`shop-api/CHANGELOG.md`](shop-api/CHANGELOG.md) |
+| `contract/contracts/<crate>/**` | `contract/contracts/<crate>/CHANGELOG.md` |
+| other `contract/**` | [`contract/CHANGELOG.md`](contract/CHANGELOG.md) |
+| anything else (CI, `scripts/`, `lib/`, root) | [`CHANGELOG.md`](CHANGELOG.md) |
+
+- Markdown-only changes and test-only changes (`test/`, `e2e/`, `*.test.*`, `*.spec.*`) need no entry.
+- Use [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) subsections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` (plus `Docs` and `Policy`). Release headings look like `## [1.2.3] - YYYY-MM-DD`.
+- An entry added under an already released version does not count.
+- If a change really needs no entry, write one line in the PR's `## Changelog` section: `No changelog: <reason of at least 10 characters>`. Maintainers can apply the `skip-changelog` label instead. Fork PRs cannot set labels, so use the line.
+
+### 2. PR description follows the template
+
+[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) is used by default. Package-specific templates are available by adding `?template=frontend.md`, `backend.md`, `shop-api.md` or `contract.md` to the compare URL. Every template must keep:
+
+- non-empty `## Summary`, `## Changelog`, `## Test plan` and `## Rollback` sections (HTML comments do not count);
+- an issue link such as `Closes #123`, `Refs #123` or `Part of SW-FE-1761`;
+- no secrets. Private keys, GitHub/AWS/Slack/Stripe tokens and JWTs are rejected; the check reports the pattern, never the value. **Security vulnerabilities go through [SECURITY.md](SECURITY.md), not a public PR.**
+
+Dependabot and Renovate PRs are exempt. A maintainer adds the changelog entry when merging.
+
+### Run it locally before pushing
+
+```bash
+# Commit first; the check compares <base>...HEAD.
+git fetch origin main
+node scripts/check-changelog.mjs --base origin/main --dry-run                       # report only
+node scripts/check-changelog.mjs --base origin/main --body-file /tmp/pr-body.md    # same as CI
+node --test scripts/check-changelog.test.mjs                                       # gate self-tests
+```
+
+Exit codes: `0` compliant, `1` non-compliant, `2` misconfiguration such as a bad ref. The check fails closed.
+
+### Maintainers
+
+- Make **PR compliance / Changelog + PR template** a required status check on `main` in branch protection. Without that, the rule is advisory.
+- When cutting a release, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD` and add a fresh `## [Unreleased]` above it.
+- Rollback: to pause enforcement, remove the required check in branch protection. To remove it entirely, revert the workflow. Neither touches any data.
 
 ## CI honesty
 
