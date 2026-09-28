@@ -139,6 +139,75 @@ Table-driven vectors in `backend/test/trade-accept.audit-spec.ts` cover:
 
 Vectors assert both the resulting asset state and the emitted event sequence.
 
+## Mortgage rules
+
+Mortgages are server-authoritative and encoded in the pure module
+(`backend/src/games/board-tile-model.ts`) alongside the tile families. Clients
+never compute mortgage values; they render the server quote/result only.
+
+### Mortgage constants
+
+- `MORTGAGE_VALUE_RATIO` — fraction of the property's purchase price credited
+  when mortgaging (default `0.5`). The mortgage credit is
+  `floor(purchasePrice * MORTGAGE_VALUE_RATIO)`.
+- `UNMORTGAGE_INTEREST_RATE` — interest charged to lift a mortgage (default
+  `0.1`). The unmortgage cost is
+  `mortgageValue + ceil(mortgageValue * UNMORTGAGE_INTEREST_RATE)`.
+- `MORTGAGE_HOUSE_SELL_RATIO` — fraction of the build cost refunded when houses
+  must be sold before mortgaging (default `0.5`).
+
+### Mortgage rules
+
+1. **Server-only** — only the server computes mortgage/unmortgage amounts. A
+   client-supplied amount, ratio, or interest rate is ignored; the server derives
+   the amount from the pinned ruleset and the property's purchase price.
+2. **Ownership** — only the property owner may mortgage or unmortgage. Any other
+   actor is rejected with `NOT_PROPERTY_OWNER` and no state change.
+3. **No houses** — a property with houses/hotel cannot be mortgaged. The owner
+   must sell all buildings first; an attempt is rejected with
+   `MORTGAGE_WITH_BUILDINGS` and no state change.
+4. **No rent while mortgaged** — a mortgaged property collects no rent. Landing on
+   a mortgaged property is a no-op for rent.
+5. **Unmortgage cost** — lifting a mortgage costs the mortgage value plus
+   `UNMORTGAGE_INTEREST_RATE` interest, debited atomically. If the owner cannot
+   cover the cost, the unmortgage is rejected with `INSUFFICIENT_FUNDS` and no
+   state change (bankruptcy mid-debt is handled by the economic rules below).
+6. **Idempotent** — a mortgage/unmortgage is keyed by `(gameId, tileId, action)`.
+   A duplicate request (concurrent request or reconnect retry) returns the
+   original result and MUST NOT double-apply money. A repeat mortgage of an
+   already-mortgaged property is rejected with `STALE_MORTGAGE`.
+7. **Transactional** — the money mutation and the `PROPERTY_MORTGAGED` /
+   `PROPERTY_UNMORTGAGED` event commit atomically or not at all.
+8. **Fail-closed** — if the store or lock is unavailable, the request is rejected
+   and no mutation occurs.
+
+### Events
+
+Mortgage mutations emit `PROPERTY_MORTGAGED` and `PROPERTY_UNMORTGAGED` with
+`{ gameId, tileId, playerId, amount, rulesetVersion }`. Replaying these events
+MUST rebuild an identical board state and identical mortgaged-property set.
+
+### Golden vectors
+
+Table-driven vectors in `backend/test/mortgage.audit-spec.ts` cover:
+
+- mortgaging an unmortgaged property credits exactly
+  `floor(purchasePrice * MORTGAGE_VALUE_RATIO)` and emits `PROPERTY_MORTGAGED`;
+- unmortgaging debits exactly
+  `mortgageValue + ceil(mortgageValue * UNMORTGAGE_INTEREST_RATE)` and emits
+  `PROPERTY_UNMORTGAGED`;
+- mortgaging a property with houses rejected with `MORTGAGE_WITH_BUILDINGS` and no
+  state change;
+- non-owner mortgage/unmortgage rejected with `NOT_PROPERTY_OWNER`;
+- duplicate/concurrent mortgage of the same `(gameId, tileId)` applied exactly
+  once; repeat rejected with `STALE_MORTGAGE`;
+- unmortgage with insufficient funds rejected with `INSUFFICIENT_FUNDS` and no
+  state change;
+- client-supplied amount/ratio/interest ignored (server ruleset wins).
+
+Vectors assert both the resulting money/board state and the emitted event
+sequence.
+
 ## Economic rules
 
 - Money mutations are transactional: debit and credit commit atomically or not at all.
@@ -160,58 +229,6 @@ emits a game event so the pot can be rebuilt by replay.
 ### Invariants
 
 Let `pot` be the escrowed balance, `stake` the per-player buy-in, and `players` the
-set of joined players.
+se
 
-1. **Conservation** — `pot` equals the sum of all accepted stakes minus all
-   refunds and the single winner payout. No other code path may credit or debit the
-   pot.
-2. **Stake** — a stake is accepted only once per player per game; the pot increases
-   by exactly `stake`. Duplicate stakes are rejected with `ALREADY_STAKED` and no
-   state change.
-3. **Join** — joining requires an accepted stake; the pot is unchanged by join
-   itself. Joining twice is idempotent by `playerId`.
-4. **Cancel** — cancelling before the game starts refunds each joined player exactly
-   their stake and zeroes the pot. Cancel after start is rejected with
-   `GAME_ALREADY_STARTED` and no state change.
-5. **Finish** — finishing pays the pot to the single winner and zeroes it. The pot
-   must be non-negative at every step; a negative pot is a fatal invariant breach.
-6. **Winner-only claim** — only the winner may claim; claims are idempotent by
-   `gameId` and rejected with `NOT_WINNER` for non-winners and `ALREADY_CLAIMED`
-   for duplicates.
-
-### Events
-
-Prize pot mutations emit `STAKE_ACCEPTED`, `PLAYER_JOINED`, `GAME_CANCELLED`,
-`PRIZE_PAID`, and `POT_REFUNDED`. Replaying these events MUST rebuild an identical
-pot balance.
-
-### Golden vectors
-
-Table-driven vectors in `backend/test/prize-pot.invariant-spec.ts` cover stake,
-join, cancel, and finish, including duplicate stake, join-before-stake, cancel
-after start, and finish with a zero pot. Vectors assert both the resulting pot and
-the emitted event sequence.
-
-## Events
-
-Every accepted mutation emits a game event for replay:
-`MONEY_MOVED`, `PROPERTY_TRANSFERRED`, `HOUSE_BUILT`, `TRADE_ACCEPTED`,
-`PLAYER_BANKRUPT`, `TURN_ADVANCED`. Replaying the event log MUST rebuild identical
-state (see `backend/test/games-replay.e2e-spec.ts`).
-
-## Prize claims
-
-Only the winner may claim the prize; claims are idempotent by `gameId` and rejected
-with `NOT_WINNER` for non-winners and `ALREADY_CLAIMED` for duplicates.
-
-## Failure modes
-
-- Dependency outage (Postgres/Redis/shop-api/RPC): writes fail closed.
-- Auth expiry mid-flow: action rejected with `UNAUTHENTICATED`; no partial mutation.
-- Adversarial input: enum values validated, payloads size-capped, spoofed events
-  rejected by signature/ownership checks.
-
-## Chain note
-
-NEAR wallet is the only supported chain UI per ADR-003 until Stellar is gated ready.
-Do not surface Stellar-specific copy in board tile flows.
+/* … truncated 2438 chars — edit only what you need near the top … */
