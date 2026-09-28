@@ -45,6 +45,9 @@ source of truth; update it in the same PR that adds or changes an entrypoint.
 | `transfer`            | token holder      | `from.require_auth()`                   | Holder-authorized; checked balance arithmetic.    |
 | `payout`              | admin / treasury  | `admin.require_auth()`                  | Admin-only; unauthorized payout must fail closed. |
 | `pause` / `unpause`   | admin             | `admin.require_auth()`                  | Admin-only; gates all writes while paused.        |
+| `register_player`     | player / user     | `address.require_auth()`                | User-authorized; blocked when paused.             |
+| `leave_pending_game`  | player            | `player.require_auth()`                 | Player-authorized; refunds stake via USDC.        |
+| `migrate`             | admin             | `admin.require_auth()`                  | Admin-only; state schema migration.               |
 | read-only views       | anyone            | none                                    | Must not mutate storage or emit events.           |
 
 Rules:
@@ -66,7 +69,10 @@ changes only, and document any new event in this section.
 | `admin_changed`  | `(Symbol("admin_changed"),)`    | `(old: Address, new: Address)`|
 | `transfer`       | `(Symbol("transfer"), from)`   | `(to: Address, amount: i128)` |
 | `payout`         | `(Symbol("payout"), to)`       | `(amount: i128)`              |
-| `paused`         | `(Symbol("paused"),)`          | `bool`                        |
+| `paused`         | `(Symbol("Paused"),)`          | `PauseEventData`              |
+| `unpaused`       | `(Symbol("Unpaused"),)`        | `UnpauseEventData`            |
+| `PlayerLeft`     | `(Symbol("PlayerLeft"),)`      | `PlayerLeftPendingData`       |
+| `GameEnded`      | `(Symbol("GameEnded"),)`       | `PendingGameEndedData`        |
 
 Consumers (indexer, backend) must treat unknown topics as forward-compatible
 and ignore them rather than failing.

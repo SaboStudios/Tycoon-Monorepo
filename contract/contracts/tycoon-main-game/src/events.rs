@@ -41,3 +41,39 @@ pub fn emit_unpaused(env: &Env, data: &UnpauseEventData) {
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }
+
+/// Data payload for PlayerLeftPending event (stake refund)
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PlayerLeftPendingData {
+    /// Game ID
+    pub game_id: u64,
+    /// Player that left
+    pub player: Address,
+    /// Amount refunded to the player
+    pub stake_refunded: u128,
+    /// Remaining players after leave
+    pub remaining_players: u32,
+}
+
+/// Emits PlayerLeftPending event when a player leaves a pending game
+pub fn emit_player_left_pending(env: &Env, data: &PlayerLeftPendingData) {
+    let topics = (symbol_short!("PlayerLeft"),);
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
+
+/// Data payload for PendingGameEnded event (when last player leaves)
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PendingGameEndedData {
+    /// Game ID that ended
+    pub game_id: u64,
+}
+
+/// Emits PendingGameEnded event when last player leaves a pending game
+pub fn emit_pending_game_ended(env: &Env, data: &PendingGameEndedData) {
+    let topics = (symbol_short!("GameEnded"),);
+    #[allow(deprecated)]
+    env.events().publish(topics, data);
+}
