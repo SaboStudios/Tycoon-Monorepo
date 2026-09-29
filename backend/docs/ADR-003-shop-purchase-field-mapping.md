@@ -89,9 +89,12 @@ depends on. Any PR touching the purchase path must conform to it.
   without one are rejected (fail-closed) rather than treated as new writes.
 - The key is stored together with a hash of the request body.
   - **Replay (same key, same body hash):** return the stored response with
-    the original status code. No second purchase is created.
+    the original status code (`201` for purchase creation). No second
+    purchase is created.
   - **Conflict (same key, different body hash):** return `409 Conflict`.
     The stored record is never overwritten.
+  - `409` is not a replay-success response. Backend adapters preserve it as
+    a conflict; only a completed replay returns the stored success response.
 - Idempotency records have a TTL. After TTL expiry the key may be reused;
   operators must treat a post-TTL reuse as a new write, and the runbook
   documents the TTL value and the resulting replay window.

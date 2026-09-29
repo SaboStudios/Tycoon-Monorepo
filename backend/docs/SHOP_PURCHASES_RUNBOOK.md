@@ -183,9 +183,13 @@ reported as successful.
 - Key: `Idempotency-Key` header (required). Stored alongside a hash of the
   canonical request body.
 - Replay with the same key and identical body hash: return the stored
-  response (same status, same body) without re-executing the purchase.
+  response (same status, same body; currently `201`) without re-executing
+  the purchase.
 - Replay with the same key and a different body hash: return `409 Conflict`
   mapped per `docs/API_ERROR_RESPONSE_STANDARDS.md`.
+- `409` is never a replay-success signal. It represents an idempotency
+  conflict or an in-flight duplicate; backend proxies must preserve it as an
+  error. A completed replay is the stored success response.
 - TTL: idempotency records expire after `SHOP_IDEMPOTENCY_TTL_SECONDS`
   (default 86400s). After expiry the key no longer replays and a new key is
   required; clients must not reuse keys across logical purchases.
@@ -200,3 +204,12 @@ reported as successful.
 - Reservation TTL (if used) must expire reservations back to available
   inventory; expired reservations are reclaimed by a background sweeper and
   never counted as sold.
+
+### CI contract checks
+
+- The root backend CI workflow is triggered by changes under `backend/` and
+  `shop-api/` and runs backend adapter tests, shop-api unit tests, and the
+  purchase HTTP e2e suite as separate gates.
+- The backend adapter must forward the service API key, `Idempotency-Key`,
+  and `X-Request-Id`; it must not retry purchase writes. A `409` response is
+  an error and must not be converted to a successful replay.

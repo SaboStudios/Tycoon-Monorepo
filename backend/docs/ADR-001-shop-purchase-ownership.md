@@ -49,6 +49,9 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
 4. **Idempotency.** Purchase writes require an `Idempotency-Key` header. `shop-api` stores the key together with a hash of the request body:
    - Replay with the same key and same body hash returns the stored response.
    - Replay with the same key and a different body hash returns `409` with code `IDEMPOTENCY_CONFLICT`.
+    - A completed replay returns its stored success status/body (`201` for
+       purchase creation). `409` is reserved for conflicts and in-flight
+       duplicates; a proxy must never interpret it as a successful replay.
    - Keys expire per the TTL documented in `docs/SHOP_PURCHASES_RUNBOOK.md`; after expiry a new request is treated as a fresh purchase.
 
 5. **Inventory integrity.** Inventory adjustments are atomic (constraint or reservation with TTL) so concurrent purchases of the same SKU cannot oversell. Inventory must never go negative.

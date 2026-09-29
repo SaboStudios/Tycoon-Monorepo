@@ -7,14 +7,18 @@ on:
       - master
     paths:
       - 'backend/**'
+      - 'shop-api/**'
       - 'package-lock.json'
+      - 'shop-api/package-lock.json'
       - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
       # Run on any backend source or config change
       - 'backend/**'
+      - 'shop-api/**'
       # Root-level package lockfile (shared deps may affect backend)
       - 'package-lock.json'
+      - 'shop-api/package-lock.json'
       # CI workflow changes always re-run this workflow
       - '.github/workflows/backend-ci.yml'
   # Allow manual runs regardless of path filters
@@ -232,6 +236,9 @@ jobs:
 
       - name: Run shop API tests
         run: npm test
+
+      - name: Run shop API purchase e2e tests
+        run: npm run test:e2e
 
       - name: Build shop API
         run: npm run build
