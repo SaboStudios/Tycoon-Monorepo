@@ -34,9 +34,13 @@ import { ShopItem } from './entities/shop-item.entity';
 import { Purchase } from './entities/purchase.entity';
 import { UserInventory } from './entities/user-inventory.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdvancedCacheInterceptor } from '../../common/interceptors/advanced-cache.interceptor';
 import { CacheOptions } from '../../common/decorators/cache-options.decorator';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @ApiTags('shop')
 @Controller('shop')
@@ -52,6 +56,9 @@ export class ShopController {
    * Create a new shop item (admin use)
    */
   @Post('items')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @UseInterceptors(AuditTrailInterceptor)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new shop item' })
   @ApiResponse({
@@ -107,6 +114,9 @@ export class ShopController {
    * PATCH /shop/items/:id
    */
   @Patch('items/:id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @UseInterceptors(AuditTrailInterceptor)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiOperation({ summary: 'Update a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({
@@ -126,6 +136,9 @@ export class ShopController {
    * Soft-deletes by setting active = false
    */
   @Delete('items/:id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @UseInterceptors(AuditTrailInterceptor)
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   @ApiOperation({ summary: 'Deactivate (soft-delete) a shop item' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({

@@ -21,18 +21,33 @@ describe('Admin Guard Verification Logic', () => {
   function analyzeControllerContent(content: string): {
     hasAdminRoute: boolean;
     hasAdminGuard: boolean;
+    hasMutations: boolean;
+    hasAuditTrail: boolean;
     isValid: boolean;
   } {
     const adminControllerMatch = /@Controller\s*\(\s*['"`]admin\//;
     const hasAdminRoute = adminControllerMatch.test(content);
 
-    const adminGuardMatch = /@UseGuards\s*\(\s*[^)]*AdminGuard[^)]*\s*\)/;
+    const adminGuardMatch = /@UseGuards\s*\([^)]*\bAdminGuard\b[^)]*\)/;
     const hasAdminGuard = adminGuardMatch.test(content);
+
+    const mutationMatch = /@(Post|Put|Patch|Delete)\s*\(/;
+    const hasMutations = mutationMatch.test(content);
+
+    const auditTrailMatch = /AuditTrail|auditTrail|@Audit\b/;
+    const hasAuditTrail = auditTrailMatch.test(content);
+
+    // Admin controllers must have class-level AdminGuard
+    // If there are mutations, they must have audit trail coverage
+    const guardsValid = !hasAdminRoute || hasAdminGuard;
+    const auditValid = !hasMutations || hasAuditTrail;
 
     return {
       hasAdminRoute,
       hasAdminGuard,
-      isValid: !hasAdminRoute || hasAdminGuard,
+      hasMutations,
+      hasAuditTrail,
+      isValid: guardsValid && auditValid,
     };
   }
 
@@ -102,6 +117,26 @@ describe('Admin Guard Verification Logic', () => {
       expect(result.hasAdminRoute).toBe(false);
       expect(result.isValid).toBe(true);
     });
+
+    it('should accept admin controller with JwtAuthGuard, AdminGuard, and AuditTrail on mutations', () => {
+      const content = `
+        @Controller('admin/rooms')
+        @UseGuards(JwtAuthGuard, AdminGuard)
+        @UseInterceptors(AuditTrailInterceptor)
+        export class AdminRoomsController {
+          @Post()
+          @AuditLog(AuditAction.ADMIN_MUTATION)
+          create() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(true);
+      expect(result.hasMutations).toBe(true);
+      expect(result.hasAuditTrail).toBe(true);
+      expect(result.isValid).toBe(true);
+    });
   });
 
   describe('Invalid admin controllers (missing AdminGuard)', () => {
@@ -141,6 +176,79 @@ describe('Admin Guard Verification Logic', () => {
       expect(result.hasAdminRoute).toBe(true);
       expect(result.hasAdminGuard).toBe(false);
       expect(result.isValid).toBe(false);
+    });
+
+    it('should reject admin controller with AdminGuard on method only', () => {
+      const content = `
+        @Controller('admin/rooms')
+        export class AdminRoomsController {
+          @Post()
+          @UseGuards(AdminGuard)
+          create() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(false);
+      expect(result.isValid).toBe(false);
+    });
+  });
+
+  describe('Audit trail enforcement', () => {
+    it('should reject admin controller with mutations but no audit trail', () => {
+      const content = `
+        @Controller('admin/reports')
+        @UseGuards(JwtAuthGuard, AdminGuard)
+        export class AdminReportsController {
+          @Post('generate')
+          generate() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(true);
+      expect(result.hasMutations).toBe(true);
+      expect(result.hasAuditTrail).toBe(false);
+      expect(result.isValid).toBe(false);
+    });
+
+    it('should accept admin controller with mutations and audit trail', () => {
+      const content = `
+        @Controller('admin/reports')
+        @UseGuards(JwtAuthGuard, AdminGuard)
+        @UseInterceptors(AuditTrailInterceptor)
+        export class AdminReportsController {
+          @Post('generate')
+          @AuditLog(AuditAction.ADMIN_MUTATION)
+          generate() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(true);
+      expect(result.hasMutations).toBe(true);
+      expect(result.hasAuditTrail).toBe(true);
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept admin controller with read-only endpoints (no mutations)', () => {
+      const content = `
+        @Controller('admin/analytics')
+        @UseGuards(JwtAuthGuard, AdminGuard)
+        export class AdminAnalyticsController {
+          @Get('dashboard')
+          getDashboard() {}
+        }
+      `;
+
+      const result = analyzeControllerContent(content);
+      expect(result.hasAdminRoute).toBe(true);
+      expect(result.hasAdminGuard).toBe(true);
+      expect(result.hasMutations).toBe(false);
+      expect(result.isValid).toBe(true);
     });
   });
 
@@ -256,22 +364,6 @@ describe('Admin Guard Verification Logic', () => {
       expect(result.isValid).toBe(true);
     });
 
-    it('should reject admin controller where AdminGuard is only on a method', () => {
-      const content = `
-        @Controller('admin/rooms')
-        export class AdminRoomsController {
-          @Get()
-          @UseGuards(AdminGuard)
-          list() {}
-        }
-      `;
-
-      const result = analyzeControllerContent(content);
-      expect(result.hasAdminRoute).toBe(true);
-      expect(result.hasAdminGuard).toBe(true);
-      expect(result.isValid).toBe(true);
-    });
-
     it('should reject admin controller with no guard anywhere', () => {
       const content = `
         @Controller('admin/rooms')
@@ -286,5 +378,87 @@ describe('Admin Guard Verification Logic', () => {
       expect(result.hasAdminGuard).toBe(false);
       expect(result.isValid).toBe(false);
     });
+  });
+});
+
+describe('Redaction function unit test (from admin-logs.service.ts)', () => {
+  /**
+   * Replicates the redactAuditDetails logic to test its behavior.
+   */
+  function redactAuditDetails(value: unknown): unknown {
+    const SENSITIVE_DETAIL_KEY =
+      /(password|secret|token|authorization|cookie|api.?key|private.?key|email|phone|address|wallet)/i;
+
+    if (Array.isArray(value)) {
+      return value.map(redactAuditDetails);
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, nestedValue]) => [
+          key,
+          SENSITIVE_DETAIL_KEY.test(key)
+            ? '[REDACTED]'
+            : redactAuditDetails(nestedValue),
+        ]),
+      );
+    }
+
+    return value;
+  }
+
+  it('should redact direct sensitive fields', () => {
+    const input = { email: 'user@example.com', name: 'Alice' };
+    const result = redactAuditDetails(input) as Record<string, unknown>;
+    expect(result.email).toBe('[REDACTED]');
+    expect(result.name).toBe('Alice');
+  });
+
+  it('should redact nested sensitive fields', () => {
+    const input = { user: { email: 'user@example.com', token: 'abc123' }, role: 'admin' };
+    const result = redactAuditDetails(input) as Record<string, unknown>;
+    expect((result.user as Record<string, unknown>).email).toBe('[REDACTED]');
+    expect((result.user as Record<string, unknown>).token).toBe('[REDACTED]');
+    expect(result.role).toBe('admin');
+  });
+
+  it('should redact in arrays', () => {
+    const input = [{ email: 'a@b.com' }, { email: 'c@d.com' }];
+    const result = redactAuditDetails(input) as Array<Record<string, unknown>>;
+    expect(result[0].email).toBe('[REDACTED]');
+    expect(result[1].email).toBe('[REDACTED]');
+  });
+
+  it('should handle primitive values', () => {
+    expect(redactAuditDetails('hello')).toBe('hello');
+    expect(redactAuditDetails(42)).toBe(42);
+    expect(redactAuditDetails(null)).toBe(null);
+  });
+
+  it('should handle empty objects and arrays', () => {
+    expect(redactAuditDetails({})).toEqual({});
+    expect(redactAuditDetails([])).toEqual([]);
+  });
+
+  it('should match various sensitive key patterns', () => {
+    const input = {
+      password: 'secret',
+      api_key: 'key123',
+      'private-key': 'priv',
+      wallet: '0x123',
+      phone: '555-0100',
+      address: '123 Main St',
+      authorization: 'Bearer ...',
+      cookie: 'session=abc',
+      name: 'Bob',
+    };
+    const result = redactAuditDetails(input) as Record<string, string>;
+    for (const key of Object.keys(input)) {
+      if (key === 'name') {
+        expect(result[key]).toBe('Bob');
+      } else {
+        expect(result[key]).toBe('[REDACTED]');
+      }
+    }
   });
 });

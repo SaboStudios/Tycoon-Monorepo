@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   ParseIntPipe,
+  UseInterceptors,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -16,8 +17,12 @@ import {
   TriggerReconciliationDto,
   ResolveDiscrepancyDto,
 } from './dto/reconciliation.dto';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
 
 @UseGuards(JwtAuthGuard, AdminGuard)
+@UseInterceptors(AuditTrailInterceptor)
 @Controller('admin/ledger-reconciliation')
 export class LedgerReconciliationController {
   constructor(private readonly service: LedgerReconciliationService) {}
@@ -27,6 +32,7 @@ export class LedgerReconciliationController {
    * Defaults to dry-run=true for safety.
    */
   @Post('run')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async triggerRun(@Body() dto: TriggerReconciliationDto) {
     const dryRun = dto.dryRun !== false; // default true
     const endDate = dto.endDate ? new Date(dto.endDate) : new Date();
@@ -45,6 +51,7 @@ export class LedgerReconciliationController {
 
   /** Mark a discrepancy as resolved with a note */
   @Patch('discrepancies/:id/resolve')
+  @AuditLog(AuditAction.ADMIN_MUTATION)
   async resolve(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ResolveDiscrepancyDto,

@@ -17,11 +17,23 @@ import { CouponsModule } from '../src/modules/coupons/coupons.module';
 import { PerksModule } from '../src/modules/perks/perks.module';
 import { WaitlistModule } from '../src/modules/waitlist/waitlist.module';
 import { ChanceModule } from '../src/modules/chance/chance.module';
+import { PerksBoostsModule } from '../src/modules/perks-boosts/perks-boosts.module';
+import { ShopModule } from '../src/modules/shop/shop.module';
+import { LedgerReconciliationModule } from '../src/modules/ledger-reconciliation/ledger-reconciliation.module';
+import { AuditTrailModule } from '../src/modules/audit-trail/audit-trail.module';
 
 // Entities
 import { User } from '../src/modules/users/entities/user.entity';
 import { BoardStyle } from '../src/modules/board-styles/entities/board-style.entity';
 import { ShopItem } from '../src/modules/shop/entities/shop-item.entity';
+import { Purchase } from '../src/modules/shop/entities/purchase.entity';
+import { Perk } from '../src/modules/perks-boosts/entities/perk.entity';
+import { PlayerPerk } from '../src/modules/perks-boosts/entities/player-perk.entity';
+import { ActiveBoost } from '../src/modules/perks-boosts/entities/active-boost.entity';
+import { BoostUsage } from '../src/modules/perks-boosts/entities/boost-usage.entity';
+import { PerkAnalyticsEvent } from '../src/modules/perks-boosts/entities/perk-analytics-event.entity';
+import { LedgerDiscrepancy } from '../src/modules/ledger-reconciliation/entities/ledger-discrepancy.entity';
+import { AuditTrail } from '../src/modules/audit-trail/entities/audit-trail.entity';
 import { pgE2eDatabaseOptions } from './utils/e2e-database';
 import { Role } from '../src/modules/auth/enums/role.enum';
 
@@ -71,7 +83,18 @@ describe('Admin Role Verification (e2e)', () => {
         TypeOrmModule.forRoot(pgE2eDatabaseOptions()),
         // Relation targets whose owning modules are not imported here
         // (UserPreference#boardStyle, Coupon#item_restriction).
-        TypeOrmModule.forFeature([BoardStyle, ShopItem]),
+        TypeOrmModule.forFeature([
+          BoardStyle,
+          ShopItem,
+          Purchase,
+          Perk,
+          PlayerPerk,
+          ActiveBoost,
+          BoostUsage,
+          PerkAnalyticsEvent,
+          LedgerDiscrepancy,
+          AuditTrail,
+        ]),
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
@@ -98,14 +121,18 @@ describe('Admin Role Verification (e2e)', () => {
             limit: 100,
           },
         ]),
+        AuditTrailModule,
         UsersModule,
         AuthModule,
         AdminAnalyticsModule,
         AdminLogsModule,
         CouponsModule,
         PerksModule,
+        PerksBoostsModule,
+        ShopModule,
         WaitlistModule,
         ChanceModule,
+        LedgerReconciliationModule,
       ],
     })
       .overrideProvider(RedisService)
@@ -347,6 +374,134 @@ describe('Admin Role Verification (e2e)', () => {
         .get('/chance/admin')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
+    });
+  });
+
+  describe('Perks Boosts Module - Admin Endpoints', () => {
+    it('should return 403 when non-admin user accesses POST /perks/inventory/bulk', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/perks/inventory/bulk')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ playerId: 1, perks: [] })
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 401 when no token is provided for POST /perks/inventory/bulk', async () => {
+      await request(app.getHttpServer())
+        .post('/perks/inventory/bulk')
+        .send({ playerId: 1, perks: [] })
+        .expect(401);
+    });
+
+    it('should return 403 when non-admin user accesses POST /perks (create)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/perks')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ name: 'Test Perk', type: 'permanent', category: 'cosmetic' })
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+  });
+
+  describe('Perks Analytics Module - Admin Endpoints', () => {
+    it('should return 403 when non-admin user accesses GET /perks/analytics/dashboard', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/perks/analytics/dashboard')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 401 when no token is provided for GET /perks/analytics/dashboard', async () => {
+      await request(app.getHttpServer())
+        .get('/perks/analytics/dashboard')
+        .expect(401);
+    });
+  });
+
+  describe('Shop Module - Admin Endpoints', () => {
+    it('should return 403 when non-admin user accesses POST /shop/items', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/shop/items')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ name: 'Test Item', price: 100 })
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 403 when non-admin user accesses PATCH /shop/items/1', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/shop/items/1')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ name: 'Updated' })
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 403 when non-admin user accesses DELETE /shop/items/1', async () => {
+      const response = await request(app.getHttpServer())
+        .delete('/shop/items/1')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 401 when no token is provided for POST /shop/items', async () => {
+      await request(app.getHttpServer())
+        .post('/shop/items')
+        .send({ name: 'Test Item', price: 100 })
+        .expect(401);
+    });
+  });
+
+  describe('Ledger Reconciliation Module - Admin Endpoints', () => {
+    it('should return 403 when non-admin user accesses POST /admin/ledger-reconciliation/run', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/admin/ledger-reconciliation/run')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({})
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 401 when no token is provided for POST /admin/ledger-reconciliation/run', async () => {
+      await request(app.getHttpServer())
+        .post('/admin/ledger-reconciliation/run')
+        .send({})
+        .expect(401);
+    });
+  });
+
+  describe('Ledger Module - Admin Export Endpoint', () => {
+    it('should return 403 when non-admin user accesses GET /admin/ledger/export', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/admin/ledger/export')
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toContain('Admin role required');
+    });
+
+    it('should return 401 when no token is provided for GET /admin/ledger/export', async () => {
+      await request(app.getHttpServer())
+        .get('/admin/ledger/export')
+        .expect(401);
     });
   });
 

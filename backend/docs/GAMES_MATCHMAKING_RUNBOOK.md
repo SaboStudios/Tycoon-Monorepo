@@ -1,14 +1,16 @@
 # Games Matchmaking Runbook
 
 Operational guide for the Tycoon games matchmaking and realtime (WebSocket) layer.
-Covers the `GamesGateway` (ADR-002), Redis adapter fan-out, and the graceful
-unsubscribe path used when a user is banned or an admin force-ends a game/session.
+Covers the `GamesGateway` (ADR-002), Redis adapter fan-out, the graceful
+unsubscribe path used when a user is banned or an admin force-ends a game/session,
+and the **disconnect forfeit timers presence policy**.
 
 ## Scope
 
 - Matchmaking queue lifecycle (join, match, seat assignment).
 - Realtime gateway handshake, authorization, and room membership.
 - Graceful WS unsubscribe on **user ban** and **admin force-end**.
+- **Disconnect forfeit timers and presence policy** (see below).
 - Multi-instance delivery via the Redis adapter.
 
 ## Architecture references
@@ -51,6 +53,71 @@ unsubscribe path used when a user is banned or an admin force-ends a game/sessio
 - Every mutating intent carries an **idempotency key**. Duplicate or reconnect
   retries with the same key return the prior result and do not re-apply effects.
 - Money, dice, inventory, and admin mutations remain server-side source of truth.
+
+## Disconnect forfeit timers and presence policy
+
+A seated player who disconnects must not stall the game indefinitely, and a
+spectator disconnecting must never affect play. Presence is tracked per
+**user + game**, not per socket, so duplicate tabs and reconnects do not
+incorrectly start or cancel a forfeit timer.
+
+### Presence model
+
+- Presence is keyed by `(gameId, userId)` with a reference count of live sockets.
+- A user is **present** while at least one authorized socket for that game is
+  connected; the user is **absent** only when the last socket detaches.
+- Spectators are tracked for room membership only and are **excluded** from
+  forfeit timers entirely.
+- Presence transitions are server-authoritative; clients cannot assert presence.
+
+### Forfeit timer rules
+
+1. When a **seated** user transitions present → absent, start (or resume) a
+   forfeit timer for that seat. The timer duration is server-configured; clients
+   are told the deadline, never the policy internals.
+2. When the same seated user reconnects (present again) **before** the deadline,
+   cancel the timer and resume play from the snapshot/replay path. No forfeit is
+   applied.
+3. If the deadline elapses with the user still absent, the server applies the
+   forfeit outcome (server-authoritative) and emits the terminal event to the
+   room. Clients never compute or submit the forfeit result.
+4. A spectator disconnect never starts a timer and never ends the game.
+5. If **all** seated users are absent, the game is paused and the timer policy
+   applies per seat; the game is not force-ended solely due to absence unless the
+   configured policy says so.
+
+### Duplicate tabs and reconnects
+
+- A second tab for the same user+game increments the presence refcount; it does
+  **not** start a second timer and does **not** grant a second seat.
+- Closing one of several tabs does not mark the user absent; the timer only
+  starts when the refcount reaches zero.
+- Reconnect retries are idempotent: repeated handshakes for the same user+game
+  converge to a single presence entry and a single timer.
+
+### Multi-instance presence (Redis adapter)
+
+- Presence refcounts and forfeit deadlines live in Redis so every instance sees
+  the same state; a disconnect on one instance is observed by all.
+- Timer expiry is driven by a single authoritative scheduler (or a Redis-keyed
+  deadline with a compare-and-set claim) so only one instance applies the
+  forfeit. Duplicate expiry attempts are no-ops.
+- **Redis pub/sub lag:** presence updates are eventually consistent across
+  instances. A lagging instance must not start a duplicate timer; it reconciles
+  against the Redis deadline before acting.
+- **Sticky sessions:** if any deployment still relies on sticky sessions for
+  handshake affinity, document it here and prefer the Redis adapter for
+  correctness. Sticky sessions are an optimization, not a correctness requirement.
+
+### Failure modes for presence
+
+- **Redis outage:** fail closed — do not start or cancel forfeit timers on
+  unverified presence; surface the outage and hold the game rather than
+  forfeiting a possibly-present player.
+- **Auth expiry mid-session:** treat as a disconnect for presence purposes; the
+  user may reconnect with a fresh handshake before the deadline.
+- **Event reordering after reconnect:** presence transitions carry monotonic
+  sequence/version so a stale "absent" cannot cancel a newer "present".
 
 ## Graceful WS unsubscribe on ban / admin force-end
 
@@ -109,6 +176,8 @@ abruptly killing unrelated sockets.
   - rejected actions by stable error code (counter)
   - ban/force-end teardowns (counter)
   - Redis adapter publish failures (counter)
+  - active forfeit timers (gauge)
+  - forfeits applied (counter)
 
 ## Failure modes
 
@@ -126,12 +195,17 @@ abruptly killing unrelated sockets.
 
 - Ban/force-end teardown is additive; disabling the feature flag reverts to the
   prior behavior without schema changes.
+- Forfeit timers are additive and server-driven; disabling the presence policy
+  flag reverts to no-forfeit behavior without schema changes.
 - If Redis adapter issues arise, fall back to single-instance delivery and record
   the limitation here until resolved.
 
 ## Test plan
 
 - Unit: authz matrix seat vs spectator; stable error code mapping.
+- Unit: presence refcount and forfeit timer start/cancel on present↔absent.
 - E2E: join / roll / reconnect; `game-idempotency.e2e`.
+- E2E: disconnect starts forfeit timer; reconnect before deadline cancels it;
+  deadline elapse applies server-authoritative forfeit.
 - E2E: ban and admin force-end detach sockets and reject reconnect.
 - Optional: load smoke for connected sockets and Redis adapter fan-out.
