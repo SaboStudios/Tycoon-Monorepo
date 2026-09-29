@@ -39,3 +39,8 @@ guidance.
 | Farcaster manifest | `/.well-known/farcaster.json` is 404 unless a domain-bound association is configured | [`frontend/docs/SW-FE-1760-farcaster-manifest.md`](frontend/docs/SW-FE-1760-farcaster-manifest.md) |
 
 Report security issues privately as described in [SECURITY.md](SECURITY.md).
+
+## Handsoff notes
+
+<!-- handsoff-issue-1775 -->
+- #1775: Offline route resilience SW-FE-743 mid-game
