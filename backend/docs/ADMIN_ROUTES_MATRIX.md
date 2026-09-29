@@ -18,6 +18,13 @@ referenced by the in-game chat moderation ADR (see
 - The server is the sole source of truth for moderation state. Client-supplied
   actor ids, roles, or timestamps are ignored and re-derived from the
   authenticated principal.
+- Admin controllers MUST declare `@UseGuards(JwtAuthGuard, AdminGuard)` at the
+  **class level** so every handler inherits the guard pair. Per-handler guard
+  overrides are not permitted for admin surfaces.
+- Admin accounts are provisioned via **invite** and revoked via **disable**.
+  There are no shared admin passwords: each admin authenticates with their own
+  credentials, and invite/disable flows never transmit or store a shared
+  secret.
 
 ## Error codes
 
@@ -71,6 +78,39 @@ not exported. The paginated view recursively redacts sensitive detail keys.
 
 ---
 
+## Admin account lifecycle routes
+
+Admin accounts are provisioned by **invite** and revoked by **disable**. No
+shared admin password exists anywhere in the system: invites carry a
+single-use, short-lived token that the invitee exchanges for their own
+credentials, and disable revokes the account without exposing any secret.
+
+| Method | Path | Guard | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/admin/admins/invite` | `AdminGuard` | Invites an admin by email; issues a single-use token. Idempotent by email. |
+| `POST` | `/admin/admins/:id/disable` | `AdminGuard` | Disables an admin account; idempotent. |
+
+### Invariants for admin account lifecycle
+
+1. **No shared passwords** — invite/disable never generate, transmit, or
+   persist a shared admin password. Invite tokens are single-use, short-lived,
+   and stored hashed.
+2. **Class-level guards** — the admin controller declares
+   `@UseGuards(JwtAuthGuard, AdminGuard)` at the class level; non-admin tokens
+   receive `403 AUTH_FORBIDDEN` on every invite/disable handler.
+3. **Audit on success and failure** — every invite/disable attempt writes an
+   `AuditTrail` entry (`ADMIN_INVITED`, `ADMIN_DISABLED`) including the acting
+   admin id, target id, outcome, and correlation id. Failure paths are audited
+   too, so denied or errored attempts are never silent.
+4. **Redaction** — invite tokens, credentials, and PII are redacted from admin
+   log views and audit output; only allowlisted columns are surfaced.
+5. **Fail-closed writes** — if Postgres/Redis is unavailable, invite/disable
+   is rejected with `503 DEPENDENCY_UNAVAILABLE` and no state changes.
+6. **Idempotency** — concurrent duplicate invites/disables and reconnect
+   retries resolve to a single applied mutation.
+
+---
+
 ## Kill switch
 
 Chat moderation mutations are gated behind the `CHAT_MODERATION_ENABLED`
@@ -84,13 +124,6 @@ without a redeploy.
 |-------------|------|---------|------------|
 | GET | `/users` | List all users with pagination | AdminGuard |
 | PATCH | `/users/:id` | Update a user by ID | AdminGuard |
-
-Chat moderation mutations are gated behind the `CHAT_MODERATION_ENABLED`
-feature flag. When disabled, the routes return `503 DEPENDENCY_UNAVAILABLE`
-and the in-game chat falls back to read-only. This provides a rollback path
-without a redeploy.
-
-## Related documents
 
 - `docs/adr/ADR-CHAT-MODERATION.md` — design note and invariants.
 - `docs/API_ERROR_RESPONSE_STANDARDS.md` — canonical error codes.

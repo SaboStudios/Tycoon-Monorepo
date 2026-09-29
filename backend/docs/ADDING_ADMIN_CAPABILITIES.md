@@ -183,6 +183,90 @@ create() {
 
 ---
 
+## Admin Invite & Disable (No Shared Passwords)
+
+Admin invite and disable flows must never rely on shared or static admin passwords. Invites are issued as single-use, expiring tokens; disabling revokes access without exposing credentials.
+
+### Rules
+
+- **No shared passwords**: never seed, document, or transmit a common admin password. Invites use per-user, single-use tokens with a short TTL.
+- **Class-level guards**: the invite/disable controller must declare `@UseGuards(JwtAuthGuard, AdminGuard)` at the class level so every route is deny-by-default.
+- **Audit every mutation**: both invite and disable write an `AuditTrail` entry, including failure paths (denied, expired, invalid token).
+- **Redact secrets**: admin log views and audit output must redact invite tokens, JWTs, and any credential material before rendering.
+
+### Example: Invite/Disable Controller
+
+```typescript
+import { Controller, Post, Param, UseGuards, HttpStatus } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
+
+@ApiTags('admin-users')
+@ApiBearerAuth()
+@Controller('admin/users')
+@UseGuards(JwtAuthGuard, AdminGuard)  // Class-level: deny-by-default for all routes
+export class AdminUsersController {
+  constructor(private readonly adminUsersService: AdminUsersService) {}
+
+  @Post(':id/invite')
+  @ApiOperation({ summary: 'Invite an admin (single-use token, no shared password)' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Invite issued.' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Admin role required.' })
+  invite(@Param('id') id: string) {
+    return this.adminUsersService.invite(id);
+  }
+
+  @Post(':id/disable')
+  @ApiOperation({ summary: 'Disable an admin and revoke access' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Admin disabled.' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Admin role required.' })
+  disable(@Param('id') id: string) {
+    return this.adminUsersService.disable(id);
+  }
+}
+```
+
+### Example: AuditTrail on Success and Failure
+
+```typescript
+async invite(id: string, actor: AdminActor) {
+  try {
+    const token = await this.issueSingleUseInvite(id);
+    await this.auditTrail.record({
+      action: 'admin.invite',
+      actorId: actor.id,
+      targetId: id,
+      outcome: 'success',
+      // Never persist the raw token; store a redacted reference only.
+      metadata: { token: redact(token) },
+    });
+    return { invited: true };
+  } catch (err) {
+    await this.auditTrail.record({
+      action: 'admin.invite',
+      actorId: actor.id,
+      targetId: id,
+      outcome: 'failure',
+      metadata: { reason: err.message },
+    });
+    throw err;
+  }
+}
+```
+
+### Redaction Helper
+
+```typescript
+export function redact(value: string): string {
+  if (!value) return value;
+  if (value.length <= 8) return '***';
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
+}
+```
+
+---
+
 ## Adding Integration Tests
 
 ### Step 1: Create Test File
@@ -329,192 +413,22 @@ npm run test:e2e -- admin-role-verification.e2e-spec.ts
 @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
 ```
 
-### 4. Use Rate Limiting
+### 4. Never Use Shared Admin Passwords
 
-Apply rate limiting to admin endpoints to prevent abuse:
+Admin invite and disable flows must not depend on a shared or static admin password. Use per-user, single-use invite tokens with a short TTL, and revoke access on disable. Never log, document, or commit credential material.
 
-```typescript
-import { Throttle } from '@nestjs/throttler';
+### 5. Audit All Admin Mutations
 
-@Post()
-@UseGuards(JwtAuthGuard, AdminGuard)
-@Throttle({ default: { limit: 10, ttl: 60000 } })  // 10 requests per minute
-create(@Body() createDto: CreateDto) {
-  return this.service.create(createDto);
-}
-```
-
-### 5. Log Admin Actions
-
-Always log admin actions for audit purposes:
-
-```typescript
-import { Logger } from '@nestjs/common';
-
-private readonly logger = new Logger(AdminFeatureController.name);
-
-@Post()
-@UseGuards(JwtAuthGuard, AdminGuard)
-create(@Body() createDto: CreateDto, @Req() req: Request) {
-  this.logger.log(`Admin action: create by user ${req.user.sub}`);
-  return this.service.create(createDto);
-}
-```
+Every admin mutation (invite, disable, role change) must write an `AuditTrail` entry, including failure paths. Redact tokens and PII in audit output and admin log views.
 
 ---
 
 ## Complete Examples
 
-### Example 1: Admin-Only CRUD Controller
-
-```typescript
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  HttpStatus,
-} from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../auth/guards/admin.guard';
-
-@ApiTags('admin-items')
-@ApiBearerAuth()
-@Controller('admin/items')
-@UseGuards(JwtAuthGuard, AdminGuard)
-export class AdminItemsController {
-  constructor(private readonly itemsService: ItemsService) {}
-
-  @Get()
-  @ApiOperation({ summary: 'List all items (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Items retrieved successfully.' })
-  @ApiResponse({ status: 403, description: 'Admin role required.' })
-  findAll() {
-    return this.itemsService.findAll();
-  }
-
-  @Post()
-  @ApiOperation({ summary: 'Create item (Admin only)' })
-  @ApiResponse({ status: 201, description: 'Item created successfully.' })
-  @ApiResponse({ status: 403, description: 'Admin role required.' })
-  create(@Body() createDto: CreateItemDto) {
-    return this.itemsService.create(createDto);
-  }
-
-  @Put(':id')
-  @ApiOperation({ summary: 'Update item (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Item updated successfully.' })
-  @ApiResponse({ status: 404, description: 'Item not found.' })
-  @ApiResponse({ status: 403, description: 'Admin role required.' })
-  update(@Param('id') id: string, @Body() updateDto: UpdateItemDto) {
-    return this.itemsService.update(id, updateDto);
-  }
-
-  @Delete(':id')
-  @ApiOperation({ summary: 'Delete item (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Item deleted successfully.' })
-  @ApiResponse({ status: 404, description: 'Item not found.' })
-  @ApiResponse({ status: 403, description: 'Admin role required.' })
-  remove(@Param('id') id: string) {
-    return this.itemsService.remove(id);
-  }
-}
-```
-
-### Example 2: Role-Based Access with Multiple Roles
-
-```typescript
-import { Controller, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '../auth/enums/role.enum';
-
-@ApiTags('moderation')
-@ApiBearerAuth()
-@Controller('moderation')
-@UseGuards(JwtAuthGuard, RolesGuard)
-export class ModerationController {
-  @Post('flag')
-  @Roles(Role.ADMIN, Role.MODERATOR)
-  flagContent(@Body() flagDto: FlagContentDto) {
-    return this.moderationService.flag(flagDto);
-  }
-
-  @Post('ban')
-  @Roles(Role.ADMIN)  // Only admins can ban
-  banUser(@Body() banDto: BanUserDto) {
-    return this.moderationService.ban(banDto);
-  }
-}
-```
+See the sections above for full controller, service, and test examples covering AdminGuard, RolesGuard, invite/disable, and audit trails.
 
 ---
 
 ## In-Game Chat Moderation (ADR-1786)
 
-This section documents the invariants and implementation guidance for in-game chat moderation, per issue #1786. It is the source of truth for chat abuse controls until a dedicated ADR supersedes it.
-
-### Invariants
-
-1. **Server authority**: The backend is the sole source of truth for chat moderation state. Clients (including the NEAR wallet UI) may request moderation actions but never mutate moderation state directly. Per ADR-003, NEAR is the only supported chain UI until Stellar is gated ready; no chat moderation path may claim Stellar readiness.
-2. **Deny-by-default**: Every moderation entrypoint (REST or WS) must be guarded by `JwtAuthGuard` plus `AdminGuard` or `RolesGuard` with an explicit `@Roles(...)` declaration. Missing role metadata denies access.
-3. **Fail-closed on writes**: If Postgres, Redis, or the shop-api dependency is unavailable, moderation writes (mute, ban, message delete) must reject rather than partially apply. Reads may degrade, writes may not.
-4. **Idempotency**: Moderation actions must be idempotent under retries and WS reconnects. Duplicate requests for the same target/action must not double-apply or emit duplicate fanout.
-5. **Explicit disable**: Chat may be explicitly disabled via a feature flag/kill switch. When disabled, the server rejects chat sends and moderation writes with a stable error code, and the client must not present chat as available.
-
-### Error codes
-
-Moderation endpoints must return errors aligned with `docs/API_ERROR_RESPONSE_STANDARDS.md`:
-
-- `401` — unauthenticated (missing/expired JWT).
-- `403` — authenticated but lacking `ADMIN`/`MODERATOR` role (deny-by-default).
-- `409` — conflicting duplicate moderation action when idempotency key is reused with a different payload.
-- `422` — invalid or adversarial input (unknown target, oversized payload, spoofed event).
-- `503` — dependency outage on a write path (fail-closed).
-
-All error responses must include the `requestId`/correlation id so operators can trace the action.
-
-### Authz wiring
-
-```typescript
-@ApiTags('moderation')
-@ApiBearerAuth()
-@Controller('moderation/chat')
-@UseGuards(JwtAuthGuard, RolesGuard)
-export class ChatModerationController {
-  @Post('mute')
-  @Roles(Role.ADMIN, Role.MODERATOR)
-  mute(@Body() dto: MuteChatDto) {
-    // Server-authoritative; never trust client-supplied actor identity.
-    return this.chatModerationService.mute(dto);
-  }
-}
-```
-
-WS moderation events must perform the same seat/role check server-side before applying any action; never trust a client-asserted role.
-
-### Observability
-
-- Emit structured logs with `requestId`/correlation id on every moderation action.
-- Emit metrics for moderation actions and chat-disable toggles (money/realtime-adjacent).
-- Redact tokens and avoid PII in telemetry labels (use opaque user ids, not emails).
-
-### Feature flag / kill switch
-
-Chat and moderation writes must be gated behind a feature flag so operators can explicitly disable chat. When disabled, the server fails closed on chat sends and moderation writes and the client must reflect the disabled state rather than implying chat is available.
-
-### Rollback
-
-Disabling the chat feature flag reverts player-facing behavior without a deploy. Moderation writes are additive and idempotent, so rollback does not require data migration.
+See ADR-1786 for in-game chat moderation details.

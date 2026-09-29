@@ -28,3 +28,8 @@ runs.
 
 See `frontend/docs/CHROMATIC_BASELINES.md` for the authoritative baseline
 guidance.
+
+## Handsoff notes
+
+<!-- handsoff-issue-1775 -->
+- #1775: Offline route resilience SW-FE-743 mid-game

@@ -24,6 +24,18 @@ MUST be covered by an appropriate AuditTrail interceptor/service call.
 
 ## Route table
 
+| Method | Path                          | Access | Guards                              | Notes                                  |
+| ------ | ----------------------------- | ------ | ----------------------------------- | -------------------------------------- |
+| GET    | `/health`                     | public | —                                   | Liveness/readiness probe.              |
+| POST   | `/auth/login`                 | public | —                                   | Issues user JWT.                        |
+| GET    | `/me`                         | user   | `JwtAuthGuard`                      | Current user profile.                  |
+| GET    | `/admin/users`                | admin  | `JwtAuthGuard`, `AdminGuard`        | Paginated; PII minimized in response.  |
+| POST   | `/admin/users/invite`         | admin  | `JwtAuthGuard`, `AdminGuard`        | Invite admin; no shared passwords.     |
+| POST   | `/admin/users/:id/disable`    | admin  | `JwtAuthGuard`, `AdminGuard`        | Disable admin; writes `AuditTrail`.    |
+| GET    | `/admin/audit`                | admin  | `JwtAuthGuard`, `AdminGuard`        | Redacts secrets/tokens in log views.   |
+| POST   | `/admin/actions`              | admin  | `JwtAuthGuard`, `AdminGuard`        | Mutation; writes `AuditTrail` entry.   |
+| GET    | `/admin/exports`              | admin  | `JwtAuthGuard`, `AdminGuard`        | Column allowlist; range-limited.       |
+
 | Prefix / Pattern                     | Type       | Auth                  | Guards / Notes                                                              |
 | ------------------------------------ | ---------- | --------------------- | --------------------------------------------------------------------------- |
 | `GET /admin/analytics/dashboard`     | Admin-only | JwtAuth, AdminGuard   | Analytics dashboard data. Read-only.                                        |
@@ -89,6 +101,50 @@ Every admin CSV/JSON export endpoint MUST:
 4. **Audit** the export action via `AuditTrailService` / `@AuditLog()`.
 
 ## Non-admin 403 enforcement
+
+Any request to an admin-prefixed route (or admin-only non-prefixed route) with a missing or
+non-admin JWT MUST return HTTP 403 Forbidden. This is enforced at the guard level by
+`AdminGuard` (throws `ForbiddenException`). E2E tests verify this contract.
+
+## Controllers with `@UseGuards(JwtAuthGuard, AdminGuard)` at class level
+
+- `AdminAnalyticsController` (`admin/analytics`)
+- `AdminLogsController` (`admin/logs`)
+- `PerksAdminController` (`admin/perks`)
+- `WaitlistAdminController` (`admin/wait`
+
+## Admin invite/disable without shared passwords
+
+Admin onboarding and offboarding MUST NOT rely on shared or static passwords.
+
+- **Invite** (`POST /admin/users/invite`): the server issues a single-use,
+  time-boxed invite token bound to the invitee's email and the inviting admin.
+  The token is delivered out-of-band; it is never logged, returned in API
+  responses, or stored in plaintext. The invitee sets their own credential on
+  first use. Invites are idempotent per `(email, inviter)` within the token TTL
+  so reconnect/duplicate retries do not mint multiple tokens.
+- **Disable** (`POST /admin/users/:id/disable`): disabling revokes active
+  sessions and pending invites for the target admin. The operation is
+  idempotent; disabling an already-disabled admin is a no-op that still records
+  an audit entry.
+- Both endpoints are deny-by-default: a missing/invalid token or a non-admin
+  role receives `403` and the failure is audited.
+- Audit records for invite/disable capture actor, action, target, and outcome,
+  and redact the invite token and any credential material.
+
+## MSW tree-shake prod bundle audit (SW-FE-1462)
+
+y `@UseGuards(JwtAuthGuard)` (or a more
+specific guard) as needed. Public routes have no auth guard.
+
+## Export protection rules
+
+Every admin CSV/JSON export endpoint MUST:
+1. Use an explicit **column allowlist** — never pass raw entity columns to csv/json output.
+2. Enforce a **row limit** (`EXPORT_MAX_ROWS`, at most 10 000).
+3. **Redact PII** (email, phone, address, wallet, display name, IP, tokens) from log/audit views.
+4. **Audit** the export action via `AuditTrailService` / `@AuditLog()`.
+
 
 Any request to an admin-prefixed route (or admin-only non-prefixed route) with a missing or
 non-admin JWT MUST return HTTP 403 Forbidden. This is enforced at the guard level by
