@@ -29,7 +29,7 @@ export interface ShopApiPurchaseRequest {
 export interface ShopApiPurchaseResult {
   ok: boolean;
   status: number;
-  /** True when shop-api replayed an existing purchase for the Idempotency-Key (409). */
+  /** True only when shop-api explicitly identifies the response as a replay. */
   replayed: boolean;
   purchaseId?: string;
   shopUserId?: string;
@@ -122,6 +122,9 @@ export class ShopApiClient {
    * Fails closed: throws ShopApiUnavailableError when shop-api is down.
    */
   async createPurchase(req: ShopApiPurchaseRequest): Promise<ShopApiPurchaseResult> {
+    if (!this.baseUrl || !this.apiKey) {
+      throw new ShopApiUnavailableError('shop-api is not configured');
+    }
     if (this.isCircuitOpen()) {
       throw new ShopApiUnavailableError('shop-api circuit open; refusing write');
     }
@@ -143,27 +146,18 @@ export class ShopApiClient {
         req.requestId,
       );
 
-      if (res.status === 409) {
-        // Idempotent replay: shop-api already recorded this purchase.
-        const body = await this.safeJson(res);
-        this.recordSuccess();
-        return {
-          ok: true,
-          status: 409,
-          replayed: true,
-          purchaseId: body?.purchaseId,
-          shopUserId: body?.userId,
-        };
-      }
-
       if (!res.ok) {
         const body = await this.safeJson(res);
-        this.recordFailure();
+        if (res.status >= 500) this.recordFailure();
+        else this.recordSuccess();
         return {
           ok: false,
           status: res.status,
           replayed: false,
-          error: body?.message ?? `shop-api error ${res.status}`,
+          error:
+            body?.error?.message ??
+            body?.message ??
+            `shop-api error ${res.status}`,
         };
       }
 
@@ -173,8 +167,8 @@ export class ShopApiClient {
         ok: true,
         status: res.status,
         replayed: false,
-        purchaseId: body?.purchaseId,
-        shopUserId: body?.userId,
+        purchaseId: body?.purchaseId ?? body?.id,
+        shopUserId: body?.shopUserId ?? body?.userId,
       };
     } catch (err) {
       this.recordFailure();
@@ -188,6 +182,9 @@ export class ShopApiClient {
    * Safe read with limited retries. Used for identity translation / lookups.
    */
   async getPurchase(purchaseId: string, requestId: string): Promise<ShopApiPurchaseResult> {
+    if (!this.baseUrl || !this.apiKey) {
+      throw new ShopApiUnavailableError('shop-api is not configured');
+    }
     if (this.isCircuitOpen()) {
       throw new ShopApiUnavailableError('shop-api circuit open; refusing read');
     }
@@ -213,8 +210,8 @@ export class ShopApiClient {
           ok: true,
           status: res.status,
           replayed: false,
-          purchaseId: body?.purchaseId,
-          shopUserId: body?.userId,
+          purchaseId: body?.purchaseId ?? body?.id,
+          shopUserId: body?.shopUserId ?? body?.userId,
         };
       } catch (err) {
         lastErr = err;

@@ -1,6 +1,6 @@
 # Shop Architecture: Purchase Entity Field Mapping
 
-**Status:** Documented (no code changes yet — see [ADR-003](../backend/docs/ADR-003-shop-purchase-field-mapping.md))
+**Status:** Field mapping documented; proxy migration remains incomplete — see [ADR-003](../backend/docs/ADR-003-shop-purchase-field-mapping.md)
 **Related:** [ADR-001 — Shop Purchase Write Path Ownership](../backend/docs/ADR-001-shop-purchase-ownership.md)
 
 ## Why this document exists

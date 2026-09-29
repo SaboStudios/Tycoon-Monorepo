@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "test": "jest --runInBand",
+    "test:e2e": "jest --runInBand --runTestsByPath test/purchases.e2e.spec.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "migration:run": "typeorm -d src/data-source.ts migration:run",
