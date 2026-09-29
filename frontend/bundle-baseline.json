@@ -1,8 +1,7 @@
 {
-  "note": "This baseline is updated automatically by CI on every merge to main. Do not edit manually.",
+  "note": "Re-baselined with `node scripts/check-bundle-size.mjs --update-baseline`. Commit it in the PR that intentionally changes bundle size; reviewers sign off on the diff. sizeBytes 0 means no baseline yet (only the hard limit applies). See BUNDLE_BUDGET.md.",
   "lastUpdated": "2025-01-01T00:00:00.000Z",
   "commit": "initial",
-  "branch": "main",
   "results": [
     {
       "name": "First Load JS (shared)",
@@ -17,7 +16,13 @@
       "limitBytes": 51200
     },
     {
-      "name": "Total First Load JS",
+      "name": "Join room page JS",
+      "sizeBytes": 0,
+      "limit": "50 kB",
+      "limitBytes": 51200
+    },
+    {
+      "name": "Total First Load JS (largest route)",
       "sizeBytes": 0,
       "limit": "350 kB",
       "limitBytes": 358400

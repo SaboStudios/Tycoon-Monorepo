@@ -1,0 +1,57 @@
+name: PR compliance
+
+# #1762 — CHANGELOG + PR template compliance for every package.
+#
+# Security notes:
+# - Uses `pull_request`, NOT `pull_request_target`: fork PRs get a read-only
+#   token and no secrets, and untrusted code never runs with write access.
+#   The check needs neither secrets nor write permission.
+# - The PR body, labels and author are passed through `env:`, never
+#   interpolated into `run:` shell text, so a crafted PR description cannot
+#   inject shell commands.
+# - `edited` / `labeled` / `unlabeled` re-run the check when the description
+#   or the skip-changelog label changes.
+#
+# Maintainers: mark "Changelog + PR template" as a required status check in
+# branch protection for `main` so the rule is enforced, not advisory.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-compliance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-compliance:
+    name: Changelog + PR template
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout PR head with history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Gate self-tests
+        run: node --test scripts/check-changelog.test.mjs
+
+      - name: Check CHANGELOG entries and PR description
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: node scripts/check-changelog.mjs --base "$BASE_SHA" --head "$HEAD_SHA"

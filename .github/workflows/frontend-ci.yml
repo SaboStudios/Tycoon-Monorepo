@@ -48,8 +48,32 @@ jobs:
       - name: Typecheck frontend
         run: npm run typecheck
 
-      - name: Check frontend bundle budget
-        run: npm run bundle:check
+      # Bundle budget is checked in `frontend-checks` after the production
+      # build; there is no .next/ output to measure at this point (#1759).
+
+  # ── #1759 / #1760: Dependency-free gate self-tests ─────────────────────────
+  # Runs the node:test suites for the repo's zero-dependency CI scripts
+  # (bundle budget gate, …). Needs no `npm ci`, so gate logic stays verified
+  # and fork PRs run it with no secrets.
+  frontend-gates:
+    name: Gate script self-tests (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run gate self-tests
+        run: node --test scripts/*.test.mjs
 
   # ── #1811: Forbidden Stellar copy deny-list gate ────────────────────────────
   # Scans frontend player-facing copy/source for forbidden Stellar strings
@@ -112,12 +136,15 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      # ── #1460: Bundle size budget check ────────────────────────────────────
-      # Runs after the production build so .next/static/chunks is populated.
-      # Fails the job (exit 1) if any budget defined in .size-limit.json is
-      # exceeded. See frontend/BUNDLE_BUDGET.md for thresholds and exemptions.
+      # ── #1460 / #1759: Bundle size budget + regression gate ────────────────
+      # Runs after the production build so .next/ is populated. Exit 1 when a
+      # budget in .size-limit.json is over its limit, regresses beyond the
+      # allowance over bundle-baseline.json, or MSW code reaches a client
+      # chunk; exit 2 (fail closed) on missing build output or bad config.
+      # Invoked with node directly so it does not depend on package.json
+      # scripts. See frontend/BUNDLE_BUDGET.md.
       - name: Check bundle size
-        run: npm run bundle:check
+        run: node scripts/check-bundle-size.mjs
 
       - name: Upload bundle size report
         if: ${{ !cancelled() }}
@@ -190,6 +217,13 @@ jobs:
       # so regressions in critical journeys cannot merge.
       - name: E2E critical journeys
         run: npm run test:e2e:critical
+
+      # ── #1760 / #1761: Consent + well-known manifest ────────────────────────
+      # No analytics beacons before consent; consent banner keyboard path;
+      # withdrawal from /privacy-policy; /.well-known/farcaster.json fails
+      # closed (404) unless configured, and rejects non-GET methods.
+      - name: E2E analytics consent + Farcaster manifest
+        run: npx playwright test e2e/analytics-consent.spec.ts e2e/farcaster-manifest.spec.ts
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}

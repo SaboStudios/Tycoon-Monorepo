@@ -29,11 +29,15 @@ GDPR/CCPA-safe by default and avoids any pre-consent beacons.
 
 ## Provider registry (deny-by-default)
 
-`lib/analytics/providers.ts` is the single source of truth for allowed
-providers. Any provider id that is not explicitly registered throws at module
-evaluation time, so an unknown provider fails the build rather than shipping a
-silent no-op or leaking events to an unvetted endpoint. Adding a provider
-requires a code change plus review — there is no runtime registration path.
+> Updated by #1761. See [SW-FE-1761](SW-FE-1761-analytics-allowlist-consent.md).
+
+`frontend/src/lib/analytics/allowlist.ts` is the single source of truth for
+allowed providers (`plausible`, `ga4`, `posthog`). The repo-root
+`lib/analytics/providers.ts` re-exports it. `next.config.ts` validates
+`NEXT_PUBLIC_ANALYTICS_PROVIDERS` against it, so an unknown provider fails
+`next build`. In the browser, an unknown id disables analytics (fail closed)
+rather than crashing the page. Adding a provider requires a code change plus
+review; there is no runtime registration path.
 
 ## Feature flag / rollout
 

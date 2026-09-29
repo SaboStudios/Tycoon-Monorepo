@@ -29,6 +29,17 @@ runs.
 See `frontend/docs/CHROMATIC_BASELINES.md` for the authoritative baseline
 guidance.
 
+## Contributor gates
+
+| Gate | What it enforces | Docs |
+|---|---|---|
+| PR compliance | A CHANGELOG entry per touched package; PR description follows the template | [CONTRIBUTING.md → Changelog and PR template](CONTRIBUTING.md#changelog-and-pr-template) |
+| Bundle budget | Shared, per-route and total client JS limits; regression vs baseline; no MSW in client chunks | [`frontend/BUNDLE_BUDGET.md`](frontend/BUNDLE_BUDGET.md) |
+| Analytics allowlist + consent | Unknown analytics providers fail `next build`; telemetry only after consent; PII scrubbed | [`frontend/docs/SW-FE-1761-analytics-allowlist-consent.md`](frontend/docs/SW-FE-1761-analytics-allowlist-consent.md) |
+| Farcaster manifest | `/.well-known/farcaster.json` is 404 unless a domain-bound association is configured | [`frontend/docs/SW-FE-1760-farcaster-manifest.md`](frontend/docs/SW-FE-1760-farcaster-manifest.md) |
+
+Report security issues privately as described in [SECURITY.md](SECURITY.md).
+
 ## Handsoff notes
 
 <!-- handsoff-issue-1775 -->

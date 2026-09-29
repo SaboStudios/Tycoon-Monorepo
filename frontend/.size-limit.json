@@ -1,0 +1,30 @@
+[
+  {
+    "name": "First Load JS (shared)",
+    "kind": "shared",
+    "limit": "120 kB"
+  },
+  {
+    "name": "Main page JS",
+    "kind": "route",
+    "route": "/",
+    "limit": "50 kB"
+  },
+  {
+    "name": "Join room page JS",
+    "kind": "route",
+    "route": "/join-room",
+    "limit": "50 kB"
+  },
+  {
+    "name": "Total First Load JS (largest route)",
+    "kind": "largestFirstLoad",
+    "limit": "350 kB"
+  },
+  {
+    "name": "Total build output (JS)",
+    "kind": "glob",
+    "path": ".next/static/**/*.js",
+    "limit": "1500 kB"
+  }
+]
