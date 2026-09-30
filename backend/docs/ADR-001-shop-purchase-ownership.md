@@ -8,7 +8,7 @@
 **Date:** 2026-08-26  
 **Author:** Backend Team  
 **Issue:** #1432  
-**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1778 (Unified rate limit classes auth join purchase admin), #1789 (Inventory reservation atomic decrement anti-oversell)
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1778 (Unified rate limit classes auth join purchase admin), #1779 (RequestId middleware backend aligned to shop-api), #1789 (Inventory reservation atomic decrement anti-oversell)
 
 ## Context
 
@@ -80,35 +80,25 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
     - **Classes.** Four named classes are defined and configured independently:
       - `auth` — login, refresh, logout, and any credential-issuing endpoint. Keyed by client IP plus a coarse account identifier when available; strictest budget because it is the primary credential-stuffing target.
       - `join` — account/onboarding creation endpoints. Keyed by client IP; moderate budget to absorb legitimate retries without enabling bulk account creation.
-      - `purchase` — purchase writes and the `backend` proxy path to `shop-api`. Keyed by authenticated subject (falling back to IP for unauthenticated rejects); budget sized for human checkout, not for scripted buys.
-      - `admin` — admin mutations (catalog, inventory, reconciliation). Keyed by authenticated admin subject; strictest budget and deny-by-default, since these are the highest-blast-radius surfaces.
-    - **Deny-by-default.** New admin, WS, or action surfaces are rate-limited and authorized by default; a surface is only exempt by an explicit, reviewed decision recorded here or in a superseding ADR.
-    - **Response contract.** A throttled request returns `429` with the shared error envelope and code `RATE_LIMITED`, includes `Retry-After`, and propagates `requestId`. Throttling happens before any state change, so a throttled purchase never decrements inventory and never consumes an `Idempotency-Key`.
-    - **Interaction with idempotency.** Rate limiting is evaluated before idempotency lookup. A legitimate client retry that is throttled receives `429` and may retry with the same `Idempotency-Key`; once admitted, the replay semantics in §4 apply unchanged.
-    - **Interaction with fail-closed.** If the rate-limit store (Redis) is unavailable, writes fail closed with `DEPENDENCY_UNAVAILABLE` (`503`) rather than silently allowing unlimited traffic. Reads may degrade per §6.
-    - **Observability.** Throttle decisions emit counters labeled by class only (`rate_limit_rejected_total{class="auth|join|purchase|admin"}`). Labels MUST NOT contain tokens, account identifiers, or PII.
-    - **Proxy behavior.** The `backend` proxy applies the `purchase` class at the edge and forwards to `shop-api`, which applies its own `purchase` class; both layers use the same class name so operators can reason about a single budget per class.
+      - `purchase` — purchase writes and the `backend` proxy path to `shop-api`. Keyed by authenticated subject (falling back to IP for unauthenticated callers); budget sized for checkout retries.
+      - `admin` — admin catalog and reconciliation mutations. Keyed by authenticated admin subject; strictest per-subject budget and always audited.
+    - **Isolation.** Each class has its own counter namespace so exhausting one class never consumes another class's budget.
+    - **Fail-closed.** If the rate-limit store (Redis) is unavailable, protected write classes (`purchase`, `admin`, `auth`) fail closed with `503 DEPENDENCY_UNAVAILABLE` rather than allowing unbounded traffic.
+    - **Response.** A throttled request returns `429` with code `RATE_LIMITED` and a `Retry-After` header; the error envelope still carries `requestId`.
+
+12. **RequestId middleware aligned to shop-api (issue #1779).** `requestId` is the correlation key that ties a client request to logs, error envelopes, and downstream `shop-api` calls. `backend` and `shop-api` MUST use the same conventions so a single id is traceable across both services.
+    - **Header name.** The canonical inbound/outbound header is `X-Request-Id`. `backend` reads it if present and otherwise generates a new id; the resolved id is echoed on the response as `X-Request-Id`.
+    - **Generation strategy.** When the inbound header is absent or fails validation, generate a UUID v4 (same generator as `shop-api`). Inbound values are validated (bounded length, safe character set) and rejected/replaced if malformed, so a client cannot inject log-forging content.
+    - **Request context.** The middleware attaches the resolved id to the request context (e.g. `req.requestId`) before guards, pipes, and handlers run, so downstream handlers, the error filter, and the logger all read the same value.
+    - **Propagation to downstream calls.** The `backend` proxy forwards the resolved id to `shop-api` as `X-Request-Id` on every outbound call (success and error paths), and `shop-api` adopts it rather than minting a new one. This keeps one id across the whole purchase write path.
+    - **Error envelope.** The error filter maps `req.requestId` into `error.requestId` per `docs/API_ERROR_RESPONSE_STANDARDS.md`, so every error response carries the same id that appears in logs.
+    - **Logging.** Structured logs include `requestId` as a top-level field. Logs MUST NOT include tokens, secrets, or PII; `requestId` is the only correlation label and is never used as a metric label with user data.
+    - **Wiring.** The middleware is registered in the backend module bootstrap (app-level) so it applies to the purchase write path and every other external entrypoint touched by this work, ahead of auth/rate-limit guards.
 
 ## Consequences
 
-- A single writer (`shop-api`) makes inventory and idempotency reasoning tractable.
-- `backend` proxy code stays thin and testable; contract tests assert envelope and `requestId` propagation.
-- Operators have one runbook (`docs/SHOP_PURCHASES_RUNBOOK.md`) for purchase incidents.
-- Cookie-based sessions remove JS-readable tokens from the purchase path, shrinking XSS blast radius; CSRF tokens are required for every cookie-authenticated mutation.
-- Datastore-enforced decrement/reservation makes oversell impossible even under concurrent retries, and the `available >= 0` constraint turns any future regression into a failed transaction instead of a negative count.
-- Per-class rate limits keep auth, join, purchase, and admin budgets independent, so a burst on one surface cannot degrade another; deny-by-default keeps new surfaces from shipping unprotected.
-- Any future service that needs to mutate purchases must go through `shop-api` or supersede this ADR.
-
-## Out of scope
-
-- Mainnet irreversible deploys without a readiness issue.
-- Unrelated package refactors.
-- Stellar chain UI (gated by ADR-003; NEAR remains the only supported chain UI).
-
-### Option B: Backend → shop-api via Service Token
-- Backend has its own service account in shop-api's auth system
-- Backend creates an internal service token on startup
-- Backend forwards the token + user context to shop-api
-- ✅ Cleaner separation; 
-
-/* … truncated 2578 chars — edit only what you need near the top … */
+- Purchase state has a single owner (`shop-api`); `backend` cannot silently diverge.
+- Error envelopes and `requestId` correlation are uniform across both services, simplifying incident triage.
+- Inventory cannot go negative even under concurrent purchases, at the cost of datastore-level locking/reservation bookkeeping.
+- Rate-limit classes isolate blast radius between auth, join, purchase, and admin surfaces.
+- Operators must keep the runbook TTLs (idempotency, reservation) in sync with the implementation.
