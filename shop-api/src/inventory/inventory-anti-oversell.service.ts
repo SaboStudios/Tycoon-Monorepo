@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, QueryRunner } from 'typeorm';
+import { Injectable, Logger } from "@nestjs/common";
+import { DataSource, QueryRunner } from "typeorm";
 
 export interface InventoryReservation {
   id: string;
@@ -8,7 +8,7 @@ export interface InventoryReservation {
   userId: string;
   idempotencyKey: string;
   expiresAt: Date;
-  status: 'pending' | 'confirmed' | 'released';
+  status: "pending" | "confirmed" | "released";
 }
 
 export interface PurchaseRequest {
@@ -26,15 +26,22 @@ export class InventoryAntiOversellService {
 
   constructor(private readonly dataSource: DataSource) {}
 
-  async reserveInventory(request: PurchaseRequest): Promise<InventoryReservation> {
+  async reserveInventory(
+    request: PurchaseRequest,
+  ): Promise<InventoryReservation> {
     const queryRunner: QueryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const existing = await this.checkIdempotency(queryRunner, request.idempotencyKey);
+      const existing = await this.checkIdempotency(
+        queryRunner,
+        request.idempotencyKey,
+      );
       if (existing) {
-        this.logger.warn('Duplicate idempotency key', { key: request.idempotencyKey });
+        this.logger.warn("Duplicate idempotency key", {
+          key: request.idempotencyKey,
+        });
         return existing;
       }
 
@@ -44,12 +51,12 @@ export class InventoryAntiOversellService {
       );
 
       if (!inventory || inventory.length === 0) {
-        throw new Error('SKU_NOT_FOUND');
+        throw new Error("SKU_NOT_FOUND");
       }
 
       const currentQuantity = inventory[0].quantity;
       if (currentQuantity < request.quantity) {
-        throw new Error('INSUFFICIENT_INVENTORY');
+        throw new Error("INSUFFICIENT_INVENTORY");
       }
 
       await queryRunner.query(
@@ -64,14 +71,21 @@ export class InventoryAntiOversellService {
         userId: request.userId,
         idempotencyKey: request.idempotencyKey,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-        status: 'confirmed',
+        status: "confirmed",
       };
 
       await queryRunner.query(
         `INSERT INTO inventory_reservations (id, sku, quantity, user_id, idempotency_key, expires_at, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [reservation.id, reservation.sku, reservation.quantity, reservation.userId,
-         reservation.idempotencyKey, reservation.expiresAt, reservation.status],
+        [
+          reservation.id,
+          reservation.sku,
+          reservation.quantity,
+          reservation.userId,
+          reservation.idempotencyKey,
+          reservation.expiresAt,
+          reservation.status,
+        ],
       );
 
       await queryRunner.query(
@@ -82,11 +96,9 @@ export class InventoryAntiOversellService {
 
       await queryRunner.commitTransaction();
 
-      this.logger.info('Inventory reserved', {
-        sku: request.sku,
-        quantity: request.quantity,
-        userId: request.userId,
-      });
+      this.logger.log(
+        `Inventory reserved [sku=${request.sku} quantity=${request.quantity} userId=${request.userId}]`,
+      );
 
       return reservation;
     } catch (error) {
@@ -97,7 +109,10 @@ export class InventoryAntiOversellService {
     }
   }
 
-  private async checkIdempotency(queryRunner: QueryRunner, key: string): Promise<InventoryReservation | null> {
+  private async checkIdempotency(
+    queryRunner: QueryRunner,
+    key: string,
+  ): Promise<InventoryReservation | null> {
     const result = await queryRunner.query(
       `SELECT response FROM idempotency_keys WHERE key = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
       [key],
