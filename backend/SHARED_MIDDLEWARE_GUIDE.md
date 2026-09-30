@@ -13,6 +13,7 @@ backend/src/shared-middleware/
 ├── src/
 │   ├── middleware/
 │   │   ├── jwt.middleware.ts          # JWT validation
+│   │   ├── request-id.middleware.ts   # Request ID generation/propagation
 │   │   ├── http-logger.middleware.ts  # Request logging
 │   │   ├── error-handler.middleware.ts # Error handling
 │   │   └── health-check.middleware.ts # Health checks
@@ -30,9 +31,10 @@ backend/src/shared-middleware/
 ### Features
 
 1. **JWT Middleware** - Consistent token validation
-2. **HTTP Logger** - Structured request/response logging
-3. **Error Handler** - Unified error response format
-4. **Health Check** - Service health endpoints
+2. **Request ID Middleware** - Per-request correlation ID generation and propagation
+3. **HTTP Logger** - Structured request/response logging
+4. **Error Handler** - Unified error response format
+5. **Health Check** - Service health endpoints
 
 ## Services Classification
 
@@ -94,6 +96,7 @@ import express from 'express';
 import cors from 'cors';
 import {
   JwtMiddleware,
+  RequestIdMiddleware,
   HttpLoggerMiddleware,
   ErrorHandlerMiddleware,
   HealthCheckMiddleware,
@@ -110,6 +113,10 @@ const loggerConfig = getLoggerConfig();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Request ID (must run before logging so logs carry the correlation ID)
+const requestIdMiddleware = new RequestIdMiddleware();
+app.use(requestIdMiddleware.handle);
 
 // Logging
 const httpLogger = new HttpLoggerMiddleware(loggerConfig);
@@ -233,12 +240,88 @@ All services return consistent error responses:
   "error": "ValidationError",
   "timestamp": "2024-03-26T10:00:00Z",
   "path": "/api/shop/items",
+  "requestId": "b3f1c2a4-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
   "details": {
     "field": "name",
     "message": "Name is required"
   }
 }
 ```
+
+## Request ID Middleware
+
+### Purpose
+
+Every request handled by the backend and shop-api is assigned a correlation ID so that
+logs, error responses, and downstream service calls can be traced end-to-end. This is the
+backend counterpart to `shop-api/src/common/middleware/request-id.middleware.ts` and must
+stay aligned with it (issue #1779).
+
+### Header Contract
+
+| Direction | Header | Behavior |
+| --- | --- | --- |
+| Inbound | `X-Request-Id` | If present and valid, it is reused as the correlation ID. |
+| Inbound | `X-Request-Id` | If absent or invalid, a new UUID v4 is generated. |
+| Outbound | `X-Request-Id` | Always echoed on the response. |
+| Downstream | `X-Request-Id` | Forwarded on every service-to-service call (shop-api, RPC, etc.). |
+
+### Generation Strategy
+
+- Use `crypto.randomUUID()` (UUID v4).
+- Accept an inbound `X-Request-Id` only if it matches `^[A-Za-z0-9._-]{8,128}$`; otherwise generate a fresh one.
+- Never trust an inbound value verbatim for logging without the format check above (prevents log injection).
+
+### Request Context
+
+The middleware attaches the resolved ID to the request so downstream handlers, guards,
+and interceptors can read it:
+
+```typescript
+// Express
+req.requestId = requestId;
+
+// NestJS
+req.requestId = requestId; // available via @Req() or a RequestId decorator
+```
+
+### Propagation to Downstream Calls
+
+When the backend proxies to shop-api (the authoritative write path for purchases), the
+correlation ID must be forwarded so a single purchase can be traced across services:
+
+```typescript
+await httpService.axiosRef.post(url, body, {
+  headers: { 'X-Request-Id': req.requestId },
+});
+```
+
+### Error Responses
+
+Per `docs/API_ERROR_RESPONSE_STANDARDS.md`, every error response includes the `requestId`
+field so clients and operators can correlate a failure with server logs. The error handler
+reads the ID from the request context set by this middleware.
+
+### Logging
+
+Structured logs include `requestId` on every entry. Do not log tokens, secrets, or PII;
+the request ID is a non-sensitive correlation value and is safe to log.
+
+```json
+{
+  "timestamp": "2024-03-26T10:00:00Z",
+  "requestId": "b3f1c2a4-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
+  "method": "POST",
+  "path": "/api/shop/items",
+  "statusCode": 201,
+  "duration": "45ms"
+}
+```
+
+### Ordering
+
+The Request ID middleware must be registered **before** the HTTP logger and error handler
+so that both can attach the correlation ID to their output.
 
 ## JWT Validation
 
@@ -276,6 +359,7 @@ Authorization: Bearer <token>
 ```json
 {
   "timestamp": "2024-03-26T10:00:00Z",
+  "requestId": "b3f1c2a4-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
   "method": "POST",
   "path": "/api/shop/items",
   "statusCode": 201,
@@ -287,7 +371,7 @@ Authorization: Bearer <token>
 
 **Text:**
 ```
-[2024-03-26T10:00:00Z] POST /api/shop/items - 201 (45ms)
+[2024-03-26T10:00:00Z] [b3f1c2a4] POST /api/shop/items - 201 (45ms)
 ```
 
 ### Excluded Paths
@@ -334,6 +418,7 @@ bash backend/scripts/smoke-test.sh
 - [ ] Analytics Dashboard API health check
 - [ ] JWT validation on protected routes
 - [ ] Error response format validation
+- [ ] Request ID echoed on responses and present in error bodies
 - [ ] CORS headers validation
 
 ## Running Services
@@ -386,6 +471,12 @@ cd backend/src/Shop\ Analytics\ and\ Revenue\ Dashboard\(Admin\) && npm start
 2. Verify token format: `Bearer <token>`
 3. Check token expiration
 4. Validate token signature
+
+### Request ID Missing From Logs
+
+1. Confirm `RequestIdMiddleware` is registered before the HTTP logger
+2. Verify the inbound `X-Request-Id` matches the accepted format
+3. Check that downstream calls forward the `X-Request-Id` header
 
 ### Health Check Returns Unhealthy
 

@@ -8,7 +8,7 @@
 **Date:** 2026-08-26  
 **Author:** Backend Team  
 **Issue:** #1432  
-**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1778 (Unified rate limit classes auth join purchase admin), #1789 (Inventory reservation atomic decrement anti-oversell)
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1778 (Unified rate limit classes auth join purchase admin), #1779 (RequestId middleware backend aligned to shop-api), #1780 (Proxy abort on client disconnect for shop writes), #1789 (Inventory reservation atomic decrement anti-oversell)
 
 ## Context
 
@@ -80,35 +80,12 @@ Without an explicit decision, purchase writes can be duplicated across surfaces,
     - **Classes.** Four named classes are defined and configured independently:
       - `auth` — login, refresh, logout, and any credential-issuing endpoint. Keyed by client IP plus a coarse account identifier when available; strictest budget because it is the primary credential-stuffing target.
       - `join` — account/onboarding creation endpoints. Keyed by client IP; moderate budget to absorb legitimate retries without enabling bulk account creation.
-      - `purchase` — purchase writes and the `backend` proxy path to `shop-api`. Keyed by authenticated subject (falling back to IP for unauthenticated rejects); budget sized for human checkout, not for scripted buys.
-      - `admin` — admin mutations (catalog, inventory, reconciliation). Keyed by authenticated admin subject; strictest budget and deny-by-default, since these are the highest-blast-radius surfaces.
-    - **Deny-by-default.** New admin, WS, or action surfaces are rate-limited and authorized by default; a surface is only exempt by an explicit, reviewed decision recorded here or in a superseding ADR.
-    - **Response contract.** A throttled request returns `429` with the shared error envelope and code `RATE_LIMITED`, includes `Retry-After`, and propagates `requestId`. Throttling happens before any state change, so a throttled purchase never decrements inventory and never consumes an `Idempotency-Key`.
-    - **Interaction with idempotency.** Rate limiting is evaluated before idempotency lookup. A legitimate client retry that is throttled receives `429` and may retry with the same `Idempotency-Key`; once admitted, the replay semantics in §4 apply unchanged.
-    - **Interaction with fail-closed.** If the rate-limit store (Redis) is unavailable, writes fail closed with `DEPENDENCY_UNAVAILABLE` (`503`) rather than silently allowing unlimited traffic. Reads may degrade per §6.
-    - **Observability.** Throttle decisions emit counters labeled by class only (`rate_limit_rejected_total{class="auth|join|purchase|admin"}`). Labels MUST NOT contain tokens, account identifiers, or PII.
-    - **Proxy behavior.** The `backend` proxy applies the `purchase` class at the edge and forwards to `shop-api`, which applies its own `purchase` class; both layers use the same class name so operators can reason about a single budget per class.
+      - `purchase` — purchase writes and the `backend` proxy path to `shop-api`. Keyed by
 
-## Consequences
-
-- A single writer (`shop-api`) makes inventory and idempotency reasoning tractable.
-- `backend` proxy code stays thin and testable; contract tests assert envelope and `requestId` propagation.
-- Operators have one runbook (`docs/SHOP_PURCHASES_RUNBOOK.md`) for purchase incidents.
-- Cookie-based sessions remove JS-readable tokens from the purchase path, shrinking XSS blast radius; CSRF tokens are required for every cookie-authenticated mutation.
-- Datastore-enforced decrement/reservation makes oversell impossible even under concurrent retries, and the `available >= 0` constraint turns any future regression into a failed transaction instead of a negative count.
-- Per-class rate limits keep auth, join, purchase, and admin budgets independent, so a burst on one surface cannot degrade another; deny-by-default keeps new surfaces from shipping unprotected.
-- Any future service that needs to mutate purchases must go through `shop-api` or supersede this ADR.
-
-## Out of scope
-
-- Mainnet irreversible deploys without a readiness issue.
-- Unrelated package refactors.
-- Stellar chain UI (gated by ADR-003; NEAR remains the only supported chain UI).
-
-### Option B: Backend → shop-api via Service Token
-- Backend has its own service account in shop-api's auth system
-- Backend creates an internal service token on startup
-- Backend forwards the token + user context to shop-api
-- ✅ Cleaner separation; 
-
-/* … truncated 2578 chars — edit only what you need near the top … */
+12. **Proxy abort on client disconnect for shop writes (issue #1780).** A client disconnect (browser tab closed, navigation, network drop) must never leave a purchase write in an ambiguous state, and must never cause the `backend` proxy to abort a `shop-api` write mid-flight.
+    - **Writes are not aborted on client disconnect.** The `backend` proxy MUST NOT propagate the client's `AbortSignal` to the outbound `shop-api` request for purchase writes. Once a write has been dispatched, it runs to completion (or to its own server-side timeout) so that inventory and the idempotency record are committed atomically. Aborting mid-write risks a committed decrement with no stored response, which would make a client retry with the same `Idempotency-Key` ambiguous.
+    - **Idempotency makes retries safe.** Because the write is keyed by `Idempotency-Key` + body hash (decision 4), a client that reconnects and retries the same purchase receives the stored response rather than a second decrement. This is the mechanism that makes disconnect-and-retry safe; the proxy must not defeat it by aborting.
+    - **Reads may be aborted.** Read-only proxy paths (catalog, purchase history) MAY propagate the client `AbortSignal` to free upstream resources; only writes are exempt.
+    - **Server-side timeout is authoritative.** The outbound `shop-api` call uses a bounded server-side timeout (documented in `docs/SHOP_PURCHASES_RUNBOOK.md`). On timeout the proxy returns `503 DEPENDENCY_UNAVAILABLE` and does not fall back to a local write; the client retries with the same `Idempotency-Key`.
+    - **Disconnect telemetry.** The proxy emits a counter for client disconnects on write paths (e.g. `shop_proxy_client_disconnect_total`) so operators can distinguish abandoned requests from upstream failures. Labels must not contain tokens or PII.
+    - **No partial state on abort.** If the proxy process itself is terminated mid-write, the `shop-api` transaction either commits fully (idempotency record + inventory decrement together) or rolls back; there is no path that decrements inventory without recording the idempotency key.

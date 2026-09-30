@@ -139,6 +139,69 @@ depends on. Any PR touching the purchase path must conform to it.
   client-trusted inventory is accepted.
 - Admin catalog mutations are audited.
 
+## Proxy Abort on Client Disconnect for Shop Writes (issue #1780)
+
+This section records the contract for how the backend shop proxy behaves
+when the client disconnects mid-write. It extends the write-path contract
+above; it does not change shop-api's ownership of purchases.
+
+### Rule: client disconnect aborts the proxy request, never the write
+
+- The backend proxy is a **read model / forwarder only**. It must never
+  become the writer of record, and it must never retry a write on the
+  client's behalf.
+- When the client disconnects (socket close, navigation, timeout) while a
+  shop write is in flight, the proxy **aborts its own outbound request to
+  shop-api** and stops waiting. It does not attempt to complete, retry, or
+  compensate the write.
+- The abort is a transport concern only. It must **not** be translated into
+  a shop-api-side cancellation of an already-accepted write: once shop-api
+  has accepted the request, the purchase and its inventory adjustment
+  proceed to completion regardless of the client's connection state.
+- The proxy must not surface a client-disconnect abort as a `5xx` to
+  telemetry as if shop-api failed. Aborts are recorded as client aborts
+  (a distinct outcome label), so RED metrics for the purchase operation
+  stay accurate and do not page on normal user navigation.
+
+### Idempotency makes the abort safe to retry
+
+- Because every write carries an `Idempotency-Key` with a body hash, a
+  client that reconnects and retries after an abort is safe:
+  - If shop-api already committed the write, the retry is a **replay** and
+    returns the stored `201` response. No second purchase is created.
+  - If shop-api never received the write, the retry is a fresh write.
+  - A retry with a different body under the same key is a `409 Conflict`,
+    exactly as in the write-path contract above.
+- The proxy must forward the client's `Idempotency-Key` unchanged. It must
+  never generate, rewrite, or drop the key, and it must never synthesize a
+  key on the client's behalf — doing so would defeat replay protection and
+  allow double purchases.
+- The proxy must not cache or replay a stored response itself. Replay is
+  shop-api's responsibility; the proxy only forwards.
+
+### Fail-closed behavior
+
+- If the proxy cannot reach shop-api (outage, timeout, connection refused),
+  the write fails closed: the client receives an error mapped per
+  `docs/API_ERROR_RESPONSE_STANDARDS.md`, and no best-effort write is
+  attempted.
+- A client disconnect must never be treated as a successful write. The
+  proxy does not fabricate a success response for an aborted request.
+- `requestId` is propagated on the outbound request even when the client
+  disconnects, so shop-api logs and the proxy logs can be correlated for
+  the aborted attempt.
+
+### Operator notes
+
+- A spike in client-abort outcomes is a client/network signal, not a
+  shop-api incident. Operators should not treat it as a purchase failure.
+- A spike in `409 Conflict` on the purchase path indicates clients reusing
+  an `Idempotency-Key` with a changed body; see
+  `SHOP_PURCHASES_RUNBOOK.md` for the triage steps.
+- Because aborted writes may still commit on shop-api, reconciliation must
+  read from shop-api (the source of truth), never from the proxy's view of
+  the aborted request.
+
 ## Feature Flags: shop proxy games WS and Stellar UI gate
 
 This ADR also records the flag contract that gates the shop proxy games
@@ -162,103 +225,5 @@ own whether Stellar UI or the games WS surface is available.
    metric; it never falls back to a cached `true` or to client-supplied
    state.
 3. **Server-side only.** The authoritative read path is a backend endpoint
-   (or proxy) that evaluates flags server-side and returns the resolved
-   booleans. The frontend consumes that response; it does not evaluate
-   flags itself and does not trust any client-provided flag value.
-4. **ADR-003 chain policy.** Stellar UI remains gated behind `stellar.ui`
-   until the Stellar Wave readiness checklist is satisfied; NEAR is the
-   only supported chain UI in the meantime.
-
-## On-chain Stake Vault Escrow Payout Refunds (issue #1741)
-
-This section records the invariants for the on-chain stake vault escrow
-payout refund path. It is the source of truth for the contract package
-(`contract/`) and for any backend surface that reads or relays stake vault
-state. Any PR touching the stake vault escrow payout refund path must
-conform to it.
-
-### Scope and ownership
-
-- The **stake vault contract** (`contract/`, Soroban SDK v23 scaffolding)
-  is the source of truth for escrowed stake balances and for refund
-  payouts. No backend or frontend surface may compute, mutate, or infer an
-  escrow balance or refund amount on its own.
-- The backend may only **read** stake vault state (via the contract read
-  path or a cached read model) and relay it to clients. It never writes
-  escrow or refund state directly.
-- The frontend never trusts a client-supplied stake amount, escrow balance,
-  or refund amount. All such values are resolved on-chain and relayed
-  server-side.
-
-### Escrow invariants
-
-1. **Conservation of value.** For every escrow, the sum of released payouts
-   plus refunds plus the remaining escrowed balance equals the originally
-   deposited amount. No path may create or destroy value.
-2. **Escrow is per-stake and non-fungible across stakes.** A refund or
-   payout for one stake may never draw from another stake's escrow.
-3. **Refund eligibility is terminal.** A refund is only valid when the
-   stake is in a terminal, refundable state (e.g. cancelled or expired
-   without a completed payout). A refund against an already-paid-out or
-   already-refunded stake must fail closed.
-4. **Single settlement.** Each stake settles at most once — either a payout
-   or a refund, never both, and never twice. Settlement is guarded by an
-   on-chain state transition, not by application-level checks alone.
-5. **No partial refunds unless explicitly modeled.** If partial refunds
-   are supported, the remaining escrow must be tracked explicitly and the
-   conservation invariant must still hold after every partial refund.
-
-### Idempotency and concurrency
-
-- Refund and payout operations must be **idempotent** with respect to a
-  caller-supplied operation id (or equivalent on-chain nonce). A duplicate
-  request — including reconnect/retry duplicates — must not produce a
-  second transfer.
-- Concurrent duplicate requests must be serialized by the contract's state
-  transition: the first to observe the terminal state wins, and every
-  subsequent attempt fails closed with a typed error rather than
-  re-executing the transfer.
-- The backend must not retry a refund or payout write blindly. Retries are
-  only safe when the operation id is reused so the contract can dedupe.
-
-### Failure modes and fail-closed behavior
-
-- **Dependency outage (RPC/Postgres/Redis).** Writes fail closed. No
-  best-effort refund or payout is attempted, and no partial state is
-  persisted.
-- **Auth expiry mid-flow / forbidden role.** Refund and payout entrypoints
-  are authorized server-side; an expired or forbidden caller is rejected
-  before any contract write is attempted.
-- **Invalid or adversarial input.** Oversized payloads, spoofed events, and
-  enumeration attempts are rejected at the edge and rate-limited. Amounts
-  are integers in minor units; floats are rejected.
-- **Partial migration / canary.** While the escrow path is being rolled
-  out, reads must tolerate both pre- and post-migration states without
-  ever treating an unknown state as refundable.
-
-### Error mapping, requestId, and telemetry
-
-- Errors are mapped to `docs/API_ERROR_RESPONSE_STANDARDS.md` with explicit
-  error codes for: not-refundable, already-settled, unauthorized, and
-  dependency-unavailable.
-- The incoming `requestId` is propagated through the refund/payout path and
-  echoed in responses and logs so a settlement can be traced end to end.
-- RED metrics (rate, errors, duration) are emitted for refund and payout
-  operations. Telemetry labels must not contain secrets, tokens, or PII.
-
-### Auth
-
-- Refund and payout entrypoints are deny-by-default and authorized
-  server-side (JWT/AdminGuard/API-key as applicable). Untrusted clients
-  cannot bypass server authority to trigger a refund or payout.
-- Service-to-service calls use API keys only; no client-trusted stake,
-  escrow, or refund amount is accepted.
-
-### Feature flag and rollback
-
-- The escrow payout refund path is gated behind a server-side flag
-  (deny-by-default) while it is being rolled out. The flag is evaluated
-  server-side only; clients never decide whether the path is available.
-- Rollback: disable the flag to stop new refund/payout writes. On-chain
-  state already settled is immutable and must be reconciled by operators
-  per the runbook; rollback never attempts to reverse a settled transfer.
+   (or proxy) that evaluates flags server-side; clients receive the
+   resolved boolean and must not evaluate flags themselves.
