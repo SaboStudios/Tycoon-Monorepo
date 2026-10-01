@@ -24,8 +24,9 @@ export interface StandardResponse<T> {
   statusCode: number;
 
   /**
-   * Optional stable machine-readable error code (e.g. `STEP_UP_REQUIRED`).
-   * Only present on error responses whose exception supplied one.
+   * Optional stable machine-readable error code (e.g. `STEP_UP_REQUIRED`,
+   * `RATE_LIMITED`). Only present on error responses whose exception
+   * supplied one.
    */
-  error?: string;
+  code?: string;
 }

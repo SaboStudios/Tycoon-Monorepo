@@ -2,10 +2,6 @@
   "$comment": "Specs excluded from `npm test` because they cannot compile or target orphaned code that is not wired into AppModule. Every entry needs a reason. Remove an entry in the same PR that fixes it. Guarded by scripts/ci/check-test-quarantine.mjs (the list may only shrink unless QUARANTINE_ALLOW_GROWTH=1 is set by a maintainer). See docs/CI_IMPROVEMENTS.md.",
   "entries": [
     {
-      "pattern": "/src/games/games\\.gateway\\.spec\\.ts$",
-      "reason": "Orphaned gateway (not imported by AppModule): spec has a TS1434 syntax error on line 1 and the gateway imports ./games.service and ../auth/ws-jwt.guard, which no longer exist. src/games is also excluded from tsconfig.build.json."
-    },
-    {
       "pattern": "/src/games/board/board-tile-model\\.spec\\.ts$",
       "reason": "Spec contains syntax errors (TS1005 from line 218) and the model assigns to readonly properties; orphaned from AppModule."
     },

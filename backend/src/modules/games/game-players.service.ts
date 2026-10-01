@@ -249,6 +249,19 @@ export class GamePlayersService {
       player.in_jail = dto.in_jail;
     }
 
+    // Money, position and turn state are server-authoritative: a non-admin
+    // caller may only edit cosmetic fields (symbol/address) on their own seat.
+    const privilegedField =
+      dto.balance !== undefined ||
+      dto.position !== undefined ||
+      dto.turn_order !== undefined ||
+      dto.trade_locked_balance !== undefined;
+    if (privilegedField && !isAdmin) {
+      throw new ForbiddenException(
+        'Only admin/system can update balance, position, turn order or trade lock',
+      );
+    }
+
     return this.gamePlayerRepository.save(player);
   }
 
