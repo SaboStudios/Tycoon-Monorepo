@@ -78,6 +78,19 @@ export class RedisService {
     }
   }
 
+  /**
+   * Run a Lua script atomically with numkeys = keys.length.
+   * Errors propagate to the caller so fail-closed callers (e.g. the game
+   * code limiter) can distinguish a Redis outage from a verdict.
+   */
+  async evalStrict<T>(
+    script: string,
+    keys: string[],
+    args: Array<string | number>,
+  ): Promise<T> {
+    return (await this.redis.eval(script, keys.length, ...keys, ...args)) as T;
+  }
+
   // Cache operations
   async get<T>(key: string): Promise<T | undefined> {
     try {

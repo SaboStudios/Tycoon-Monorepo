@@ -22,12 +22,20 @@ and the **disconnect forfeit timers presence policy**.
 
 ## Gateway handshake (ADR-002)
 
-- JWT is accepted from **either** the `Authorization: Bearer <token>` header **or** the
-  auth cookie, with header/query parity with REST. The gateway must not accept a
-  token from any other source.
+- JWT is accepted from **either** the `access_token` cookie, the
+  `Authorization: Bearer <token>` header, **or** the `auth.token` handshake
+  auth field (native clients), in that precedence order — matching REST parity
+  (ADR-004). The gateway must not accept a token from any other source.
+- The token is verified during the handshake. Missing, malformed, or
+  expired-beyond-clock-tolerance tokens are rejected with `AUTH_REQUIRED`: the
+  gateway emits `game:error` and then disconnects the socket.
 - On handshake, the socket is authorized as **seat** or **spectator**:
-  - Seat: the authenticated user holds a seat in the target game.
-  - Spectator: authenticated but not seated; read-only.
+  - Seat: the authenticated user holds a seat in the target game (verified
+    against `game_players` when the socket joins).
+  - Spectator: authenticated but not seated; read-only (join with
+    `asSpectator: true`).
+- Suspended accounts and principals carrying a ban/termination signal are
+  rejected at (re)connect with `USER_BANNED` until the ban is lifted.
 - Deny-by-default: unauthenticated sockets are rejected before any room join.
 - Illegal actions are rejected with **stable error codes** (see below); the socket
   is not silently dropped for a single illegal action unless it is a ban/force-end.
@@ -39,12 +47,31 @@ and the **disconnect forfeit timers presence policy**.
 | `AUTH_REQUIRED` | No/invalid JWT on handshake or action. |
 | `AUTH_EXPIRED` | Token expired mid-session. |
 | `FORBIDDEN_ROLE` | Spectator attempted a seat-only action (e.g. roll). |
-| `NOT_SEATED` | Action requires a seat the user does not hold. |
+| `NOT_SEATED` | Action requires a seat the user does not hold (or the socket never joined this game). |
+| `NOT_YOUR_TURN` | Turn/seat already acted, or it is another seat's turn. |
 | `GAME_NOT_FOUND` | Target game/session does not exist. |
 | `GAME_ENDED` | Game/session already force-ended or completed. |
-| `USER_BANNED` | User was banned; socket detached. |
-| `RATE_LIMITED` | Join/roll exceeded the rate limit. |
-| `DUPLICATE_ACTION` | Idempotency key already processed. |
+| `USER_BANNED` | User was banned/suspended; socket detached. |
+| `RATE_LIMITED` | Join/action exceeded the rate limit. |
+| `DUPLICATE_ACTION` | Idempotency key already processed (or reused with a different intent / in flight). |
+| `INVALID_PAYLOAD` | Malformed payload or a client-supplied outcome (never trusted). |
+| `DEPENDENCY_UNAVAILABLE` | Redis/Postgres outage; write failed closed and was not applied. |
+| `CHAT_DISABLED` | In-game chat disabled pending the moderation pipeline (ADR-002 §7). |
+| `INTERNAL_ERROR` | Unexpected server error; correlate via `requestId`. |
+
+### Protocol events (`schemaVersion: 1`)
+
+Client → server: `game:join { gameId, asSpectator? }`,
+`game:roll { gameId, idempotencyKey }`, `game:end-turn { gameId, idempotencyKey }`,
+`game:leave { gameId? }`, `chat:send { gameId, text }`.
+
+Server → client: `game:snapshot` (full state for the calling socket; carries
+`replayed`/`action`/`dice` after roll/end-turn), `game:state` (room broadcast
+after a server-authoritative action), `game:error { schemaVersion, code,
+message, requestId? }`, `game:unsubscribed { reason, code?, terminal, gameId }`,
+`chat:message` (only when `GAMES_CHAT_ENABLED=true`).
+
+Room name: `game_<gameId>`.
 
 ## Server-authoritative outcomes
 
@@ -170,19 +197,27 @@ abruptly killing unrelated sockets.
 
 ## Rate limiting and metrics
 
-- Rate-limit `join` and `roll` per user and per socket; reject with `RATE_LIMITED`.
-- Metrics to emit (no PII, no tokens in labels):
-  - connected sockets (gauge)
-  - rejected actions by stable error code (counter)
-  - ban/force-end teardowns (counter)
-  - Redis adapter publish failures (counter)
-  - active forfeit timers (gauge)
-  - forfeits applied (counter)
+- Rate limits (fixed 60s windows, Redis-coordinated per user and per socket):
+  - `game:join` — 10 / socket, 30 / user (own bucket).
+  - `game:roll`, `game:end-turn`, `chat:send` — 30 / socket, 90 / user
+    (shared action bucket).
+- Exceeding a limit rejects with `RATE_LIMITED`. When Redis is unreachable the
+  limiter degrades to per-instance in-memory windows (cross-instance precision
+  resumes when Redis recovers) instead of failing open silently.
+- Metrics (Prometheus, no PII, no tokens in labels):
+  - `tycoon_games_ws_connected_sockets` (gauge)
+  - `tycoon_games_ws_rejected_actions_total{code}` (counter, stable code label)
+  - `tycoon_games_ws_teardowns_total{reason}` (counter: `banned` / `force_end`)
+  - `tycoon_games_ws_adapter_publish_failures_total` (counter)
+  - `tycoon_games_ws_rate_limited_total{action}` (counter)
+  - active forfeit timers (gauge) / forfeits applied (counter) — presence policy
 
 ## Failure modes
 
 - **Postgres/Redis/shop-api/RPC outage:** fail closed on writes; do not accept
-  intents that cannot be authoritatively applied.
+  intents that cannot be authoritatively applied. Idempotent roll/end-turn over
+  an unavailable Redis store rejects with `DEPENDENCY_UNAVAILABLE` and the
+  action is **not** applied.
 - **Auth expiry mid-session:** reject with `AUTH_EXPIRED`; require re-handshake.
 - **Duplicate tab joins:** dedupe by user+game; a second tab joins as spectator or
   is rejected per seat policy, never as a second seat.
@@ -202,9 +237,16 @@ abruptly killing unrelated sockets.
 
 ## Test plan
 
-- Unit: authz matrix seat vs spectator; stable error code mapping.
+- Unit: authz matrix seat vs spectator; stable error code mapping
+  (`games.gateway.spec.ts`, seat-ownership guard spec).
 - Unit: presence refcount and forfeit timer start/cancel on present↔absent.
-- E2E: join / roll / reconnect; `game-idempotency.e2e`.
+- E2E: handshake rejections, spectator authz, authoritative roll/turn cycle,
+  chat deny-by-default, leave, reconnect state restore, ban teardown, join rate
+  limit — `test/games-ws.e2e-spec.ts` (sqlite harness in
+  `test/utils/games-ws-harness.ts`).
+- E2E: idempotent replay does not double-apply, Redis outage fails closed with
+  `DEPENDENCY_UNAVAILABLE`, reused/in-flight keys reject with
+  `DUPLICATE_ACTION` — `test/game-idempotency.e2e-spec.ts`.
 - E2E: disconnect starts forfeit timer; reconnect before deadline cancels it;
   deadline elapse applies server-authoritative forfeit.
 - E2E: ban and admin force-end detach sockets and reject reconnect.

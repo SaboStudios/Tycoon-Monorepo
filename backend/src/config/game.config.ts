@@ -9,4 +9,7 @@ export const gameConfig = registerAs('game', () => ({
     randomizePlayOrder: process.env.DEFAULT_RANDOMIZE_PLAY_ORDER !== 'false',
     startingCash: parseInt(process.env.DEFAULT_STARTING_CASH || '1500', 10),
   },
+  // In-game chat on the /games WS namespace is deny-by-default until the
+  // moderation pipeline ships (ADR-002 §7, issue #1786).
+  chatEnabled: process.env.GAMES_CHAT_ENABLED === 'true',
 }));

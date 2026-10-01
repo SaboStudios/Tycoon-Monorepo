@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Optional, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -16,6 +16,7 @@ import {
 } from '../../common';
 import { RedisService } from '../redis/redis.service';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
+import { GamesRealtimeBridge } from '../games/realtime/games-realtime.bridge';
 import { Request } from 'express';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class UsersService {
     private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
     private readonly adminLogsService: AdminLogsService,
+    @Optional() private readonly realtimeBridge?: GamesRealtimeBridge,
   ) {}
 
   /**
@@ -270,6 +272,9 @@ export class UsersService {
 
     await this.invalidateUserCache(dto.userId);
     await this.invalidateUsersCache();
+
+    // Detach the banned principal's live game sockets (ADR-002 §6). Idempotent.
+    await this.realtimeBridge?.notifyUserBanned(dto.userId);
   }
 
   /**
@@ -304,6 +309,10 @@ export class UsersService {
 
     await this.invalidateUserCache(dto.userId);
     await this.invalidateUsersCache();
+
+    // Lift the local fast-path termination so the user can re-handshake;
+    // the durable is_suspended=false is already persisted above.
+    this.realtimeBridge?.notifyUserRestored(dto.userId);
   }
 
   /**

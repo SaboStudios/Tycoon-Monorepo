@@ -39,6 +39,7 @@ import { PayTaxDto } from './dto/pay-tax.dto';
 import { BuyPropertyDto } from './dto/buy-property.dto';
 import { JoinGameDto } from './dto/join-game.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SeatOwnershipGuard } from './guards/seat-ownership.guard';
 
 @ApiTags('games')
 @Controller('games')
@@ -269,7 +270,7 @@ export class GamesController {
   }
 
   @Patch(':gameId/players/:playerId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SeatOwnershipGuard)
   async updatePlayer(
     @Param('gameId', ParseIntPipe) gameId: number,
     @Param('playerId', ParseIntPipe) playerId: number,
@@ -287,6 +288,11 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/roll-dice')
+  @UseGuards(JwtAuthGuard, SeatOwnershipGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Roll dice for your own seat (server applies them)',
+  })
   async rollDice(
     @Param('gameId', ParseIntPipe) gameId: number,
     @Param('playerId', ParseIntPipe) playerId: number,
@@ -311,6 +317,8 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/pay-rent')
+  @UseGuards(JwtAuthGuard, SeatOwnershipGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Pay rent with boost modifiers applied' })
   async payRent(
     @Param('gameId', ParseIntPipe) gameId: number,
@@ -326,6 +334,8 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/pay-tax')
+  @UseGuards(JwtAuthGuard, SeatOwnershipGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Pay tax with boost modifiers applied' })
   async payTax(
     @Param('gameId', ParseIntPipe) gameId: number,
@@ -336,6 +346,8 @@ export class GamesController {
   }
 
   @Post(':gameId/players/:playerId/buy-property')
+  @UseGuards(JwtAuthGuard, SeatOwnershipGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Buy property and emit event for boost hooks' })
   async buyProperty(
     @Param('gameId', ParseIntPipe) gameId: number,

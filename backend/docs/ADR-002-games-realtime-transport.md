@@ -60,31 +60,41 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
   `Authorization: Bearer <token>` header, then from the `auth.token` handshake
   field. This mirrors ADR-004 so browser and native clients share one path.
 - The token is verified during the handshake. Missing, malformed, or expired
-  tokens are rejected before the socket is accepted; the client receives an
-  `unauthorized` error and the socket is closed.
-- The verified principal (`sub`, `seat`, `gameId` when present) is attached to
-  `socket.data` and is the only source of identity for later events.
+  (beyond clock tolerance) tokens are rejected before the socket is accepted:
+  the gateway emits `game:error { schemaVersion, code: AUTH_REQUIRED, ... }`
+  and then disconnects the socket. Suspended accounts and principals carrying a
+  ban/termination signal are rejected with `USER_BANNED` on every (re)connect.
+- The verified principal (`sub`, role, admin flag, token `exp`) is attached to
+  `socket.data` and is the only source of identity for later events;
+  client-supplied userIds are never trusted. Token expiry is re-checked on
+  every action (`AUTH_EXPIRED`).
 
 ### 2. Rooms and seat authorization
 
 - Each game uses a room keyed by `gameId` (room name `game_<gameId>`).
-- `join` accepts `{ gameId, seat }`. The gateway verifies that the authenticated
-  principal is allowed to occupy that seat for that game before adding the
-  socket to the room.
-- `join` is idempotent: a duplicate join for the same `gameId`/`seat` is a no-op
-  and returns the current room state instead of erroring or double-adding.
-- Turn and roll events are only accepted from the socket that currently holds
-  the active seat. Off-turn actions are rejected with a `forbidden` error and
-  are not broadcast.
-- Only authenticated players in that game's room receive updates; there is no
+- `join` accepts `{ gameId, asSpectator? }`. The gateway derives the seat from
+  `game_players` for the verified principal — clients never supply a seat id.
+  A seated user joins as `player`; a seatless user must opt in with
+  `asSpectator: true` or the join is rejected with `NOT_SEATED`.
+- `join` is idempotent: a duplicate join for the same `gameId` re-emits the
+  current `game:snapshot` instead of erroring or double-adding.
+- Turn and roll events are only accepted from the seat that currently holds
+  `next_player_id` (otherwise `NOT_YOUR_TURN`) and only from sockets joined as
+  `player` (spectators get `FORBIDDEN_ROLE`, unjoined sockets get
+  `NOT_SEATED`). Illegal actions are rejected with stable codes and are not
+  broadcast.
+- Only sockets in that game's room receive room events; there is no
   broadcast to unauthenticated clients.
 
 ### 3. Server-authoritative dice
 
 - Clients never send dice outcomes. Any `roll` payload containing a result,
-  value, or seed field is rejected.
-- The server generates the dice result, records it against the game, and
-  broadcasts the authoritative result to the room.
+  value, or seed field (`dice1`, `dice2`, `d1`, `d2`, `dice`, `result`,
+  `value`, `seed`, `outcome`) is rejected with `INVALID_PAYLOAD` before any
+  validation or rate-limit consumption.
+- The server generates the dice with `crypto.randomInt`, records the movement
+  against the game, and broadcasts the authoritative result (`game:state` with
+  the dice and public state) to the room plus a `game:snapshot` to the actor.
 - This keeps the server as the single source of truth and prevents turn and
   dice spoofing.
 
@@ -92,20 +102,32 @@ The gateway is the single realtime entry point for matchmaking, turns, and dice.
 
 - The gateway uses the Socket.IO Redis adapter so events fan out across all
   gateway instances. A Redis partition degrades to per-instance delivery; the
-gateway logs the failure and clients fall back to REST polling until the
-adapter reconnects.
-- `roll` events are rate limited per socket and per game to bound abuse.
-- Every payload includes a `schemaVersion` field so clients can negotiate
-  compatible event shapes as the protocol evolves.
+  gateway logs the failure, records `tycoon_games_ws_adapter_publish_failures_total`,
+  and clients fall back to REST polling until the adapter reconnects.
+- Fixed-window rate limits per 60s, coordinated in Redis: `join` is capped at
+  10/socket and 30/user; `roll`/`end-turn`/`chat` share 30/socket and 90/user.
+  Exceeding a limit rejects with `RATE_LIMITED`. A Redis outage degrades to
+  per-instance windows rather than failing open.
+- Every payload includes a `schemaVersion` field (currently `1`) so clients
+  can negotiate compatible event shapes as the protocol evolves.
 
 ### 5. Reconnect and idempotency
 
 - Reconnect reuses the existing JWT; if the token expired mid-game the client
-  must refresh and re-handshake.
-- Action idempotency keys are coordinated with the REST write path so a
-  reconnect replay does not double-apply a turn or roll.
+  must refresh and re-handshake (`AUTH_EXPIRED` on the stale session).
+- Every mutating intent (`game:roll`, `game:end-turn`) carries an
+  `idempotencyKey` (8–200 chars). The key is coordinated with the REST write
+  path through the shared store key/canonical hash:
+  - same key + same intent → the prior result is returned, nothing is
+    re-applied, and only the acting socket receives a `game:snapshot` with
+    `replayed: true` (no second `game:state` broadcast);
+  - same key + different intent → `DUPLICATE_ACTION` (fail closed);
+  - key already claimed in flight (concurrent tab/retry) → `DUPLICATE_ACTION`;
+  - Redis unavailable → `DEPENDENCY_UNAVAILABLE` and the action is **not**
+    applied (fail closed on writes).
 - On reconnect the client rejoins its room and receives the current state
-  rather than a replay of missed events.
+  (`game:snapshot`) rather than a replay of missed events; reconnect restores
+  playability without double-applying anything.
 
 ### 6. Graceful unsubscribe on ban / admin force-end
 
@@ -119,16 +141,20 @@ without relying on the client to disconnect voluntarily.
 
 **Behavior:**
 1. The gateway resolves the affected sockets by `userId` (ban) or by room
-   membership `game_<gameId>` (force-end).
-2. For each affected socket it emits a terminal `unsubscribed` event carrying a
-   stable reason code (`banned` or `force_end`) and the `gameId`, then calls
+   membership `game_<gameId>` (force-end) through `GamesRealtimeBridge`.
+2. For each affected socket it emits a terminal `game:unsubscribed` event
+   carrying `{ reason: 'banned' | 'force_end', code: USER_BANNED | GAME_ENDED,
+   terminal: true, gameId }`, then calls
    `socket.leave('game_<gameId>')` so the socket no longer receives room events.
 3. The socket is then disconnected (`socket.disconnect(true)`). No further room
-   events are delivered after the `unsubscribed` event.
+   events are delivered after the `game:unsubscribed` event.
 4. The room is torn down once empty; no residual per-game state (turn timers,
    rate-limit buckets, seat reservations) is retained for the ended game.
 5. The unsubscribe path is idempotent: a repeated ban/force-end for the same
    socket or game is a no-op and does not emit duplicate terminal events.
+6. Every subsequent handshake or action from a banned principal fails closed
+   with `USER_BANNED` (and force-ended games with `GAME_ENDED`) until the ban
+   is lifted / the game is restored.
 
 **Multi-instance delivery:** the ban/force-end signal is published through the
 Redis adapter so every gateway instance detaches its local sockets for that
@@ -155,7 +181,10 @@ chat abuse controls referenced by issue #1786.
 - **Server authority.** The gateway is the only component that accepts, filters,
   and fans out chat. Clients never broadcast directly to a room; a `chat:send`
   event is validated server-side before any fanout.
-- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED`
+- **Deny-by-default.** Chat is off unless the `GAMES_CHAT_ENABLED` flag is set;
+  while off, `chat:send` rejects with the stable code `CHAT_DISABLED` and
+  nothing is broadcast. When enabled, messages fan out as `chat:message` only
+  to sockets in the game room.
 
 ### 8. Server-only chance/community RNG auditability
 

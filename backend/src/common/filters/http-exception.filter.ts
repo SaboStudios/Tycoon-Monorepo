@@ -37,6 +37,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message: string | string[];
     let stack: string | undefined;
     let errorCode: string | undefined;
+    let retryAfterSeconds: number | undefined;
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
@@ -52,13 +53,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
         // Handle validation errors (which have an array of messages)
         message =
           (responseObj.message as string | string[]) || exception.message;
-        // Only forward UPPER_SNAKE codes (e.g. STEP_UP_REQUIRED), not Nest's
-        // default reason phrases like "Bad Request".
+        // Stable machine-readable code: either an explicit `code` field or an
+        // UPPER_SNAKE `error` field (e.g. STEP_UP_REQUIRED). Nest's default
+        // reason phrases like "Bad Request" are never forwarded.
+        const candidate =
+          typeof responseObj.code === 'string'
+            ? responseObj.code
+            : typeof responseObj.error === 'string'
+              ? responseObj.error
+              : undefined;
+        if (candidate && /^[A-Z][A-Z0-9_]+$/.test(candidate)) {
+          errorCode = candidate;
+        }
         if (
-          typeof responseObj.error === 'string' &&
-          /^[A-Z][A-Z0-9_]+$/.test(responseObj.error)
+          typeof responseObj.retryAfterSeconds === 'number' &&
+          Number.isFinite(responseObj.retryAfterSeconds)
         ) {
-          errorCode = responseObj.error;
+          retryAfterSeconds = responseObj.retryAfterSeconds;
         }
       } else {
         message = exception.message;
@@ -117,8 +128,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message: formattedMessage,
       data: null,
       statusCode,
-      ...(errorCode && { error: errorCode }),
+      ...(errorCode && { code: errorCode }),
     };
+
+    if (retryAfterSeconds !== undefined) {
+      response.setHeader('Retry-After', String(Math.ceil(retryAfterSeconds)));
+    }
 
     response.status(statusCode).json(standardResponse);
   }
