@@ -45,4 +45,4 @@ export function useClaimPrize(gameId: number) {
   }, [gameId]);
 
   return { state, claim };
-}
+} 

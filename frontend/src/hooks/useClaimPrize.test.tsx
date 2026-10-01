@@ -44,4 +44,4 @@ describe('useClaimPrize', () => {
       await act(async () => { await result.current.claim(); });
       expect(result.current.state).toEqual({ phase: 'error', code, retryable });
     });
-});
+}); 
