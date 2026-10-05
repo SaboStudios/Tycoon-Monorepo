@@ -8,12 +8,6 @@ const quarantine = JSON.parse(
   readFileSync(join(process.cwd(), 'test', 'quarantine.json'), 'utf8'),
 ) as { entries: { pattern: string; reason: string }[] };
 
-  // Explicit, reviewed quarantine — see test/quarantine.json for reasons.
-  testPathIgnorePatterns: [
-    '/node_modules/',
-    ...quarantine.entries.map((entry) => entry.pattern),
-  ],
-
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: 'src',

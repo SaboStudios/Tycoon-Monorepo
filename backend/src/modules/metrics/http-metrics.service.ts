@@ -2,10 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Counter, Gauge, Histogram, Registry } from 'prom-client';
 import { DataSource } from 'typeorm';
-import {
-  classifyHttpRouteGroup,
-  httpStatusClass,
-} from './route-group';
+import { classifyHttpRouteGroup, httpStatusClass } from './route-group';
 
 /** HTTP handler latency buckets (seconds) — tuned for API latency (p50–p99). */
 const HTTP_DURATION_BUCKETS = [
@@ -25,6 +22,7 @@ export class HttpMetricsService {
   private readonly dbPoolIdle: Gauge;
   private readonly dbPoolWaiting: Gauge;
   private readonly dbPoolExhaustionTotal: Counter;
+  private readonly gameCodeLookupsTotal: Counter;
 
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {
     const commonLabelNames = ['method', 'route_group'] as const;
@@ -67,6 +65,19 @@ export class HttpMetricsService {
       help: 'Number of times the pool waiting queue exceeded the exhaustion threshold',
       registers: [this.registry],
     });
+
+    this.gameCodeLookupsTotal = new Counter({
+      name: 'tycoon_game_code_lookups_total',
+      help: 'Game code lookup attempts by outcome (found, not_found, invalid, rate_limited, unavailable)',
+      labelNames: ['outcome'],
+      registers: [this.registry],
+    });
+  }
+
+  recordGameCodeLookup(
+    outcome: 'found' | 'not_found' | 'invalid' | 'rate_limited' | 'unavailable',
+  ): void {
+    this.gameCodeLookupsTotal.inc({ outcome });
   }
 
   recordRequest(
@@ -96,7 +107,15 @@ export class HttpMetricsService {
   /** Snapshot pool stats from the underlying pg Pool and update gauges. */
   collectPoolMetrics(): void {
     // TypeORM exposes the underlying pg Pool via driver.master
-    const pool = (this.dataSource.driver as unknown as { master?: { totalCount?: number; idleCount?: number; waitingCount?: number } }).master;
+    const pool = (
+      this.dataSource.driver as unknown as {
+        master?: {
+          totalCount?: number;
+          idleCount?: number;
+          waitingCount?: number;
+        };
+      }
+    ).master;
     if (!pool) return;
 
     const total = pool.totalCount ?? 0;

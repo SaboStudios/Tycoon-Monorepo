@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +18,7 @@ import { GamePlayer } from './entities/game-player.entity';
 import { PaginatedResponse, PaginationService, SortOrder } from '../../common';
 import { GetGamesDto } from './dto/get-games.dto';
 import { secureRandomAlphaNumeric } from '../../common/crypto-secure-random';
+import { GamesRealtimeBridge } from './realtime/games-realtime.bridge';
 
 /**
  * Generate a unique game code (cryptographically secure per character).
@@ -39,6 +41,7 @@ export class GamesService {
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
     private readonly paginationService: PaginationService,
+    @Optional() private readonly realtimeBridge?: GamesRealtimeBridge,
   ) {}
 
   async findAll(dto: GetGamesDto): Promise<PaginatedResponse<Game>> {
@@ -311,6 +314,17 @@ export class GamesService {
     }
 
     await this.gameRepository.update(id, updates);
+
+    // Admin/creator force-end: detach every live WS socket for this game so
+    // no client keeps receiving room events after the game is over
+    // (ADR-002 §6). Idempotent per game on the bridge side.
+    if (
+      updates.status === GameStatus.FINISHED ||
+      updates.status === GameStatus.CANCELLED
+    ) {
+      await this.realtimeBridge?.notifyGameEnded(id);
+    }
+
     return this.findById(id);
   }
 
@@ -360,7 +374,7 @@ export class GamesService {
     return this.findById(gameId);
   }
 
-async joinGame(
+  async joinGame(
     gameId: number,
     userId: number,
     dto: JoinGameDto,
@@ -490,4 +504,3 @@ async joinGame(
     };
   }
 }
-
