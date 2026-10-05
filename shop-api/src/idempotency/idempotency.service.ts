@@ -1,14 +1,10 @@
-import {
-  Injectable,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, QueryFailedError } from 'typeorm';
+import { Injectable, ConflictException, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource, QueryFailedError } from "typeorm";
 import {
   IdempotencyRecord,
   IdempotencyStatus,
-} from './entities/idempotency-record.entity';
+} from "./entities/idempotency-record.entity";
 
 export interface CachedResponse {
   status: number;
@@ -71,9 +67,31 @@ export class IdempotencyService {
     if (existing.status === IdempotencyStatus.PROCESSING) {
       // Another request is actively processing this key right now.
       throw new ConflictException(
-        'A request with this idempotency key is already being processed. ' +
-          'Please wait and retry.',
+        "A request with this idempotency key is already being processed. " +
+          "Please wait and retry.",
       );
+    }
+
+    // FAILED → allow retry by removing the stale record (ignore body hash mismatch).
+    // This must be before the hash conflict check so a client can retry the same
+    // key after a failure even if the stored hash is missing or stale.
+    if (existing.status === IdempotencyStatus.FAILED) {
+      this.logger.log(
+        `Retrying after previous failure [key=${this.mask(idempotencyKey)}]`,
+      );
+      await this.repo.delete({ idempotencyKey });
+
+      const retryRecord = this.repo.create({
+        idempotencyKey,
+        operation,
+        requestHash,
+        status: IdempotencyStatus.PROCESSING,
+        responseBody: null,
+        responseStatus: null,
+        completedAt: null,
+      });
+      await this.repo.insert(retryRecord);
+      return { isReplay: false, record: retryRecord };
     }
 
     if (
@@ -81,18 +99,21 @@ export class IdempotencyService {
       existing.requestHash !== requestHash
     ) {
       throw new ConflictException(
-        'This idempotency key was already used with a different request.',
+        "This idempotency key was already used with a different request.",
       );
     }
 
     if (existing.status === IdempotencyStatus.COMPLETED) {
-      this.logger.log(`Replaying idempotent response [key=${this.mask(idempotencyKey)}]`);
+      this.logger.log(
+        `Replaying idempotent response [key=${this.mask(idempotencyKey)}]`,
+      );
       return { isReplay: true, record: existing };
     }
 
-    // FAILED → allow retry by removing the stale record.
+    // Fallback — should be unreachable (only PROCESSING/COMPLETED/FAILED are valid),
+    // but treat as FAILED retry to avoid leaking state.
     this.logger.log(
-      `Retrying after previous failure [key=${this.mask(idempotencyKey)}]`,
+      `Retrying after unexpected status [key=${this.mask(idempotencyKey)} status=${existing.status}]`,
     );
     await this.repo.delete({ idempotencyKey });
 
@@ -142,7 +163,7 @@ export class IdempotencyService {
   getCachedResponse(record: IdempotencyRecord): CachedResponse {
     return {
       status: record.responseStatus ?? 200,
-      body: JSON.parse(record.responseBody ?? 'null'),
+      body: JSON.parse(record.responseBody ?? "null"),
     };
   }
 
@@ -156,8 +177,8 @@ export class IdempotencyService {
         .code;
       // PostgreSQL: 23505, SQLite: SQLITE_CONSTRAINT
       return (
-        code === '23505' ||
-        (err.message?.includes('UNIQUE constraint failed') ?? false)
+        code === "23505" ||
+        (err.message?.includes("UNIQUE constraint failed") ?? false)
       );
     }
     return false;
@@ -165,7 +186,7 @@ export class IdempotencyService {
 
   /** Masks all but the last 4 chars of a key to keep logs clean. */
   private mask(key: string): string {
-    if (key.length <= 4) return '****';
-    return `${'*'.repeat(key.length - 4)}${key.slice(-4)}`;
+    if (key.length <= 4) return "****";
+    return `${"*".repeat(key.length - 4)}${key.slice(-4)}`;
   }
 }
