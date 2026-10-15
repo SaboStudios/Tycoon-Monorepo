@@ -1,33 +1,28 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
-export type CardType = 'chance' | 'community';
-
-export interface CardData {
-    type: CardType;
-    text: string;
+export interface CardModalState {
+  isOpen: boolean;
+  card: unknown | null;
+  openCard: (card: unknown) => void;
+  close: () => void;
 }
 
-export interface UseCardModalReturn {
-    isOpen: boolean;
-    card: CardData | null;
-    openCard: (card: CardData) => void;
-    close: () => void;
-}
+export function useCardModal(): CardModalState {
+  const [isOpen, setIsOpen] = useState(false);
+  const [card, setCard] = useState<unknown | null>(null);
 
-export function useCardModal(): UseCardModalReturn {
-    const [isOpen, setIsOpen] = useState(false);
-    const [card, setCard] = useState<CardData | null>(null);
+  const openCard = useCallback((nextCard: unknown) => {
+    setCard(nextCard);
+    setIsOpen(true);
+  }, []);
 
-    const openCard = useCallback((cardData: CardData) => {
-        setCard(cardData);
-        setIsOpen(true);
-    }, []);
+  const close = useCallback(() => {
+    setIsOpen(false);
+    setCard(null);
+  }, []);
 
-    const close = useCallback(() => {
-        setIsOpen(false);
-        // Explicitly clean state upon closing guaranteeing sterile conditions.
-        setCard(null);
-    }, []);
-
-    return { isOpen, card, openCard, close };
+  return useMemo(
+    () => ({ isOpen, card, openCard, close }),
+    [isOpen, card, openCard, close],
+  );
 }
