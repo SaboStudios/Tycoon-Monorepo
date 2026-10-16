@@ -16,7 +16,7 @@ import { validationSchema } from './config/env.validation';
  * must apply schema changes through migrations (`npm run migration:run`) so a
  * running service never mutates its own schema — especially staging.
  */
-function resolveSynchronize(nodeEnv: string, dbSynchronize: boolean): boolean {
+export function resolveSynchronize(nodeEnv: string, dbSynchronize: boolean): boolean {
   if (nodeEnv === 'test') return true;
 
   // Safety net: refuse to boot if an operator forces synchronize in staging.
