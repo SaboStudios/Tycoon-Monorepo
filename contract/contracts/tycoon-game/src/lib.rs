@@ -230,4 +230,5 @@ impl TycoonContract {
     }
 }
 
+#[cfg(test)]
 mod test;
