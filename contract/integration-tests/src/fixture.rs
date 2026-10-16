@@ -122,5 +122,18 @@ mod inner {
         pub fn mint_tyc(&self, to: &Address, amount: i128) {
             StellarAssetClient::new(&self.env, &self.tyc_id).mint(to, &amount);
         }
+
+        /// Count the refund events emitted by the game contract so far.
+        ///
+        /// Used by the negative-path refund tests in `stake_paths_flow` to
+        /// assert that a failed refund does not emit an additional event.
+        pub fn refund_event_count(&self) -> u32 {
+            self.env
+                .events()
+                .all()
+                .iter()
+                .filter(|e| e.1 == ("game", "refund"))
+                .count() as u32
+        }
     }
 }
