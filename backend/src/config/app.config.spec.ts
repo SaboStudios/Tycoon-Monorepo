@@ -1,4 +1,21 @@
-import { parseCorsOrigins, validateCorsOrigins } from './app.config';
+import { appConfig, parseCorsOrigins, validateCorsOrigins } from './app.config';
+
+describe('appConfig', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.CORS_ALLOWED_ORIGINS;
+    delete process.env.CORS_ORIGIN;
+    delete process.env.CORS_MAX_AGE;
+    delete process.env.NODE_ENV;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+import { appConfig, parseCorsOrigins, validateCorsOrigins } from './app.config';
 
 describe('CORS origin configuration', () => {
   const originalEnv = process.env;
@@ -71,6 +88,33 @@ describe('CORS origin configuration', () => {
       process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com,https://admin.example.com';
 
       expect(() => validateCorsOrigins()).not.toThrow();
+    });
+  });
+
+  describe('CORS_MAX_AGE', () => {
+    it('throws when CORS_MAX_AGE is non-numeric', () => {
+      process.env = { ...originalEnv, CORS_MAX_AGE: 'abc' };
+
+      expect(() => appConfig()).toThrow(
+        'CORS_MAX_AGE must be a non-negative integer',
+      );
+    });
+
+    it('throws when CORS_MAX_AGE is negative', () => {
+      process.env = { ...originalEnv, CORS_MAX_AGE: '-1' };
+
+      expect(() => appConfig()).toThrow(
+        'CORS_MAX_AGE must be a non-negative integer',
+      );
+    });
+
+    it('returns the parsed value when CORS_MAX_AGE is a non-negative integer', () => {
+      process.env = { ...originalEnv, CORS_MAX_AGE: '3600' };
+
+      expect(appConfig().corsMaxAge).toBe(3600);
+    });
+  });
+});
     });
   });
 });
