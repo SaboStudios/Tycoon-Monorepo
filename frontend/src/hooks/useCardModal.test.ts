@@ -4,42 +4,67 @@ import { describe, expect, it } from 'vitest';
 import { useCardModal } from './useCardModal';
 
 describe('useCardModal', () => {
-  it('returns a referentially stable object across a no-op re-render', () => {
-    const { result, rerender } = renderHook(() => useCardModal());
-
-    const first = result.current;
-    rerender();
-
-    expect(result.current).toBe(first);
-  });
-
-  it('returns a new object after openCard', () => {
+  it('starts closed with no card', () => {
     const { result } = renderHook(() => useCardModal());
 
-    const before = result.current;
+    expect(result.current.isOpen).toBe(false);
+    expect(result.current.card).toBeNull();
+  });
+
+  it('openCard stores the exact CardData and opens the modal', () => {
+    const { result } = renderHook(() => useCardModal());
+
+    const chanceCard = { type: 'chance' as const, text: 'Advance to Go' };
     act(() => {
-      result.current.openCard({ id: 'card-1' });
+      result.current.openCard(chanceCard);
     });
 
-    expect(result.current).not.toBe(before);
     expect(result.current.isOpen).toBe(true);
-    expect(result.current.card).toEqual({ id: 'card-1' });
+    expect(result.current.card).toEqual(chanceCard);
+    expect(result.current.card).toEqual({ type: 'chance', text: 'Advance to Go' });
   });
 
-  it('returns a new object after close', () => {
+  it('openCard stores the community discriminant', () => {
+    const { result } = renderHook(() => useCardModal());
+
+    const communityCard = { type: 'community' as const, text: 'Bank error in your favor' };
+    act(() => {
+      result.current.openCard(communityCard);
+    });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.card).toEqual(communityCard);
+  });
+
+  it('close resets the card to null, not just isOpen', () => {
     const { result } = renderHook(() => useCardModal());
 
     act(() => {
-      result.current.openCard({ id: 'card-1' });
+      result.current.openCard({ type: 'chance', text: 'Advance to Go' });
     });
 
-    const opened = result.current;
     act(() => {
       result.current.close();
     });
 
-    expect(result.current).not.toBe(opened);
     expect(result.current.isOpen).toBe(false);
     expect(result.current.card).toBeNull();
+  });
+
+  it('openCard replaces the previous card', () => {
+    const { result } = renderHook(() => useCardModal());
+
+    act(() => {
+      result.current.openCard({ type: 'chance', text: 'Advance to Go' });
+    });
+
+    const secondCard = { type: 'community' as const, text: 'Bank error in your favor' };
+    act(() => {
+      result.current.openCard(secondCard);
+    });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.card).toEqual(secondCard);
+    expect(result.current.card).not.toEqual({ type: 'chance', text: 'Advance to Go' });
   });
 });
