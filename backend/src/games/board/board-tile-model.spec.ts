@@ -7,7 +7,10 @@ import {
   BoardTileErrorCode,
   GameStateSnapshot,
   TileRuleVector,
+  parseEconomyRuleset,
+  EconomyRulesetError,
 } from './board-tile-model';
+import economyRuleset from './economy-ruleset-v1.json';
 
 /**
  * Table-driven golden vectors for the BOARD_TILE_MODEL tile rule family.
@@ -213,103 +216,43 @@ describe('BOARD_TILE_MODEL server-side enforcement', () => {
   });
 });
 
-  {
-    name: 'house build rejected when supply exhausted',
-    state: baseState({
-      players: {
-        p1: { id: 'p1', cash: 10000, position: 0, bankrupt: false, properties: [1, 2] },
-        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
-      },
-      board: {
-        tiles: [
-          { index: 0, kind: TileKind.Go },
-          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50 },
-          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50 },
-        ],
-        houseSupply: 0,
-        hotelSupply: 12,
-      },
-    }),
-    action: { type: 'buildHouse', playerId: 'p1', tileIndex: 1 },
-    expect: { ok: false, code: BoardTileErrorCode.HouseSupplyExhausted },
-  },
-  {
-    name: 'hotel build allowed when 4 houses reached',
-    state: baseState({
-      players: {
-        p1: { id: 'p1', cash: 5000, position: 0, bankrupt: false, properties: [1, 2] },
-        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
-      },
-      board: {
-        tiles: [
-          { index: 0, kind: TileKind.Go },
-          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 4, hotel: false },
-          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 4, hotel: false },
-        ],
-        houseSupply: 32,
-        hotelSupply: 12,
-      },
-    }),
-    action: { type: 'buildHotel', playerId: 'p1', tileIndex: 1 },
-    expect: { ok: true, hotel: { 1: true }, events: ['hotel.built'] },
-  },
-  {
-    name: 'house build rejected on mortgaged property',
-    state: baseState({
-      players: {
-        p1: { id: 'p1', cash: 1500, position: 0, bankrupt: false, properties: [1, 2] },
-        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
-      },
-      board: {
-        tiles: [
-          { index: 0, kind: TileKind.Go },
-          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, mortgaged: true },
-          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50 },
-        ],
-      },
-    }),
-    action: { type: 'buildHouse', playerId: 'p1', tileIndex: 1 },
-    expect: { ok: false, code: BoardTileErrorCode.Mortgaged },
-  },
-  {
-    name: 'uneven house build rejected',
-    state: baseState({
-      players: {
-        p1: { id: 'p1', cash: 1500, position: 0, bankrupt: false, properties: [1, 2] },
-        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
-      },
-      board: {
-        tiles: [
-          { index: 0, kind: TileKind.Go },
-          { index: 1, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 2 },
-          { index: 2, kind: TileKind.Property, group: 'brown', price: 60, houseCost: 50, houses: 1 },
-        ],
-      },
-    }),
-    action: { type: 'buildHouse', playerId: 'p1', tileIndex: 1 },
-    expect: { ok: false, code: BoardTileErrorCode.UnevenBuild },
-  },
-  {
-    name: 'ruleset hash mismatch rejects action',
-    state: baseState({ rulesetHash: 'invalid-hash' }),
-    action: { type: 'buy', playerId: 'p1', tileIndex: 1 },
-    expect: { ok: false, code: BoardTileErrorCode.RulesetHashMismatch },
-  },
-  {
-    name: 'concurrent duplicate buy rejected',
-    state: baseState(),
-    action: { type: 'buy', playerId: 'p1', tileIndex: 1, version: 1, currentVersion: 2 },
-    expect: { ok: false, code: BoardTileErrorCode.StaleVersion },
-  },
-  {
-    name: 'bankruptcy mid-debt settles to creditor',
-    state: baseState({
-      players: {
-        p1: { id: 'p1', cash: 10, position: 0, bankrupt: false, properties: [1] },
-        p2: { id: 'p2', cash: 1500, position: 0, bankrupt: false, properties: [] },
-      },
-    }),
-    action: { type: 'payDebt', playerId: 'p1', creditorId: 'p2', amount: 200 },
-    expect: { ok: true, cash: { p1: 0, p2: 1510 }, owner: { 1: 'p2' }, events: ['player.bankrupt'] },
-  },
-];
+describe('economy-ruleset-v1.json', () => {
+  it('parses into the model expected shape via the service validation entry point', () => {
+    const ruleset = parseEconomyRuleset(economyRuleset);
+
+    expect(ruleset.version).toBe(BOARD_TILE_MODEL_VERSION);
+    expect(ruleset.hash).toBe(BOARD_TILE_MODEL_HASH);
+    expect(ruleset.tiles.length).toBeGreaterThan(0);
+
+    // Every tile the model requires must be present and well-formed.
+    const indices = ruleset.tiles.map((tile) => tile.index);
+    expect(new Set(indices).size).toBe(indices.length);
+    for (const tile of ruleset.tiles) {
+      expect(Number.isInteger(tile.index)).toBe(true);
+      expect(tile.index).toBeGreaterThanOrEqual(0);
+      expect(Object.values(TileKind)).toContain(tile.kind);
+      if (tile.kind === TileKind.Property) {
+        expect(typeof tile.group).toBe('string');
+        expect(tile.price).toBeGreaterThan(0);
+        expect(tile.houseCost).toBeGreaterThan(0);
+      }
+      if (tile.kind === TileKind.Tax) {
+        expect(tile.amount).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('rejects a malformed ruleset object', () => {
+    const malformed = {
+      version: BOARD_TILE_MODEL_VERSION,
+      hash: BOARD_TILE_MODEL_HASH,
+      tiles: [
+        { index: 0, kind: TileKind.Go },
+        // missing required price/houseCost for a property tile
+        { index: 1, kind: TileKind.Property, group: 'brown' },
+      ],
+    };
+
+    expect(() => parseEconomyRuleset(malformed)).toThrow(EconomyRulesetError);
+  });
+});

@@ -47,3 +47,6 @@ Report security issues privately as described in [SECURITY.md](SECURITY.md).
 
 <!-- handsoff-issue-1738 -->
 - #1738: Waiting room seats tokens stake status host controls
+
+<!-- handsoff-issue-1889 -->
+- #1889: backend: admin ledger controller/service pair has no spec despite being the reconciliation read path

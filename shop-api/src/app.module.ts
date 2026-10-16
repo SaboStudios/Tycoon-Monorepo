@@ -16,13 +16,18 @@ import { validationSchema } from './config/env.validation';
  * must apply schema changes through migrations (`npm run migration:run`) so a
  * running service never mutates its own schema — especially staging.
  */
-function resolveSynchronize(config: ConfigService): boolean {
-  const nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
-
+export function resolveSynchronize(nodeEnv: string, dbSynchronize: boolean): boolean {
   if (nodeEnv === 'test') return true;
 
   // Safety net: refuse to boot if an operator forces synchronize in staging.
-  if (nodeEnv.includes('staging') && config.get<boolean>('DB_SYNCHRONIZE') === true) {
+  if (nodeEnv.includes('staging') && dbSynchronize) {
+    throw new Error(
+      'TypeORM synchronize is disabled in staging. Apply schema changes with migrations: npm run migration:run',
+    );
+  }
+
+  return false;
+}
     throw new Error(
       'TypeORM synchronize is disabled in staging. Apply schema changes with migrations: npm run migration:run',
     );
@@ -49,7 +54,10 @@ function resolveSynchronize(config: ConfigService): boolean {
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_NAME'),
         entities: [Purchase, IdempotencyRecord],
-        synchronize: resolveSynchronize(config),
+        synchronize: resolveSynchronize(
+          config.get<string>('NODE_ENV', 'development'),
+          config.get<boolean>('DB_SYNCHRONIZE', false),
+        ),
       }),
     }),
     ScheduleModule.forRoot(),

@@ -1,44 +1,47 @@
+import { ConfigService } from '@nestjs/config';
 import { GamesIoAdapter } from './games-io.adapter';
-
-jest.mock('ioredis', () => {
-  const publish = jest.fn();
-  const on = jest.fn();
-  const duplicate = jest.fn(() => ({ on }));
-  const RedisMock = jest.fn(() => ({ publish, on, duplicate }));
-  return { __esModule: true, default: RedisMock };
-});
-
-jest.mock('@socket.io/redis-adapter', () => ({
-  createAdapter: jest.fn(() => ({})),
-}));
-
-import Redis from 'ioredis';
+import { GamesWsMetrics } from './games-ws-metrics.service';
+import { createRedisMock } from '../../../../test/mocks/redis.mock';
+import { createIoRedisMock } from '../../../../test/mocks/ioredis.mock';
 
 describe('GamesIoAdapter', () => {
-  const app = {} as never;
-  const redisConfig = { host: 'localhost', port: 6379, db: 0 };
+  const createAdapter = (
+    redisConfig: unknown,
+    metrics: Pick<GamesWsMetrics, 'adapterPublishFailure'>,
+  ) => {
+    const configService = {
+      get: jest.fn().mockReturnValue(redisConfig),
+    } as unknown as ConfigService;
 
-  it('invokes the publish-failure callback when publish rejects', async () => {
-    const onPublishError = jest.fn();
-    const adapter = new GamesIoAdapter(app, redisConfig, onPublishError);
+    return new GamesIoAdapter(configService, metrics as GamesWsMetrics);
+  };
 
-    const server = { adapter: jest.fn() } as never;
-    jest
-      .spyOn(Object.getPrototypeOf(GamesIoAdapter.prototype), 'createIOServer')
-      .mockReturnValue(server);
+  it('constructs without Redis config and does not throw', () => {
+    const metrics = { adapterPublishFailure: jest.fn() };
 
-    adapter.createIOServer(0);
+    expect(() => createAdapter(undefined, metrics)).not.toThrow();
+    expect(metrics.adapterPublishFailure).not.toHaveBeenCalled();
+  });
 
-    const pub = (Redis as unknown as jest.Mock).mock.results[0].value;
-    const err = new Error('publish failed');
-    pub.publish.mockRejectedValueOnce(err);
+  it('invokes adapterPublishFailure exactly once when the Redis publish path rejects', async () => {
+    const redis = createRedisMock();
+    const ioRedis = createIoRedisMock();
+    const metrics = { adapterPublishFailure: jest.fn() };
 
-    await expect(pub.publish('channel', 'payload')).rejects.toThrow(
-      'publish failed',
+    const adapter = createAdapter(
+      { host: 'localhost', port: 6379, ...redis, ...ioRedis },
+      metrics,
     );
-    await Promise.resolve();
 
-    expect(onPublishError).toHaveBeenCalledTimes(1);
-    expect(onPublishError).toHaveBeenCalledWith(err);
+    const publish = jest
+      .spyOn(adapter as unknown as { publish: () => Promise<void> }, 'publish')
+      .mockRejectedValue(new Error('redis publish failed'));
+
+    await expect(
+      (adapter as unknown as { publish: () => Promise<void> }).publish(),
+    ).rejects.toThrow('redis publish failed');
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(metrics.adapterPublishFailure).toHaveBeenCalledTimes(1);
   });
 });

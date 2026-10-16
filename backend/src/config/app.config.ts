@@ -60,8 +60,8 @@ export const appConfig = registerAs('app', () => {
   validateCorsOrigins(corsAllowedOrigins);
   
   const corsMaxAge = parseInt(process.env.CORS_MAX_AGE || '86400', 10);
-  if (corsMaxAge < 0) {
-    throw new Error('CORS_MAX_AGE must be a positive integer');
+  if (!Number.isInteger(corsMaxAge) || corsMaxAge < 0) {
+    throw new Error('CORS_MAX_AGE must be a non-negative integer');
   }
   
   return {

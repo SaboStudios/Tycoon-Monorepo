@@ -2,6 +2,10 @@
  * Generates openapi.json from the NestJS Swagger setup.
  * Run: npx ts-node -r tsconfig-paths/register scripts/generate-openapi.ts
  * Output: openapi.json (committed to repo; CI checks for drift)
+ *
+ * This is the single canonical OpenAPI generator entrypoint under backend/.
+ * The former duplicate at src/scripts/generate-openapi.ts has been removed;
+ * both CI and local development must use this script.
  */
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
