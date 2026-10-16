@@ -92,6 +92,7 @@ pub enum PlayerSymbol {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use soroban_sdk::{Env, IntoVal, TryFromVal, Val};
 
     #[test]
     fn test_game_status_variants_compile_and_are_distinct() {
@@ -194,5 +195,68 @@ mod tests {
             PlayerSymbol::Wheelbarrow => "Wheelbarrow",
         };
         assert_eq!(name, "Dog");
+    }
+
+    // ========================================================
+    // ABI stability tests
+    // ========================================================
+    //
+    // These tests pin the Soroban `#[contracttype]` encoding of each
+    // enum variant. The encoded form of a `#[contracttype]` enum is a
+    // `ScVal::U32` whose value is the variant's declaration index, so
+    // reordering or inserting a variant changes the discriminant and
+    // fails these assertions. This guards cross-contract/client
+    // compatibility with the `TycoonLib.sol` mirror.
+
+    /// Round-trips `value` through the Soroban encoding and asserts the
+    /// encoded discriminant equals `expected`.
+    fn assert_encoded_discriminant<T>(env: &Env, value: T, expected: u32)
+    where
+        T: IntoVal<Env, Val> + TryFromVal<Env, Val> + Clone + PartialEq + core::fmt::Debug,
+    {
+        let encoded: Val = value.clone().into_val(env);
+
+        // The encoded form must be the expected discriminant.
+        assert_eq!(
+            encoded,
+            expected.into_val(env),
+            "encoded discriminant mismatch for {:?}",
+            value
+        );
+
+        // And it must round-trip back to the original variant.
+        let decoded = T::try_from_val(env, &encoded).expect("value should decode");
+        assert_eq!(decoded, value);
+    }
+
+    #[test]
+    fn test_game_status_abi_encoding_is_stable() {
+        let env = Env::default();
+
+        assert_encoded_discriminant(&env, GameStatus::Pending, 0);
+        assert_encoded_discriminant(&env, GameStatus::Ongoing, 1);
+        assert_encoded_discriminant(&env, GameStatus::Ended, 2);
+    }
+
+    #[test]
+    fn test_game_type_abi_encoding_is_stable() {
+        let env = Env::default();
+
+        assert_encoded_discriminant(&env, GameType::PublicGame, 0);
+        assert_encoded_discriminant(&env, GameType::PrivateGame, 1);
+    }
+
+    #[test]
+    fn test_player_symbol_abi_encoding_is_stable() {
+        let env = Env::default();
+
+        assert_encoded_discriminant(&env, PlayerSymbol::Hat, 0);
+        assert_encoded_discriminant(&env, PlayerSymbol::Car, 1);
+        assert_encoded_discriminant(&env, PlayerSymbol::Dog, 2);
+        assert_encoded_discriminant(&env, PlayerSymbol::Thimble, 3);
+        assert_encoded_discriminant(&env, PlayerSymbol::Iron, 4);
+        assert_encoded_discriminant(&env, PlayerSymbol::Battleship, 5);
+        assert_encoded_discriminant(&env, PlayerSymbol::Boot, 6);
+        assert_encoded_discriminant(&env, PlayerSymbol::Wheelbarrow, 7);
     }
 }
