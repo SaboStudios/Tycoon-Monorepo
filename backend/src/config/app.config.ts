@@ -65,7 +65,7 @@ function validateCorsOrigins(origins: string[]): void {
   }
 }
 
-export default registerAs('app', () => {
+export const appConfig = registerAs('app', () => {
   const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
   validateCorsOrigins(corsOrigins);
 
