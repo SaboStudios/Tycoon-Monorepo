@@ -1,31 +1,44 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { NextFunction, Request, Response } from 'express';
-
-/** Header used to propagate a request/correlation ID across services. */
-export const REQUEST_ID_HEADER = 'x-request-id';
-
-export interface RequestWithId extends Request {
-  requestId: string;
-}
+import { randomUUID } from 'crypto';
 
 /**
  * RequestIdMiddleware
  *
- * Attaches a request ID to every incoming request (reuses the caller's
- * `x-request-id` header when present, otherwise generates a new UUID) and
- * echoes it back on the response so callers can correlate logs end-to-end
- * with shop-api, matching the backend's correlation ID behaviour.
+ * Ensures every request carries a request id for cross-request tracing.
+ *
+ * When an inbound `x-request-id` header is present and well-formed it is
+ * reused verbatim so that a request originating in the backend and proxied
+ * to shop-api keeps a single, correlated id end-to-end. When the header is
+ * absent or malformed a fresh id is generated.
+ *
+ * The chosen id is exposed on `req.requestId` (consumed by
+ * StructuredLoggerService and HttpExceptionFilter) and echoed back on the
+ * `x-request-id` response header.
  */
+
+// Guard against header injection / unbounded values: only accept a
+// conservative charset and a bounded length.
+const REQUEST_ID_MAX_LENGTH = 128;
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]+$/;
+
+export function isValidRequestId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= REQUEST_ID_MAX_LENGTH &&
+    REQUEST_ID_PATTERN.test(value)
+  );
+}
+
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const incoming = req.headers[REQUEST_ID_HEADER];
-    const requestId =
-      (Array.isArray(incoming) ? incoming[0] : incoming) ?? randomUUID();
+    const inbound = req.headers['x-request-id'];
+    const requestId = isValidRequestId(inbound) ? inbound : randomUUID();
 
-    (req as RequestWithId).requestId = requestId;
-    res.setHeader(REQUEST_ID_HEADER, requestId);
+    (req as Request & { requestId?: string }).requestId = requestId;
+    res.setHeader('x-request-id', requestId);
 
     next();
   }

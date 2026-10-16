@@ -2,6 +2,10 @@
  * Generates openapi.json from the NestJS Swagger setup.
  * Run: npx ts-node -r tsconfig-paths/register scripts/generate-openapi.ts
  * Output: openapi.json (committed to repo; CI checks for drift)
+ *
+ * This is the single canonical OpenAPI generator entrypoint under backend/.
+ * The former duplicate at src/scripts/generate-openapi.ts has been removed;
+ * both CI and local development must use this script.
  */
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -13,15 +17,15 @@ async function generate() {
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api/v1');
 
-const config = new DocumentBuilder()
-  .setTitle('Tycoon API')
-  .setDescription('Tycoon Monorepo Backend API - OpenAPI 3.0')
-  .setVersion('1.0')
-  .addBearerAuth(
-    { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-    'JWT-auth'
-  )
-  .build();
+  const config = new DocumentBuilder()
+    .setTitle('Tycoon API')
+    .setDescription('Tycoon Monorepo Backend API - OpenAPI 3.0')
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'JWT-auth'
+    )
+    .build();
 
   const document = SwaggerModule.createDocument(app, config);
   const outPath = resolve(__dirname, '../openapi.json');

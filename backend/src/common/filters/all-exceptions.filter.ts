@@ -50,7 +50,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
         'AllExceptionsFilter',
       );
 
-      message = exception.message || 'Internal server error';
       stack = exception.stack;
 
       // Handle common database errors
