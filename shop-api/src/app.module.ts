@@ -14,7 +14,7 @@ import { HealthController } from './health/health.controller';
  * must apply schema changes through migrations (`npm run migration:run`) so a
  * running service never mutates its own schema — especially staging.
  */
-function resolveSynchronize(): boolean {
+export function resolveSynchronize(): boolean {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
 
   if (nodeEnv === 'test') return true;
