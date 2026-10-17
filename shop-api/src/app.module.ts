@@ -28,10 +28,6 @@ export function resolveSynchronize(nodeEnv: string, dbSynchronize: boolean): boo
 
   return false;
 }
-  if (nodeEnv === 'test') return true;
-
-  // Safety net: refuse to boot if an operator forces synchronize in staging.
-  if (nodeEnv.includes('staging') && dbSynchronize) {
     throw new Error(
       'TypeORM synchronize is disabled in staging. Apply schema changes with migrations: npm run migration:run',
     );

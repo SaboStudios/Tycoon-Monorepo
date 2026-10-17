@@ -1,104 +1,92 @@
 import { registerAs } from '@nestjs/config';
 
 /**
- * Parse and validate CORS allowed origins from environment variables
+ * Step-up methods the recent-auth guard understands. Keep in sync with
+ * `backend/src/modules/privacy/recent-auth.guard.ts`.
  */
-function parseCorsOrigins(): string[] {
-  // Support new CORS_ALLOWED_ORIGINS (comma-separated list)
-  if (process.env.CORS_ALLOWED_ORIGINS) {
-    return process.env.CORS_ALLOWED_ORIGINS
-      .split(',')
-      .map(origin => origin.trim())
-      .filter(origin => origin.length > 0);
-  }
-  
-  // Backward compatibility: support legacy CORS_ORIGIN
-  if (process.env.CORS_ORIGIN) {
-    return [process.env.CORS_ORIGIN.trim()];
-  }
-  
-  // Default for development
-  return ['http://localhost:3000'];
-}
+export const DATA_EXPORT_STEP_UP_METHODS = ['pwd', 'wallet'] as const;
 
 /**
- * Validate that a string is a valid URL origin
+ * Parse and validate the comma-separated `DATA_EXPORT_STEP_UP_METHODS` value.
+ *
+ * Rejects unknown identifiers (e.g. a `walet` typo) and an empty resolved
+ * list, mirroring the CORS validation style used below.
  */
+export function parseStepUpMethods(
+  raw: string | undefined = process.env.DATA_EXPORT_STEP_UP_METHODS,
+): string[] {
+  const methods = (raw || 'pwd,wallet')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
+
+  const invalid = methods.filter(
+    (m) => !(DATA_EXPORT_STEP_UP_METHODS as readonly string[]).includes(m),
+  );
+  if (invalid.length > 0) {
+    throw new Error(
+      `DATA_EXPORT_STEP_UP_METHODS contains unsupported method(s): ${invalid.join(
+        ', ',
+      )}. Allowed values: ${DATA_EXPORT_STEP_UP_METHODS.join(', ')}.`,
+    );
+  }
+
+  if (methods.length === 0) {
+    throw new Error(
+      'DATA_EXPORT_STEP_UP_METHODS must resolve to at least one method.',
+    );
+  }
+
+  return methods;
+}
+
+function parseCorsOrigins(raw: string | undefined): string[] {
+  return (raw || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 function isValidOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
-    // Must have protocol and host
-    return !!(url.protocol && url.host);
+    return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
     return false;
   }
 }
 
-/**
- * Validate CORS origins at startup
- */
 function validateCorsOrigins(origins: string[]): void {
-  const nodeEnv = process.env.NODE_ENV || 'development';
-  
-  // Require at least one origin in production
-  if (nodeEnv === 'production' && origins.length === 0) {
-    throw new Error('CORS_ALLOWED_ORIGINS must be configured in production');
-  }
-  
-  // Validate each origin is a valid URL
-  const invalidOrigins = origins.filter(origin => !isValidOrigin(origin));
-  if (invalidOrigins.length > 0) {
+  const invalid = origins.filter((origin) => !isValidOrigin(origin));
+  if (invalid.length > 0) {
     throw new Error(
-      `Invalid CORS origins detected: ${invalidOrigins.join(', ')}. ` +
-      'Origins must be valid URLs (e.g., http://localhost:3000, https://app.example.com)'
+      `CORS_ORIGINS contains invalid origin(s): ${invalid.join(', ')}`,
     );
   }
 }
 
 export const appConfig = registerAs('app', () => {
-  const corsAllowedOrigins = parseCorsOrigins();
-  validateCorsOrigins(corsAllowedOrigins);
-  
-  const corsMaxAge = parseInt(process.env.CORS_MAX_AGE || '86400', 10);
-  if (!Number.isInteger(corsMaxAge) || corsMaxAge < 0) {
-    throw new Error('CORS_MAX_AGE must be a non-negative integer');
+  const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
+  validateCorsOrigins(corsOrigins);
+
+  const corsMaxAge = Number(process.env.CORS_MAX_AGE ?? 86400);
+  if (Number.isNaN(corsMaxAge) || corsMaxAge < 0) {
+    throw new Error('CORS_MAX_AGE must be a non-negative number');
   }
-  
+
   return {
-    nodeEnv: process.env.NODE_ENV || 'development',
-    port: parseInt(process.env.PORT || '3001', 10),
-    apiPrefix: process.env.API_PREFIX || 'api',
-    defaultApiVersion: process.env.API_DEFAULT_VERSION || '1',
-    enableLegacyUnversionedRoutes:
-      process.env.API_ENABLE_LEGACY_UNVERSIONED !== 'false',
-    legacyUnversionedSunset: process.env.API_LEGACY_UNVERSIONED_SUNSET,
-    
-    // CORS Configuration
-    corsAllowedOrigins,
-    corsCredentials: process.env.CORS_CREDENTIALS !== 'false', // default: true
+    port: Number(process.env.PORT ?? 3000),
+    corsOrigins,
     corsMaxAge,
-    corsDevWildcard: process.env.CORS_DEV_WILDCARD !== 'false', // default: true
-    
-    // Legacy (deprecated but supported for backward compatibility)
-    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    
-    trustProxy: process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1',
-    /** Directory for async JSON user data exports (see privacy module). */
     dataExportDir: process.env.DATA_EXPORT_DIR || './storage/data-exports',
-    dataExportTtlHours: parseInt(process.env.DATA_EXPORT_TTL_HOURS || '24', 10),
-    /** Kill switch for new export requests (docs/support/user-data-export-runbook.md). */
-    dataExportEnabled: process.env.DATA_EXPORT_ENABLED !== 'false',
-    dataExportStepUpMaxAgeSeconds: parseInt(
-      process.env.DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS || '300',
-      10,
+    dataExportTtlHours: Number(process.env.DATA_EXPORT_TTL_HOURS ?? 24),
+    dataExportEnabled: (process.env.DATA_EXPORT_ENABLED ?? 'true') === 'true',
+    dataExportStepUpMaxAgeSeconds: Number(
+      process.env.DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS ?? 300,
     ),
-    dataExportStepUpMethods: (process.env.DATA_EXPORT_STEP_UP_METHODS || 'pwd,wallet')
-      .split(',')
-      .map((m) => m.trim())
-      .filter(Boolean),
-    dataExportEnqueueTimeoutMs: parseInt(
-      process.env.DATA_EXPORT_ENQUEUE_TIMEOUT_MS || '5000',
-      10,
+    dataExportStepUpMethods: parseStepUpMethods(),
+    dataExportEnqueueTimeoutMs: Number(
+      process.env.DATA_EXPORT_ENQUEUE_TIMEOUT_MS ?? 5000,
     ),
   };
 });

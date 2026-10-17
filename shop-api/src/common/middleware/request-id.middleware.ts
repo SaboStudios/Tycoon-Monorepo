@@ -2,19 +2,30 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 
+/** Header used to propagate a request/correlation ID across services. */
+export const REQUEST_ID_HEADER = 'x-request-id';
+
+/** Conservative pattern for a caller-supplied request id. */
+export const REQUEST_ID_PATTERN = /^[\w-]{8,128}$/;
+
+export interface RequestWithId extends Request {
+  requestId: string;
+}
+
 /**
  * RequestIdMiddleware
  *
- * Ensures every request carries a request id for cross-request tracing.
- *
- * When an inbound `x-request-id` header is present and well-formed it is
- * reused verbatim so that a request originating in the backend and proxied
- * to shop-api keeps a single, correlated id end-to-end. When the header is
- * absent or malformed a fresh id is generated.
- *
- * The chosen id is exposed on `req.requestId` (consumed by
- * StructuredLoggerService and HttpExceptionFilter) and echoed back on the
- * `x-request-id` response header.
+import { randomUUID } from 'crypto';
+
+/** Header used to propagate a request/correlation ID across services. */
+export const REQUEST_ID_HEADER = 'x-request-id';
+
+/** Conservative pattern for a caller-supplied request id. */
+export const REQUEST_ID_PATTERN = /^[\w-]{8,128}$/;
+
+export interface RequestWithId extends Request {
+  requestId: string;
+}
  */
 
 // Guard against header injection / unbounded values: only accept a
@@ -34,8 +45,9 @@ export function isValidRequestId(value: unknown): value is string {
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const inbound = req.headers['x-request-id'];
-    const requestId = isValidRequestId(inbound) ? inbound : randomUUID();
+    const incoming = req.headers[REQUEST_ID_HEADER];
+    const candidate = Array.isArray(incoming) ? incoming[0] : incoming;
+    const requestId = isValidRequestId(candidate) ? candidate : randomUUID();
 
     (req as Request & { requestId?: string }).requestId = requestId;
     res.setHeader('x-request-id', requestId);

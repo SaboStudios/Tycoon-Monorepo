@@ -23,6 +23,10 @@ async function bootstrap() {
   // Consistent error shape; no internal details or secrets in responses.
   app.useGlobalFilters(new HttpExceptionFilter());
 
+  // Run OnApplicationShutdown hooks on SIGTERM/SIGINT so in-flight
+  // purchase writes are not cut off during rolling deploys.
+  app.enableShutdownHooks();
+
   await app.listen(process.env.PORT ?? 3002);
 }
 
