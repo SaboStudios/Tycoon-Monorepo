@@ -178,6 +178,11 @@ impl TycoonContract {
         );
     }
 
+    /// Return the reward system address stored during initialize.
+    pub fn get_reward_system(env: Env) -> Address {
+        storage::get_reward_system(&env)
+    }
+
     pub fn get_user(env: Env, address: Address) -> Option<User> {
         storage::get_user(&env, &address)
     }

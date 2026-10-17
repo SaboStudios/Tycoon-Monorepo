@@ -409,6 +409,116 @@ fn test_full_contract_flow() {
     assert_eq!(tyc_client.balance(&contract_id), 7000);
 }
 
+// ===== INITIALIZE STORAGE ROUND-TRIP TESTS (issue #1917) =====
+
+#[test]
+fn test_initialize_persists_all_arguments() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // Assert get_reward_system returns the exact address passed to initialize.
+    assert_eq!(client.get_reward_system(), reward_system);
+
+    // Also assert the other three initialise arguments round-trip correctly so
+    // a swapped-argument regression fails this test.
+    let dump = client.export_state();
+    assert_eq!(dump.tyc_token, tyc_token);
+    assert_eq!(dump.usdc_token, usdc_token);
+    assert_eq!(dump.owner, owner);
+    assert_eq!(dump.reward_system, reward_system);
+}
+
+// ===== USERNAME LENGTH BOUNDARY TESTS (issue #1918) =====
+
+#[test]
+fn test_register_player_username_exactly_3_chars_accepted() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abc");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player);
+    assert!(user.is_some());
+    assert_eq!(user.unwrap().username, username);
+}
+
+#[test]
+fn test_register_player_username_exactly_20_chars_accepted() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "twentycharsusernamex"); // exactly 20
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player);
+    assert!(user.is_some());
+    assert_eq!(user.unwrap().username, username);
+}
+
+#[test]
+#[should_panic(expected = "Username must be 3-20 characters")]
+fn test_register_player_username_2_chars_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "ab"); // 2 chars — below minimum
+    client.register_player(&username, &player);
+}
+
+#[test]
+#[should_panic(expected = "Username must be 3-20 characters")]
+fn test_register_player_username_21_chars_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "twentyonecharsusernam"); // 21 chars — above max
+    client.register_player(&username, &player);
+}
+
+#[test]
+#[should_panic(expected = "Address already registered")]
+fn test_register_player_duplicate_registration_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "playerone");
+
+    client.register_player(&username, &player);
+    // Second call from the same address must panic.
+    client.register_player(&username, &player);
+}
+
 // ===== USER REGISTRATION TESTS =====
 
 #[test]

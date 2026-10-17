@@ -11,6 +11,42 @@ async function validateDto(payload: Record<string, unknown>) {
   return errors;
 }
 
+// ── Global ValidationPipe behaviour (issue #1921) ────────────────────────────
+// These tests mirror the options set in shop-api/src/main.ts:
+//   new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })
+// They ensure that:
+//   1. An unknown extra property is rejected with a validation error (400).
+//   2. A fully valid DTO passes without errors.
+//   3. transform: true coerces a numeric string to a number where @Type(()=>Number) is declared.
+describe("CreatePurchaseDto — global ValidationPipe whitelist/forbidNonWhitelisted/transform", () => {
+  const baseValid = {
+    userId: "usr_pipe_test",
+    sku: "sku_gold_pack_100",
+    quantity: 1,
+    amountMinor: 999,
+    currency: "USD",
+  };
+
+  it("rejects an unknown field (forbidNonWhitelisted: true)", async () => {
+    const errors = await validateDto({ ...baseValid, unknownField: "boom" } as any);
+    expect(errors.some((e) => e.property === "unknownField")).toBe(true);
+  });
+
+  it("passes a fully valid DTO (whitelist: true)", async () => {
+    const errors = await validateDto(baseValid);
+    expect(errors).toHaveLength(0);
+  });
+
+  it("coerces numeric string quantity to number (transform: true)", async () => {
+    const errors = await validateDto({ ...baseValid, quantity: "2" as any, amountMinor: "500" as any });
+    expect(errors).toHaveLength(0);
+    const instance = plainToInstance(CreatePurchaseDto, { ...baseValid, quantity: "2", amountMinor: "500" });
+    expect(typeof instance.quantity).toBe("number");
+    expect(instance.quantity).toBe(2);
+    expect(instance.amountMinor).toBe(500);
+  });
+});
+
 describe("CreatePurchaseDto — money bounds validation (ADR-001 §7, SHOP_PURCHASES_RUNBOOK)", () => {
   const baseValid = {
     userId: "usr_8821",
