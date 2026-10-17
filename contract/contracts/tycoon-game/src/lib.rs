@@ -58,6 +58,12 @@ impl TycoonContract {
         let owner = get_owner(&env);
         owner.require_auth();
 
+        // Reject zero-amount withdrawals: they are a no-op transfer that would
+        // still emit a funds-withdrawn event, so guard against them explicitly.
+        if amount == 0 {
+            panic!("Amount must be greater than zero");
+        }
+
         // Validate token address (must be TYC or USDC)
         let tyc_token = get_tyc_token(&env);
         let usdc_token = get_usdc_token(&env);

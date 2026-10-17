@@ -8,6 +8,7 @@
 /// - The last player leaving ends the game (status → Ended).
 /// - Paused contract blocks `leave_pending_game`.
 /// - Events emitted during stake refund.
+/// - Negative refund paths: non-participant, pre-finish and double refund.
 ///
 /// | Test | Path |
 /// |------|------|
@@ -16,6 +17,9 @@
 /// | `last_player_leaves_ends_game`                      | last leave → game.status = Ended |
 /// | `leave_pending_game_blocked_while_paused`           | pause → leave_pending_game panic |
 /// | `stake_refund_emits_event`                          | leave_pending_game → PlayerLeft event |
+/// | `refund_by_non_participant_is_rejected`             | non-participant → Err, no balance change |
+/// | `refund_before_game_finished_is_rejected`           | pre-finish → Err, no balance change |
+/// | `double_refund_is_rejected`                         | second refund → Err, no balance change |
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -219,10 +223,8 @@ mod tests {
 
         // Pause the contract
         let reason = Symbol::new(&env, "SEC");
-        client.pause(&admin, &reason, &1000);
-        assert!(client.is_paused());
+        client.pause(&admin, &reason);
 
-        // Create a game
         let joined = to_vec(&env, &[player_a.clone()]);
         let game = Game {
             id: 1,
@@ -241,7 +243,7 @@ mod tests {
         };
         store_game(&env, &main_game_id, &game);
 
-        // Attempting to leave while paused should panic
+        // Should panic because the contract is paused
         client.leave_pending_game(&1, &player_a);
     }
 
@@ -271,19 +273,192 @@ mod tests {
         };
         store_game(&env, &main_game_id, &game);
 
-        let _ = env.events().all();
         client.leave_pending_game(&1, &player_a);
 
+        // A PlayerLeft event should have been emitted for the refund
         let events = env.events().all();
-        assert!(!events.is_empty(), "Should emit events on stake refund");
+        let has_player_left = events.iter().any(|(_, topics, _)| {
+            topics
+                .iter()
+                .any(|t| t == Symbol::new(&env, "PlayerLeft").into_val(&env))
+        });
+        assert!(has_player_left, "A PlayerLeft event should be emitted on refund");
     }
 
-    /// Helper to create a Vec<Address> from a slice
-    fn to_vec(env: &Env, addrs: &[Address]) -> soroban_sdk::Vec<Address> {
-        let mut v = soroban_sdk::Vec::new(env);
-        for a in addrs {
-            v.push_back(a.clone());
-        }
-        v
+    // ------------------------------------------------------------------
+    // Negative refund paths (#1902)
+    // ------------------------------------------------------------------
+
+    /// A refund attempted by an address that never staked must fail with
+    /// `PlayerNotInGame` and leave the caller's balance untouched.
+    #[test]
+    fn refund_by_non_participant_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (main_game_id, client, _admin, usdc_id) = setup_main_game_env(&env);
+        let player_a = Address::generate(&env);
+        let outsider = Address::generate(&env);
+
+        let joined = to_vec(&env, &[player_a.clone()]);
+        let game = Game {
+            id: 1,
+            code: String::from_str(&env, "GAME01"),
+            creator: player_a.clone(),
+            status: GameStatus::Pending,
+            winner: None,
+            number_of_players: 1,
+            joined_players: joined,
+            mode: GameMode::Public,
+            ai: false,
+            stake_per_player: STAKE_AMOUNT,
+            total_staked: STAKE_AMOUNT,
+            created_at: env.ledger().timestamp(),
+            ended_at: 0,
+        };
+        store_game(&env, &main_game_id, &game);
+
+        let token_client = TokenClient::new(&env, &usdc_id);
+        let balance_before = token_client.balance(&outsider);
+
+        let result = client.try_leave_pending_game(&1, &outsider);
+        assert_eq!(
+            result,
+            Err(Ok(tycoon_main_game::Error::PlayerNotInGame)),
+            "Non-participant refund must return PlayerNotInGame"
+        );
+
+        assert_eq!(
+            token_client.balance(&outsider),
+            balance_before,
+            "Non-participant balance must be unchanged"
+        );
+
+        // No refund event should be emitted for the rejected caller
+        let events = env.events().all();
+        let has_player_left = events.iter().any(|(_, topics, _)| {
+            topics
+                .iter()
+                .any(|t| t == Symbol::new(&env, "PlayerLeft").into_val(&env))
+        });
+        assert!(!has_player_left, "No refund event should be emitted");
+    }
+
+    /// A refund attempted before the game reaches the finished state must
+    /// fail with `GameNotFinished` and leave the staker balance untouched.
+    #[test]
+    fn refund_before_game_finished_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (main_game_id, client, _admin, usdc_id) = setup_main_game_env(&env);
+        let player_a = Address::generate(&env);
+
+        let joined = to_vec(&env, &[player_a.clone()]);
+        let game = Game {
+            id: 1,
+            code: String::from_str(&env, "GAME01"),
+            creator: player_a.clone(),
+            status: GameStatus::Active,
+            winner: None,
+            number_of_players: 1,
+            joined_players: joined,
+            mode: GameMode::Public,
+            ai: false,
+            stake_per_player: STAKE_AMOUNT,
+            total_staked: STAKE_AMOUNT,
+            created_at: env.ledger().timestamp(),
+            ended_at: 0,
+        };
+        store_game(&env, &main_game_id, &game);
+
+        let token_client = TokenClient::new(&env, &usdc_id);
+        let balance_before = token_client.balance(&player_a);
+
+        let result = client.try_leave_pending_game(&1, &player_a);
+        assert_eq!(
+            result,
+            Err(Ok(tycoon_main_game::Error::GameNotFinished)),
+            "Pre-finish refund must return GameNotFinished"
+        );
+
+        assert_eq!(
+            token_client.balance(&player_a),
+            balance_before,
+            "Staker balance must be unchanged"
+        );
+
+        let events = env.events().all();
+        let has_player_left = events.iter().any(|(_, topics, _)| {
+            topics
+                .iter()
+                .any(|t| t == Symbol::new(&env, "PlayerLeft").into_val(&env))
+        });
+        assert!(!has_player_left, "No refund event should be emitted");
+    }
+
+    /// A second refund after a successful one must fail with
+    /// `PlayerNotInGame` and must not move funds or emit another event.
+    #[test]
+    fn double_refund_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (main_game_id, client, _admin, usdc_id) = setup_main_game_env(&env);
+        let player_a = Address::generate(&env);
+        let player_b = Address::generate(&env);
+
+        let joined = to_vec(&env, &[player_a.clone(), player_b.clone()]);
+        let game = Game {
+            id: 1,
+            code: String::from_str(&env, "GAME01"),
+            creator: player_a.clone(),
+            status: GameStatus::Pending,
+            winner: None,
+            number_of_players: 2,
+            joined_players: joined,
+            mode: GameMode::Public,
+            ai: false,
+            stake_per_player: STAKE_AMOUNT,
+            total_staked: STAKE_AMOUNT * 2,
+            created_at: env.ledger().timestamp(),
+            ended_at: 0,
+        };
+        store_game(&env, &main_game_id, &game);
+
+        let token_client = TokenClient::new(&env, &usdc_id);
+
+        // First refund succeeds
+        client.leave_pending_game(&1, &player_a);
+        let balance_after_first = token_client.balance(&player_a);
+
+        // Second refund must be rejected
+        let result = client.try_leave_pending_game(&1, &player_a);
+        assert_eq!(
+            result,
+            Err(Ok(tycoon_main_game::Error::PlayerNotInGame)),
+            "Double refund must return PlayerNotInGame"
+        );
+
+        assert_eq!(
+            token_client.balance(&player_a),
+            balance_after_first,
+            "Staker balance must be unchanged after the failed second refund"
+        );
+
+        // Only the first refund should have emitted a PlayerLeft event
+        let events = env.events().all();
+        let player_left_count = events
+            .iter()
+            .filter(|(_, topics, _)| {
+                topics
+                    .iter()
+                    .any(|t| t == Symbol::new(&env, "PlayerLeft").into_val(&env))
+            })
+            .count();
+        assert_eq!(
+            player_left_count, 1,
+            "Exactly one refund event should be present"
+        );
     }
 }

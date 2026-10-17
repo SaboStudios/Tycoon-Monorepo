@@ -86,6 +86,12 @@ jobs:
       - name: Build backend
         run: npm run build
 
+      - name: Generate OpenAPI spec
+        run: npm run generate:openapi
+
+      - name: Check OpenAPI parity
+        run: node scripts/check-openapi-parity.mjs
+
       - name: Run unit tests (mocked DB/Redis)
         run: npm test -- --runInBand
 

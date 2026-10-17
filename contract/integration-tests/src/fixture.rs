@@ -22,6 +22,8 @@
 /// | `usdc_id`   | USDC mock token (SEP-41)          |
 /// | `reward_id` | TycoonRewardSystem                |
 /// | `game_id`   | TycoonContract (tycoon-game)      |
+/// | `boost_id`  | TycoonBoostSystem                 |
+/// | `collectibles_id` | TycoonCollectibles          |
 #[cfg(test)]
 pub use inner::{Fixture, GAME_FUND, REWARD_FUND};
 
@@ -32,6 +34,8 @@ mod inner {
         token::{Client as TokenClient, StellarAssetClient},
         Address, Env,
     };
+    use tycoon_boost_system::{TycoonBoostSystem, TycoonBoostSystemClient};
+    use tycoon_collectibles::{TycoonCollectibles, TycoonCollectiblesClient};
     use tycoon_game::TycoonContractClient;
     use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
 
@@ -54,10 +58,14 @@ mod inner {
         // Contract addresses
         pub reward_id: Address,
         pub game_id: Address,
+        pub boost_id: Address,
+        pub collectibles_id: Address,
         // Clients
         pub tyc: TokenClient<'a>,
         pub reward: TycoonRewardSystemClient<'a>,
         pub game: TycoonContractClient<'a>,
+        pub boost: TycoonBoostSystemClient<'a>,
+        pub collectibles: TycoonCollectiblesClient<'a>,
     }
 
     impl<'a> Fixture<'a> {
@@ -96,6 +104,16 @@ mod inner {
             StellarAssetClient::new(&env, &tyc_id).mint(&game_id, &GAME_FUND);
             game.set_backend_game_controller(&backend);
 
+            // Boost system
+            let boost_id = env.register(TycoonBoostSystem, ());
+            let boost = TycoonBoostSystemClient::new(&env, &boost_id);
+            boost.initialize(&admin);
+
+            // Collectibles
+            let collectibles_id = env.register(TycoonCollectibles, ());
+            let collectibles = TycoonCollectiblesClient::new(&env, &collectibles_id);
+            collectibles.initialize(&admin);
+
             Fixture {
                 env,
                 admin,
@@ -107,9 +125,13 @@ mod inner {
                 usdc_id,
                 reward_id,
                 game_id,
+                boost_id,
+                collectibles_id,
                 tyc,
                 reward,
                 game,
+                boost,
+                collectibles,
             }
         }
 
@@ -121,6 +143,19 @@ mod inner {
         /// Mint TYC directly to an address via the asset admin.
         pub fn mint_tyc(&self, to: &Address, amount: i128) {
             StellarAssetClient::new(&self.env, &self.tyc_id).mint(to, &amount);
+        }
+
+        /// Count the refund events emitted by the game contract so far.
+        ///
+        /// Used by the negative-path refund tests in `stake_paths_flow` to
+        /// assert that a failed refund does not emit an additional event.
+        pub fn refund_event_count(&self) -> u32 {
+            self.env
+                .events()
+                .all()
+                .iter()
+                .filter(|e| e.1 == ("game", "refund"))
+                .count() as u32
         }
     }
 }

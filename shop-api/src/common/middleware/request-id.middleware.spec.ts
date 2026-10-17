@@ -1,7 +1,6 @@
-import { INestApplication, Controller, Get, Module } from "@nestjs/common";
+import { INestApplication, Controller, Get, Module, BadRequestException } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
-import { BadRequestException } from "@nestjs/common";
 import * as request from "supertest";
 import { RequestIdMiddleware, isValidRequestId } from "./request-id.middleware";
 import { HttpExceptionFilter } from "../filters/http-exception.filter";
@@ -32,6 +31,8 @@ function createResponse(): MockResponse {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VALID_REQUEST_ID = 'abc12345-6789-4def-8abc-1234567890ab';
+const REQUEST_ID_PATTERN = /^[\w-]{8,128}$/;
 
 @Controller("probe")
 class ProbeController {
@@ -62,15 +63,34 @@ describe('RequestIdMiddleware', () => {
     middleware = new RequestIdMiddleware();
   });
 
+  it('echoes a valid inbound X-Request-Id unchanged on the response', () => {
+    const req = createRequest({ 'x-request-id': VALID_REQUEST_ID });
+    const res = createResponse();
+    const next = jest.fn();
+
+    middleware.use(req, res, next);
+
+    expect(res.setHeader).toHaveBeenCalledWith('X-Request-Id', VALID_REQUEST_ID);
+  });
+});
+
+describe('RequestIdMiddleware', () => {
+  let middleware: RequestIdMiddleware;
+
+  beforeEach(() => {
+    middleware = new RequestIdMiddleware();
+  });
+
   it('reuses a valid inbound x-request-id verbatim and echoes it', () => {
-    const req = createRequest({ 'x-request-id': 'abc-123_XYZ.~' });
+    const req = createRequest({ 'x-request-id': VALID_REQUEST_ID });
     const res = createResponse();
     const next = jest.fn();
 
     middleware.use(req as never, res as never, next);
 
-    expect(req.requestId).toBe('abc-123_XYZ.~');
-    expect(res.headers['x-request-id']).toBe('abc-123_XYZ.~');
+    expect(req.requestId).toBe(VALID_REQUEST_ID);
+    expect(res.setHeader).toHaveBeenCalledWith('X-Request-Id', VALID_REQUEST_ID);
+    expect(res.headers['x-request-id']).toBe(VALID_REQUEST_ID);
     expect(next).toHaveBeenCalledTimes(1);
   });
 

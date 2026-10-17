@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggerService } from './common/logger/logger.service';
 import { configureApiVersioning } from './common/versioning/api-versioning';
+import { buildHelmetOptions } from './config/helmet.config';
 import { GamesIoAdapter } from './modules/games/realtime/games-io.adapter';
 import { GamesWsMetrics } from './modules/games/realtime/games-ws-metrics.service';
 
@@ -33,76 +34,11 @@ async function bootstrap() {
     }),
   );
 
-  // Security headers — tuned for a JSON API with Swagger UI served at /api/docs.
-  //
-  // Reverse-proxy note: if Nginx/Caddy/ALB already sets HSTS, X-Frame-Options,
-  // or X-Content-Type-Options you will see duplicate headers. Either disable
-  // those directives in the proxy config or set HELMET_HSTS=false /
-  // HELMET_NOSNIFF=false env vars and guard the calls below accordingly.
-  // See docs/security/REVERSE_PROXY_HEADERS.md for the recommended split.
+  // Security headers — see config/helmet.config.ts for the tuned options.
   const isProduction =
     configService.get<string>('app.nodeEnv') === 'production';
 
-  app.use(
-    helmet({
-      // HSTS: 1 year, include subdomains, allow preload list submission.
-      // Only meaningful when TLS is terminated at this process or a proxy
-      // that forwards the header. Disable at the proxy layer if duplicated.
-      hsts: {
-        maxAge: 31_536_000,
-        includeSubDomains: true,
-        preload: true,
-      },
-
-      // Prevent MIME-type sniffing — always on.
-      noSniff: true,
-
-      // Deny framing entirely (API has no iframe use-case).
-      frameguard: { action: 'deny' },
-
-      // Disable the legacy X-XSS-Protection header; modern browsers use CSP.
-      xssFilter: false,
-
-      // Hide X-Powered-By.
-      hidePoweredBy: true,
-
-      // Referrer policy — safe default for an API.
-      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-
-      // Permissions policy — disable all browser features the API never uses.
-      permittedCrossDomainPolicies: { permittedPolicies: 'none' },
-
-      // Content-Security-Policy:
-      //   • Pure JSON endpoints: restrictive policy blocks any accidental HTML.
-      //   • Swagger UI (served at /api/docs): needs inline scripts/styles and
-      //     CDN resources. The policy below covers both via a single directive
-      //     set that is safe for the Swagger bundle served by @nestjs/swagger.
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: [
-            "'self'",
-            // Swagger UI injects inline scripts; unsafe-inline is required.
-            // Tighten to a nonce/hash if you serve custom HTML outside Swagger.
-            "'unsafe-inline'",
-          ],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          fontSrc: ["'self'", 'data:'],
-          connectSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          frameAncestors: ["'none'"],
-          // Upgrade insecure requests in production only.
-          ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
-        },
-      },
-
-      // Cross-Origin policies — lock down for a pure API.
-      crossOriginEmbedderPolicy: false, // would break Swagger UI CDN assets
-      crossOriginOpenerPolicy: { policy: 'same-origin' },
-      crossOriginResourcePolicy: { policy: 'same-origin' },
-    }),
-  );
+  app.use(helmet(buildHelmetOptions(isProduction)));
 
   // Trust proxy
   if (configService.get<boolean>('app.trustProxy')) {
@@ -219,50 +155,6 @@ async function bootstrap() {
   // API versioning + compatibility
   const { apiPrefix } = configureApiVersioning(app, {
     apiPrefix: configService.get<string>('app.apiPrefix') || 'api',
-    defaultVersion: configService.get<string>('app.defaultApiVersion') || '1',
-    enableLegacyUnversionedRoutes:
-      configService.get<boolean>('app.enableLegacyUnversionedRoutes') ?? true,
-    legacyUnversionedSunset:
-      configService.get<string>('app.legacyUnversionedSunset') || undefined,
-  });
+    defaultVe
 
-  // Swagger/OpenAPI setup (dev/staging only)
-  const swaggerEnabled =
-    configService.get<string>('app.nodeEnv') !== 'production' ||
-    process.env.ENABLE_SWAGGER === 'true';
-  if (swaggerEnabled) {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('Tycoon API')
-      .setDescription('Tycoon Monorepo Backend API - OpenAPI 3.0')
-      .setVersion('1.0')
-      .addBearerAuth(
-        { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-        'JWT-auth',
-      )
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
-      swaggerOptions: { persistAuthorization: true },
-    });
-    const tempLogger = app.get(LoggerService);
-    tempLogger.log(
-      `📚 Swagger UI: http://localhost:${port}/${apiPrefix}/docs`,
-      'Bootstrap',
-    );
-  }
-
-  const logger = app.get(LoggerService);
-
-  await app.listen(port);
-  logger.log(
-    `🚀 Application is running on: http://localhost:${port}`,
-    'Bootstrap',
-  );
-  // API Documentation log moved to Swagger setup
-  logger.log(
-    `Environment: ${configService.get<string>('app.environment') || 'development'}`,
-    'Bootstrap',
-  );
-  logger.log(`Log Level: ${process.env.LOG_LEVEL || 'default'}`, 'Bootstrap');
-}
-void bootstrap();
+/* … truncated 1593 chars — edit only what you need near the top … */
