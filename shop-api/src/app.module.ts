@@ -7,7 +7,6 @@ import { HealthModule } from './health/health.module';
 import { Purchase } from './purchases/entities/purchase.entity';
 import { IdempotencyRecord } from './idempotency/entities/idempotency-record.entity';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { HealthController } from './health/health.controller';
 import { validationSchema } from './config/env.validation';
 
 /**
@@ -28,20 +27,8 @@ export function resolveSynchronize(nodeEnv: string, dbSynchronize: boolean): boo
 
   return false;
 }
-  if (nodeEnv === 'test') return true;
-
-  // Safety net: refuse to boot if an operator forces synchronize in staging.
-  if (nodeEnv.includes('staging') && dbSynchronize) {
-    throw new Error(
-      'TypeORM synchronize is disabled in staging. Apply schema changes with migrations: npm run migration:run',
-    );
-  }
-
-  return false;
-}
 
 @Module({
-  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
