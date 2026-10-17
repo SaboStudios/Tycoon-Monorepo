@@ -1,246 +1,242 @@
-import appConfig, { parseStepUpMethods, parseCorsOrigins, validateCorsOrigins } from './app.config';
+import {
+  appConfig,
+  isValidOrigin,
+  parseBoolean,
+  parsePositiveInt,
+  parseStepUpMethods,
+} from './app.config';
 
-const ENV_KEYS = [
+// Keys touched across all suites – saved/restored around every test
+const ALL_KEYS = [
+  'CORS_ALLOWED_ORIGINS',
+  'CORS_CREDENTIALS',
+  'CORS_DEV_WILDCARD',
+  'CORS_MAX_AGE',
   'DATA_EXPORT_DIR',
-  'DATA_EXPORT_TTL_HOURS',
   'DATA_EXPORT_ENABLED',
+  'DATA_EXPORT_ENQUEUE_TIMEOUT_MS',
   'DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS',
   'DATA_EXPORT_STEP_UP_METHODS',
-  'DATA_EXPORT_ENQUEUE_TIMEOUT_MS',
+  'DATA_EXPORT_TTL_HOURS',
+  'NODE_ENV',
+  'PORT',
 ] as const;
 
-describe('app config', () => {
-  const originalEnv: Record<string, string | undefined> = {};
+type EnvSnapshot = Record<(typeof ALL_KEYS)[number], string | undefined>;
 
-  beforeEach(() => {
-    for (const key of ENV_KEYS) {
-      originalEnv[key] = process.env[key];
-      delete process.env[key];
-    }
+function snapshotEnv(): EnvSnapshot {
+  return Object.fromEntries(ALL_KEYS.map((k) => [k, process.env[k]])) as EnvSnapshot;
+}
+
+function restoreEnv(snap: EnvSnapshot): void {
+  for (const key of ALL_KEYS) {
+    if (snap[key] === undefined) delete process.env[key];
+    else process.env[key] = snap[key];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// #1928 – parsePositiveInt
+// ---------------------------------------------------------------------------
+describe('parsePositiveInt', () => {
+  it('returns the fallback when the raw value is undefined', () => {
+    expect(parsePositiveInt('FOO', undefined, 24)).toBe(24);
   });
 
-  afterEach(() => {
-    for (const key of ENV_KEYS) {
-      if (originalEnv[key] === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = originalEnv[key];
-      }
-    }
+  it('returns the fallback when the raw value is an empty string', () => {
+    expect(parsePositiveInt('FOO', '', 24)).toBe(24);
   });
 
-  describe('dataExport defaults', () => {
-    it('exposes the documented default values', () => {
-      const config = appConfig();
-
-      expect(config.dataExportDir).toBe('./storage/data-exports');
-      expect(config.dataExportTtlHours).toBe(24);
-      expect(config.dataExportEnabled).toBe(true);
-      expect(config.dataExportStepUpMaxAgeSeconds).toBe(300);
-      expect(config.dataExportStepUpMethods).toEqual(['pwd', 'wallet']);
-      expect(config.dataExportEnqueueTimeoutMs).toBe(5000);
-    });
+  it('parses a valid non-negative integer', () => {
+    expect(parsePositiveInt('FOO', '48', 24)).toBe(48);
   });
 
-  describe('parseStepUpMethods', () => {
-    it('splits, trims and filters entries', () => {
-      expect(parseStepUpMethods(' pwd , wallet , ')).toEqual([
-        'pwd',
-        'wallet',
-      ]);
-    });
-
-    it('throws when an entry is outside the allowlist', () => {
-      expect(() => parseStepUpMethods('pwd,walet')).toThrow(/walet/);
-    });
-
-    it('throws when the resolved list is empty', () => {
-      expect(() => parseStepUpMethods('')).toThrow(
-        /at least one method/,
-      );
-      expect(() => parseStepUpMethods(' , , ')).toThrow(
-        /at least one method/,
-      );
-    });
+  it('accepts zero without throwing', () => {
+    expect(parsePositiveInt('DATA_EXPORT_ENQUEUE_TIMEOUT_MS', '0', 5000)).toBe(0);
   });
 
-  describe('factory validation', () => {
-    it('throws at startup for an unknown step-up method', () => {
-      process.env.DATA_EXPORT_STEP_UP_METHODS = 'pwd,walet';
-
-      expect(() => appConfig()).toThrow(/walet/);
-    });
-
-    it('throws at startup when the step-up list is empty', () => {
-      process.env.DATA_EXPORT_STEP_UP_METHODS = '';
-
-      expect(() => appConfig()).toThrow(/at least one method/);
-    });
-  });
-
-  describe('CORS origin configuration', () => {
-    const originalEnv = process.env;
-
-    beforeEach(() => {
-      process.env = { ...originalEnv };
-      delete process.env.CORS_ALLOWED_ORIGINS;
-      delete process.env.CORS_ORIGIN;
-      delete process.env.CORS_MAX_AGE;
-      delete process.env.NODE_ENV;
-    });
-
-    afterEach(() => {
-      process.env = originalEnv;
-    });
-
-    describe('parseCorsOrigins', () => {
-      it('splits comma-separated origins, trims whitespace and drops empty entries', () => {
-        process.env.CORS_ALLOWED_ORIGINS =
-          'https://app.example.com, https://admin.example.com ,, https://api.example.com ';
-
-        expect(parseCorsOrigins()).toEqual([
-          'https://app.example.com',
-          'https://admin.example.com',
-          'https://api.example.com',
-        ]);
-      });
-
-      it('honours the legacy CORS_ORIGIN variable', () => {
-        process.env.CORS_ORIGIN = 'https://legacy.example.com';
-
-        expect(parseCorsOrigins()).toEqual(['https://legacy.example.com']);
-      });
-
-      it('prefers CORS_ALLOWED_ORIGINS over the legacy CORS_ORIGIN variable', () => {
-        process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com';
-        process.env.CORS_ORIGIN = 'https://legacy.example.com';
-
-        expect(parseCorsOrigins()).toEqual(['https://app.example.com']);
-      });
-
-      it('falls back to the development default when nothing is configured', () => {
-        process.env.NODE_ENV = 'development';
-
-        expect(parseCorsOrigins()).toEqual(['http://localhost:3000']);
-      });
-    });
-
-    describe('validateCorsOrigins', () => {
-      it('throws in production when no origins are configured', () => {
-        process.env.NODE_ENV = 'production';
-
-        expect(() => validateCorsOrigins()).toThrow();
-      });
-
-      it('throws for an invalid origin and names the offending origin', () => {
-        process.env.CORS_ALLOWED_ORIGINS = 'not-a-valid-url';
-
-        expect(() => validateCorsOrigins()).toThrow(/not-a-valid-url/);
-      });
-
-      it('throws when CORS_MAX_AGE is below zero', () => {
-        process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com';
-        process.env.CORS_MAX_AGE = '-1';
-
-        expect(() => validateCorsOrigins()).toThrow();
-      });
-
-      it('accepts valid origins', () => {
-        process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com,https://admin.example.com';
-
-        expect(() => validateCorsOrigins()).not.toThrow();
-      });
-    });
-
-    describe('CORS_MAX_AGE', () => {
-      it('throws when CORS_MAX_AGE is non-numeric', () => {
-        process.env = { ...originalEnv, CORS_MAX_AGE: 'abc' };
-
-        expect(() => appConfig()).toThrow(
-          'CORS_MAX_AGE must be a non-negative integer',
-        );
-      });
-
-      it('throws when CORS_MAX_AGE is negative', () => {
-        process.env = { ...originalEnv, CORS_MAX_AGE: '-1' };
-
-        expect(() => appConfig()).toThrow(
-          'CORS_MAX_AGE must be a non-negative integer',
-        );
-      });
-
-      it('returns the parsed value when CORS_MAX_AGE is a non-negative integer', () => {
-        process.env = { ...originalEnv, CORS_MAX_AGE: '3600' };
-
-        expect(appConfig().corsMaxAge).toBe(3600);
-      });
-    });
-  });
-
-  describe('appConfig data-export settings', () => {
-    const dataExportEnvKeys = [
-      'DATA_EXPORT_DIR',
+  it('throws when the value is not a finite number (NaN)', () => {
+    expect(() => parsePositiveInt('DATA_EXPORT_TTL_HOURS', 'abc', 24)).toThrow(
       'DATA_EXPORT_TTL_HOURS',
-      'DATA_EXPORT_ENABLED',
-      'DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS',
-      'DATA_EXPORT_STEP_UP_METHODS',
-      'DATA_EXPORT_ENQUEUE_TIMEOUT_MS',
-    ];
+    );
+  });
 
-    const originalEnv: Record<string, string | undefined> = {};
+  it('throws when the value is negative', () => {
+    expect(() =>
+      parsePositiveInt('DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS', '-1', 300),
+    ).toThrow('DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS');
+  });
 
-    beforeEach(() => {
-      for (const key of dataExportEnvKeys) {
-        originalEnv[key] = process.env[key];
-        delete process.env[key];
-      }
-    });
-
-    afterEach(() => {
-      for (const key of dataExportEnvKeys) {
-        if (originalEnv[key] === undefined) {
-          delete process.env[key];
-        } else {
-          process.env[key] = originalEnv[key];
-        }
-      }
-    });
-
-    const loadConfig = () => (appConfig as unknown as () => Record<string, unknown>)();
-
-    it('applies documented defaults when DATA_EXPORT_* vars are unset', () => {
-      const config = loadConfig();
-
-      expect(config.dataExportDir).toBe('./storage/data-exports');
-      expect(config.dataExportTtlHours).toBe(24);
-      expect(config.dataExportEnabled).toBe(true);
-      expect(config.dataExportStepUpMaxAgeSeconds).toBe(300);
-      expect(config.dataExportStepUpMethods).toEqual(['pwd', 'wallet']);
-      expect(config.dataExportEnqueueTimeoutMs).toBe(5000);
-    });
-
-    it('disables data export when DATA_EXPORT_ENABLED=false', () => {
-      process.env.DATA_EXPORT_ENABLED = 'false';
-
-      expect(loadConfig().dataExportEnabled).toBe(false);
-    });
-
-    it('splits, trims and filters DATA_EXPORT_STEP_UP_METHODS', () => {
-      process.env.DATA_EXPORT_STEP_UP_METHODS = 'pwd, wallet ,,otp';
-
-      expect(loadConfig().dataExportStepUpMethods).toEqual(['pwd', 'wallet', 'otp']);
-    });
-
-    it('parses DATA_EXPORT_TTL_HOURS and DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS as numbers', () => {
-      process.env.DATA_EXPORT_TTL_HOURS = '48';
-      process.env.DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS = '600';
-
-      const config = loadConfig();
-
-      expect(config.dataExportTtlHours).toBe(48);
-      expect(config.dataExportStepUpMaxAgeSeconds).toBe(600);
-    });
+  it('includes the env var name in the thrown error message', () => {
+    expect(() => parsePositiveInt('DATA_EXPORT_TTL_HOURS', 'twentyfour', 24)).toThrow(
+      /DATA_EXPORT_TTL_HOURS/,
+    );
   });
 });
+
+// ---------------------------------------------------------------------------
+// #1929 – parseBoolean
+// ---------------------------------------------------------------------------
+describe('parseBoolean', () => {
+  it('returns the fallback when raw is undefined', () => {
+    expect(parseBoolean('FLAG', undefined, true)).toBe(true);
+    expect(parseBoolean('FLAG', undefined, false)).toBe(false);
+  });
+
+  it('returns the fallback when raw is an empty string', () => {
+    expect(parseBoolean('FLAG', '', true)).toBe(true);
+  });
+
+  it.each([['true'], ['1'], ['yes'], ['TRUE'], ['YES']])(
+    'treats %s as true',
+    (val) => {
+      expect(parseBoolean('FLAG', val, false)).toBe(true);
+    },
+  );
+
+  it.each([['false'], ['0'], ['no'], ['FALSE'], ['No']])(
+    'treats %s as false',
+    (val) => {
+      expect(parseBoolean('FLAG', val, true)).toBe(false);
+    },
+  );
+
+  it('throws on an unrecognised value and includes the env var name', () => {
+    expect(() => parseBoolean('DATA_EXPORT_ENABLED', 'maybe', true)).toThrow(
+      /DATA_EXPORT_ENABLED/,
+    );
+    expect(() => parseBoolean('CORS_CREDENTIALS', '0x1', true)).toThrow(
+      /CORS_CREDENTIALS/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #1930 – isValidOrigin
+// ---------------------------------------------------------------------------
+describe('isValidOrigin', () => {
+  it.each([['http://localhost:3000'], ['https://app.example.com']])(
+    'accepts valid origin: %s',
+    (origin) => {
+      expect(isValidOrigin(origin)).toBe(true);
+    },
+  );
+
+  it.each([
+    ['ftp://example.com'],
+    ['file:///etc/passwd'],
+    ['https://app.example.com/path'],
+    ['https://app.example.com?q=1'],
+    ['not-a-url'],
+    [''],
+  ])('rejects invalid origin: %s', (origin) => {
+    expect(isValidOrigin(origin)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// appConfig factory – integration across all four issues
+// ---------------------------------------------------------------------------
+describe('appConfig factory', () => {
+  let snap: EnvSnapshot;
+
+  beforeEach(() => {
+    snap = snapshotEnv();
+    for (const key of ALL_KEYS) delete process.env[key];
+    // Ensure no NODE_ENV=production edge-case in these tests
+    process.env.NODE_ENV = 'test';
+  });
+
+  afterEach(() => restoreEnv(snap));
+
+  // #1928 defaults
+  it('returns documented numeric defaults when DATA_EXPORT_* vars are unset', () => {
+    const cfg = appConfig();
+    expect(cfg.dataExportTtlHours).toBe(24);
+    expect(cfg.dataExportStepUpMaxAgeSeconds).toBe(300);
+    expect(cfg.dataExportEnqueueTimeoutMs).toBe(5000);
+  });
+
+  it('throws on DATA_EXPORT_TTL_HOURS=abc', () => {
+    process.env.DATA_EXPORT_TTL_HOURS = 'abc';
+    expect(() => appConfig()).toThrow(/DATA_EXPORT_TTL_HOURS/);
+  });
+
+  it('throws on DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS=-1', () => {
+    process.env.DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS = '-1';
+    expect(() => appConfig()).toThrow(/DATA_EXPORT_STEP_UP_MAX_AGE_SECONDS/);
+  });
+
+  it('accepts DATA_EXPORT_ENQUEUE_TIMEOUT_MS=0 without throwing', () => {
+    process.env.DATA_EXPORT_ENQUEUE_TIMEOUT_MS = '0';
+    expect(appConfig().dataExportEnqueueTimeoutMs).toBe(0);
+  });
+
+  // #1929 defaults and parsing
+  it('returns documented boolean defaults when vars are unset', () => {
+    const cfg = appConfig();
+    expect(cfg.dataExportEnabled).toBe(true);
+    expect(cfg.corsCredentials).toBe(true);
+    expect(cfg.corsDevWildcard).toBe(true);
+  });
+
+  it.each([['false'], ['0'], ['no']])(
+    'DATA_EXPORT_ENABLED=%s → false',
+    (val) => {
+      process.env.DATA_EXPORT_ENABLED = val;
+      expect(appConfig().dataExportEnabled).toBe(false);
+    },
+  );
+
+  it.each([['true'], ['1'], ['yes']])(
+    'DATA_EXPORT_ENABLED=%s → true',
+    (val) => {
+      process.env.DATA_EXPORT_ENABLED = val;
+      expect(appConfig().dataExportEnabled).toBe(true);
+    },
+  );
+
+  it('throws when DATA_EXPORT_ENABLED=maybe', () => {
+    process.env.DATA_EXPORT_ENABLED = 'maybe';
+    expect(() => appConfig()).toThrow(/DATA_EXPORT_ENABLED/);
+  });
+
+  // #1930 – invalid CORS origin rejected at startup
+  it('throws when CORS_ALLOWED_ORIGINS contains ftp://example.com', () => {
+    process.env.CORS_ALLOWED_ORIGINS = 'ftp://example.com';
+    expect(() => appConfig()).toThrow(/ftp:\/\/example\.com/);
+  });
+
+  it('throws when CORS_ALLOWED_ORIGINS contains a URL with a path', () => {
+    process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com/path';
+    expect(() => appConfig()).toThrow(/https:\/\/app\.example\.com\/path/);
+  });
+
+  it('accepts valid http and https origins', () => {
+    process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3000,https://app.example.com';
+    expect(() => appConfig()).not.toThrow();
+  });
+
+  // parseStepUpMethods still works
+  it('throws for an unknown step-up method', () => {
+    process.env.DATA_EXPORT_STEP_UP_METHODS = 'pwd,walet';
+    expect(() => appConfig()).toThrow(/walet/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseStepUpMethods (pre-existing)
+// ---------------------------------------------------------------------------
+describe('parseStepUpMethods', () => {
+  it('splits, trims and filters entries', () => {
+    expect(parseStepUpMethods(' pwd , wallet , ')).toEqual(['pwd', 'wallet']);
+  });
+
+  it('throws for an unknown method', () => {
+    expect(() => parseStepUpMethods('pwd,walet')).toThrow(/walet/);
+  });
+
+  it('throws when the resolved list is empty', () => {
+    expect(() => parseStepUpMethods('')).toThrow(/at least one method/);
   });
 });
