@@ -58,7 +58,10 @@ pub struct PlayerLeftPendingData {
 
 /// Emits PlayerLeftPending event when a player leaves a pending game
 pub fn emit_player_left_pending(env: &Env, data: &PlayerLeftPendingData) {
-    let topics = (symbol_short!("PlayerLeft"),);
+    // "PlayerLeft" is 10 characters, which exceeds the 9-character limit of
+    // `symbol_short!`, so build the topic with a full `Symbol` instead. The
+    // resulting topic string is unchanged.
+    let topics = (Symbol::new(env, "PlayerLeft"),);
     #[allow(deprecated)]
     env.events().publish(topics, data);
 }

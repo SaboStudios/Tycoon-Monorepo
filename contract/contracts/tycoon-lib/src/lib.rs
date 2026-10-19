@@ -92,7 +92,7 @@ pub enum PlayerSymbol {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{Env, IntoVal, TryFromVal, Val};
+    use soroban_sdk::{Env, IntoVal, Symbol, TryFromVal, Val, xdr::ScVal};
 
     #[test]
     fn test_game_status_variants_compile_and_are_distinct() {
@@ -202,25 +202,33 @@ mod tests {
     // ========================================================
     //
     // These tests pin the Soroban `#[contracttype]` encoding of each
-    // enum variant. The encoded form of a `#[contracttype]` enum is a
-    // `ScVal::U32` whose value is the variant's declaration index, so
-    // reordering or inserting a variant changes the discriminant and
-    // fails these assertions. This guards cross-contract/client
-    // compatibility with the `TycoonLib.sol` mirror.
+    // enum variant.
+    //
+    // A unit-only `#[contracttype]` enum is encoded as a one-element
+    // `ScVal::Vec` holding the variant's name as an `ScVal::Symbol`
+    // (verified against soroban-sdk v23.5.3). For example
+    // `GameStatus::Pending` encodes as `Vec([Symbol("Pending")])`.
+    //
+    // Because the variant *name* is what ends up on the wire, renaming a
+    // variant is an ABI break just as much as reordering one. These
+    // assertions therefore pin the exact wire form of every variant and
+    // guard cross-contract/client compatibility with the `TycoonLib.sol`
+    // mirror.
 
-    /// Round-trips `value` through the Soroban encoding and asserts the
-    /// encoded discriminant equals `expected`.
-    fn assert_encoded_discriminant<T>(env: &Env, value: T, expected: u32)
+    /// Asserts that `value` encodes to a one-element vec holding
+    /// `expected_name` as its symbol, and that it round-trips back.
+    fn assert_encoded_variant_name<T>(env: &Env, value: T, expected_name: &str)
     where
         T: IntoVal<Env, Val> + TryFromVal<Env, Val> + Clone + PartialEq + core::fmt::Debug,
     {
         let encoded: Val = value.clone().into_val(env);
 
-        // The encoded form must be the expected discriminant.
+        // The encoded form must be `Vec([Symbol(expected_name)])`.
+        let expected: Val = (Symbol::new(env, expected_name),).into_val(env);
         assert_eq!(
-            encoded,
-            expected.into_val(env),
-            "encoded discriminant mismatch for {:?}",
+            ScVal::try_from_val(env, &encoded).expect("encoded value should convert to ScVal"),
+            ScVal::try_from_val(env, &expected).expect("expected value should convert to ScVal"),
+            "encoded variant mismatch for {:?}",
             value
         );
 
@@ -233,30 +241,31 @@ mod tests {
     fn test_game_status_abi_encoding_is_stable() {
         let env = Env::default();
 
-        assert_encoded_discriminant(&env, GameStatus::Pending, 0);
-        assert_encoded_discriminant(&env, GameStatus::Ongoing, 1);
-        assert_encoded_discriminant(&env, GameStatus::Ended, 2);
+        assert_encoded_variant_name(&env, GameStatus::Pending, "Pending");
+        assert_encoded_variant_name(&env, GameStatus::Ongoing, "Ongoing");
+        assert_encoded_variant_name(&env, GameStatus::Ended, "Ended");
     }
 
     #[test]
     fn test_game_type_abi_encoding_is_stable() {
         let env = Env::default();
 
-        assert_encoded_discriminant(&env, GameType::PublicGame, 0);
-        assert_encoded_discriminant(&env, GameType::PrivateGame, 1);
+        assert_encoded_variant_name(&env, GameType::PublicGame, "PublicGame");
+        assert_encoded_variant_name(&env, GameType::PrivateGame, "PrivateGame");
     }
 
     #[test]
     fn test_player_symbol_abi_encoding_is_stable() {
         let env = Env::default();
 
-        assert_encoded_discriminant(&env, PlayerSymbol::Hat, 0);
-        assert_encoded_discriminant(&env, PlayerSymbol::Car, 1);
-        assert_encoded_discriminant(&env, PlayerSymbol::Dog, 2);
-        assert_encoded_discriminant(&env, PlayerSymbol::Thimble, 3);
-        assert_encoded_discriminant(&env, PlayerSymbol::Iron, 4);
-        assert_encoded_discriminant(&env, PlayerSymbol::Battleship, 5);
-        assert_encoded_discriminant(&env, PlayerSymbol::Boot, 6);
-        assert_encoded_discriminant(&env, PlayerSymbol::Wheelbarrow, 7);
+        assert_encoded_variant_name(&env, PlayerSymbol::Hat, "Hat");
+        assert_encoded_variant_name(&env, PlayerSymbol::Car, "Car");
+        assert_encoded_variant_name(&env, PlayerSymbol::Dog, "Dog");
+        assert_encoded_variant_name(&env, PlayerSymbol::Thimble, "Thimble");
+        assert_encoded_variant_name(&env, PlayerSymbol::Iron, "Iron");
+        assert_encoded_variant_name(&env, PlayerSymbol::Battleship, "Battleship");
+        assert_encoded_variant_name(&env, PlayerSymbol::Boot, "Boot");
+        assert_encoded_variant_name(&env, PlayerSymbol::Wheelbarrow, "Wheelbarrow");
     }
 }
+

@@ -132,38 +132,21 @@ fn test_approve_zero_clears_allowance() {
 #[test]
 #[should_panic]
 fn test_set_admin_unauthorized() {
-    let e = Env::default();
-    // No mock_all_auths — auth checks are live.
-    let id = e.register(TycoonToken, ());
-    let client = TycoonTokenClient::new(&e, &id);
-    let admin = Address::generate(&e);
-    let attacker = Address::generate(&e);
-
-    // Initialize with mocked auth for this one call only.
-    e.mock_all_auths();
-    client.initialize(&admin, &INITIAL_SUPPLY);
-
-    // Attempt set_admin without admin auth — should panic.
-    // (mock_all_auths is still active here, but the contract checks
-    //  admin.require_auth() which will fail for a non-admin caller
-    //  when we don't provide the right mock.)
     let e2 = Env::default();
     let id2 = e2.register(TycoonToken, ());
     let client2 = TycoonTokenClient::new(&e2, &id2);
     let admin2 = Address::generate(&e2);
+    let attacker = Address::generate(&e2);
+
+    // Initialize with mocked auth so the admin key is persisted.
     e2.mock_all_auths();
     client2.initialize(&admin2, &INITIAL_SUPPLY);
 
-    // Call set_admin mocking only attacker's auth — admin2.require_auth() will fail.
-    e2.mock_auths(&[soroban_sdk::testutils::MockAuth {
-        address: &attacker,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
-            contract: &id2,
-            fn_name: "set_admin",
-            args: soroban_sdk::vec![&e2, attacker.clone().into_val(&e2)],
-            sub_invokes: &[],
-        },
-    }]);
+    // Switch back to enforcing mode with *no* mocked authorizations.
+    // `set_admin` calls `admin.require_auth()`, and the admin's
+    // authorization was never provided, so the host rejects the call.
+    e2.set_auths(&[]);
+
     client2.set_admin(&attacker);
 }
 

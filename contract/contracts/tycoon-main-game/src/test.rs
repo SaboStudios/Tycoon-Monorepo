@@ -24,7 +24,10 @@ fn create_user(env: &Env) -> Address {
 fn setup_contract(env: &Env) -> (Address, TycoonMainGameClient, Address, Address, Address) {
     let admin = create_admin(env);
     let reward_system = Address::generate(env);
-    let usdc_token = Address::generate(env);
+    let usdc_token_admin = Address::generate(env);
+    let usdc_token = env
+        .register_stellar_asset_contract_v2(usdc_token_admin.clone())
+        .address();
 
     let contract_id = env.register(TycoonMainGame, ());
     let client = TycoonMainGameClient::new(env, &contract_id);
@@ -414,9 +417,25 @@ fn test_leave_pending_game_removes_player_and_updates_joined() {
     });
 
     let game_before = client.get_game(&1).unwrap();
-    assert_eq!(game_before.joined_players.len(), 1);
-    assert_eq!(game_before.joined_players.get(0), Some(creator));
+    assert_eq!(game_before.joined_players.len(), 2);
+    assert_eq!(game_before.joined_players.get(0), Some(creator.clone()));
+    assert_eq!(game_before.total_staked, 1000);
     assert!(matches!(game_before.status, GameStatus::Pending));
+
+    // player2 leaves and gets refunded
+    client.leave_pending_game(&1, &player2);
+
+    let game_after = client.get_game(&1).unwrap();
+    assert_eq!(game_after.joined_players.len(), 1);
+    assert_eq!(game_after.joined_players.get(0), Some(creator.clone()));
+    assert_eq!(game_after.total_staked, 500);
+    assert!(matches!(game_after.status, GameStatus::Pending));
+
+    // player2 was refunded their stake
+    assert_eq!(
+        StellarAssetClient::new(&env, &usdc_token).balance(&player2),
+        500
+    );
 }
 
 #[test]
@@ -447,8 +466,19 @@ fn test_leave_pending_game_with_stake_refunds_player() {
     });
 
     // player2 leaves and gets refunded
+    client.leave_pending_game(&1, &player2);
+
     let game = client.get_game(&1).unwrap();
     assert_eq!(game.joined_players.len(), 1);
+    assert_eq!(game.joined_players.get(0), Some(creator));
+    assert_eq!(game.total_staked, stake);
+    assert!(matches!(game.status, GameStatus::Pending));
+
+    // player2 was refunded their stake
+    assert_eq!(
+        StellarAssetClient::new(&env, &usdc_token).balance(&player2),
+        stake as i128
+    );
 }
 
 #[test]
