@@ -1,6 +1,6 @@
 import { validate } from "class-validator";
 import { plainToInstance } from "class-transformer";
-import { QueryAuditLogsDto } from "./query-audit-logs.dto";
+import { QueryAuditLogsDto, MAX_AUDIT_LOGS_LIMIT } from "./query-audit-logs.dto";
 
 async function validateDto(plain: Record<string, unknown>) {
   const dto = plainToInstance(QueryAuditLogsDto, plain);
@@ -61,14 +61,20 @@ describe("QueryAuditLogsDto", () => {
       expect(errors.some((e) => e.property === "limit")).toBe(true);
     });
 
-    it("should reject limit > 100", async () => {
-      const { errors } = await validateDto({ limit: "101" });
+    it("should accept a limit at the maximum bound", async () => {
+      const { errors, dto } = await validateDto({ limit: String(MAX_AUDIT_LOGS_LIMIT) });
+      expect(errors).toHaveLength(0);
+      expect(dto.limit).toBe(MAX_AUDIT_LOGS_LIMIT);
+    });
+
+    it("should reject a limit above the maximum bound", async () => {
+      const { errors } = await validateDto({ limit: String(MAX_AUDIT_LOGS_LIMIT + 1) });
       expect(errors.some((e) => e.property === "limit")).toBe(true);
     });
 
-    it("should accept limit of exactly 100", async () => {
-      const { errors } = await validateDto({ limit: "100" });
-      expect(errors).toHaveLength(0);
+    it("should reject an unbounded/huge limit request", async () => {
+      const { errors } = await validateDto({ limit: "1000000" });
+      expect(errors.some((e) => e.property === "limit")).toBe(true);
     });
 
     it("should accept limit of exactly 1", async () => {

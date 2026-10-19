@@ -14,7 +14,7 @@ describe('HttpExceptionFilter', () => {
   } as unknown as LoggerService;
   const filter = new HttpExceptionFilter(logger);
 
-  function run(exception: unknown) {
+  function run(exception: unknown, url = '/x') {
     const res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
@@ -23,7 +23,7 @@ describe('HttpExceptionFilter', () => {
     const host = {
       switchToHttp: () => ({
         getResponse: () => res,
-        getRequest: () => ({ method: 'GET', url: '/x', headers: {} }),
+        getRequest: () => ({ method: 'GET', url, headers: {} }),
       }),
     } as unknown as ArgumentsHost;
     filter.catch(exception, host);
@@ -57,5 +57,30 @@ describe('HttpExceptionFilter', () => {
       code: 'RATE_LIMITED',
     });
     expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '42');
+  });
+
+  it('redacts secrets from the URL in the 4xx warn log', () => {
+    run(
+      new NotFoundException('not found'),
+      '/auth/callback?token=secret&email=user@example.com',
+    );
+    const [warnMessage] = logger.warn.mock.calls[logger.warn.mock.calls.length - 1];
+    expect(warnMessage).not.toContain('secret');
+    expect(warnMessage).not.toContain('user@example.com');
+
+    const [, meta] =
+      logger.logWithMeta.mock.calls[logger.logWithMeta.mock.calls.length - 1];
+    expect(JSON.stringify(meta)).not.toContain('secret');
+    expect(JSON.stringify(meta)).not.toContain('user@example.com');
+  });
+
+  it('redacts secrets from the URL in the 5xx error log', () => {
+    run(
+      new Error('boom'),
+      '/internal?token=secret&email=user@example.com',
+    );
+    const [errorMessage] = logger.error.mock.calls[logger.error.mock.calls.length - 1];
+    expect(errorMessage).not.toContain('secret');
+    expect(errorMessage).not.toContain('user@example.com');
   });
 });

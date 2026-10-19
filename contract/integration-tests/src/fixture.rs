@@ -158,4 +158,37 @@ mod inner {
                 .count() as u32
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn reward_contract_is_prefunded_with_reward_fund() {
+            let fixture = Fixture::new();
+            assert_eq!(fixture.tyc_balance(&fixture.reward_id), REWARD_FUND);
+        }
+
+        #[test]
+        fn game_contract_is_prefunded_with_game_fund() {
+            let fixture = Fixture::new();
+            assert_eq!(fixture.tyc_balance(&fixture.game_id), GAME_FUND);
+        }
+
+        #[test]
+        fn fresh_player_has_zero_tyc_balance() {
+            let fixture = Fixture::new();
+            assert_eq!(fixture.tyc_balance(&fixture.player_a), 0);
+        }
+
+        #[test]
+        fn mint_tyc_increases_balance_by_exact_amount() {
+            let fixture = Fixture::new();
+            const AMOUNT: i128 = 777_000_000_000_000_000_000_000;
+
+            assert_eq!(fixture.tyc_balance(&fixture.player_a), 0);
+            fixture.mint_tyc(&fixture.player_a, AMOUNT);
+            assert_eq!(fixture.tyc_balance(&fixture.player_a), AMOUNT);
+        }
+    }
 }

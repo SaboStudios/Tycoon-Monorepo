@@ -137,6 +137,33 @@ describe('IdempotencyInterceptor (common)', () => {
 
       expect(result).toEqual({ id: 42, code: 'CACHED' });
       expect(next.handle).not.toHaveBeenCalled();
+
+      // The replay path must restore the original status code on the
+      // response, not just the cached body (#1974).
+      const res = ctx.switchToHttp().getResponse();
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
+    });
+
+    it('restores a non-default stored status code (e.g. 202) on replay', async () => {
+      jest.spyOn(reflector, 'get').mockReturnValue(true);
+      const ctx = buildContext({
+        headers: { 'x-idempotency-key': 'accepted-key' },
+      });
+      const next = { handle: jest.fn() };
+
+      mockRedisService.get.mockResolvedValue({
+        statusCode: HttpStatus.ACCEPTED,
+        body: { queued: true },
+      });
+
+      const result$ = await interceptor.intercept(ctx, next as any);
+      const result = await new Promise((resolve) =>
+        result$.subscribe((v) => resolve(v)),
+      );
+
+      expect(result).toEqual({ queued: true });
+      const res = ctx.switchToHttp().getResponse();
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
     });
 
     it('does not call the handler on replay', async () => {
