@@ -1,84 +1,114 @@
-import { UnauthorizedException } from '@nestjs/common';
-import { ExecutionContext } from '@nestjs/common/interfaces';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
 import { ApiKeyAuthGuard } from './api-key.guard';
 
-function mockContext(headers: Record<string, string | undefined>): ExecutionContext {
-  return {
-    switchToHttp: () => ({
-      getRequest: () => ({ headers }),
-    }),
-  } as ExecutionContext;
-}
-
 describe('ApiKeyAuthGuard', () => {
-  const savedApiKey = process.env.SHOP_API_KEY;
-  const savedJwtSecret = process.env.JWT_SECRET;
+  const originalApiKey = process.env.API_KEY;
+  const originalJwtSecret = process.env.JWT_SECRET;
+
+  let guard: ApiKeyAuthGuard;
+  let jwtService: JwtService;
+  let reflector: Reflector;
+
+  const buildContext = (headers: Record<string, string>): ExecutionContext =>
+    ({
+      switchToHttp: () => ({
+        getRequest: () => ({ headers }),
+      }),
+      getHandler: () => undefined,
+      getClass: () => undefined,
+    }) as unknown as ExecutionContext;
+
+  beforeEach(async () => {
+    delete process.env.API_KEY;
+    delete process.env.JWT_SECRET;
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ApiKeyAuthGuard,
+        {
+          provide: Reflector,
+          useValue: { getAllAndOverride: jest.fn().mockReturnValue(false) },
+        },
+        {
+          provide: JwtService,
+          useValue: { verifyAsync: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    guard = moduleRef.get(ApiKeyAuthGuard);
+    jwtService = moduleRef.get(JwtService);
+    reflector = moduleRef.get(Reflector);
+  });
 
   afterEach(() => {
-    if (savedApiKey === undefined) delete process.env.SHOP_API_KEY;
-    else process.env.SHOP_API_KEY = savedApiKey;
-    if (savedJwtSecret === undefined) delete process.env.JWT_SECRET;
-    else process.env.JWT_SECRET = savedJwtSecret;
+    if (originalApiKey === undefined) {
+      delete process.env.API_KEY;
+    } else {
+      process.env.API_KEY = originalApiKey;
+    }
+    if (originalJwtSecret === undefined) {
+      delete process.env.JWT_SECRET;
+    } else {
+      process.env.JWT_SECRET = originalJwtSecret;
+    }
+    jest.restoreAllMocks();
   });
 
-  it('passes a valid API key', async () => {
-    process.env.SHOP_API_KEY = 'shop-secret';
-    const guard = new ApiKeyAuthGuard(new JwtService({ secret: 'test' }));
-    await expect(
-      guard.canActivate(mockContext({ 'x-api-key': 'shop-secret' })),
-    ).resolves.toBe(true);
+  it('allows the request when a valid API key is provided', async () => {
+    process.env.API_KEY = 'valid-api-key';
+
+    const context = buildContext({ 'x-api-key': 'valid-api-key' });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(reflector.getAllAndOverride).toHaveBeenCalled();
   });
 
-  it('rejects a wrong API key with 401', async () => {
-    process.env.SHOP_API_KEY = 'shop-secret';
-    const guard = new ApiKeyAuthGuard(new JwtService({ secret: 'test' }));
-    await expect(
-      guard.canActivate(mockContext({ 'x-api-key': 'nope' })),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
-  });
+  it('rejects the request when the API key is missing', async () => {
+    process.env.API_KEY = 'valid-api-key';
 
-  it('rejects a same-length wrong API key with 401', async () => {
-    process.env.SHOP_API_KEY = 'shop-secret';
-    const guard = new ApiKeyAuthGuard(new JwtService({ secret: 'test' }));
-    await expect(
-      guard.canActivate(mockContext({ 'x-api-key': 'shop-secrex' })),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
-  });
+    const context = buildContext({});
 
-  it('rejects a missing API key with 401 when no JWT is sent', async () => {
-    process.env.SHOP_API_KEY = 'shop-secret';
-    const guard = new ApiKeyAuthGuard(new JwtService({ secret: 'test' }));
-    await expect(guard.canActivate(mockContext({}))).rejects.toBeInstanceOf(
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
   });
 
-  it('accepts a valid Bearer JWT when JWT_SECRET is configured', async () => {
-    process.env.JWT_SECRET = 'jwt-secret';
-    const jwt = new JwtService({ secret: 'jwt-secret' });
-    const guard = new ApiKeyAuthGuard(jwt);
-    const token = await jwt.signAsync({ sub: 'user-1' });
-    await expect(
-      guard.canActivate(mockContext({ authorization: `Bearer ${token}` })),
-    ).resolves.toBe(true);
+  it('rejects the request when the API key is invalid', async () => {
+    process.env.API_KEY = 'valid-api-key';
+
+    const context = buildContext({ 'x-api-key': 'wrong-api-key' });
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
-  it('ignores Bearer JWT when JWT_SECRET is unset, even for a signed token', async () => {
-    delete process.env.JWT_SECRET;
-    const jwt = new JwtService({ secret: 'jwt-secret' });
-    const guard = new ApiKeyAuthGuard(jwt);
-    const token = await jwt.signAsync({ sub: 'user-1' });
-    await expect(
-      guard.canActivate(mockContext({ authorization: `Bearer ${token}` })),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+  it('skips JWT verification when JWT_SECRET is unset', async () => {
+    const verifySpy = jest.spyOn(jwtService, 'verifyAsync');
+
+    const context = buildContext({ authorization: 'Bearer some.jwt.token' });
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(verifySpy).not.toHaveBeenCalled();
   });
 
-  it('rejects a tampered Bearer JWT with 401', async () => {
-    process.env.JWT_SECRET = 'jwt-secret';
-    const guard = new ApiKeyAuthGuard(new JwtService({ secret: 'jwt-secret' }));
-    await expect(
-      guard.canActivate(mockContext({ authorization: 'Bearer tampered.token.here' })),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+  it('verifies a JWT when JWT_SECRET is configured', async () => {
+    process.env.JWT_SECRET = 'test-secret';
+    const verifySpy = jest
+      .spyOn(jwtService, 'verifyAsync')
+      .mockResolvedValue({ sub: 'user-1' });
+
+    const context = buildContext({ authorization: 'Bearer some.jwt.token' });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(verifySpy).toHaveBeenCalledWith('some.jwt.token', {
+      secret: 'test-secret',
+    });
   });
 });

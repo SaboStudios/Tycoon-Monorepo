@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PurchasesModule } from './purchases/purchases.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
 import { Purchase } from './purchases/entities/purchase.entity';
 import { IdempotencyRecord } from './idempotency/entities/idempotency-record.entity';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -81,6 +82,7 @@ export function resolveDbPort(env: NodeJS.ProcessEnv = process.env): number {
     ScheduleModule.forRoot(),
     PurchasesModule,
     HealthModule,
+    AuthModule,
   ],
 })
 export class AppModule implements NestModule {
