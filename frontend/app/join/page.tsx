@@ -25,7 +25,7 @@ type TelemetryEvent =
   | 'join_room_success'
   | 'join_room_error';
 
-function track(event: TelemetryEvent, props: Record<string, string | number> = {}) {
+export function track(event: TelemetryEvent, props: Record<string, string | number> = {}) {
   if (typeof window === 'undefined') return;
   const consent = window.localStorage?.getItem('tycoon.telemetry.consent');
   if (consent !== 'granted') return;
