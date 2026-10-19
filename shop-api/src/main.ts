@@ -7,8 +7,10 @@ import { RequestLoggerInterceptor } from './common/interceptors/request-logger.i
 import { StructuredLoggerService } from './common/logger/structured-logger.service';
 
 async function bootstrap() {
+  const logger = new StructuredLoggerService();
+
   const app = await NestFactory.create(AppModule, {
-    logger: new StructuredLoggerService(),
+    logger,
   });
 
   // Validate and strip unknown fields on all incoming DTOs.
@@ -22,6 +24,9 @@ async function bootstrap() {
 
   // Consistent error shape; no internal details or secrets in responses.
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  // Per-request structured logging, paired with RequestIdMiddleware.
+  app.useGlobalInterceptors(new RequestLoggerInterceptor(logger));
 
   // Run OnApplicationShutdown hooks on SIGTERM/SIGINT so in-flight
   // purchase writes are not cut off during rolling deploys.

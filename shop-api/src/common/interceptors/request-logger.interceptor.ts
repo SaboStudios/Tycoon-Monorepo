@@ -8,6 +8,7 @@ import {
 import { Observable, tap } from 'rxjs';
 import { Response } from 'express';
 import { RequestWithId } from '../middleware/request-id.middleware';
+import { StructuredLoggerService } from '../logger/structured-logger.service';
 
 /**
  * RequestLoggerInterceptor
@@ -19,7 +20,11 @@ import { RequestWithId } from '../middleware/request-id.middleware';
  */
 @Injectable()
 export class RequestLoggerInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP');
+  private readonly logger: Logger | StructuredLoggerService;
+
+  constructor(logger?: StructuredLoggerService) {
+    this.logger = logger ?? new Logger('HTTP');
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const ctx = context.switchToHttp();
