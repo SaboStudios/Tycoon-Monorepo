@@ -8,7 +8,6 @@ import { AuthModule } from './auth/auth.module';
 import { Purchase } from './purchases/entities/purchase.entity';
 import { IdempotencyRecord } from './idempotency/entities/idempotency-record.entity';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { HealthController } from './health/health.controller';
 import { validationSchema } from './config/env.validation';
 
 /**
@@ -56,7 +55,6 @@ export function resolveDbPort(env: NodeJS.ProcessEnv = process.env): number {
 }
 
 @Module({
-  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
