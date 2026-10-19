@@ -37,9 +37,23 @@ const PII_KEY_PATTERN =
 const PII_VALUE_PATTERN =
   /([\w.+-]+@[\w-]+\.[\w.-]+)|(\b0x[a-f0-9]{6,}\b)|(\bG[A-Z2-7]{20,}\b)/i;
 
-export const analyticsProviders = parseAnalyticsProviders(
-  process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS,
-);
+/**
+ * Resolve the enabled analytics providers from the current environment.
+ *
+ * This is evaluated lazily (not at module load) so tests can set
+ * `process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS` to an empty or unknown value
+ * and exercise those paths directly, instead of the result being frozen at
+ * import time (#1971).
+ */
+export function getAnalyticsProviders(): AnalyticsProvider[] {
+  return parseAnalyticsProviders(process.env.NEXT_PUBLIC_ANALYTICS_PROVIDERS);
+}
+
+/**
+ * Backward-compatible snapshot of the providers resolved at access time.
+ * Prefer `getAnalyticsProviders()` in new code / tests.
+ */
+export const analyticsProviders = getAnalyticsProviders();
 
 /**
  * Whether analytics may emit at all. Requires at least one registered provider
@@ -47,7 +61,7 @@ export const analyticsProviders = parseAnalyticsProviders(
  * telemetry is sent.
  */
 export function isAnalyticsEnabled(consentGranted: boolean): boolean {
-  return consentGranted === true && analyticsProviders.length > 0;
+  return consentGranted === true && getAnalyticsProviders().length > 0;
 }
 
 /**
