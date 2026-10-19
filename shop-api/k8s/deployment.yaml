@@ -1,0 +1,156 @@
+# Tycoon Shop-API — Kubernetes Manifests
+#
+# Secrets
+# ───────
+# The following environment variables must be provided via a Kubernetes Secret
+# named `shop-api-secrets` before deploying:
+#
+#   DB_HOST          Postgres host
+#   DB_PORT          Postgres port (typically 5432)
+#   DB_USERNAME      Postgres user
+#   DB_PASSWORD      Postgres password
+#   DB_DATABASE      Database name
+#   JWT_SECRET       JWT signing secret (never commit the real value)
+#
+# Create the secret:
+#   kubectl create secret generic shop-api-secrets \
+#     --from-literal=DB_HOST=<host> \
+#     --from-literal=DB_PORT=5432 \
+#     --from-literal=DB_USERNAME=<user> \
+#     --from-literal=DB_PASSWORD=<pass> \
+#     --from-literal=DB_DATABASE=<db> \
+#     --from-literal=JWT_SECRET=<secret>
+#
+# Ingress
+# ───────
+# The Ingress below routes `api.example.com/shop-api/*` to this Service.
+# Update `spec.rules[0].host` to match your actual domain before applying.
+# TLS termination is handled by your ingress controller (e.g. cert-manager).
+#
+# Resource requests
+# ─────────────────
+# The values below are starting placeholders — tune after profiling in staging.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tycoon-shop-api
+  labels:
+    app: tycoon-shop-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tycoon-shop-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: tycoon-shop-api
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: shop-api
+          image: tycoon-shop-api:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: shop-api-secrets
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: shop-api-secrets
+                  key: DB_PORT
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: shop-api-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shop-api-secrets
+                  key: DB_PASSWORD
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: shop-api-secrets
+                  key: DB_DATABASE
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shop-api-secrets
+                  key: JWT_SECRET
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          resources:
+            requests:
+              cpu: "250m"      # placeholder — tune after staging profiling
+              memory: "256Mi"  # placeholder — tune after staging profiling
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tycoon-shop-api
+  labels:
+    app: tycoon-shop-api
+spec:
+  selector:
+    app: tycoon-shop-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tycoon-shop-api
+  annotations:
+    # Adjust annotations to match your ingress controller (nginx, traefik, etc.)
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - host: api.example.com   # ← update to your actual domain
+      http:
+        paths:
+          - path: /shop-api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tycoon-shop-api
+                port:
+                  number: 80

@@ -1,0 +1,91 @@
+# ADR-001: Shop Purchase Ownership (Authoritative Write Path)
+
+- Status: Accepted
+- Date: 2024-01-01
+- Related: ADR-003 (NEAR wallet is the only supported chain UI), ADR-004 (Session httpOnly cookies + CSRF), `docs/API_ERROR_RESPONSE_STANDARDS.md`, `docs/SHOP_PURCHASES_RUNBOOK.md`
+
+**Status:** Decided  
+**Date:** 2026-08-26  
+**Author:** Backend Team  
+**Issue:** #1432  
+**Related:** #1710 (Ledger reconciliation admin tools for shop and pots), #1727 (Shop grid a11y strictness CLS telemetry purchase wire), #1729 (Session httpOnly cookies + CSRF across api client), #1778 (Unified rate limit classes auth join purchase admin), #1779 (RequestId middleware backend aligned to shop-api), #1780 (Proxy abort on client disconnect for shop writes), #1789 (Inventory reservation atomic decrement anti-oversell)
+
+## Context
+
+Tycoon has two server-side surfaces that can touch purchase state:
+
+- `shop-api` (NestJS): the purchases system-of-record (SoT). Owns SKU catalog reads, inventory mutation, idempotency records, and purchase persistence.
+- `backend` (NestJS): the general API. May expose read models and a thin proxy for shop operations, but must not own purchase state.
+
+Without an explicit decision, purchase writes can be duplicated across surfaces, inventory can be adjusted twice, and error envelopes can diverge between `backend` and `shop-api`.
+
+## Decision
+
+1. **`shop-api` is the authoritative write path for all purchases.** Every purchase mutation (create, refund, inventory adjustment) is executed by `shop-api` against its own datastore. No other service writes purchase or inventory state directly.
+
+2. **`backend` is read-only for purchases.** It may expose read models (catalog, purchase history) and, if needed, a thin proxy that forwards to `shop-api`. A proxy must:
+   - Forward the caller's `Idempotency-Key` unchanged.
+   - Propagate `requestId` on both success and error responses.
+   - Never trust client-supplied price, SKU totals, or inventory counts.
+   - Fail closed on writes when `shop-api` is unavailable (return an error envelope, do not fall back to local writes).
+
+3. **Error envelope is shared.** Both `backend` and `shop-api` MUST emit the envelope defined in `docs/API_ERROR_RESPONSE_STANDARDS.md`:
+
+   ```json
+   {
+     "error": {
+       "code": "STRING_CODE",
+       "message": "Human readable message",
+       "requestId": "<propagated request id>",
+       "details": { }
+     }
+   }
+   ```
+
+   - `code` is a stable, machine-readable string (e.g. `VALIDATION_FAILED`, `IDEMPOTENCY_CONFLICT`, `DEPENDENCY_UNAVAILABLE`).
+   - `requestId` is always present and matches the value in logs for the same request.
+   - `details` is optional and must not contain secrets, tokens, or PII.
+
+4. **Idempotency.** Purchase writes require an `Idempotency-Key` header. `shop-api` stores the key together with a hash of the request body:
+   - Replay with the same key and same body hash returns the stored response.
+   - Replay with the same key and a different body hash returns `409` with code `IDEMPOTENCY_CONFLICT`.
+    - A completed replay returns its stored success status/body (`201` for
+       purchase creation). `409` is reserved for conflicts and in-flight
+       duplicates; a proxy must never interpret it as a successful replay.
+   - Keys expire per the TTL documented in `docs/SHOP_PURCHASES_RUNBOOK.md`; after expiry a new request is treated as a fresh purchase.
+
+5. **Inventory integrity.** Inventory adjustments are atomic (constraint or reservation with TTL) so concurrent purchases of the same SKU cannot oversell. Inventory must never go negative.
+
+6. **Fail-closed on dependency outage.** If Postgres, Redis, `shop-api`, or the RPC dependency is unavailable, purchase writes return an error envelope with code `DEPENDENCY_UNAVAILABLE` and HTTP `503`. Reads may degrade, writes must not.
+
+7. **Strict DTO validation.** Purchase request DTOs validate `sku` (non-empty string, known catalog SKU), `quantity` (positive integer within bounds), and `minorUnits` (non-negative integer). Unknown fields are rejected (`forbidNonWhitelisted`) per policy; client-supplied price is never trusted.
+
+8. **Observability.** Purchase writes propagate `requestId` end-to-end and emit RED metrics (`shop_purchase_requests_total`, `shop_purchase_errors_total`, `shop_purchase_duration_seconds`). Metric labels must not contain tokens or PII.
+
+9. **Session auth for purchase writes (issue #1729).** Purchase mutations are cookie-authenticated per ADR-004; the api client MUST NOT read or attach JS-readable access tokens.
+   - Session cookies are `httpOnly`, `Secure`, and `SameSite=Lax` (or `Strict` for admin surfaces). Access tokens are never exposed to JS.
+   - Cookie-authenticated mutations require a CSRF defense: a double-submit CSRF token (or equivalent origin-checked token) validated server-side before any purchase write. Missing/invalid CSRF token returns `403` with code `CSRF_INVALID` and no state change.
+   - The `backend` proxy forwards the session cookie and CSRF token unchanged to `shop-api`; it never mints or caches a bearer token on the client's behalf.
+   - `returnTo`/redirect parameters on auth and purchase flows are validated against an allowlist; non-allowlisted targets are rejected to prevent open redirects.
+   - Refresh/rotation follows `AUTH_JWT_RUNBOOK` and `TOKEN_REFRESH_SECURITY_GUIDE`; refresh-token reuse revokes the token family. Parallel refreshes are serialized so a single rotation wins.
+
+10. **Atomic inventory decrement / reservation (issue #1789).** The anti-oversell guarantee is enforced in the datastore, not in application-level read-then-write logic:
+    - **Single-statement conditional decrement.** `shop-api` decrements inventory with a guarded update, e.g. `UPDATE inventory SET available = available - :qty WHERE sku = :sku AND available >= :qty`. A row count of `0` means insufficient stock and the purchase is rejected with `409` and code `INSUFFICIENT_INVENTORY`; no partial write occurs.
+    - **Reservation with TTL.** When a purchase spans multiple steps (payment/ledger), `shop-api` first inserts a reservation row `(sku, quantity, idempotencyKey, expiresAt)` inside the same transaction as the decrement. Reservations expire after the TTL documented in `docs/SHOP_PURCHASES_RUNBOOK.md`; an expired reservation is released by a sweeper that re-increments `available` exactly once (guarded by the reservation's terminal state so it cannot double-release).
+    - **Constraint backstop.** A `CHECK (available >= 0)` constraint (or equivalent) is the last line of defense: any code path that would drive inventory negative fails the transaction rather than persisting a negative count.
+    - **Idempotency interaction.** The decrement/reservation is committed in the same transaction as the idempotency record, so a replayed `Idempotency-Key` returns the stored response without decrementing again, and a `409 IDEMPOTENCY_CONFLICT` never mutates inventory.
+    - **Concurrency.** Two concurrent buys of the same SKU serialize on the inventory row (row lock / conditional update); at most one succeeds when stock is `1`. This is asserted by the `shop-api` purchases e2e concurrency test.
+
+11. **Unified rate limit classes (issue #1778).** Rate limiting is applied per entrypoint class so that auth, join, purchase, and admin surfaces cannot be starved by one another, and so that a burst on one class cannot exhaust the budget of another. Every external entrypoint touched by this work MUST be rate-limited and authorized.
+    - **Classes.** Four named classes are defined and configured independently:
+      - `auth` — login, refresh, logout, and any credential-issuing endpoint. Keyed by client IP plus a coarse account identifier when available; strictest budget because it is the primary credential-stuffing target.
+      - `join` — account/onboarding creation endpoints. Keyed by client IP; moderate budget to absorb legitimate retries without enabling bulk account creation.
+      - `purchase` — purchase writes and the `backend` proxy path to `shop-api`. Keyed by
+
+12. **Proxy abort on client disconnect for shop writes (issue #1780).** A client disconnect (browser tab closed, navigation, network drop) must never leave a purchase write in an ambiguous state, and must never cause the `backend` proxy to abort a `shop-api` write mid-flight.
+    - **Writes are not aborted on client disconnect.** The `backend` proxy MUST NOT propagate the client's `AbortSignal` to the outbound `shop-api` request for purchase writes. Once a write has been dispatched, it runs to completion (or to its own server-side timeout) so that inventory and the idempotency record are committed atomically. Aborting mid-write risks a committed decrement with no stored response, which would make a client retry with the same `Idempotency-Key` ambiguous.
+    - **Idempotency makes retries safe.** Because the write is keyed by `Idempotency-Key` + body hash (decision 4), a client that reconnects and retries the same purchase receives the stored response rather than a second decrement. This is the mechanism that makes disconnect-and-retry safe; the proxy must not defeat it by aborting.
+    - **Reads may be aborted.** Read-only proxy paths (catalog, purchase history) MAY propagate the client `AbortSignal` to free upstream resources; only writes are exempt.
+    - **Server-side timeout is authoritative.** The outbound `shop-api` call uses a bounded server-side timeout (documented in `docs/SHOP_PURCHASES_RUNBOOK.md`). On timeout the proxy returns `503 DEPENDENCY_UNAVAILABLE` and does not fall back to a local write; the client retries with the same `Idempotency-Key`.
+    - **Disconnect telemetry.** The proxy emits a counter for client disconnects on write paths (e.g. `shop_proxy_client_disconnect_total`) so operators can distinguish abandoned requests from upstream failures. Labels must not contain tokens or PII.
+    - **No partial state on abort.** If the proxy process itself is terminated mid-write, the `shop-api` transaction either commits fully (idempotency record + inventory decrement together) or rolls back; there is no path that decrements inventory without recording the idempotency key.

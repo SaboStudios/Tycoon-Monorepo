@@ -1,0 +1,69 @@
+{
+  "version": "1.0.0",
+  "hash": "sha256:a1b2c3d4e5f67890123456789012345678901234567890123456789012345678",
+  "createdAt": "2026-09-26T00:00:00Z",
+  "description": "Canonical economy ruleset for Tycoon board game",
+  "rules": {
+    "startingCash": 1500,
+    "goSalary": 200,
+    "jailFine": 50,
+    "maxJailTurns": 3,
+    "houseSupply": 32,
+    "hotelSupply": 12,
+    "houseCostRatio": 0.5,
+    "rentMultipliers": {
+      "base": 1,
+      "monopoly": 2,
+      "house": [1, 2, 3, 4],
+      "hotel": 5
+    },
+    "bankruptcy": {
+      "graceTurns": 1
+    },
+    "trade": {
+      "expiryTurns": 3
+    },
+    "tiles": [
+      {"index": 0, "kind": "go"},
+      {"index": 1, "kind": "property", "group": "brown", "price": 60, "rent": [2, 10, 30, 90, 160, 250], "houseCost": 50},
+      {"index": 2, "kind": "community_chest"},
+      {"index": 3, "kind": "property", "group": "brown", "price": 60, "rent": [4, 20, 60, 180, 320, 450], "houseCost": 50},
+      {"index": 4, "kind": "tax", "amount": 200},
+      {"index": 5, "kind": "railroad", "price": 200},
+      {"index": 6, "kind": "property", "group": "lightblue", "price": 100, "rent": [6, 30, 90, 270, 400, 550], "houseCost": 50},
+      {"index": 7, "kind": "chance"},
+      {"index": 8, "kind": "property", "group": "lightblue", "price": 100, "rent": [6, 30, 90, 270, 400, 550], "houseCost": 50},
+      {"index": 9, "kind": "property", "group": "lightblue", "price": 120, "rent": [8, 40, 100, 300, 450, 600], "houseCost": 50},
+      {"index": 10, "kind": "jail"},
+      {"index": 11, "kind": "property", "group": "pink", "price": 140, "rent": [10, 50, 150, 450, 625, 750], "houseCost": 100},
+      {"index": 12, "kind": "utility", "price": 150},
+      {"index": 13, "kind": "property", "group": "pink", "price": 140, "rent": [10, 50, 150, 450, 625, 750], "houseCost": 100},
+      {"index": 14, "kind": "property", "group": "pink", "price": 160, "rent": [12, 60, 180, 500, 700, 900], "houseCost": 100},
+      {"index": 15, "kind": "railroad", "price": 200},
+      {"index": 16, "kind": "property", "group": "orange", "price": 180, "rent": [14, 70, 200, 550, 750, 950], "houseCost": 100},
+      {"index": 17, "kind": "community_chest"},
+      {"index": 18, "kind": "property", "group": "orange", "price": 180, "rent": [14, 70, 200, 550, 750, 950], "houseCost": 100},
+      {"index": 19, "kind": "property", "group": "orange", "price": 200, "rent": [16, 80, 220, 600, 800, 1000], "houseCost": 100},
+      {"index": 20, "kind": "free_parking"},
+      {"index": 21, "kind": "property", "group": "red", "price": 220, "rent": [18, 90, 250, 700, 875, 1050], "houseCost": 150},
+      {"index": 22, "kind": "chance"},
+      {"index": 23, "kind": "property", "group": "red", "price": 220, "rent": [18, 90, 250, 700, 875, 1050], "houseCost": 150},
+      {"index": 24, "kind": "property", "group": "red", "price": 240, "rent": [20, 100, 300, 750, 925, 1100], "houseCost": 150},
+      {"index": 25, "kind": "railroad", "price": 200},
+      {"index": 26, "kind": "property", "group": "yellow", "price": 260, "rent": [22, 110, 330, 800, 975, 1150], "houseCost": 150},
+      {"index": 27, "kind": "property", "group": "yellow", "price": 260, "rent": [22, 110, 330, 800, 975, 1150], "houseCost": 150},
+      {"index": 28, "kind": "utility", "price": 150},
+      {"index": 29, "kind": "property", "group": "yellow", "price": 280, "rent": [24, 120, 360, 850, 1025, 1200], "houseCost": 150},
+      {"index": 30, "kind": "go_to_jail"},
+      {"index": 31, "kind": "property", "group": "green", "price": 300, "rent": [26, 130, 390, 900, 1100, 1275], "houseCost": 200},
+      {"index": 32, "kind": "property", "group": "green", "price": 300, "rent": [26, 130, 390, 900, 1100, 1275], "houseCost": 200},
+      {"index": 33, "kind": "community_chest"},
+      {"index": 34, "kind": "property", "group": "green", "price": 320, "rent": [28, 150, 450, 1000, 1200, 1400], "houseCost": 200},
+      {"index": 35, "kind": "railroad", "price": 200},
+      {"index": 36, "kind": "chance"},
+      {"index": 37, "kind": "property", "group": "darkblue", "price": 350, "rent": [35, 175, 500, 1100, 1300, 1500], "houseCost": 200},
+      {"index": 38, "kind": "tax", "amount": 100},
+      {"index": 39, "kind": "property", "group": "darkblue", "price": 400, "rent": [50, 200, 600, 1400, 1700, 2000], "houseCost": 200}
+    ]
+  }
+}

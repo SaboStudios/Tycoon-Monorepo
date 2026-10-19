@@ -1,0 +1,101 @@
+name: Backend Pool Load (Nightly)
+
+# Nightly pool load job. Fails closed on budget regression, missing env, or a
+# partial dependency outage — it never silently passes.
+# Runbook: backend/docs/DATABASE_POOL.md#nightly-pool-load--budget-regression-runbook
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pool-load:
+    name: Pool load & budget check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tycoon
+          POSTGRES_PASSWORD: tycoon
+          POSTGRES_DB: tycoon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tycoon"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USERNAME: tycoon
+      DB_PASSWORD: tycoon
+      DB_DATABASE: tycoon
+      DB_POOL_SIZE: '20'
+      DB_POOL_IDLE_TIMEOUT_MS: '30000'
+      DB_STATEMENT_TIMEOUT_MS: '30000'
+      DB_CONNECT_TIMEOUT_MS: '5000'
+      POOL_LOAD_MAX_WAITING: '0'
+      POOL_LOAD_MAX_EXHAUSTION: '0'
+      POOL_LOAD_P95_MS: '250'
+      POOL_LOAD_MAX_LEAKED: '0'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate required env (fail closed)
+        run: |
+          missing=0
+          for v in DB_HOST DB_PORT DB_USERNAME DB_PASSWORD DB_DATABASE \
+                   DB_POOL_SIZE DB_POOL_IDLE_TIMEOUT_MS DB_STATEMENT_TIMEOUT_MS \
+                   DB_CONNECT_TIMEOUT_MS POOL_LOAD_MAX_WAITING \
+                   POOL_LOAD_MAX_EXHAUSTION POOL_LOAD_P95_MS POOL_LOAD_MAX_LEAKED; do
+            if [ -z "${!v:-}" ]; then
+              echo "MISSING ENV: $v"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Required env missing — failing closed."
+            exit 1
+          fi
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
+
+      - name: Wait for Postgres (fail closed on partial dependency outage)
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME"; then
+              echo "Postgres ready"; exit 0
+            fi
+            echo "waiting for Postgres ($i/30)..."; sleep 2
+          done
+          echo "::error::DEPENDENCY UNAVAILABLE: Postgres not ready — failing closed."
+          exit 1
+
+      - name: Run pool load spec (budget regression gate)
+        working-directory: backend
+        run: npm run test:pool-load
+
+      - name: Summarize
+        if: always()
+        run: |
+          echo "### Nightly pool load" >> "$GITHUB_STEP_SUMMARY"
+          echo "Budgets: waiting=$POOL_LOAD_MAX_WAITING exhaustion=$POOL_LOAD_MAX_EXHAUSTION p95=${POOL_LOAD_P95_MS}ms leaked=$POOL_LOAD_MAX_LEAKED" >> "$GITHUB_STEP_SUMMARY"
+          echo "See backend/docs/DATABASE_POOL.md for interpretation and rollback." >> "$GITHUB_STEP_SUMMARY"
