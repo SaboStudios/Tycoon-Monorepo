@@ -124,12 +124,48 @@ export class InventoryAntiOversellService {
   }
 
   async releaseExpiredReservations(): Promise<number> {
-    const result = await this.dataSource.query(
-      `UPDATE inventory SET quantity = quantity + ir.quantity
-       FROM inventory_reservations ir
-       WHERE ir.sku = inventory.sku AND ir.expires_at < NOW() AND ir.status = 'confirmed'
-       RETURNING ir.id`,
-    );
-    return result.length;
+    const queryRunner: QueryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const expired = await queryRunner.query(
+        `SELECT id, sku, quantity FROM inventory_reservations
+         WHERE expires_at < NOW() AND status = 'confirmed'
+         FOR UPDATE`,
+      );
+
+      if (!expired || expired.length === 0) {
+        await queryRunner.commitTransaction();
+        return 0;
+      }
+
+      const ids = expired.map(
+        (row: { id: string }) => row.id,
+      ) as string[];
+
+      await queryRunner.query(
+        `UPDATE inventory SET quantity = quantity + ir.quantity, updated_at = NOW()
+         FROM inventory_reservations ir
+         WHERE ir.sku = inventory.sku AND ir.id = ANY($1)`,
+        [ids],
+      );
+
+      // Mark the reservations as released so a subsequent run does not
+      // re-credit the same rows back onto inventory again.
+      await queryRunner.query(
+        `UPDATE inventory_reservations SET status = 'released'
+         WHERE id = ANY($1)`,
+        [ids],
+      );
+
+      await queryRunner.commitTransaction();
+      return ids.length;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }
