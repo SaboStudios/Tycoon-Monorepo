@@ -48,20 +48,6 @@ export function parseStrictBoolean(
 }
 
 /**
- * Parse and validate CORS allowed origins from environment variables
- */
-export function parseCorsOrigins(): string[] {
-  // Support new CORS_ALLOWED_ORIGINS (comma-separated list)
-  if (process.env.CORS_ALLOWED_ORIGINS) {
-    return process.env.CORS_ALLOWED_ORIGINS
-      .split(',')
-      .map(origin => origin.trim())
-      .filter(origin => origin.length > 0);
-  }
-  
-  // Backward compatibility: support legacy CORS_ORIGIN
-  if (process.env.CORS_ORIGIN) {
-    return [process.env.CORS_ORIGIN.trim()];
  * Step-up methods the recent-auth guard understands. Keep in sync with
  * `backend/src/modules/privacy/recent-auth.guard.ts`.
  */
@@ -130,21 +116,6 @@ export function isValidOrigin(origin: string): boolean {
 }
 
 /**
- * Validate CORS origins at startup (reads from parseCorsOrigins + process.env).
- * Exported for testing.
- */
-export function validateCorsOrigins(origins?: string[]): void {
-  const resolvedOrigins = origins ?? parseCorsOrigins();
-  const nodeEnv = process.env.NODE_ENV || 'development';
-  
-  // Require at least one origin in production
-  if (nodeEnv === 'production' && resolvedOrigins.length === 0) {
-    throw new Error('CORS_ALLOWED_ORIGINS must be configured in production');
-  }
-  
-  // Validate each origin is a valid URL
-  const invalidOrigins = resolvedOrigins.filter(origin => !isValidOrigin(origin));
-  if (invalidOrigins.length > 0) {
  * Parse and validate the comma-separated `DATA_EXPORT_STEP_UP_METHODS` value.
  */
 export function parseStepUpMethods(
@@ -175,27 +146,48 @@ export function parseStepUpMethods(
   return methods;
 }
 
+/**
+ * Parse and validate CORS allowed origins from environment variables
+ */
 export function parseCorsOrigins(
   raw: string | undefined = process.env.CORS_ALLOWED_ORIGINS,
 ): string[] {
-  return (raw || '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  // Support new CORS_ALLOWED_ORIGINS (comma-separated list)
+  if (raw) {
+    return raw
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0);
+  }
+
+  // Backward compatibility: support legacy CORS_ORIGIN
+  if (process.env.CORS_ORIGIN) {
+    return [process.env.CORS_ORIGIN.trim()];
+  }
+
+  return [];
 }
 
+/**
+ * Validate CORS origins at startup (reads from parseCorsOrigins + process.env).
+ * Exported for testing.
+ */
 export function validateCorsOrigins(
   originsArg?: string[],
   corsMaxAgeArg?: number,
 ): void {
   const origins = originsArg ?? parseCorsOrigins();
-  const corsMaxAge = corsMaxAgeArg ?? parsePositiveInt('CORS_MAX_AGE', process.env.CORS_MAX_AGE, 86400);
+  const corsMaxAge =
+    corsMaxAgeArg ?? parsePositiveInt('CORS_MAX_AGE', process.env.CORS_MAX_AGE, 86400);
 
   const nodeEnv = process.env.NODE_ENV || 'development';
+
+  // Require at least one origin in production
   if (nodeEnv === 'production' && origins.length === 0) {
     throw new Error('CORS_ALLOWED_ORIGINS must be configured in production');
   }
 
+  // Validate each origin is a valid URL
   const invalid = origins.filter((origin) => !isValidOrigin(origin));
   if (invalid.length > 0) {
     throw new Error(
@@ -203,41 +195,8 @@ export function validateCorsOrigins(
         'Origins must be http:// or https:// with no path, query, or fragment.',
     );
   }
-  
-  const corsMaxAge = parseInt(process.env.CORS_MAX_AGE || '86400', 10);
+
   if (!Number.isInteger(corsMaxAge) || corsMaxAge < 0) {
-    throw new Error('CORS_MAX_AGE must be a non-negative integer');
-  }
-}
-
-export const appConfig = registerAs('app', () => {
-  const corsAllowedOrigins = parseCorsOrigins();
-  validateCorsOrigins(corsAllowedOrigins);
-  
-  const corsMaxAge = parseInt(process.env.CORS_MAX_AGE || '86400', 10);
-  
-  return {
-    nodeEnv: process.env.NODE_ENV || 'development',
-    port: parsePort(process.env.PORT),
-    apiPrefix: requireNonBlank(process.env.API_PREFIX ?? 'api', 'API_PREFIX'),
-    defaultApiVersion: requireNonBlank(process.env.API_DEFAULT_VERSION ?? '1', 'API_DEFAULT_VERSION'),
-    enableLegacyUnversionedRoutes:
-      process.env.API_ENABLE_LEGACY_UNVERSIONED !== 'false',
-    legacyUnversionedSunset: process.env.API_LEGACY_UNVERSIONED_SUNSET,
-    
-    // CORS Configuration
-    corsAllowedOrigins,
-    corsCredentials: process.env.CORS_CREDENTIALS !== 'false', // default: true
-    corsMaxAge,
-    corsDevWildcard: process.env.CORS_DEV_WILDCARD !== 'false', // default: true
-    
-    // Legacy (deprecated but supported for backward compatibility)
-    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    
-    trustProxy: parseStrictBoolean(process.env.TRUST_PROXY, 'TRUST_PROXY', false),
-    /** Directory for async JSON user data exports (see privacy module). */
-
-  if (!Number.isFinite(corsMaxAge) || corsMaxAge < 0) {
     throw new Error('CORS_MAX_AGE must be a non-negative integer');
   }
 }
@@ -248,12 +207,25 @@ export const appConfig = registerAs('app', () => {
   validateCorsOrigins(corsOrigins, corsMaxAge);
 
   return {
-    port: Number(process.env.PORT ?? 3000),
+    nodeEnv: process.env.NODE_ENV || 'development',
+    port: parsePort(process.env.PORT),
+    apiPrefix: requireNonBlank(process.env.API_PREFIX ?? 'api', 'API_PREFIX'),
+    defaultApiVersion: requireNonBlank(process.env.API_DEFAULT_VERSION ?? '1', 'API_DEFAULT_VERSION'),
+    enableLegacyUnversionedRoutes:
+      process.env.API_ENABLE_LEGACY_UNVERSIONED !== 'false',
+    legacyUnversionedSunset: process.env.API_LEGACY_UNVERSIONED_SUNSET,
+
+    // CORS Configuration
     corsOrigins,
     corsMaxAge,
-    // #1929 – boolean flags with strict parsing
     corsCredentials: parseBoolean('CORS_CREDENTIALS', process.env.CORS_CREDENTIALS, true),
     corsDevWildcard: parseBoolean('CORS_DEV_WILDCARD', process.env.CORS_DEV_WILDCARD, true),
+
+    // Legacy (deprecated but supported for backward compatibility)
+    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+
+    trustProxy: parseStrictBoolean(process.env.TRUST_PROXY, 'TRUST_PROXY', false),
+    /** Directory for async JSON user data exports (see privacy module). */
     dataExportDir: process.env.DATA_EXPORT_DIR || './storage/data-exports',
     // #1928 – numeric data-export settings with NaN/negative guards
     dataExportTtlHours: parsePositiveInt('DATA_EXPORT_TTL_HOURS', process.env.DATA_EXPORT_TTL_HOURS, 24),
