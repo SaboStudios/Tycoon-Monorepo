@@ -1,0 +1,27 @@
+{
+  "shop": {
+    "title": "Marketplace",
+    "filter_all": "All",
+    "filter_skins": "Skins",
+    "filter_boards": "Boards",
+    "owned": "Owned",
+    "purchase": "Purchase",
+    "confirm_purchase": "Confirm Purchase",
+    "cancel": "Cancel",
+    "out_of_stock": "Out of Stock",
+    "purchase_confirmation_msg": "Are you sure you want to purchase {{name}}?"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "rank": "Rank",
+    "player": "Player",
+    "wins": "Wins",
+    "earned": "Earned",
+    "share_profile": "Share Profile",
+    "copied": "Link Copied!"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language"
+  }
+}

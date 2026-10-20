@@ -3,7 +3,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
-import { buildHelmetOptions } from './common/security/helmet-options';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -35,9 +34,6 @@ async function bootstrap() {
     }),
   );
 
-  // Security headers — see common/security/helmet-options.ts for full rationale
-  // and docs/security/REVERSE_PROXY_HEADERS.md for the reverse-proxy split.
-  app.use(helmet(buildHelmetOptions(configService)));
   // Security headers — see config/helmet.config.ts for the tuned options.
   const isProduction =
     configService.get<string>('app.nodeEnv') === 'production';
@@ -140,8 +136,6 @@ async function bootstrap() {
     }
 
     // Reject origin and log at WARN level
-    const adapter = app.getHttpAdapter();
-    const request = adapter.getRequestMethod ? undefined : origin; // Get request if available
     loggerService.warn(`CORS: Rejected origin: ${origin}`, 'CORS');
 
     // Return false to reject (no CORS headers will be sent)
@@ -160,5 +154,3 @@ async function bootstrap() {
   const { apiPrefix } = configureApiVersioning(app, {
     apiPrefix: configService.get<string>('app.apiPrefix') || 'api',
     defaultVe
-
-/* … truncated 1593 chars — edit only what you need near the top … */
