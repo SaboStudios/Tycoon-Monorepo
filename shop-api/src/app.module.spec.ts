@@ -1,4 +1,7 @@
-import { resolveSynchronize } from './app.module';
+import { Test } from '@nestjs/testing';
+import { AppModule, resolveSynchronize } from './app.module';
+import { HealthController } from './health/health.controller';
+import { HealthModule } from './health/health.module';
 
 describe('resolveSynchronize', () => {
   const originalNodeEnv = process.env.NODE_ENV;
@@ -45,5 +48,30 @@ describe('resolveSynchronize', () => {
 
   it('returns false when NODE_ENV is unset', () => {
     expect(resolveSynchronize()).toBe(false);
+  });
+});
+
+describe('AppModule health wiring', () => {
+  it('registers HealthController exactly once via HealthModule', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider('TypeOrmModuleOptions')
+      .useValue({})
+      .compile();
+
+    const healthModule = moduleRef.get(HealthModule, { strict: false });
+    expect(healthModule).toBeInstanceOf(HealthModule);
+
+    const healthController = moduleRef.get(HealthController, { strict: false });
+    expect(healthController).toBeInstanceOf(HealthController);
+
+    const controllers = (Reflect.getMetadata('controllers', HealthModule) ?? []) as unknown[];
+    expect(controllers.filter((c) => c === HealthController)).toHaveLength(1);
+
+    const appControllers = (Reflect.getMetadata('controllers', AppModule) ?? []) as unknown[];
+    expect(appControllers).not.toContain(HealthController);
+
+    await moduleRef.close();
   });
 });
