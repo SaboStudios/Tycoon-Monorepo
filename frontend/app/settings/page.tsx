@@ -56,7 +56,7 @@ const IDLE_STATE: ActionState = { status: 'idle', error: null };
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-async function performDangerAction(id: DangerActionId): Promise<void> {
+export async function performDangerAction(id: DangerActionId): Promise<void> {
   const res = await fetch(`/api/settings/danger/${id}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -64,7 +64,10 @@ async function performDangerAction(id: DangerActionId): Promise<void> {
   });
 
   if (!res.ok) {
-    let message = 'Something went wrong. Please try again.';
+    // Fall back to a message derived from the HTTP status so a non-JSON (or
+    // empty) error body still surfaces something useful instead of the
+    // generic text below.
+    let message = `Something went wrong (${res.status} ${res.statusText}). Please try again.`;
     try {
       const body: unknown = await res.json();
       if (
@@ -76,7 +79,7 @@ async function performDangerAction(id: DangerActionId): Promise<void> {
         message = (body as { message: string }).message;
       }
     } catch {
-      // Non-JSON error body — keep the generic message.
+      // Non-JSON error body — keep the status-derived fallback message above.
     }
     throw new Error(message);
   }
