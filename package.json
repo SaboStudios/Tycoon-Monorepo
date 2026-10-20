@@ -1,0 +1,7 @@
+{
+  "name": "tycoon-monorepo",
+  "private": true,
+  "scripts": {
+    "test": "pnpm --dir frontend test"
+  }
+}
