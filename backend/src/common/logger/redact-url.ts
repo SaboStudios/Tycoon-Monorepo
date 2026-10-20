@@ -16,6 +16,7 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'apikey',
   'password',
   'secret',
+  'email',
 ]);
 
 /** Replaces the values of sensitive query parameters with `[REDACTED]`. */

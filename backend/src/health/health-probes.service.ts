@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HealthCheckService, HealthCheck, HealthIndicatorResult, HealthIndicator } from '@nestjs/terminus';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 export interface ProbeConfig {
   livenessPath: string;
@@ -26,11 +26,19 @@ export class DatabaseHealthIndicator extends HealthIndicator {
   constructor(
     @InjectRepository('default')
     private readonly db: Repository<any>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {
     super();
   }
 
   async isHealthy(key: string): Promise<HealthIndicatorResult> {
+    if (!this.dataSource.isInitialized) {
+      const message = 'DataSource is not initialized';
+      this.logger.error(`Database health check failed: ${message}`);
+      return this.getStatus(key, false, { message });
+    }
+
     try {
       await this.db.query('SELECT 1');
       return this.getStatus(key, true);
