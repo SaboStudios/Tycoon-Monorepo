@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Restore the crate manifest so the Rust workspace can resolve its members.
+
 ## [0.1.0] - 2026-03-27
 
 ### Added

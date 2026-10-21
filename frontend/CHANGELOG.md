@@ -6,6 +6,10 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore Vitest setup and include app route specs so the join and landing page safeguards run in CI.
+
 ### Added
 
 - Analytics consent banner and a withdraw/reset control on `/privacy-policy#analytics-choices`. Telemetry is sent only after explicit consent, and withdrawal applies to the next event (#1761).

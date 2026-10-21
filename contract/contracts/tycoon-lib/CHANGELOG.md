@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Restore fee helpers required by the collectibles contract.
+
 ## [0.1.0] - 2026-03-27
 
 ### Added
