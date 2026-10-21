@@ -50,7 +50,7 @@ export const getCanonicalUrl = (path?: string): string => {
 
   // Ensure path starts with /
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${baseUrl}${normalizedPath}`;
+  return `${baseUrl.replace(/\/+$/, "")}${normalizedPath}`;
 };
 
 /**
