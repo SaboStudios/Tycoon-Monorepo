@@ -1,80 +1,33 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  ErrorCategory,
-  ERROR_MESSAGES,
-  categorizeError,
-  sanitizeError,
-  isNetworkError,
-  isServerError,
-  isRecoverableError,
-} from './index';
+  ErrorCategory, ERROR_MESSAGES, categorizeError, sanitizeError,
+  isNetworkError, isServerError, isRecoverableError, type SanitizedError,
+} from './types';
 
-describe('categorizeError', () => {
-  it('classifies a TypeError thrown by fetch as a network error', () => {
-    const error = new TypeError('Failed to fetch');
-    expect(categorizeError(error)).toBe(ErrorCategory.NETWORK);
-  });
-
-  it('classifies an error with a 5xx status as a server error', () => {
-    const error = Object.assign(new Error('Internal Server Error'), { status: 500 });
-    expect(categorizeError(error)).toBe(ErrorCategory.SERVER);
-  });
-
-  it('classifies a 4xx validation error as a validation error', () => {
-    const error = Object.assign(new Error('Invalid input'), { status: 422 });
-    expect(categorizeError(error)).toBe(ErrorCategory.VALIDATION);
-  });
-
-  it('classifies an unknown thrown value as unknown', () => {
-    expect(categorizeError('something went wrong')).toBe(ErrorCategory.UNKNOWN);
-    expect(categorizeError(undefined)).toBe(ErrorCategory.UNKNOWN);
+describe('error categories and predicates', () => {
+  it.each([
+    [new TypeError('Failed to fetch: secret-token'), ErrorCategory.NETWORK, true, false, true],
+    [{ status: 503, message: 'private server details' }, ErrorCategory.SERVER, false, true, true],
+    [{ status: 404, message: 'private missing resource' }, ErrorCategory.NOT_FOUND, false, false, false],
+    [{ status: 401, message: 'private credentials' }, ErrorCategory.AUTH, false, false, true],
+    [Object.assign(new Error('Invalid private input'), { status: 422 }), ErrorCategory.VALIDATION, false, false, true],
+    [new Error('private unexpected details'), ErrorCategory.UNKNOWN, false, false, true],
+  ] as const)('classifies and sanitizes %o as %s', (error, category, network, server, recoverable) => {
+    expect(categorizeError(error)).toBe(category);
+    expect(isNetworkError(error)).toBe(network);
+    expect(isServerError(error)).toBe(server);
+    expect(isRecoverableError(error)).toBe(recoverable);
+    const sanitized: SanitizedError = sanitizeError(error);
+    expect(sanitized.category).toBe(category);
+    expect(sanitized.recoverable).toBe(recoverable);
+    expect(sanitized.userMessage).toBe(ERROR_MESSAGES[category].message);
+    expect(Object.values(ERROR_MESSAGES).map(value => value.message)).toContain(sanitized.userMessage);
+    expect(sanitized.userMessage).not.toBe(error.message);
+    expect(JSON.stringify(sanitized)).not.toContain(error.message);
   });
 });
 
-describe('sanitizeError', () => {
-  it('does not surface the raw internal message of a server error', () => {
-    const rawMessage = 'pg: connection refused at 10.0.0.5:5432';
-    const error = Object.assign(new Error(rawMessage), { status: 500 });
-
-    const sanitized = sanitizeError(error);
-
-    expect(sanitized.category).toBe(ErrorCategory.SERVER);
-    expect(sanitized.message).not.toContain(rawMessage);
-    expect(sanitized.message).not.toContain('10.0.0.5');
-    expect(sanitized.message).toBe(ERROR_MESSAGES[ErrorCategory.SERVER]);
-  });
-
-  it('returns a sanitized error for unknown thrown values', () => {
-    const sanitized = sanitizeError({ unexpected: true });
-
-    expect(sanitized.category).toBe(ErrorCategory.UNKNOWN);
-    expect(sanitized.message).toBe(ERROR_MESSAGES[ErrorCategory.UNKNOWN]);
-  });
-});
-
-describe('error predicates', () => {
-  it('agree with the categories produced by categorizeError', () => {
-    const network = new TypeError('Failed to fetch');
-    const server = Object.assign(new Error('boom'), { status: 503 });
-    const validation = Object.assign(new Error('bad request'), { status: 400 });
-
-    expect(isNetworkError(network)).toBe(true);
-    expect(isServerError(network)).toBe(false);
-
-    expect(isServerError(server)).toBe(true);
-    expect(isNetworkError(server)).toBe(false);
-
-    expect(isNetworkError(validation)).toBe(false);
-    expect(isServerError(validation)).toBe(false);
-  });
-
-  it('marks network and server errors as recoverable and validation errors as not', () => {
-    const network = new TypeError('Failed to fetch');
-    const server = Object.assign(new Error('boom'), { status: 500 });
-    const validation = Object.assign(new Error('bad request'), { status: 400 });
-
-    expect(isRecoverableError(network)).toBe(true);
-    expect(isRecoverableError(server)).toBe(true);
-    expect(isRecoverableError(validation)).toBe(false);
-  });
+it.each([undefined, 'unexpected value', { unexpected: true }])('sanitizes unknown value %o', error => {
+  expect(categorizeError(error)).toBe(ErrorCategory.UNKNOWN);
+  expect(sanitizeError(error).userMessage).toBe(ERROR_MESSAGES[ErrorCategory.UNKNOWN].message);
 });

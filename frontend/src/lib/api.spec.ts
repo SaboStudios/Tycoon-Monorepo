@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 import {
+  ApiError,
+  apiRequest,
   generateIdempotencyKey,
   purchasePayloadFingerprint,
   getIdempotencyKeyForPurchase,
@@ -91,5 +93,56 @@ describe("purchasePayloadFingerprint", () => {
     expect(purchasePayloadFingerprint(payload)).not.toBe(
       purchasePayloadFingerprint({ ...payload, sku: "sku_other" }),
     );
+  });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+function mockFetch(response: Pick<Response, 'ok' | 'status' | 'json'>) {
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response as Response);
+  vi.stubGlobal('fetch', fetch);
+  return fetch;
+}
+
+describe('apiRequest', () => {
+  it('returns the parsed JSON body and defaults to JSON content type', async () => {
+    const body = { id: 42 };
+    const fetch = mockFetch({ ok: true, status: 200, json: vi.fn().mockResolvedValue(body) });
+    await expect(apiRequest('/shop')).resolves.toEqual(body);
+    const headers = fetch.mock.calls[0][1]?.headers as Headers;
+    expect(headers.get('Content-Type')).toBe('application/json');
+  });
+
+  it('returns an empty object for 204 without parsing a body', async () => {
+    const json = vi.fn().mockRejectedValue(new SyntaxError('Empty body'));
+    mockFetch({ ok: true, status: 204, json });
+    await expect(apiRequest('/shop')).resolves.toEqual({});
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it('preserves the response status, code and message in ApiError', async () => {
+    mockFetch({ ok: false, status: 409, json: vi.fn().mockResolvedValue({ message: 'Already purchased', code: 'CONFLICT' }) });
+    const error = await apiRequest('/shop').catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 409, code: 'CONFLICT', message: 'Already purchased' });
+  });
+
+  it('uses the fallback message when the error body is not JSON', async () => {
+    mockFetch({ ok: false, status: 502, json: vi.fn().mockRejectedValue(new SyntaxError('HTML response')) });
+    const error = await apiRequest('/shop').catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 502, message: 'Something went wrong', code: undefined });
+  });
+
+  it('sets bearer authorization and lets fetch set multipart content type', async () => {
+    const fetch = mockFetch({ ok: true, status: 200, json: vi.fn().mockResolvedValue({}) });
+    const body = new FormData();
+    body.append('file', 'contents');
+    await apiRequest('/upload', { method: 'POST', token: 'test-token', body });
+    const options = fetch.mock.calls[0][1];
+    const headers = options?.headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer test-token');
+    expect(headers.has('Content-Type')).toBe(false);
+    expect(options?.body).toBe(body);
   });
 });
