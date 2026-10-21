@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use crate::storage::{
-    get_game, get_game_settings, set_game, set_game_settings, Game, GameMode, GameSettings,
-    GameStatus, next_game_id,
+    get_game, get_game_settings, next_game_id, set_game, set_game_settings, Game, GameMode,
+    GameSettings, GameStatus,
 };
 use crate::{TycoonMainGame, TycoonMainGameClient};
 use soroban_sdk::{
@@ -290,6 +290,17 @@ fn test_pause_twice_panics() {
     client.pause(&admin, &reason, &1000);
 }
 
+#[test]
+#[should_panic(expected = "Pause duration must be greater than zero")]
+fn test_pause_rejects_zero_duration() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, admin, _, _) = setup_contract(&env);
+    let reason = Symbol::new(&env, "SEC");
+    client.pause(&admin, &reason, &0);
+}
+
 // ============================================================
 // Unpause Tests
 // ============================================================
@@ -455,13 +466,7 @@ fn test_leave_pending_game_with_stake_refunds_player() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(
-                &env,
-                id,
-                creator.clone(),
-                stake,
-                &[player2.clone()],
-            ),
+            &make_game_with_stake(&env, id, creator.clone(), stake, &[player2.clone()]),
         );
     });
 
@@ -497,13 +502,7 @@ fn test_leave_pending_game_decrements_total_staked() {
         let id = next_game_id(&env);
         set_game(
             &env,
-            &make_game_with_stake(
-                &env,
-                id,
-                creator.clone(),
-                stake,
-                &[player2.clone()],
-            ),
+            &make_game_with_stake(&env, id, creator.clone(), stake, &[player2.clone()]),
         );
     });
 

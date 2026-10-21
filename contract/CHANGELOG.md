@@ -7,3 +7,8 @@ requires. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.
 Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ## [Unreleased]
+
+### Fixed
+- Restore the Rust workspace and crate manifests required to run package-level contract tests.
+
+## [Unreleased]
