@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   siteConfig,
   isStaging,
@@ -8,13 +8,13 @@ import {
 } from './index';
 
 describe('metadata barrel', () => {
-  const originalEnv = process.env.NEXT_PUBLIC_ENV;
+  const originalEnv = process.env.NEXT_PUBLIC_APP_ENV;
 
   afterEach(() => {
     if (originalEnv === undefined) {
-      delete process.env.NEXT_PUBLIC_ENV;
+      delete process.env.NEXT_PUBLIC_APP_ENV;
     } else {
-      process.env.NEXT_PUBLIC_ENV = originalEnv;
+      process.env.NEXT_PUBLIC_APP_ENV = originalEnv;
     }
     vi.restoreAllMocks();
   });
@@ -35,19 +35,19 @@ describe('metadata barrel', () => {
 
   describe('isStaging', () => {
     it('returns true when the staging environment flag is set', () => {
-      process.env.NEXT_PUBLIC_ENV = 'staging';
+      process.env.NEXT_PUBLIC_APP_ENV = 'staging';
       expect(isStaging()).toBe(true);
     });
 
     it('returns false for production', () => {
-      process.env.NEXT_PUBLIC_ENV = 'production';
+      process.env.NEXT_PUBLIC_APP_ENV = 'production';
       expect(isStaging()).toBe(false);
     });
   });
 
   describe('generatePageMetadata', () => {
-    it('includes default metadata fields when only a title is supplied', () => {
-      const metadata = generatePageMetadata({ title: 'Test Page' });
+    it('includes the supplied page metadata fields', () => {
+      const metadata = generatePageMetadata({ title: 'Test Page', description: defaultPageMetadata.description });
       expect(metadata.title).toBe('Test Page');
       expect(metadata.description).toBe(defaultPageMetadata.description);
       expect(metadata.openGraph).toBeDefined();
