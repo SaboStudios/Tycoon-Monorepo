@@ -244,30 +244,6 @@ impl TycoonMainGame {
 
     // ============================================================
     // View Functions
-    // ============================================================
+    // ======================================================
 
-    pub fn get_owner(env: Env) -> Address {
-        storage::get_owner(&env)
-    }
-
-    pub fn get_reward_system(env: Env) -> Address {
-        storage::get_reward_system(&env)
-    }
-
-    pub fn is_registered(env: Env, address: Address) -> bool {
-        storage::is_registered(&env, &address)
-    }
-
-    pub fn get_game(env: Env, game_id: u64) -> Option<storage::Game> {
-        storage::get_game(&env, game_id)
-    }
-
-    pub fn get_game_settings(env: Env, game_id: u64) -> Option<storage::GameSettings> {
-        storage::get_game_settings(&env, game_id)
-    }
-
-    /// Return the pause config (for testing/verification).
-    pub fn get_pause_config(env: Env) -> Option<storage::PauseConfig> {
-        storage::get_pause_config(&env)
-    }
-}
+/* … truncated 753 chars — edit only what you need near the top … */
