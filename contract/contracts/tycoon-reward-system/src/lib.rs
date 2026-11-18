@@ -1,7 +1,25 @@
 #![no_std]
-use soroban_sdk::{contract, contractevent, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{contract, contracterror, contractevent, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
 const VOUCHER_ID_START: u128 = 1_000_000_000;
+
+/// Stable error codes for the reward contract.
+///
+/// Discriminants are pinned so the backend can branch on a number instead of
+/// matching host error text. Do not renumber existing variants.
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum RewardError {
+    /// "Already initialized"
+    AlreadyInitialized = 1,
+    /// "Contract is paused"
+    ContractPaused = 2,
+    /// "Insufficient balance"
+    InsufficientBalance = 3,
+    /// "Invalid token: not in allowlist"
+    InvalidToken = 4,
+}
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -52,9 +70,9 @@ pub struct TycoonRewardSystem;
 
 #[contractimpl]
 impl TycoonRewardSystem {
-    pub fn initialize(e: Env, admin: Address, tyc_token: Address, usdc_token: Address) {
+    pub fn initialize(e: Env, admin: Address, tyc_token: Address, usdc_token: Address) -> Result<(), RewardError> {
         if e.storage().persistent().has(&DataKey::Admin) {
-            panic!("Already initialized");
+            return Err(RewardError::AlreadyInitialized);
         }
         // Require the admin to authorize initialization before any storage write
         admin.require_auth();
@@ -66,6 +84,27 @@ impl TycoonRewardSystem {
         e.storage().persistent().set(&DataKey::Paused, &false);
         e.storage().persistent().set(&DataKey::StateVersion, &1u32);
         e.storage().persistent().set(&DataKey::VoucherLiability, &0u128);
+        Ok(())
+    }
+
+    /// Migrate the contract to a newer state version (admin only)
+    pub fn migrate(e: Env) {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        admin.require_auth();
+
+        let current_version: u32 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+
+        if current_version == 0 {
+            e.storage().persistent().set(&DataKey::StateVersion, &1u32);
+        }
     }
 
     /// Emergency pause contract (admin only)
@@ -101,15 +140,12 @@ impl TycoonRewardSystem {
     }
 
     /// Set the backend minter address (admin only)
-    pub fn set_backend_minter(e: Env, admin: Address, new_minter: Address) {
-        let stored_admin: Address = e
+    pub fn set_backend_minter(e: Env, new_minter: Address) {
+        let admin: Address = e
             .storage()
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        if admin != stored_admin {
-            panic!("Unauthorized: only admin can set backend minter");
-        }
         admin.require_auth();
         e.storage().persistent().set(&DataKey::BackendMinter, &new_minter);
         #[allow(deprecated)]
@@ -117,15 +153,12 @@ impl TycoonRewardSystem {
     }
 
     /// Clear the backend minter address (admin only)
-    pub fn clear_backend_minter(e: Env, admin: Address) {
-        let stored_admin: Address = e
+    pub fn clear_backend_minter(e: Env) {
+        let admin: Address = e
             .storage()
             .persistent()
             .get(&DataKey::Admin)
             .expect("Not initialized");
-        if admin != stored_admin {
-            panic!("Unauthorized: only admin can clear backend minter");
-        }
         admin.require_auth();
         e.storage().persistent().remove(&DataKey::BackendMinter);
         #[allow(deprecated)]
@@ -138,7 +171,7 @@ impl TycoonRewardSystem {
         e.storage().persistent().get(&DataKey::BackendMinter)
     }
 
-    pub fn mint_voucher(e: Env, caller: Address, to: Address, tyc_value: u128) -> u128 {
+    pub fn mint_voucher(e: Env, caller: Address, to: Address, tyc_value: u128) -> Result<u128, RewardError> {
         // Single read for admin — reused for both auth check and comparison
         let admin: Address = e
             .storage()
@@ -208,10 +241,10 @@ impl TycoonRewardSystem {
         e.events()
             .publish((symbol_short!("V_Mint"), to, token_id), tyc_value);
 
-        token_id
+        Ok(token_id)
     }
 
-    pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128) {
+    pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128) -> Result<(), RewardError> {
         redeemer.require_auth();
 
         // Single read for Paused — unwrap_or avoids a separate has() check
@@ -220,7 +253,7 @@ impl TycoonRewardSystem {
             .get::<DataKey, bool>(&DataKey::Paused)
             .unwrap_or(false)
         {
-            panic!("Contract is paused");
+            return Err(RewardError::ContractPaused);
         }
 
         let tyc_value: u128 = e
@@ -260,6 +293,8 @@ impl TycoonRewardSystem {
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Redeem"), redeemer, token_id), tyc_value);
+
+        Ok(())
     }
 
     /// Withdraw funds from the contract (admin only)
