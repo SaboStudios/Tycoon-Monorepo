@@ -47,18 +47,6 @@ impl TycoonMainGame {
         storage::set_initialized(&env);
     }
 
-    /// Migrate the contract to a newer state version (admin only)
-    pub fn migrate(env: Env) {
-        let admin = storage::get_owner(&env);
-        admin.require_auth();
-
-        let current_version = storage::get_state_version(&env);
-
-        if current_version == 0 {
-            storage::set_state_version(&env, 1);
-        }
-    }
-
     // ============================================================
     // Pause/Unpause
     // ============================================================
@@ -240,21 +228,6 @@ impl TycoonMainGame {
         // Emit player-left event
         events::emit_player_left_pending(
             &env,
-            &events::PlayerLeftPendingData {
-                game_id,
-                player,
-                stake_refunded: refund_amount,
-                remaining_players: remaining as u32,
-            },
-        );
+            &e
 
-        if remaining == 0 {
-            events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
-        }
-    }
-
-    // ============================================================
-    // View Functions
-    // ======================================================
-
-/* … truncated 753 chars — edit only what you need near the top … */
+/* … truncated 568 chars — edit only what you need near the top … */
