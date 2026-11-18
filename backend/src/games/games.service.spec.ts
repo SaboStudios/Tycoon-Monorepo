@@ -3,6 +3,8 @@ import {
   TRADE_RULESET_VERSION,
   isTradeOfferExpired,
   validateTradeOffer,
+  applyTradeCashTransfer,
+  acceptTradeOffer,
 } from './games.service';
 
 describe('trade offer ruleset helpers', () => {
@@ -99,7 +101,60 @@ describe('trade offer ruleset helpers', () => {
     });
   });
 
+  describe('applyTradeCashTransfer', () => {
+    it('debits and credits the same integer amount for a 10-unit trade', () => {
+      const result = applyTradeCashTransfer(100, 50, 10);
+      expect(result.fromCash).toBe(90);
+      expect(result.toCash).toBe(60);
+      expect(result.amount).toBe(10);
+      expect(Number.isInteger(result.amount)).toBe(true);
+      expect(100 - result.fromCash).toBe(result.toCash - 50);
+    });
+
+    it('throws and leaves balances untouched when cash is insufficient', () => {
+      expect(() => applyTradeCashTransfer(5, 50, 10)).toThrow();
+    });
+
+    it('rejects a non-integer amount', () => {
+      expect(() => applyTradeCashTransfer(100, 50, 1.5)).toThrow();
+    });
+  });
+
   it('exposes a ruleset version', () => {
     expect(typeof TRADE_RULESET_VERSION).toBe('string');
+  });
+});
+
+describe('acceptTradeOffer recipient authorization', () => {
+  const recipientId = 'player-recipient';
+  const thirdPlayerId = 'player-third';
+
+  const makeOffer = (status: string) => ({
+    id: 'offer-1',
+    status,
+    toPlayerId: recipientId,
+    fromPlayerId: 'player-sender',
+    cashAmount: 100,
+    propertyIds: ['a', 'b'],
+  });
+
+  it('returns the stored accepted offer to the recipient on retry', () => {
+    const offer = makeOffer('ACCEPTED');
+    const result = acceptTradeOffer(offer, recipientId);
+    expect(result).toBe(offer);
+  });
+
+  it('rejects a third player reading an accepted offer with 403', () => {
+    const offer = makeOffer('ACCEPTED');
+    expect(() => acceptTradeOffer(offer, thirdPlayerId)).toThrow(
+      expect.objectContaining({ status: 403 }),
+    );
+  });
+
+  it('rejects a third player reading a pending offer with 403', () => {
+    const offer = makeOffer('PENDING');
+    expect(() => acceptTradeOffer(offer, thirdPlayerId)).toThrow(
+      expect.objectContaining({ status: 403 }),
+    );
   });
 });

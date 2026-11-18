@@ -125,4 +125,47 @@ describe('GamesSnapshotService', () => {
     });
     expect(seat?.id).toBe(10);
   });
+
+  it('preserves an unsafe integer balance as an exact string', async () => {
+    playerRepository.find.mockResolvedValue([
+      { ...players[0], balance: '9007199254740993' },
+    ]);
+
+    const snapshot = await service.build(1, {
+      userId: 7,
+      role: 'player',
+      seatId: 10,
+    });
+
+    expect(snapshot.players[0].balance).toBe('9007199254740993');
+  });
+
+  it('does not coerce a null balance to 0', async () => {
+    playerRepository.find.mockResolvedValue([
+      { ...players[0], balance: null },
+    ]);
+
+    const snapshot = await service.build(1, {
+      userId: 7,
+      role: 'player',
+      seatId: 10,
+    });
+
+    expect(snapshot.players[0].balance).toBeNull();
+    expect(snapshot.players[0].balance).not.toBe(0);
+  });
+
+  it('keeps a normal balance of 1500 present', async () => {
+    playerRepository.find.mockResolvedValue([
+      { ...players[0], balance: 1500 },
+    ]);
+
+    const snapshot = await service.build(1, {
+      userId: 7,
+      role: 'player',
+      seatId: 10,
+    });
+
+    expect(snapshot.players[0].balance).toBe('1500');
+  });
 });

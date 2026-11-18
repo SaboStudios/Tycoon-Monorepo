@@ -67,6 +67,22 @@ export function validateTradeOffer(
   return null;
 }
 
+/**
+ * Convert a cash amount to integer minor units (cents).
+ * Cash is stored and moved as integers so repeated trades cannot drift
+ * and values above the safe integer range are rejected rather than rounded.
+ */
+export function toMinorUnits(amount: number): number {
+  if (!Number.isFinite(amount)) {
+    throw new BadRequestException('cashAmount must be a finite number');
+  }
+  const minor = Math.round(amount * 100);
+  if (!Number.isSafeInteger(minor)) {
+    throw new BadRequestException('cashAmount exceeds safe integer range');
+  }
+  return minor;
+}
+
 @Injectable()
 export class GamesService {
   private readonly logger = new Logger(GamesService.name);
@@ -120,7 +136,7 @@ export class GamesService {
       throw new ForbiddenException('Receiving player is not part of this game');
     }
 
-    if (fromPlayer.cash < cashAmount) {
+    if (toMinorUnits(fromPlayer.cash) < toMinorUnits(cashAmount)) {
       throw new BadRequestException('Offering player has insufficient cash');
     }
 
@@ -176,6 +192,13 @@ export class GamesService {
         throw new NotFoundException('Trade offer not found');
       }
 
+      // Only the receiving player may read or accept this offer. This check
+      // must run before the idempotent return so a third player cannot read
+      // an already-accepted offer (cash amount, property ids).
+      if (offer.toPlayerId !== acceptingPlayerId) {
+        throw new ForbiddenException('Only the receiving player may accept this offer');
+      }
+
       // Idempotency: an already-accepted offer returns the same result
       // instead of re-applying economic mutations.
       if (offer.status === TradeOfferStatus.ACCEPTED) {
@@ -184,10 +207,6 @@ export class GamesService {
 
       if (offer.status !== TradeOfferStatus.PENDING) {
         throw new ConflictException('Trade offer is no longer pending');
-      }
-
-      if (offer.toPlayerId !== acceptingPlayerId) {
-        throw new ForbiddenException('Only the receiving player may accept this offer');
       }
 
       // Evaluate expiry against the ruleset pinned on the offer/game row.
@@ -214,10 +233,7 @@ export class GamesService {
         throw new NotFoundException('Trade participants not found');
       }
 
-      // Re-validate against current state; fail closed on writes.
-      if (fromPlayer.cash < offer.cashAmount) {
-        throw new BadRequestException('Offering player no longer has sufficient cash');
-      }
+      // Move cash in integer mino
 
       if (offer.propertyIds.length > 0) {
         const owned = await manager.find(Property, {
