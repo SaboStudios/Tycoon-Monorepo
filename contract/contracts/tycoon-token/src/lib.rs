@@ -53,6 +53,10 @@ impl TycoonToken {
         if e.storage().instance().has(&DataKey::Initialized) {
             panic!("Already initialized");
         }
+        admin.require_auth();
+        if initial_supply <= 0 {
+            panic!("Initial supply must be positive");
+        }
         e.storage().instance().set(&DataKey::Initialized, &true);
         e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage()
