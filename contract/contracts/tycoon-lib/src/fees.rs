@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contracttype, Address, Env, Vec};
+use soroban_sdk::{contracterror, contracttype, Address, Env, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -20,20 +20,48 @@ pub struct FeeSplit {
     pub residue: u128,
 }
 
-pub fn calculate_fee_split(amount: u128, config: &FeeConfig) -> FeeSplit {
-    let platform_amount = (amount * config.platform_fee_bps as u128) / 10000;
-    let creator_amount = (amount * config.creator_fee_bps as u128) / 10000;
-    let pool_amount = (amount * config.pool_fee_bps as u128) / 10000;
+#[contracterror]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum FeeError {
+    /// The sum of the basis points exceeds 10,000 (100%).
+    InvalidFeeConfig = 1,
+    /// `amount * bps` would overflow a `u128`.
+    Overflow = 2,
+}
+
+const BPS_DENOMINATOR: u128 = 10000;
+
+pub fn calculate_fee_split(amount: u128, config: &FeeConfig) -> Result<FeeSplit, FeeError> {
+    let total_bps = config.platform_fee_bps as u128
+        + config.creator_fee_bps as u128
+        + config.pool_fee_bps as u128;
+    if total_bps > BPS_DENOMINATOR {
+        return Err(FeeError::InvalidFeeConfig);
+    }
+
+    let platform_amount = amount
+        .checked_mul(config.platform_fee_bps as u128)
+        .ok_or(FeeError::Overflow)?
+        / BPS_DENOMINATOR;
+    let creator_amount = amount
+        .checked_mul(config.creator_fee_bps as u128)
+        .ok_or(FeeError::Overflow)?
+        / BPS_DENOMINATOR;
+    let pool_amount = amount
+        .checked_mul(config.pool_fee_bps as u128)
+        .ok_or(FeeError::Overflow)?
+        / BPS_DENOMINATOR;
 
     let total_distributed = platform_amount + creator_amount + pool_amount;
     let residue = amount.saturating_sub(total_distributed);
 
-    FeeSplit {
+    Ok(FeeSplit {
         platform_amount,
         creator_amount,
         pool_amount,
         residue,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -59,7 +87,7 @@ mod tests {
 
         let amounts = [100, 1000, 10000, 1234567, 0, 1];
         for amount in amounts {
-            let split = calculate_fee_split(amount, &config);
+            let split = calculate_fee_split(amount, &config).unwrap();
             let sum =
                 split.platform_amount + split.creator_amount + split.pool_amount + split.residue;
             assert_eq!(
@@ -76,7 +104,7 @@ mod tests {
         let env = Env::default();
         let config = config_with_bps(&env, 0, 0, 0);
 
-        let split = calculate_fee_split(1000, &config);
+        let split = calculate_fee_split(1000, &config).unwrap();
         assert_eq!(split.platform_amount, 0);
         assert_eq!(split.creator_amount, 0);
         assert_eq!(split.pool_amount, 0);
@@ -89,7 +117,7 @@ mod tests {
         // 33.33% each
         let config = config_with_bps(&env, 3333, 3333, 3333);
 
-        let split = calculate_fee_split(100, &config);
+        let split = calculate_fee_split(100, &config).unwrap();
         // 100 * 3333 / 10000 = 33
         assert_eq!(split.platform_amount, 33);
         assert_eq!(split.creator_amount, 33);
@@ -102,7 +130,7 @@ mod tests {
         let env = Env::default();
         let config = config_with_bps(&env, 250, 500, 1000);
 
-        let split = calculate_fee_split(0, &config);
+        let split = calculate_fee_split(0, &config).unwrap();
         assert_eq!(split.platform_amount, 0);
         assert_eq!(split.creator_amount, 0);
         assert_eq!(split.pool_amount, 0);
@@ -115,19 +143,19 @@ mod tests {
         // 1 bps = 0.01%; amount 99 * 1 / 10000 = 0 (truncated)
         let config = config_with_bps(&env, 1, 1, 1);
 
-        let split = calculate_fee_split(99, &config);
+        let split = calculate_fee_split(99, &config).unwrap();
         assert_eq!(split.platform_amount, 0);
         assert_eq!(split.creator_amount, 0);
         assert_eq!(split.pool_amount, 0);
         assert_eq!(split.residue, 99);
 
         // amount 100 * 1 / 10000 = 0 as well (still below one unit)
-        let split = calculate_fee_split(100, &config);
+        let split = calculate_fee_split(100, &config).unwrap();
         assert_eq!(split.platform_amount, 0);
         assert_eq!(split.residue, 100);
 
         // amount 10000 * 1 / 10000 = 1 (first non-zero)
-        let split = calculate_fee_split(10000, &config);
+        let split = calculate_fee_split(10000, &config).unwrap();
         assert_eq!(split.platform_amount, 1);
         assert_eq!(split.creator_amount, 1);
         assert_eq!(split.pool_amount, 1);
@@ -140,7 +168,7 @@ mod tests {
         // 10000 bps = 100% to platform
         let config = config_with_bps(&env, 10000, 0, 0);
 
-        let split = calculate_fee_split(5000, &config);
+        let split = calculate_fee_split(5000, &config).unwrap();
         assert_eq!(split.platform_amount, 5000);
         assert_eq!(split.creator_amount, 0);
         assert_eq!(split.pool_amount, 0);
@@ -148,15 +176,41 @@ mod tests {
     }
 
     #[test]
-    fn test_large_amount_overflow_behaviour() {
+    fn test_rates_summing_past_denominator_rejected() {
+        let env = Env::default();
+        // Each leg is 100%: sum is 30000 bps, far past 10000.
+        let config = config_with_bps(&env, 10000, 10000, 10000);
+
+        let result = calculate_fee_split(1000, &config);
+        assert_eq!(result, Err(FeeError::InvalidFeeConfig));
+    }
+
+    #[test]
+    fn test_rates_just_past_denominator_rejected() {
+        let env = Env::default();
+        let config = config_with_bps(&env, 5000, 5000, 1);
+
+        let result = calculate_fee_split(1000, &config);
+        assert_eq!(result, Err(FeeError::InvalidFeeConfig));
+    }
+
+    #[test]
+    fn test_large_amount_overflow_rejected() {
         let env = Env::default();
         let config = config_with_bps(&env, 10000, 0, 0);
 
         // amount * bps overflows u128 when amount is near u128::MAX.
-        // Document current behaviour: the multiplication wraps in release
-        // builds, so we only assert the non-overflowing boundary here.
+        let result = calculate_fee_split(u128::MAX, &config);
+        assert_eq!(result, Err(FeeError::Overflow));
+    }
+
+    #[test]
+    fn test_large_amount_non_overflowing_boundary() {
+        let env = Env::default();
+        let config = config_with_bps(&env, 10000, 0, 0);
+
         let safe_amount = u128::MAX / 10000;
-        let split = calculate_fee_split(safe_amount, &config);
+        let split = calculate_fee_split(safe_amount, &config).unwrap();
         assert_eq!(split.platform_amount, safe_amount);
         assert_eq!(split.residue, 0);
     }
