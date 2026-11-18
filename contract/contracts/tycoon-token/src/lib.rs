@@ -63,6 +63,10 @@ impl TycoonToken {
         if e.storage().instance().has(&DataKey::Initialized) {
             panic!("Already initialized");
         }
+        admin.require_auth();
+        if initial_supply <= 0 {
+            panic!("Initial supply must be positive");
+        }
         if decimals > 18 {
             panic!("Decimals cannot exceed 18");
         }
@@ -144,10 +148,15 @@ impl TycoonToken {
 #[contractimpl]
 impl TycoonToken {
     pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage()
+        let (amount, expiration_ledger): (i128, u32) = e
+            .storage()
             .persistent()
             .get(&DataKey::Allowance(from, spender))
-            .unwrap_or(0)
+            .unwrap_or((0, 0));
+        if e.ledger().sequence() > expiration_ledger {
+            return 0;
+        }
+        amount
     }
 
     pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
@@ -155,9 +164,10 @@ impl TycoonToken {
         if amount < 0 {
             panic!("Amount cannot be negative");
         }
-        e.storage()
-            .persistent()
-            .set(&DataKey::Allowance(from.clone(), spender.clone()), &amount);
+        e.storage().persistent().set(
+            &DataKey::Allowance(from.clone(), spender.clone()),
+            &(amount, expiration_ledger),
+        );
         ApproveEvent {
             from,
             spender,
@@ -217,17 +227,20 @@ impl TycoonToken {
             return;
         }
 
-        let allowance: i128 = e
+        let (allowance, expiration_ledger): (i128, u32) = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
+            .unwrap_or((0, 0));
+        if e.ledger().sequence() > expiration_ledger {
+            panic!("Allowance expired");
+        }
         if allowance < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &(allowance - amount, expiration_ledger),
         );
 
         let from_balance: i128 = e
@@ -289,14 +302,21 @@ impl TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let allowance: i128 = e
+        let (allowance, expiration_ledger): (i128, u32) = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
+            .unwrap_or((0, 0));
+        if e.ledger().sequence() > expiration_ledger {
+            panic!("Allowance expired");
+        }
         if allowance < amount {
             panic!("Insufficient allowance");
         }
+        e.storage().persistent().set(
+            &DataKey::Allowance(from.clone(), spender),
+            &(allowance - amount, expiration_ledger),
+        );
 
         let balance: i128 = e
             .storage()
@@ -304,7 +324,7 @@ impl TycoonToken {
             .get(&DataKey::Balance(from.clone()))
             .unwrap_or(0);
         if balance < amount {
-            panic!("Insufficient balance");
+            panic!("Insufficient balance")
         }
 
         let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
@@ -322,7 +342,12 @@ impl TycoonToken {
 
         BurnEvent { from, amount }.publish(&e);
     }
-    use soroban_sdk::Env;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
 
     #[test]
     fn decimals_is_pinned_to_18() {
@@ -358,12 +383,7 @@ impl TycoonToken {
         assert_eq!(client.total_supply(), 1_000);
         assert_eq!(client.balance(&admin), 1_000);
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::testutils::Address as _;
     pub fn decimals(_e: Env) -> u32 {
         18
     }
@@ -375,5 +395,4 @@ mod test {
     pub fn symbol(e: Env) -> String {
         String::from_str(&e, "TYC")
     }
-}
 }

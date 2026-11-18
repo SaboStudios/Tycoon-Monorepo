@@ -171,6 +171,8 @@ impl TycoonRewardSystem {
         e.storage().persistent().get(&DataKey::BackendMinter)
     }
 
+    /// Mint a voucher. `tyc_value` is stored as `u128` but must fit in `i128`
+    /// (the token amount type); values above `i128::MAX` cannot be redeemed.
     pub fn mint_voucher(e: Env, caller: Address, to: Address, tyc_value: u128) -> Result<u128, RewardError> {
         // Single read for admin — reused for both auth check and comparison
         let admin: Address = e
@@ -262,6 +264,13 @@ impl TycoonRewardSystem {
             .get(&DataKey::VoucherValue(token_id))
             .expect("Invalid token_id");
 
+        // Checked conversion before burn: reject values that do not fit in i128
+        // so we never burn a voucher we cannot pay out.
+        let payout: i128 = match i128::try_from(tyc_value) {
+            Ok(v) => v,
+            Err(_) => panic!("Voucher value overflows i128"),
+        };
+
         // Burn first (validates balance), then transfer
         Self::_burn(&e, redeemer.clone(), token_id, 1);
 
@@ -274,7 +283,7 @@ impl TycoonRewardSystem {
         soroban_sdk::token::Client::new(&e, &tyc_token).transfer(
             &e.current_contract_address(),
             &redeemer,
-            &(tyc_value as i128),
+            &payout,
         );
 
         // Remove voucher value entry after successful transfer
@@ -297,7 +306,8 @@ impl TycoonRewardSystem {
         Ok(())
     }
 
-    /// Withdraw funds from the contract (admin only)
+    /// Withdraw funds from the contract (admin only). `amount` is `u128` but
+    /// must fit in `i128` (the token amount type).
     pub fn withdraw_funds(e: Env, token: Address, to: Address, amount: u128) {
         let admin: Address = e
             .storage()
@@ -305,6 +315,12 @@ impl TycoonRewardSystem {
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
+
+        // Checked conversion before transfer: reject values that do not fit in i128
+        let payout: i128 = match i128::try_from(amount) {
+            Ok(v) => v,
+            Err(_) => panic!("Withdraw amount overflows i128"),
+        };
 
         // Reject withdrawals that would underfund outstanding vouchers
         let liability: u128 = e
@@ -331,6 +347,7 @@ impl TycoonRewardSystem {
         if balance.saturating_sub(amount) < liability {
             panic!("Withdrawal would underfund outstanding vouchers");
         }
+        }
 
         soroban_sdk::token::Client::new(&e, &token).transfer(
             &e.current_contract_address(),
@@ -355,7 +372,6 @@ impl TycoonRewardSystem {
             let new_count = count.checked_add(1).expect("Owned count overflow");
             e.storage().persistent().set(&count_key, &new_count);
         }
-        e.storage().persistent().set(&key, &(current + amount));
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Mint"), to, token_id), amount);
@@ -382,4 +398,6 @@ impl TycoonRewardSystem {
         e.events()
             .publish((symbol_short!("Burn"), from, token_id), amount);
     }
+
+    /* … remaining implementation unchanged … */
 }
