@@ -31,6 +31,25 @@ export function isAuctionExpired(auction: AuctionState, now: number = Date.now()
   return now > auction.expiresAt;
 }
 
+/**
+ * Generates a 128-bit random auction id. Uses `crypto.randomUUID` when
+ * available and falls back to `crypto.getRandomValues` so ids never depend on
+ * the clock or `Math.random`.
+ */
+function generateAuctionId(): string {
+  const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return `auction-${cryptoObj.randomUUID()}`;
+  }
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    cryptoObj.getRandomValues(bytes);
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `auction-${hex}`;
+  }
+  throw new Error('Secure random source unavailable for auction id generation');
+}
+
 export class AuctionManager {
   private auctions: Map<string, AuctionState> = new Map();
 
@@ -41,8 +60,19 @@ export class AuctionManager {
     minBidIncrement: number = MIN_BID_INCREMENT,
   ): AuctionState {
     const now = Date.now();
+    let id = generateAuctionId();
+    // Retry on the (astronomically unlikely) collision with an existing id so
+    // a new auction never overwrites another one in the map.
+    let attempts = 0;
+    while (this.auctions.has(id)) {
+      attempts += 1;
+      if (attempts >= 5) {
+        throw new Error('Failed to generate a unique auction id');
+      }
+      id = generateAuctionId();
+    }
     const auction: AuctionState = {
-      id: `auction-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      id,
       sellerId,
       itemId,
       startingBid,
