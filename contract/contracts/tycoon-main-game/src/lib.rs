@@ -47,18 +47,6 @@ impl TycoonMainGame {
         storage::set_initialized(&env);
     }
 
-    /// Migrate the contract to a newer state version (admin only)
-    pub fn migrate(env: Env) {
-        let admin = storage::get_owner(&env);
-        admin.require_auth();
-
-        let current_version = storage::get_state_version(&env);
-
-        if current_version == 0 {
-            storage::set_state_version(&env, 1);
-        }
-    }
-
     // ============================================================
     // Pause/Unpause
     // ============================================================
@@ -178,6 +166,7 @@ impl TycoonMainGame {
     /// * If contract is paused
     /// * If game not found
     /// * If player not in the game
+    /// * If the recorded stake total would underflow the refund
     pub fn leave_pending_game(env: Env, game_id: u64, player: Address) {
         player.require_auth();
 
@@ -203,18 +192,28 @@ impl TycoonMainGame {
             panic!("Player not found in game");
         }
 
+        // Compute the refund and the new total before any token movement so
+        // that an accounting underflow fails the call without transferring.
+        let refund_amount = game.stake_per_player;
+        let new_total_staked = game
+            .total_staked
+            .checked_sub(refund_amount)
+            .unwrap_or_else(|| panic!("Stake total underflow"));
+
         // Refund stake — read usdc_token only when a transfer is needed
-        if game.stake_per_player > 0 {
+        if refund_amount > 0 {
+            let refund_i128 = i128::try_from(refund_amount)
+                .unwrap_or_else(|_| panic!("Stake amount exceeds i128"));
             let usdc_token = storage::get_usdc_token(&env);
             token::Client::new(&env, &usdc_token).transfer(
                 &env.current_contract_address(),
                 &player,
-                &(game.stake_per_player as i128),
+                &refund_i128,
             );
         }
 
         // Update game state
-        game.total_staked = game.total_staked.saturating_sub(game.stake_per_player);
+        game.total_staked = new_total_staked;
         game.joined_players = new_players;
 
         let remaining = game.joined_players.len();
@@ -229,13 +228,7 @@ impl TycoonMainGame {
         // Emit player-left event
         events::emit_player_left_pending(
             &env,
-            &events::PlayerLeftPendingData {
-                game_id,
-                player,
-                stake_refunded: game.stake_per_player,
-                remaining_players: remaining as u32,
-            },
-        );
+            &e
 
         if remaining == 0 {
             events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
@@ -244,30 +237,5 @@ impl TycoonMainGame {
 
     // ============================================================
     // View Functions
-    // ============================================================
+    // ======================================================
 
-    pub fn get_owner(env: Env) -> Address {
-        storage::get_owner(&env)
-    }
-
-    pub fn get_reward_system(env: Env) -> Address {
-        storage::get_reward_system(&env)
-    }
-
-    pub fn is_registered(env: Env, address: Address) -> bool {
-        storage::is_registered(&env, &address)
-    }
-
-    pub fn get_game(env: Env, game_id: u64) -> Option<storage::Game> {
-        storage::get_game(&env, game_id)
-    }
-
-    pub fn get_game_settings(env: Env, game_id: u64) -> Option<storage::GameSettings> {
-        storage::get_game_settings(&env, game_id)
-    }
-
-    /// Return the pause config (for testing/verification).
-    pub fn get_pause_config(env: Env) -> Option<storage::PauseConfig> {
-        storage::get_pause_config(&env)
-    }
-}

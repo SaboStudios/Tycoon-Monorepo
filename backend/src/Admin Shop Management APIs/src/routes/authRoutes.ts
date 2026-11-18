@@ -5,6 +5,14 @@ import { User } from '../types';
 
 const router = Router();
 
+// Refuse to start without a JWT secret; never fall back to a default.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET environment variable is required and must not be empty',
+  );
+}
+
 // Mock users (replace with database in production)
 const users: User[] = [
   {
@@ -33,8 +41,8 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '24h' },
+      JWT_SECRET,
+      { expiresIn: '24h', algorithm: 'HS256' },
     );
 
     res.json({
