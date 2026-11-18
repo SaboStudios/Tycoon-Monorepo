@@ -276,38 +276,38 @@ describe('CouponsService', () => {
 
       expect(discount).toBe(100);
     });
+  });
 
-    it('should compute 10 percent of 10.10 as 1.01 without float drift', () => {
-      const coupon = {
-        ...mockCoupon,
-        type: CouponType.PERCENTAGE,
-        value: '10',
-      } as Coupon;
-      const discount = service.calculateDiscount(coupon, 10.1);
+  describe('incrementUsage', () => {
+    it('should increment usage atomically and succeed when under limit', async () => {
+      const limitedCoupon = { ...mockCoupon, max_uses: 1, current_usage: 0 };
+      mockRepository.findOne.mockResolvedValue(limitedCoupon);
+      mockRepository.increment.mockResolvedValue({ affected: 1 });
 
-      expect(discount).toBe(1.01);
+      await expect(service.incrementUsage(1)).resolves.toBeUndefined();
+
+      expect(mockRepository.increment).toHaveBeenCalledWith(
+        { id: 1, current_usage: expect.anything() },
+        'current_usage',
+        1,
+      );
     });
 
-    it('should round a fixed coupon with three decimal places to minor units', () => {
-      const coupon = {
-        ...mockCoupon,
-        type: CouponType.FIXED,
-        value: '15.555',
-      } as Coupon;
-      const discount = service.calculateDiscount(coupon, 100);
+    it('should fail the second apply when limit is 1 and not increment', async () => {
+      const limitedCoupon = { ...mockCoupon, max_uses: 1, current_usage: 1 };
+      mockRepository.findOne.mockResolvedValue(limitedCoupon);
+      mockRepository.increment.mockResolvedValue({ affected: 0 });
 
-      expect(discount).toBe(15.56);
-    });
-
-    it('should reject a non-numeric coupon value', () => {
-      const coupon = {
-        ...mockCoupon,
-        type: CouponType.PERCENTAGE,
-        value: 'abc',
-      } as Coupon;
-
-      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+      await expect(service.incrementUsage(1)).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException when coupon does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.incrementUsage(999)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

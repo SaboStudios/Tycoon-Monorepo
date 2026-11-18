@@ -262,6 +262,37 @@ export class CouponsService {
     };
   }
 
+  /**
+   * Atomically consume one use of a coupon. The conditional update
+   * (`current_usage < max_uses`) is the single source of truth for the usage
+   * limit: concurrent callers race on the same row and only the one whose
+   * update affects a row wins. Callers must run this inside the same
+   * transaction as the purchase write so a rolled-back purchase does not
+   * consume a use.
+   */
+  async incrementUsage(
+    couponId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repository = manager
+      ? manager.getRepository(Coupon)
+      : this.couponRepository;
+
+    const result = await repository
+      .createQueryBuilder()
+      .update(Coupon)
+      .set({ current_usage: () => 'current_usage + 1' })
+      .where('id = :couponId', { couponId })
+      .andWhere('(max_uses IS NULL OR current_usage < max_uses)')
+      .execute();
+
+    if (!result.affected) {
+      throw new ConflictException(
+        'This coupon has reached its usage limit',
+      );
+    }
+  }
+
   calculateDiscount(coupon: Coupon, purchaseAmount: number): number {
     const purchaseMinorUnits = Math.round(purchaseAmount * 100);
     let discountMinorUnits = 0;
@@ -284,60 +315,5 @@ export class CouponsService {
     discountMinorUnits = Math.min(discountMinorUnits, purchaseMinorUnits);
 
     return discountMinorUnits / 100;
-  }
-
-  async incrementUsage(id: number): Promise<void> {
-    await this.couponRepository.increment({ id }, 'current_usage', 1);
-  }
-
-  async applyCoupon(
-    code: string,
-    shop_item_id: number,
-    purchase_amount: number,
-  ): Promise<number> {
-    const validation = await this.validateCoupon({
-      code,
-      shop_item_id,
-      purchase_amount,
-    });
-
-    if (!validation.valid || !validation.coupon) {
-      throw new BadRequestException(validation.message);
-    }
-
-    await this.incrementUsage(validation.coupon.id);
-
-    return validation.discount_amount || 0;
-  }
-
-  /**
-   * Log coupon usage for audit trail
-   */
-  async logCouponUsage(
-    couponId: number,
-    userId: number,
-    couponCode: string,
-    originalAmount: number,
-    discountAmount: number,
-    finalAmount: number,
-    purchaseId?: number,
-    ipAddress?: string,
-    userAgent?: string,
-    metadata?: Record<string, unknown>,
-  ): Promise<CouponUsageLog> {
-    const log = this.couponUsageLogRepository.create({
-      coupon_id: couponId,
-      user_id: userId,
-      purchase_id: purchaseId,
-      coupon_code: couponCode,
-      original_amount: originalAmount,
-      discount_amount: discountAmount,
-      final_amount: finalAmount,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      metadata,
-    });
-
-    return this.couponUsageLogRepository.save(log);
   }
 }
