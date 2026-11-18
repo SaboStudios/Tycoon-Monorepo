@@ -267,6 +267,19 @@ impl TycoonRewardSystem {
         let liability: u128 = e
             .storage()
             .persistent()
+            .get(&DataKey::TycToken)
+            .expect("Not initialized");
+        let usdc_token: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::UsdcToken)
+            .expect("Not initialized");
+        let _ = (tyc_token, usdc_token);
+
+        // Reject withdrawals that would underfund outstanding vouchers
+        let liability: u128 = e
+            .storage()
+            .persistent()
             .get(&DataKey::VoucherLiability)
             .unwrap_or(0);
         let balance = soroban_sdk::token::Client::new(&e, &token).balance(

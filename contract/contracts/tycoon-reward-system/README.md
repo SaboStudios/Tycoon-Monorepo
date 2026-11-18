@@ -32,6 +32,25 @@ The table below documents the signer each public method requires **today**, as e
 | `burn_voucher` | Admin **or** backend minter | `caller.require_auth()` plus an explicit check that `caller` is the admin or the configured backend minter. |
 | `withdraw_funds` | **Admin only** | `admin.require_auth()` on the stored admin. |
 
+## Event topic symbols
+
+Reward events are published with a topic symbol. Most use `symbol_short!`, which accepts **at most nine characters**. A longer topic must use `Symbol::new` instead — but note that switching an event to `Symbol::new` changes the topic encoding, so indexers that match on the short form will miss it. Keep the symbols below exactly as they appear in `src/lib.rs`.
+
+| Event | Topic symbol | Form |
+| --- | --- | --- |
+| Pause | `Paused` | `symbol_short!` |
+| Unpause | `Unpaused` | `symbol_short!` |
+| Set backend minter | `set_min` | `symbol_short!` |
+| Clear backend minter | `clr_min` | `symbol_short!` |
+| Mint voucher | `V_Mint` | `symbol_short!` |
+| Redeem voucher | `Redeem` | `symbol_short!` |
+| Transfer | `Transfer` | `symbol_short!` |
+| Mint | `Mint` | `symbol_short!` |
+| Burn | `Burn` | `symbol_short!` |
+| Withdraw funds | `FundsWithdrawn` | `Symbol::new` (long symbol, > 9 chars) |
+
+`FundsWithdrawn` is longer than nine characters, so `withdraw_funds` uses `Symbol::new` rather than `symbol_short!`.
+
 ## Getting Started
 
 ### Prerequisites
