@@ -178,6 +178,7 @@ impl TycoonMainGame {
     /// * If contract is paused
     /// * If game not found
     /// * If player not in the game
+    /// * If the game's `total_staked` is smaller than the refunded stake
     pub fn leave_pending_game(env: Env, game_id: u64, player: Address) {
         player.require_auth();
 
@@ -203,6 +204,13 @@ impl TycoonMainGame {
             panic!("Player not found in game");
         }
 
+        // Compute the new total before any transfer so a broken total aborts
+        // the whole leave (including the refund) instead of silently saturating.
+        let new_total_staked = game
+            .total_staked
+            .checked_sub(game.stake_per_player)
+            .unwrap_or_else(|| panic!("Total staked is smaller than the refunded stake"));
+
         // Refund stake — read usdc_token only when a transfer is needed
         if game.stake_per_player > 0 {
             let usdc_token = storage::get_usdc_token(&env);
@@ -214,7 +222,7 @@ impl TycoonMainGame {
         }
 
         // Update game state
-        game.total_staked = game.total_staked.saturating_sub(game.stake_per_player);
+        game.total_staked = new_total_staked;
         game.joined_players = new_players;
 
         let remaining = game.joined_players.len();
@@ -244,30 +252,6 @@ impl TycoonMainGame {
 
     // ============================================================
     // View Functions
-    // ============================================================
+    // ======================================================
 
-    pub fn get_owner(env: Env) -> Address {
-        storage::get_owner(&env)
-    }
-
-    pub fn get_reward_system(env: Env) -> Address {
-        storage::get_reward_system(&env)
-    }
-
-    pub fn is_registered(env: Env, address: Address) -> bool {
-        storage::is_registered(&env, &address)
-    }
-
-    pub fn get_game(env: Env, game_id: u64) -> Option<storage::Game> {
-        storage::get_game(&env, game_id)
-    }
-
-    pub fn get_game_settings(env: Env, game_id: u64) -> Option<storage::GameSettings> {
-        storage::get_game_settings(&env, game_id)
-    }
-
-    /// Return the pause config (for testing/verification).
-    pub fn get_pause_config(env: Env) -> Option<storage::PauseConfig> {
-        storage::get_pause_config(&env)
-    }
-}
+/* … truncated 753 chars — edit only what you need near the top … */
