@@ -282,6 +282,40 @@ impl TycoonToken {
         }
         e.storage()
             .persistent()
-            .set(&DataKey::Balance(from.clone()), &(balance - amount))
+            .set(&DataKey::Balance(from.clone()), &(balance - amount));
 
-/* … truncated 568 chars — edit only what you need near the top … */
+        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalSupply, &(supply - amount));
+
+        BurnEvent { from, amount }.publish(&e);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+
+    #[test]
+    fn allowance_is_zero_when_no_approval_was_stored() {
+        let e = Env::default();
+        let contract_id = e.register(TycoonToken, ());
+        let client = TycoonTokenClient::new(&e, &contract_id);
+
+        let admin = Address::generate(&e);
+        let from = Address::generate(&e);
+        let spender = Address::generate(&e);
+
+        client.initialize(&admin, &1_000_000);
+
+        let from_balance_before = client.balance(&from);
+        let spender_balance_before = client.balance(&spender);
+
+        assert_eq!(client.allowance(&from, &spender), 0);
+
+        assert_eq!(client.balance(&from), from_balance_before);
+        assert_eq!(client.balance(&spender), spender_balance_before);
+    }
+}
