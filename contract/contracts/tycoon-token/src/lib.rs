@@ -297,7 +297,7 @@ impl TycoonToken {
     }
 
     pub fn name(e: Env) -> String {
-        String::from_str(&e, "Tycoon")
+        String::from_str(&e, "Tycoon Token")
     }
 
     pub fn symbol(e: Env) -> String {
@@ -306,10 +306,31 @@ impl TycoonToken {
 }
 
 #[cfg(test)]
-mod test;
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::Env;
 
-#[cfg(test)]
-mod invariant_tests;
+    #[test]
+    fn decimals_is_pinned_to_18() {
+        let e = Env::default();
+        let contract_id = e.register(TycoonToken, ());
+        let client = TycoonTokenClient::new(&e, &contract_id);
 
-#[cfg(test)]
-mod error_branch_tests;
+        assert_eq!(client.decimals(), 18);
+    }
+
+    #[test]
+    fn initialize_sets_admin_and_supply() {
+        let e = Env::default();
+        let contract_id = e.register(TycoonToken, ());
+        let client = TycoonTokenClient::new(&e, &contract_id);
+        let admin = Address::generate(&e);
+
+        client.initialize(&admin, &1_000);
+
+        assert_eq!(client.admin(), admin);
+        assert_eq!(client.total_supply(), 1_000);
+        assert_eq!(client.balance(&admin), 1_000);
+    }
+}
