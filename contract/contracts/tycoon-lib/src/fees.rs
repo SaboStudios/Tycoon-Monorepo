@@ -102,6 +102,7 @@ mod tests {
         let env = Env::default();
         let config = config_with_bps(&env, 250, 500, 1000);
 
+        // A zero amount yields an all-zero split (see the rustdoc example).
         let split = calculate_fee_split(0, &config);
         assert_eq!(split.platform_amount, 0);
         assert_eq!(split.creator_amount, 0);

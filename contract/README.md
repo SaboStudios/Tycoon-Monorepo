@@ -1,6 +1,10 @@
 # Tycoon Contracts
 
+# Tycoon Contracts
+
 Soroban smart contracts for the Tycoon game, built with `soroban-sdk` v23.
+
+This directory is the Cargo workspace root for the Tycoon smart contracts.
 
 ## Workspace members
 
@@ -34,6 +38,23 @@ cargo build --release --target wasm32-unknown-unknown
 ```
 
 ## Testing
+
+Run the commands below from the `contract/` directory (the workspace root).
+
+Test a single crate with `-p`:
+
+```bash
+# Token crate
+cargo test -p tycoon-token
+
+# Reward crate
+cargo test -p tycoon-reward-system
+
+# Main-game crate
+cargo test -p tycoon-game
+```
+
+Running `cargo test` from the wrong directory can look empty or fail on a missing manifest, so make sure you are in `contract/` first.
 
 ```sh
 cargo test
