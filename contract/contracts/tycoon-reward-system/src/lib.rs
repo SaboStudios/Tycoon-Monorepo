@@ -151,6 +151,12 @@ impl TycoonRewardSystem {
             panic!("Unauthorized: only admin or backend minter can mint");
         }
 
+        // Reject zero-value vouchers before consuming an id or emitting events.
+        // Stable error string so the backend can map it deterministically.
+        if tyc_value == 0 {
+            panic!("Invalid voucher value: must be greater than zero");
+        }
+
         // Read-increment-write in one block; no intermediate clone needed
         let token_id: u128 = e
             .storage()
