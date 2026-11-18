@@ -127,6 +127,14 @@ export class AuctionManager {
     if (!auction) {
       return { success: false, events: [], error: 'Auction not found' };
     }
+    if (auction.status === 'cancelled') {
+      return { success: false, events: [], error: 'Auction is cancelled' };
+    }
+    if (auction.status === 'completed') {
+      // Idempotent: replaying a completion returns the original result without
+      // emitting a second `auction.completed` event.
+      return { success: true, events: [] };
+    }
     if (auction.currentBidder === null) {
       return { success: false, events: [], error: 'No bids received' };
     }
