@@ -42,6 +42,9 @@ pub enum DataKey {
     Allowance(Address, Address),
     TotalSupply,
     Initialized,
+    Name,
+    Symbol,
+    Decimals,
 }
 
 #[contract]
@@ -49,12 +52,25 @@ pub struct TycoonToken;
 
 #[contractimpl]
 impl TycoonToken {
-    pub fn initialize(e: Env, admin: Address, initial_supply: i128) {
+    pub fn initialize(
+        e: Env,
+        admin: Address,
+        initial_supply: i128,
+        name: String,
+        symbol: String,
+        decimals: u32,
+    ) {
         if e.storage().instance().has(&DataKey::Initialized) {
             panic!("Already initialized");
         }
+        if decimals > 18 {
+            panic!("Decimals cannot exceed 18");
+        }
         e.storage().instance().set(&DataKey::Initialized, &true);
         e.storage().instance().set(&DataKey::Admin, &admin);
+        e.storage().instance().set(&DataKey::Name, &name);
+        e.storage().instance().set(&DataKey::Symbol, &symbol);
+        e.storage().instance().set(&DataKey::Decimals, &decimals);
         e.storage()
             .instance()
             .set(&DataKey::TotalSupply, &initial_supply);
@@ -66,6 +82,18 @@ impl TycoonToken {
             amount: initial_supply,
         }
         .publish(&e);
+    }
+
+    pub fn name(e: Env) -> String {
+        e.storage().instance().get(&DataKey::Name).unwrap()
+    }
+
+    pub fn symbol(e: Env) -> String {
+        e.storage().instance().get(&DataKey::Symbol).unwrap()
+    }
+
+    pub fn decimals(e: Env) -> u32 {
+        e.storage().instance().get(&DataKey::Decimals).unwrap()
     }
 
     pub fn mint(e: Env, to: Address, amount: i128) {
@@ -291,7 +319,6 @@ impl TycoonToken {
 
         BurnEvent { from, amount }.publish(&e);
     }
-
     pub fn decimals(_e: Env) -> u32 {
         18
     }

@@ -165,6 +165,13 @@ impl TycoonRewardSystem {
             panic!("Contract is paused");
         }
 
+        // Reject zero-value vouchers before consuming an id or emitting events.
+        // Stable error string so the backend can map it deterministically.
+        if tyc_value == 0 {
+            panic!("Invalid voucher value: must be greater than zero");
+        }
+        }
+
         // Read-increment-write in one block; no intermediate clone needed
         let token_id: u128 = e
             .storage()
@@ -197,10 +204,6 @@ impl TycoonRewardSystem {
             .publish((symbol_short!("V_Mint"), to, token_id), tyc_value);
 
         token_id
-    }
-
-    pub fn redeem_voucher(_e: Env, _token_id: u128) {
-        panic!("Use redeem_voucher_from instead");
     }
 
     pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128) {
