@@ -230,4 +230,12 @@ impl TycoonMainGame {
             &env,
             &e
 
-/* … truncated 568 chars — edit only what you need near the top … */
+        if remaining == 0 {
+            events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
+        }
+    }
+
+    // ============================================================
+    // View Functions
+    // ======================================================
+
