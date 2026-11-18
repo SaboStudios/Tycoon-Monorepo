@@ -269,14 +269,16 @@ impl TycoonToken {
         if balance < amount {
             panic!("Insufficient balance");
         }
+
+        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
+        let new_supply = supply.checked_sub(amount).expect("Supply underflow");
+
         e.storage()
             .persistent()
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
-
-        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
         e.storage()
             .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
+            .set(&DataKey::TotalSupply, &new_supply);
 
         BurnEvent { from, amount }.publish(&e);
     }
@@ -295,10 +297,6 @@ impl TycoonToken {
         if allowance < amount {
             panic!("Insufficient allowance");
         }
-        e.storage().persistent().set(
-            &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
-        );
 
         let balance: i128 = e
             .storage()
@@ -308,14 +306,19 @@ impl TycoonToken {
         if balance < amount {
             panic!("Insufficient balance");
         }
+
+        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
+        let new_supply = supply.checked_sub(amount).expect("Supply underflow");
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::Allowance(from.clone(), spender), &(allowance - amount));
         e.storage()
             .persistent()
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
-
-        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
         e.storage()
             .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
+            .set(&DataKey::TotalSupply, &new_supply);
 
         BurnEvent { from, amount }.publish(&e);
     }
@@ -323,29 +326,6 @@ impl TycoonToken {
 
     #[test]
     fn decimals_is_pinned_to_18() {
-        let e = Env::default();
-        let contract_id = e.register(TycoonToken, ());
-        let client = TycoonTokenClient::new(&e, &contract_id);
-
-        let admin = Address::generate(&e);
-        let f
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::testutils::Address as _;
-    pub fn decimals(_e: Env) -> u32 {
-        18
-    }
-
-    pub fn name(e: Env) -> String {
-        String::from_str(&e, "Tycoon Token")
-    }
-
-    pub fn symbol(e: Env) -> String {
-        String::from_str(&e, "TYC")
-    }
         let e = Env::default();
         let contract_id = e.register(TycoonToken, ());
         let client = TycoonTokenClient::new(&e, &contract_id);
@@ -378,4 +358,22 @@ mod test {
         assert_eq!(client.total_supply(), 1_000);
         assert_eq!(client.balance(&admin), 1_000);
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    pub fn decimals(_e: Env) -> u32 {
+        18
+    }
+
+    pub fn name(e: Env) -> String {
+        String::from_str(&e, "Tycoon Token")
+    }
+
+    pub fn symbol(e: Env) -> String {
+        String::from_str(&e, "TYC")
+    }
+}
 }

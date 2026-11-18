@@ -51,9 +51,11 @@ pub fn _safe_transfer(
     Ok(())
 }
 
-/// Batch transfer stub for future implementation
-/// This can be expanded later for gas-efficient multi-token transfers
-#[allow(dead_code)]
+/// Batch transfer of multiple token ids from `from` to `to`.
+///
+/// Requires `from` authorization exactly once. Rejects empty batches and
+/// validates that `token_ids` and `amounts` have matching lengths before
+/// performing any transfer, so a mismatch cannot partially move tokens.
 pub fn _safe_batch_transfer(
     env: &Env,
     from: &Address,
@@ -61,6 +63,12 @@ pub fn _safe_batch_transfer(
     token_ids: &soroban_sdk::Vec<u128>,
     amounts: &soroban_sdk::Vec<u64>,
 ) -> Result<(), CollectibleError> {
+    from.require_auth();
+
+    if token_ids.len() == 0 {
+        return Err(CollectibleError::InvalidAmount);
+    }
+
     if token_ids.len() != amounts.len() {
         return Err(CollectibleError::TokenIdMismatch);
     }

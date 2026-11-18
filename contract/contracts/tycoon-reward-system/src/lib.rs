@@ -1,7 +1,23 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{contract, contractevent, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
 const VOUCHER_ID_START: u128 = 1_000_000_000;
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PausedEvent {
+    #[topic]
+    pub admin: Address,
+    pub paused: bool,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnpausedEvent {
+    #[topic]
+    pub admin: Address,
+    pub paused: bool,
+}
 
 #[contracttype]
 #[derive(Clone)]
@@ -61,8 +77,11 @@ impl TycoonRewardSystem {
             .expect("Not initialized");
         admin.require_auth();
         e.storage().persistent().set(&DataKey::Paused, &true);
-        #[allow(deprecated)]
-        e.events().publish((symbol_short!("Paused"),), true);
+        PausedEvent {
+            admin: admin.clone(),
+            paused: true,
+        }
+        .publish(&e);
     }
 
     /// Emergency unpause contract (admin only)
@@ -74,8 +93,11 @@ impl TycoonRewardSystem {
             .expect("Not initialized");
         admin.require_auth();
         e.storage().persistent().set(&DataKey::Paused, &false);
-        #[allow(deprecated)]
-        e.events().publish((symbol_short!("Unpaused"),), false);
+        UnpausedEvent {
+            admin: admin.clone(),
+            paused: false,
+        }
+        .publish(&e);
     }
 
     /// Set the backend minter address (admin only)
@@ -273,7 +295,6 @@ impl TycoonRewardSystem {
         ) as u128;
         if balance.saturating_sub(amount) < liability {
             panic!("Withdrawal would underfund outstanding vouchers");
-        }
         }
 
         soroban_sdk::token::Client::new(&e, &token).transfer(

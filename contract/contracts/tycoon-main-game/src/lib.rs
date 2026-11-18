@@ -239,3 +239,20 @@ impl TycoonMainGame {
     // View Functions
     // ======================================================
 
+        // Single persistent write covers all mutations above
+        storage::set_game(&env, &game);
+
+        // Emit player-left event
+        events::emit_player_left_pending(
+            &env,
+            &e
+
+        if remaining == 0 {
+            events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
+        }
+    }
+
+    // ============================================================
+    // View Functions
+    // ======================================================
+
