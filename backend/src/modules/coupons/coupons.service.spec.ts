@@ -279,36 +279,35 @@ describe('CouponsService', () => {
   });
 
   describe('incrementUsage', () => {
-    it('should increment coupon usage', async () => {
-      mockRepository.increment.mockResolvedValue(undefined);
+    it('should increment usage atomically and succeed when under limit', async () => {
+      const limitedCoupon = { ...mockCoupon, max_uses: 1, current_usage: 0 };
+      mockRepository.findOne.mockResolvedValue(limitedCoupon);
+      mockRepository.increment.mockResolvedValue({ affected: 1 });
 
-      await service.incrementUsage(1);
+      await expect(service.incrementUsage(1)).resolves.toBeUndefined();
 
       expect(mockRepository.increment).toHaveBeenCalledWith(
-        { id: 1 },
+        { id: 1, current_usage: expect.anything() },
         'current_usage',
         1,
       );
     });
-  });
 
-  describe('applyCoupon', () => {
-    it('should apply a valid coupon and increment usage', async () => {
-      mockRepository.findOne.mockResolvedValue(mockCoupon);
-      mockRepository.increment.mockResolvedValue(undefined);
+    it('should fail the second apply when limit is 1 and not increment', async () => {
+      const limitedCoupon = { ...mockCoupon, max_uses: 1, current_usage: 1 };
+      mockRepository.findOne.mockResolvedValue(limitedCoupon);
+      mockRepository.increment.mockResolvedValue({ affected: 0 });
 
-      const discount = await service.applyCoupon('SAVE20', null, 100);
-
-      expect(discount).toBe(20);
-      expect(mockRepository.increment).toHaveBeenCalled();
+      await expect(service.incrementUsage(1)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
-    it('should throw BadRequestException for invalid coupon', async () => {
-      const inactiveCoupon = { ...mockCoupon, active: false };
-      mockRepository.findOne.mockResolvedValue(inactiveCoupon);
+    it('should throw NotFoundException when coupon does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.applyCoupon('SAVE20', null, 100)).rejects.toThrow(
-        BadRequestException,
+      await expect(service.incrementUsage(999)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

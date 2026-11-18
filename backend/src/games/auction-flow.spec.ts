@@ -143,14 +143,43 @@ describe('AuctionManager', () => {
       });
     });
 
-    it('completes the auction once a bid exists', () => {
+    it('completes an active auction with a bidder once', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
       manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
 
       const result = manager.completeAuction('a1');
       expect(result.success).toBe(true);
+      expect(result.events).toHaveLength(1);
+      expect(result.events[0]).toMatchObject({ type: 'auction.completed', auctionId: 'a1' });
       expect(manager.getAuction('a1')?.status).toBe('completed');
+    });
+
+    it('returns the existing result without a second event when already completed', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+
+      const first = manager.completeAuction('a1');
+      const second = manager.completeAuction('a1');
+
+      expect(second.success).toBe(true);
+      expect(second.events).toEqual([]);
+      expect(second.result).toEqual(first.result);
+      expect(manager.getAuction('a1')?.status).toBe('completed');
+    });
+
+    it('fails to complete a cancelled auction', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+      auction.status = 'cancelled';
+
+      const result = manager.completeAuction('a1');
+      expect(result.success).toBe(false);
+      expect(result.events).toEqual([]);
+      expect(result.error).toBe('Auction is cancelled');
+      expect(manager.getAuction('a1')?.status).toBe('cancelled');
     });
   });
 

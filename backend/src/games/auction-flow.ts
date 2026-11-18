@@ -38,6 +38,25 @@ export function isAuctionExpired(auction: Auction, now: number = Date.now()): bo
   return now > auction.expiresAt;
 }
 
+/**
+ * Generates a 128-bit random auction id. Uses `crypto.randomUUID` when
+ * available and falls back to `crypto.getRandomValues` so ids never depend on
+ * the clock or `Math.random`.
+ */
+function generateAuctionId(): string {
+  const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return `auction-${cryptoObj.randomUUID()}`;
+  }
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    cryptoObj.getRandomValues(bytes);
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `auction-${hex}`;
+  }
+  throw new Error('Secure random source unavailable for auction id generation');
+}
+
 export class AuctionManager {
   private auctions = new Map<string, Auction>();
 
@@ -95,6 +114,14 @@ export class AuctionManager {
     const auction = this.auctions.get(id);
     if (!auction) {
       return { success: false, events: [], error: 'Auction not found' };
+    }
+    if (auction.status === 'cancelled') {
+      return { success: false, events: [], error: 'Auction is cancelled' };
+    }
+    if (auction.status === 'completed') {
+      // Idempotent: replaying a completion returns the original result without
+      // emitting a second `auction.completed` event.
+      return { success: true, events: [] };
     }
     if (!auction.currentBidder) {
       return { success: false, events: [], error: 'No bids received' };

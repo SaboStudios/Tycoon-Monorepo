@@ -27,6 +27,28 @@ export interface PaginatedCoupons {
   };
 }
 
+/**
+ * Parse a canonical decimal string (e.g. "10.10", "5", "0.005") into integer
+ * minor units (2 decimal places). Rejects anything that is not a canonical
+ * decimal so that binary floating point never touches coupon money.
+ */
+function parseMinorUnits(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) {
+    throw new BadRequestException('Coupon amount is missing');
+  }
+
+  const raw = typeof value === 'number' ? String(value) : value.trim();
+
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) {
+    throw new BadRequestException(`Invalid coupon amount: '${raw}'`);
+  }
+
+  const [whole, fraction = ''] = raw.split('.');
+  const paddedFraction = (fraction + '00').slice(0, 2);
+
+  return parseInt(whole, 10) * 100 + parseInt(paddedFraction, 10);
+}
+
 @Injectable()
 export class CouponsService {
   constructor(
@@ -214,7 +236,7 @@ export class CouponsService {
     if (
       coupon.min_purchase_amount &&
       purchase_amount &&
-      purchase_amount < parseFloat(coupon.min_purchase_amount)
+      purchase_amount < parseMinorUnits(coupon.min_purchase_amount) / 100
     ) {
       return {
         valid: false,
@@ -240,153 +262,58 @@ export class CouponsService {
     };
   }
 
+  /**
+   * Atomically consume one use of a coupon. The conditional update
+   * (`current_usage < max_uses`) is the single source of truth for the usage
+   * limit: concurrent callers race on the same row and only the one whose
+   * update affects a row wins. Callers must run this inside the same
+   * transaction as the purchase write so a rolled-back purchase does not
+   * consume a use.
+   */
+  async incrementUsage(
+    couponId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repository = manager
+      ? manager.getRepository(Coupon)
+      : this.couponRepository;
+
+    const result = await repository
+      .createQueryBuilder()
+      .update(Coupon)
+      .set({ current_usage: () => 'current_usage + 1' })
+      .where('id = :couponId', { couponId })
+      .andWhere('(max_uses IS NULL OR current_usage < max_uses)')
+      .execute();
+
+    if (!result.affected) {
+      throw new ConflictException(
+        'This coupon has reached its usage limit',
+      );
+    }
+  }
+
   calculateDiscount(coupon: Coupon, purchaseAmount: number): number {
-    let discount = 0;
+    const purchaseMinorUnits = Math.round(purchaseAmount * 100);
+    let discountMinorUnits = 0;
 
     if (coupon.type === CouponType.PERCENTAGE) {
-      discount = (purchaseAmount * parseFloat(coupon.value)) / 100;
+      // Percentage value is expressed in basis points (1% = 100 bps).
+      const basisPoints = parseMinorUnits(coupon.value);
+      discountMinorUnits = Math.floor(
+        (purchaseMinorUnits * basisPoints) / 10000,
+      );
 
       if (coupon.max_discount_amount) {
-        discount = Math.min(discount, parseFloat(coupon.max_discount_amount));
+        const capMinorUnits = parseMinorUnits(coupon.max_discount_amount);
+        discountMinorUnits = Math.min(discountMinorUnits, capMinorUnits);
       }
     } else if (coupon.type === CouponType.FIXED) {
-      discount = parseFloat(coupon.value);
+      discountMinorUnits = parseMinorUnits(coupon.value);
     }
 
-    return Math.min(discount, purchaseAmount);
-  }
+    discountMinorUnits = Math.min(discountMinorUnits, purchaseMinorUnits);
 
-  async incrementUsage(id: number): Promise<void> {
-    await this.couponRepository.increment({ id }, 'current_usage', 1);
-  }
-
-  async applyCoupon(
-    code: string,
-    shop_item_id: number,
-    purchase_amount: number,
-  ): Promise<number> {
-    const validation = await this.validateCoupon({
-      code,
-      shop_item_id,
-      purchase_amount,
-    });
-
-    if (!validation.valid || !validation.coupon) {
-      throw new BadRequestException(validation.message);
-    }
-
-    await this.incrementUsage(validation.coupon.id);
-
-    return validation.discount_amount || 0;
-  }
-
-  /**
-   * Log coupon usage for audit trail
-   */
-  async logCouponUsage(
-    couponId: number,
-    userId: number,
-    couponCode: string,
-    originalAmount: number,
-    discountAmount: number,
-    finalAmount: number,
-    purchaseId?: number,
-    ipAddress?: string,
-    userAgent?: string,
-    metadata?: Record<string, unknown>,
-  ): Promise<CouponUsageLog> {
-    const log = this.couponUsageLogRepository.create({
-      coupon_id: couponId,
-      user_id: userId,
-      purchase_id: purchaseId,
-      coupon_code: couponCode,
-      original_amount: String(originalAmount),
-      discount_amount: String(discountAmount),
-      final_amount: String(finalAmount),
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      metadata,
-    });
-
-    return this.couponUsageLogRepository.save(log);
-  }
-
-  /**
-   * Get coupon usage logs with pagination
-   */
-  async getCouponUsageLogs(
-    couponId?: number,
-    userId?: number,
-    page: number = 1,
-    limit: number = 20,
-  ): Promise<{
-    data: CouponUsageLog[];
-    meta: { page: number; limit: number; total: number; totalPages: number };
-  }> {
-    const qb = this.couponUsageLogRepository
-      .createQueryBuilder('log')
-      .leftJoinAndSelect('log.coupon', 'coupon')
-      .leftJoinAndSelect('log.user', 'user')
-      .leftJoinAndSelect('log.purchase', 'purchase')
-      .orderBy('log.created_at', 'DESC');
-
-    if (couponId) {
-      qb.andWhere('log.coupon_id = :couponId', { couponId });
-    }
-
-    if (userId) {
-      qb.andWhere('log.user_id = :userId', { userId });
-    }
-
-    const total = await qb.getCount();
-    const data = await qb
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
-
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
-  /**
-   * Get coupon usage statistics
-   */
-  async getCouponStatistics(couponId: number): Promise<{
-    total_uses: number;
-    total_discount_given: number;
-    total_revenue_impact: number;
-    unique_users: number;
-    average_discount: number;
-  }> {
-    const logs = await this.couponUsageLogRepository.find({
-      where: { coupon_id: couponId },
-    });
-
-    const totalUses = logs.length;
-    const totalDiscountGiven = logs.reduce(
-      (sum, log) => sum + parseFloat(log.discount_amount),
-      0,
-    );
-    const totalRevenueImpact = logs.reduce(
-      (sum, log) => sum + parseFloat(log.final_amount),
-      0,
-    );
-    const uniqueUsers = new Set(logs.map((log) => log.user_id)).size;
-    const averageDiscount = totalUses > 0 ? totalDiscountGiven / totalUses : 0;
-
-    return {
-      total_uses: totalUses,
-      total_discount_given: totalDiscountGiven,
-      total_revenue_impact: totalRevenueImpact,
-      unique_users: uniqueUsers,
-      average_discount: averageDiscount,
-    };
+    return discountMinorUnits / 100;
   }
 }
