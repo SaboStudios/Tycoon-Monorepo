@@ -88,6 +88,21 @@ loop {
 }
 ```
 
+## Batch Transfer
+
+Batch transfers are supported through the public `batch_transfer` entrypoint. It authorizes the sender exactly once, rejects empty batches, and requires `token_ids.len() == to.len()` before any transfer occurs, so a length mismatch cannot partially transfer tokens.
+
+**Gas characteristics**:
+- Each token in the batch performs one `_safe_transfer` (ownership update + enumeration index update)
+- Cost scales linearly with batch size; keep batches small (e.g. ≤ 50 tokens) to stay within per-transaction write limits
+- A single authorization covers the whole batch, avoiding per-token auth overhead
+
+**Usage Pattern**:
+```rust
+// Transfer two tokens from `from` to `to` in one transaction
+contract.batch_transfer(from, to, vec![&env, token_a, token_b]);
+```
+
 ## Storage Cost Analysis
 
 ### Per-Owner Storage Costs
@@ -126,6 +141,10 @@ pub const MAX_PAGE_SIZE: u32 = 100;
 **Out of Bounds Handling**:
 - `start_index >= total_tokens` → Returns empty Vec
 - Invalid indices return empty results (graceful degradation)
+
+**Batch Transfer Errors**:
+- Empty `token_ids` → `EmptyBatch`
+- `token_ids.len() != to.len()` → `TokenIdMismatch` (validated before any transfer)
 
 ## Frontend Integration Guidelines
 
@@ -173,5 +192,5 @@ The implemented pagination system ensures:
 - ✅ Iterator pattern for unlimited collection processing
 - ✅ Automatic cleanup of burned tokens (no denylist needed)
 - ✅ Storage costs optimized with O(1) operations
-- ✅ Comprehensive error handling and validation</content>
-<parameter name="filePath">c:\Users\TECHIE\Documents\GitHub\Tycoon-Monorepo\contract\contracts\tycoon-collectibles\GAS_LIMITS_AND_PAGINATION.md
+- ✅ Comprehensive error handling and validation
+- ✅ Batch transfer exposed via `batch_transfer` with single auth and pre-validated lengths
