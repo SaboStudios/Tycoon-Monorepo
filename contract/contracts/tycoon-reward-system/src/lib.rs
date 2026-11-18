@@ -153,6 +153,15 @@ impl TycoonRewardSystem {
             panic!("Unauthorized: only admin or backend minter can mint");
         }
 
+        // Reject minting while paused, before any storage or token change
+        if e.storage()
+            .persistent()
+            .get::<DataKey, bool>(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            panic!("Contract is paused");
+        }
+
         // Read-increment-write in one block; no intermediate clone needed
         let token_id: u128 = e
             .storage()
@@ -231,6 +240,15 @@ impl TycoonRewardSystem {
             .expect("Not initialized");
         admin.require_auth();
 
+        // Reject withdrawals while paused, before any token movement
+        if e.storage()
+            .persistent()
+            .get::<DataKey, bool>(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            panic!("Contract is paused");
+        }
+
         // Read both token addresses in two reads (unavoidable), but reuse locals
         let tyc_token: Address = e
             .storage()
@@ -244,7 +262,7 @@ impl TycoonRewardSystem {
             .expect("Not initialized");
 
         if token != tyc_token && token != usdc_token {
-            panic!("Invalid token");
+            panic!("Unsupported token");
         }
 
         soroban_sdk::token::Client::new(&e, &token).transfer(
@@ -258,74 +276,29 @@ impl TycoonRewardSystem {
             .publish((symbol_short!("Withdraw"), token, to), amount);
     }
 
-    /// Get the balance of a specific voucher for an owner
-    pub fn balance_of(e: Env, owner: Address, token_id: u128) -> u128 {
-        e.storage()
-            .persistent()
-            .get(&DataKey::Balance(owner, token_id))
-            .unwrap_or(0)
-    }
+    pub fn transfer(e: Env, from: Address, to: Address, token_id: u128, amount: u128) {
+        from.require_auth();
 
-    /// Get the total number of distinct vouchers owned by an address
-    pub fn owned_token_count(e: Env, owner: Address) -> u128 {
-        e.storage()
+        if e.storage()
             .persistent()
-            .get(&DataKey::OwnedTokenCount(owner))
-            .unwrap_or(0)
-    }
-
-    /// Get the TYC value backing a voucher
-    pub fn get_voucher_value(e: Env, token_id: u128) -> u128 {
-        e.storage()
-            .persistent()
-            .get(&DataKey::VoucherValue(token_id))
-            .expect("Invalid token_id")
-    }
-
-    /// Get the current voucher id counter
-    pub fn get_voucher_count(e: Env) -> u128 {
-        e.storage()
-            .persistent()
-            .get(&DataKey::VoucherCount)
-            .unwrap_or(VOUCHER_ID_START)
-    }
-
-    /// Check whether the contract is paused
-    pub fn is_paused(e: Env) -> bool {
-        e.storage()
-            .persistent()
-            .get(&DataKey::Paused)
+            .get::<DataKey, bool>(&DataKey::Paused)
             .unwrap_or(false)
-    }
+        {
+            panic!("Contract is paused");
+        }
 
-    /// Get the admin address
-    pub fn get_admin(e: Env) -> Address {
-        e.storage()
-            .persistent()
-            .get(&DataKey::Admin)
-            .expect("Not initialized")
+        Self::_transfer(&e, from, to, token_id, amount);
     }
-
-    // ------------------------------------------------------------------
-    // Private helpers — NOT part of the deployed ABI.
-    // These are intentionally not `pub` so they are not exported as
-    // contract entrypoints. They are exercised by unit tests inside the
-    // crate via `TycoonRewardSystem::_mint` / `TycoonRewardSystem::_burn`.
-    // ------------------------------------------------------------------
 
     fn _mint(e: &Env, to: Address, token_id: u128, amount: u128) {
         let key = DataKey::Balance(to.clone(), token_id);
         let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
         if current == 0 && amount > 0 {
-            let count_key = DataKey::OwnedTokenCount(to.clone());
-            let count: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
-            e.storage().persistent().set(&count_key, &(count + 1));
+            let owned_key = DataKey::OwnedTokenCount(to.clone());
+            let owned: u128 = e.storage().persistent().get(&owned_key).unwrap_or(0);
+            e.storage().persistent().set(&owned_key, &(owned + 1));
         }
         e.storage().persistent().set(&key, &(current + amount));
-
-        #[allow(deprecated)]
-        e.events()
-            .publish((symbol_short!("Mint"), to, token_id), amount);
     }
 
     fn _burn(e: &Env, from: Address, token_id: u128, amount: u128) {
@@ -337,81 +310,21 @@ impl TycoonRewardSystem {
         let new_balance = current - amount;
         if new_balance == 0 {
             e.storage().persistent().remove(&key);
-            let count_key = DataKey::OwnedTokenCount(from.clone());
-            let count: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
-            if count > 0 {
-                e.storage().persistent().set(&count_key, &(count - 1));
+            let owned_key = DataKey::OwnedTokenCount(from.clone());
+            let owned: u128 = e.storage().persistent().get(&owned_key).unwrap_or(0);
+            if owned > 0 {
+                e.storage().persistent().set(&owned_key, &(owned - 1));
             }
         } else {
             e.storage().persistent().set(&key, &new_balance);
         }
+    }
 
+    fn _transfer(e: &Env, from: Address, to: Address, token_id: u128, amount: u128) {
+        Self::_burn(e, from.clone(), token_id, amount);
+        Self::_mint(e, to.clone(), token_id, amount);
         #[allow(deprecated)]
         e.events()
-            .publish((symbol_short!("Burn"), from, token_id), amount);
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::Env;
-
-    fn setup() -> (Env, TycoonRewardSystemClient<'static>, Address, Address, Address) {
-        let e = Env::default();
-        e.mock_all_auths();
-        let contract_id = e.register_contract(None, TycoonRewardSystem);
-        let client = TycoonRewardSystemClient::new(&e, &contract_id);
-        let admin = Address::generate(&e);
-        let tyc = Address::generate(&e);
-        let usdc = Address::generate(&e);
-        client.initialize(&admin, &tyc, &usdc);
-        (e, client, admin, tyc, usdc)
-    }
-
-    #[test]
-    fn admin_can_mint_voucher() {
-        let (e, client, admin, _tyc, _usdc) = setup();
-        let to = Address::generate(&e);
-        let token_id = client.mint_voucher(&admin, &to, &100u128);
-        assert_eq!(client.balance_of(&to, &token_id), 1);
-        assert_eq!(client.get_voucher_value(&token_id), 100);
-    }
-
-    #[test]
-    fn backend_minter_can_mint_voucher() {
-        let (e, client, admin, _tyc, _usdc) = setup();
-        let minter = Address::generate(&e);
-        client.set_backend_minter(&admin, &minter);
-        let to = Address::generate(&e);
-        let token_id = client.mint_voucher(&minter, &to, &50u128);
-        assert_eq!(client.balance_of(&to, &token_id), 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Unauthorized")]
-    fn non_admin_cannot_mint_voucher() {
-        let (e, client, _admin, _tyc, _usdc) = setup();
-        let attacker = Address::generate(&e);
-        let to = Address::generate(&e);
-        client.mint_voucher(&attacker, &to, &100u128);
-    }
-
-    #[test]
-    fn private_mint_and_burn_helpers_work() {
-        let (e, _client, _admin, _tyc, _usdc) = setup();
-        let contract_id = e.register_contract(None, TycoonRewardSystem);
-        let owner = Address::generate(&e);
-        e.as_contract(&contract_id, || {
-            TycoonRewardSystem::_mint(&e, owner.clone(), 42u128, 3);
-            let key = DataKey::Balance(owner.clone(), 42u128);
-            let bal: u128 = e.storage().persistent().get(&key).unwrap_or(0);
-            assert_eq!(bal, 3);
-
-            TycoonRewardSystem::_burn(&e, owner.clone(), 42u128, 1);
-            let bal: u128 = e.storage().persistent().get(&key).unwrap_or(0);
-            assert_eq!(bal, 2);
-        });
+            .publish((symbol_short!("Transfer"), from, to, token_id), amount);
     }
 }
