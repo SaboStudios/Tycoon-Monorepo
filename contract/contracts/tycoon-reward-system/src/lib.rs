@@ -47,26 +47,6 @@ impl TycoonRewardSystem {
         e.storage().persistent().set(&DataKey::StateVersion, &1u32);
     }
 
-    /// Migrate the contract to a newer state version (admin only)
-    pub fn migrate(e: Env) {
-        let admin: Address = e
-            .storage()
-            .persistent()
-            .get(&DataKey::Admin)
-            .expect("Not initialized");
-        admin.require_auth();
-
-        let current_version: u32 = e
-            .storage()
-            .persistent()
-            .get(&DataKey::StateVersion)
-            .unwrap_or(0);
-
-        if current_version == 0 {
-            e.storage().persistent().set(&DataKey::StateVersion, &1u32);
-        }
-    }
-
     /// Emergency pause contract (admin only)
     pub fn pause(e: Env) {
         let admin: Address = e
@@ -247,6 +227,61 @@ impl TycoonRewardSystem {
             .storage()
             .persistent()
             .get(&DataKey::UsdcToken)
-            .expect("Not initi
+            .expect("Not initialized");
 
-/* … truncated 5234 chars — edit only what you need near the top … */
+        if token != tyc_token && token != usdc_token {
+            panic!("Invalid token address");
+        }
+
+        soroban_sdk::token::Client::new(&e, &token).transfer(
+            &e.current_contract_address(),
+            &to,
+            &(amount as i128),
+        );
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("Withdraw"), token, to), amount);
+    }
+
+    fn _mint(e: &Env, to: Address, token_id: u128, amount: u128) {
+        let key = DataKey::Balance(to.clone(), token_id);
+        let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
+        let new_balance = current.checked_add(amount).expect("Balance overflow");
+        e.storage().persistent().set(&key, &new_balance);
+
+        if current == 0 {
+            let count_key = DataKey::OwnedTokenCount(to.clone());
+            let count: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
+            let new_count = count.checked_add(1).expect("Owned count overflow");
+            e.storage().persistent().set(&count_key, &new_count);
+        }
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("Mint"), to, token_id), amount);
+    }
+
+    fn _burn(e: &Env, from: Address, token_id: u128, amount: u128) {
+        let key = DataKey::Balance(from.clone(), token_id);
+        let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
+        if current < amount {
+            panic!("Insufficient balance");
+        }
+        let new_balance = current - amount;
+        if new_balance == 0 {
+            e.storage().persistent().remove(&key);
+            let count_key = DataKey::OwnedTokenCount(from.clone());
+            let count: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
+            if count > 0 {
+                e.storage().persistent().set(&count_key, &(count - 1));
+            }
+        } else {
+            e.storage().persistent().set(&key, &new_balance);
+        }
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("Burn"), from, token_id), amount);
+    }
+}
