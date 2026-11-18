@@ -228,11 +228,6 @@ impl TycoonRewardSystem {
             .storage()
             .persistent()
             .get(&DataKey::TycToken)
-            .expect("Not initialized");
-        let usdc_token: Address = e
-            .storage()
-            .persistent()
-            .get(&DataKey::UsdcToken)
             .expect("Not initi
 
 /* … truncated 5234 chars — edit only what you need near the top … */
