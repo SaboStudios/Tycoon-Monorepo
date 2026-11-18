@@ -3,6 +3,7 @@ import {
   TRADE_RULESET_VERSION,
   isTradeOfferExpired,
   validateTradeOffer,
+  applyTradeCashTransfer,
 } from './games.service';
 
 describe('trade offer ruleset helpers', () => {
@@ -96,6 +97,25 @@ describe('trade offer ruleset helpers', () => {
           TRADE_RULESET,
         ),
       ).toBe('propertyIds must not contain duplicates');
+    });
+  });
+
+  describe('applyTradeCashTransfer', () => {
+    it('debits and credits the same integer amount for a 10-unit trade', () => {
+      const result = applyTradeCashTransfer(100, 50, 10);
+      expect(result.fromCash).toBe(90);
+      expect(result.toCash).toBe(60);
+      expect(result.amount).toBe(10);
+      expect(Number.isInteger(result.amount)).toBe(true);
+      expect(100 - result.fromCash).toBe(result.toCash - 50);
+    });
+
+    it('throws and leaves balances untouched when cash is insufficient', () => {
+      expect(() => applyTradeCashTransfer(5, 50, 10)).toThrow();
+    });
+
+    it('rejects a non-integer amount', () => {
+      expect(() => applyTradeCashTransfer(100, 50, 1.5)).toThrow();
     });
   });
 

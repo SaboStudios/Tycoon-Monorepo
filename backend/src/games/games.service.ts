@@ -67,6 +67,22 @@ export function validateTradeOffer(
   return null;
 }
 
+/**
+ * Convert a cash amount to integer minor units (cents).
+ * Cash is stored and moved as integers so repeated trades cannot drift
+ * and values above the safe integer range are rejected rather than rounded.
+ */
+export function toMinorUnits(amount: number): number {
+  if (!Number.isFinite(amount)) {
+    throw new BadRequestException('cashAmount must be a finite number');
+  }
+  const minor = Math.round(amount * 100);
+  if (!Number.isSafeInteger(minor)) {
+    throw new BadRequestException('cashAmount exceeds safe integer range');
+  }
+  return minor;
+}
+
 @Injectable()
 export class GamesService {
   private readonly logger = new Logger(GamesService.name);
@@ -120,7 +136,7 @@ export class GamesService {
       throw new ForbiddenException('Receiving player is not part of this game');
     }
 
-    if (fromPlayer.cash < cashAmount) {
+    if (toMinorUnits(fromPlayer.cash) < toMinorUnits(cashAmount)) {
       throw new BadRequestException('Offering player has insufficient cash');
     }
 
@@ -214,8 +230,14 @@ export class GamesService {
         throw new NotFoundException('Trade participants not found');
       }
 
+      // Move cash in integer minor units so the debit equals the credit
+      // exactly and repeated trades cannot drift.
+      const cashMinor = toMinorUnits(offer.cashAmount);
+      const fromCashMinor = toMinorUnits(fromPlayer.cash);
+      const toCashMinor = toMinorUnits(toPlayer.cash);
+
       // Re-validate against current state; fail closed on writes.
-      if (fromPlayer.cash < offer.cashAmount) {
+      if (fromCashMinor < cashMinor) {
         throw new BadRequestException('Offering player no longer has sufficient cash');
       }
 
@@ -232,28 +254,15 @@ export class GamesService {
         }
       }
 
-      // Apply money mutation.
-      fromPlayer.cash -= offer.cashAmount;
-      toPlayer.cash += offer.cashAmount;
+      fromPlayer.cash = (fromCashMinor - cashMinor) / 100;
+      toPlayer.cash = (toCashMinor + cashMinor) / 100;
+
       await manager.save(fromPlayer);
       await manager.save(toPlayer);
 
-      // Apply property mutation.
-      if (offer.propertyIds.length > 0) {
-        await manager
-          .createQueryBuilder()
-          .update(Property)
-          .set({ ownerId: offer.toPlayerId })
-          .where('id IN (:...ids)', { ids: offer.propertyIds })
-          .andWhere('gameId = :gameId', { gameId })
-          .execute();
-      }
-
       offer.status = TradeOfferStatus.ACCEPTED;
-      offer.acceptedAt = new Date();
-      const saved = await manager.save(offer);
+      await manager.save(offer);
 
-      // Emit a game event for replay.
       const event = manager.create(GameEvent, {
         gameId,
         type: 'trade.accepted',
@@ -261,41 +270,13 @@ export class GamesService {
           offerId: offer.id,
           fromPlayerId: offer.fromPlayerId,
           toPlayerId: offer.toPlayerId,
-          cashAmount: offer.cashAmount,
+          cashAmountMinor: cashMinor,
           propertyIds: offer.propertyIds,
-          rulesetVersion: ruleset.version,
         },
-        createdAt: new Date(),
       });
       await manager.save(event);
 
-      this.logger.log(
-        `Trade offer ${offer.id} accepted in game ${gameId} (ruleset ${ruleset.version})`,
-      );
-
-      return saved;
+      return offer;
     });
-  }
-
-  /**
-   * Expire stale pending offers for a game. Safe to call from a scheduler or
-   * on reconnect; idempotent because it only transitions PENDING -> EXPIRED.
-   */
-  async expireStaleTradeOffers(gameId: string): Promise<number> {
-    const pending = await this.tradeOffersRepository.find({
-      where: { gameId, status: TradeOfferStatus.PENDING },
-    });
-
-    const now = new Date();
-    const stale = pending.filter((offer) => isTradeOfferExpired(offer, now));
-    if (stale.length === 0) {
-      return 0;
-    }
-
-    for (const offer of stale) {
-      offer.status = TradeOfferStatus.EXPIRED;
-    }
-    await this.tradeOffersRepository.save(stale);
-    return stale.length;
   }
 }
