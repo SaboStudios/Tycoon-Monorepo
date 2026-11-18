@@ -120,10 +120,15 @@ impl TycoonToken {
 #[contractimpl]
 impl TycoonToken {
     pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage()
+        let (amount, expiration_ledger): (i128, u32) = e
+            .storage()
             .persistent()
             .get(&DataKey::Allowance(from, spender))
-            .unwrap_or(0)
+            .unwrap_or((0, 0));
+        if e.ledger().sequence() > expiration_ledger {
+            return 0;
+        }
+        amount
     }
 
     pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
@@ -131,9 +136,10 @@ impl TycoonToken {
         if amount < 0 {
             panic!("Amount cannot be negative");
         }
-        e.storage()
-            .persistent()
-            .set(&DataKey::Allowance(from.clone(), spender.clone()), &amount);
+        e.storage().persistent().set(
+            &DataKey::Allowance(from.clone(), spender.clone()),
+            &(amount, expiration_ledger),
+        );
         ApproveEvent {
             from,
             spender,
@@ -193,17 +199,20 @@ impl TycoonToken {
             return;
         }
 
-        let allowance: i128 = e
+        let (allowance, expiration_ledger): (i128, u32) = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
+            .unwrap_or((0, 0));
+        if e.ledger().sequence() > expiration_ledger {
+            panic!("Allowance expired");
+        }
         if allowance < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &(allowance - amount, expiration_ledger),
         );
 
         let from_balance: i128 = e
@@ -263,17 +272,20 @@ impl TycoonToken {
             panic!("Amount must be positive");
         }
 
-        let allowance: i128 = e
+        let (allowance, expiration_ledger): (i128, u32) = e
             .storage()
             .persistent()
             .get(&DataKey::Allowance(from.clone(), spender.clone()))
-            .unwrap_or(0);
+            .unwrap_or((0, 0));
+        if e.ledger().sequence() > expiration_ledger {
+            panic!("Allowance expired");
+        }
         if allowance < amount {
             panic!("Insufficient allowance");
         }
         e.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
+            &(allowance - amount, expiration_ledger),
         );
 
         let balance: i128 = e
@@ -282,8 +294,17 @@ impl TycoonToken {
             .get(&DataKey::Balance(from.clone()))
             .unwrap_or(0);
         if balance < amount {
-            panic!("Insufficient balance");
+            panic!("Insufficient balance")
         }
         e.storage()
             .persistent()
-            .set(&DataKey::Balance(from.clone()), &(balance - amount))
+            .set(&DataKey::Balance(from.clone()), &(balance - amount));
+
+        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
+        e.storage()
+            .instance()
+            .set(&DataKey::TotalSupply, &(supply - amount));
+
+        BurnEvent { from, amount }.publish(&e);
+    }
+}
