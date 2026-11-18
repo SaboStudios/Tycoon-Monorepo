@@ -245,12 +245,6 @@ impl TycoonMainGame {
         );
 
         if remaining == 0 {
-            events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
-        }
-    }
+            events::emit_pend
 
-    // ============================================================
-    // View Functions
-    // ======================================================
-
-/* … truncated 753 chars — edit only what you need near the top … */
+/* … truncated 304 chars — edit only what you need near the top … */
