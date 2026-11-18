@@ -1,6 +1,6 @@
 use crate::enumeration::{add_token_to_owner, remove_token_from_owner};
 use crate::errors::CollectibleError;
-use crate::events::emit_transfer_event;
+use crate::events::{emit_burn_event, emit_transfer_event};
 use crate::storage::{get_balance, set_balance};
 use soroban_sdk::{symbol_short, Address, Env};
 
@@ -135,14 +135,8 @@ pub fn _safe_burn(
         remove_token_from_owner(env, from, token_id);
     }
 
-    // Emit burn event
-    crate::events::emit_transfer_event(
-        env,
-        from,
-        &env.current_contract_address(),
-        token_id,
-        amount,
-    );
+    // Emit burn event (distinct topic, not a transfer to the contract)
+    emit_burn_event(env, from, token_id, amount);
 
     Ok(())
 }
