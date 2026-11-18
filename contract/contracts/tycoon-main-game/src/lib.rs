@@ -141,9 +141,16 @@ impl TycoonMainGame {
 
     /// Register a player for the main game.
     ///
+    /// The `address` must authorize this call, so an account can only
+    /// register itself.
+    ///
     /// # Panics
     /// * If contract is paused
+    /// * If `address` has not authorized the call
+    /// * If `address` is already registered
     pub fn register_player(env: Env, address: Address) {
+        address.require_auth();
+
         let op = Symbol::new(&env, "register_player");
         storage::ensure_not_paused(&env, &op);
 
@@ -231,13 +238,7 @@ impl TycoonMainGame {
             &e
 
         if remaining == 0 {
-            events::emit_pending_game_ended(&env, &events::PendingGameEndedData { game_id });
-        }
-    }
-
-    // ============================================================
-    // View Functions
-    // ======================================================
+            events::emit_pend
 
         // Single persistent write covers all mutations above
         storage::set_game(&env, &game);
@@ -254,5 +255,5 @@ impl TycoonMainGame {
 
     // ============================================================
     // View Functions
-    // ======================================================
+    // ============================================================
 

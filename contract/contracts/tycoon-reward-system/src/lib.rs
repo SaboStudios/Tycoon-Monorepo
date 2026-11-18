@@ -77,6 +77,15 @@ impl TycoonRewardSystem {
         // Require the admin to authorize initialization before any storage write
         admin.require_auth();
         // Batch all initialization writes together
+        e.storage().instance().set(&DataKey::Admin, &admin);
+        e.storage().instance().set(&DataKey::TycToken, &tyc_token);
+        e.storage().instance().set(&DataKey::UsdcToken, &usdc_token);
+        e.storage().instance().set(&DataKey::VoucherCount, &VOUCHER_ID_START);
+        e.storage().instance().set
+        }
+        // Require the admin to authorize initialization before any storage write
+        admin.require_auth();
+        // Batch all initialization writes together
         e.storage().persistent().set(&DataKey::Admin, &admin);
         e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
         e.storage().persistent().set(&DataKey::UsdcToken, &usdc_token);
@@ -91,19 +100,19 @@ impl TycoonRewardSystem {
     pub fn migrate(e: Env) {
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
 
         let current_version: u32 = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::StateVersion)
             .unwrap_or(0);
 
         if current_version == 0 {
-            e.storage().persistent().set(&DataKey::StateVersion, &1u32);
+            e.storage().instance().set(&DataKey::StateVersion, &1u32);
         }
     }
 
@@ -111,7 +120,7 @@ impl TycoonRewardSystem {
     pub fn pause(e: Env) {
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
@@ -127,7 +136,7 @@ impl TycoonRewardSystem {
     pub fn unpause(e: Env) {
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
@@ -143,11 +152,11 @@ impl TycoonRewardSystem {
     pub fn set_backend_minter(e: Env, new_minter: Address) {
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
-        e.storage().persistent().set(&DataKey::BackendMinter, &new_minter);
+        e.storage().instance().set(&DataKey::BackendMinter, &new_minter);
         #[allow(deprecated)]
         e.events().publish((symbol_short!("set_min"), new_minter), ());
     }
@@ -156,11 +165,11 @@ impl TycoonRewardSystem {
     pub fn clear_backend_minter(e: Env) {
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
-        e.storage().persistent().remove(&DataKey::BackendMinter);
+        e.storage().instance().remove(&DataKey::BackendMinter);
         #[allow(deprecated)]
         e.events().publish((symbol_short!("clr_min"),), ());
     }
@@ -168,7 +177,7 @@ impl TycoonRewardSystem {
     /// Get the current backend minter address. Returns None if not set.
     pub fn get_backend_minter(e: Env) -> Option<Address> {
         // Single read — avoids the has() + get() double-read pattern
-        e.storage().persistent().get(&DataKey::BackendMinter)
+        e.storage().instance().get(&DataKey::BackendMinter)
     }
 
     /// Mint a voucher. `tyc_value` is stored as `u128` but must fit in `i128`
@@ -177,14 +186,14 @@ impl TycoonRewardSystem {
         // Single read for admin — reused for both auth check and comparison
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         caller.require_auth();
 
         // Single read for BackendMinter — replaces has() + get() double-read
         let backend_minter: Option<Address> =
-            e.storage().persistent().get(&DataKey::BackendMinter);
+            e.storage().instance().get(&DataKey::BackendMinter);
 
         let is_authorized = caller == admin
             || backend_minter.map_or(false, |m| m == caller);
@@ -195,7 +204,54 @@ impl TycoonRewardSystem {
 
         // Reject minting while paused, before any storage or token change
         if e.storage()
+            .instance()
+            .get::<DataKey, bool>(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            panic!("Contract is paused");
+        }
+
+        // Reject zero-value vouchers before consuming an id or emitting events.
+        // Stable error string so the backend can map it deterministically.
+        if tyc_value == 0 {
+            panic!("Invalid voucher value: must be greater than zero");
+        }
+
+        // Read-increment-write in one block; no intermediate clone needed
+        let token_id: u128 = e
+            .storage()
+            .instance()
+            .get(&DataKey::VoucherCount)
+            .unwrap_or(VOUCHER_ID_START);
+        e.storage()
+            .instance()
+            .set(&DataKey::VoucherCount, &(token_id + 1));
+
+        e.storage()
             .persistent()
+            .set(&DataKey::VoucherValue(token_id), &tyc_value);
+        Self::_extend_voucher_ttl(&e, &DataKey::VoucherValue(token_id));
+
+        // _mint emits its own "Mint" event; no extra event needed here
+        Self::_mint(&e, to.clone(), token_id, 1);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("V_Mint"), to, token_id), tyc_value);
+
+        token_id
+    }
+
+    pub fn redeem_voucher(_e: Env, _token_id: u128) {
+        panic!("Use redeem_voucher_from instead");
+    }
+
+    pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128) {
+        redeemer.require_auth();
+
+        // Single read for Paused — unwrap_or avoids a separate has() check
+        if e.storage()
+            .instance()
             .get::<DataKey, bool>(&DataKey::Paused)
             .unwrap_or(false)
         {
@@ -276,7 +332,7 @@ impl TycoonRewardSystem {
 
         let tyc_token: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::TycToken)
             .expect("Not initialized");
 
@@ -311,7 +367,7 @@ impl TycoonRewardSystem {
     pub fn withdraw_funds(e: Env, token: Address, to: Address, amount: u128) {
         let admin: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
@@ -325,12 +381,12 @@ impl TycoonRewardSystem {
         // Reject withdrawals that would underfund outstanding vouchers
         let liability: u128 = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::TycToken)
             .expect("Not initialized");
         let usdc_token: Address = e
             .storage()
-            .persistent()
+            .instance()
             .get(&DataKey::UsdcToken)
             .expect("Not initialized");
         let _ = (tyc_token, usdc_token);
@@ -347,7 +403,6 @@ impl TycoonRewardSystem {
         if balance.saturating_sub(amount) < liability {
             panic!("Withdrawal would underfund outstanding vouchers");
         }
-        }
 
         soroban_sdk::token::Client::new(&e, &token).transfer(
             &e.current_contract_address(),
@@ -360,17 +415,24 @@ impl TycoonRewardSystem {
             .publish((symbol_short!("Withdraw"), to, token), amount);
     }
 
+    /// Extend the TTL of a persistent voucher key so it survives rent expiry.
+    fn _extend_voucher_ttl(e: &Env, key: &DataKey) {
+        e.storage().persistent().extend_ttl(key, 100, 1000);
+    }
+
     fn _mint(e: &Env, to: Address, token_id: u128, amount: u128) {
         let key = DataKey::Balance(to.clone(), token_id);
         let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
         let new_balance = current.checked_add(amount).expect("Balance overflow");
         e.storage().persistent().set(&key, &new_balance);
+        Self::_extend_voucher_ttl(e, &key);
 
         if current == 0 && amount > 0 {
             let count_key = DataKey::OwnedTokenCount(to.clone());
             let count: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
             let new_count = count.checked_add(1).expect("Owned count overflow");
             e.storage().persistent().set(&count_key, &new_count);
+            Self::_extend_voucher_ttl(e, &count_key);
         }
         #[allow(deprecated)]
         e.events()
@@ -391,13 +453,120 @@ impl TycoonRewardSystem {
             e.storage()
                 .persistent()
                 .set(&count_key, &owned.saturating_sub(1));
+            Self::_extend_voucher_ttl(e, &count_key);
         } else {
             e.storage().persistent().set(&key, &new_balance);
+            Self::_extend_voucher_ttl(e, &key);
         }
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Burn"), from, token_id), amount);
     }
 
-    /* … remaining implementation unchanged … */
+    fn _transfer(e: &Env, from: Address, to: Address, token_id: u128, amount: u128) {
+        Self::_burn(e, from.clone(), token_id, amount);
+        Self::_mint(e, to.clone(), token_id, amount);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("Transfer"), from, to, token_id), amount);
+    }
+
+    pub fn transfer(e: Env, from: Address, to: Address, token_id: u128, amount: u128) {
+        from.require_auth();
+        Self::_transfer(&e, from, to, token_id, amount);
+    }
+
+    pub fn balance_of(e: Env, owner: Address, token_id: u128) -> u128 {
+        e.storage()
+            .persistent()
+            .get(&DataKey::Balance(owner, token_id))
+            .unwrap_or(0)
+    }
+
+    pub fn get_voucher_value(e: Env, token_id: u128) -> u128 {
+        e.storage()
+            .persistent()
+            .get(&DataKey::VoucherValue(token_id))
+            .unwrap_or(0)
+    }
+
+    pub fn get_admin(e: Env) -> Address {
+        e.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized")
+    }
+
+    pub fn is_paused(e: Env) -> bool {
+        e.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
+    pub fn get_state_version(e: Env) -> u32 {
+        e.storage()
+            .instance()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::Env;
+
+    fn setup() -> (Env, TycoonRewardSystemClient<'static>, Address, Address, Address) {
+        let e = Env::default();
+        e.mock_all_auths();
+        let contract_id = e.register_contract(None, TycoonRewardSystem);
+        let client = TycoonRewardSystemClient::new(&e, &contract_id);
+        let admin = Address::generate(&e);
+        let tyc = Address::generate(&e);
+        let usdc = Address::generate(&e);
+        client.initialize(&admin, &tyc, &usdc);
+        (e, client, admin, tyc, usdc)
+    }
+
+    #[test]
+    fn admin_and_pause_live_in_instance_storage() {
+        let (e, client, admin, _tyc, _usdc) = setup();
+        let contract_id = client.address.clone();
+
+        let player = Address::generate(&e);
+        let token_id = client.mint_voucher(&admin, &player, &100u128);
+        client.transfer(&player, &admin, &token_id, &1u128);
+
+        // Admin must still be readable from instance storage after mint/transfer.
+        e.as_contract(&contract_id, || {
+            let stored_admin: Address = e
+                .storage()
+                .instance()
+                .get(&DataKey::Admin)
+                .expect("admin missing from instance storage");
+            assert_eq!(stored_admin, admin);
+
+            let paused: bool = e
+                .storage()
+                .instance()
+                .get(&DataKey::Paused)
+                .unwrap_or(true);
+            assert!(!paused);
+        });
+
+        // Voucher balance stays persistent.
+        assert_eq!(client.balance_of(&admin, &token_id), 1u128);
+    }
+
+    #[test]
+    fn mint_finds_admin_after_move() {
+        let (_e, client, admin, _tyc, _usdc) = setup();
+        let player = Address::generate(&_e);
+        let token_id = client.mint_voucher(&admin, &player, &50u128);
+        assert_eq!(client.balance_of(&player, &token_id), 1u128);
+        assert_eq!(client.get_admin(), admin);
+    }
 }
