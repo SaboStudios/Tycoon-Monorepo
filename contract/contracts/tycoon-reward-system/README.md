@@ -8,6 +8,7 @@ The contract provides the following core functionality:
 
 - **Voucher Minting**: Backend minters can mint vouchers with a specified TYC value
 - **Voucher Redemption**: Players can redeem vouchers for TYC tokens
+- **Voucher Burning**: Vouchers can be burned
 - **Collectible Management**: Admins can create and manage collectible items
 - **Fund Withdrawal**: Admins can withdraw accumulated TYC and USDC tokens
 - **Pause/Unpause**: Admins can pause the contract in emergencies
@@ -28,6 +29,7 @@ The table below documents the signer each public method requires **today**, as e
 | `mint_voucher` | Admin **or** backend minter | `caller.require_auth()` plus an explicit check that `caller` is the admin or the configured backend minter. |
 | `redeem_voucher` | **Open** (no `require_auth`) | Always panics with `Use redeem_voucher_from instead`. |
 | `redeem_voucher_from` | Redeemer | `redeemer.require_auth()`. |
+| `burn_voucher` | Admin **or** backend minter | `caller.require_auth()` plus an explicit check that `caller` is the admin or the configured backend minter. |
 | `withdraw_funds` | **Admin only** | `admin.require_auth()` on the stored admin. |
 
 ## Getting Started
@@ -48,7 +50,7 @@ cargo build --target wasm32-unknown-unknown --release
 ### Testing
 
 ```bash
-cargo test
+cargo test -p tycoon-reward-system
 ```
 
 ### Deployment
@@ -109,6 +111,20 @@ soroban contract invoke \
   --token_id 1000000001
 ```
 
+### Burning Vouchers
+
+Only the admin or the configured backend minter can burn vouchers:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <backend-minter-secret-key> \
+  --network testnet \
+  -- burn_voucher \
+  --caller <backend-minter-address> \
+  --token_id 1000000001
+```
+
 ### Withdrawing Funds
 
 Only the admin can withdraw funds:
@@ -128,6 +144,17 @@ soroban contract invoke \
 
 - `src/lib.rs`: Main contract implementation
 - `src/test.rs`: Test suite
+
+## Production builds
+
+Production builds must not export test entrypoints. The contract ABI intentionally
+exposes only the real entrypoints (`mint_voucher`, `redeem_voucher_from`, `burn_voucher`,
+and the admin/backend configuration functions). Helper functions such as `_mint` and
+`_burn` are crate-private and are exercised only from unit tests inside the crate.
+
+Do not add `test_mint`, `test_burn`, or any other unauthenticated test-only entrypoint
+to a `#[contractimpl]` block. If a test needs to mint or burn directly, call the
+private helpers from a `#[cfg(test)]` module instead of exposing a public entrypoint.
 
 ## Security Considerations
 

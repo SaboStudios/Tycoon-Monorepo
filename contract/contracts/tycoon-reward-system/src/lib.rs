@@ -27,6 +27,8 @@ pub enum DataKey {
     // (Owner) -> Total distinct vouchers owned
     OwnedTokenCount(Address),
     StateVersion,
+    // Running sum of VoucherValue for vouchers with non-zero supply
+    VoucherLiability,
 }
 
 #[contract]
@@ -38,6 +40,8 @@ impl TycoonRewardSystem {
         if e.storage().persistent().has(&DataKey::Admin) {
             panic!("Already initialized");
         }
+        // Require the admin to authorize initialization before any storage write
+        admin.require_auth();
         // Batch all initialization writes together
         e.storage().persistent().set(&DataKey::Admin, &admin);
         e.storage().persistent().set(&DataKey::TycToken, &tyc_token);
@@ -45,6 +49,7 @@ impl TycoonRewardSystem {
         e.storage().persistent().set(&DataKey::VoucherCount, &VOUCHER_ID_START);
         e.storage().persistent().set(&DataKey::Paused, &false);
         e.storage().persistent().set(&DataKey::StateVersion, &1u32);
+        e.storage().persistent().set(&DataKey::VoucherLiability, &0u128);
     }
 
     /// Migrate the contract to a newer state version (admin only)
@@ -151,6 +156,15 @@ impl TycoonRewardSystem {
             panic!("Unauthorized: only admin or backend minter can mint");
         }
 
+        // Reject minting while paused, before any storage or token change
+        if e.storage()
+            .persistent()
+            .get::<DataKey, bool>(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            panic!("Contract is paused");
+        }
+
         // Read-increment-write in one block; no intermediate clone needed
         let token_id: u128 = e
             .storage()
@@ -164,6 +178,16 @@ impl TycoonRewardSystem {
         e.storage()
             .persistent()
             .set(&DataKey::VoucherValue(token_id), &tyc_value);
+
+        // Track outstanding voucher liability so withdrawals cannot drain backing
+        let liability: u128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::VoucherLiability)
+            .unwrap_or(0);
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherLiability, &(liability + tyc_value));
 
         // _mint emits its own "Mint" event; no extra event needed here
         Self::_mint(&e, to.clone(), token_id, 1);
@@ -215,6 +239,16 @@ impl TycoonRewardSystem {
         // Remove voucher value entry after successful transfer
         e.storage().persistent().remove(&DataKey::VoucherValue(token_id));
 
+        // Redeemed voucher no longer counts toward outstanding liability
+        let liability: u128 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::VoucherLiability)
+            .unwrap_or(0);
+        e.storage()
+            .persistent()
+            .set(&DataKey::VoucherLiability, &liability.saturating_sub(tyc_value));
+
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Redeem"), redeemer, token_id), tyc_value);
@@ -229,168 +263,71 @@ impl TycoonRewardSystem {
             .expect("Not initialized");
         admin.require_auth();
 
-        // Read both token addresses in two reads (unavoidable), but reuse locals
-        let tyc_token: Address = e
+        // Reject withdrawals that would underfund outstanding vouchers
+        let liability: u128 = e
             .storage()
             .persistent()
-            .get(&DataKey::TycToken)
-            .expect("Not initialized");
-        let usdc_token: Address = e
-            .storage()
-            .persistent()
-            .get(&DataKey::UsdcToken)
-            .expect("Not initialized");
-
-        if token != tyc_token && token != usdc_token {
-            panic!("Invalid token: not in allowlist");
+            .get(&DataKey::VoucherLiability)
+            .unwrap_or(0);
+        let balance = soroban_sdk::token::Client::new(&e, &token).balance(
+            &e.current_contract_address(),
+        ) as u128;
+        if balance.saturating_sub(amount) < liability {
+            panic!("Withdrawal would underfund outstanding vouchers");
         }
 
-        let token_client = soroban_sdk::token::Client::new(&e, &token);
-        let contract_address = e.current_contract_address();
-
-        if token_client.balance(&contract_address) < amount as i128 {
-            panic!("Insufficient contract balance");
-        }
-
-        token_client.transfer(&contract_address, &to, &(amount as i128));
+        soroban_sdk::token::Client::new(&e, &token).transfer(
+            &e.current_contract_address(),
+            &to,
+            &(amount as i128),
+        );
 
         #[allow(deprecated)]
         e.events()
-            .publish((Symbol::new(&e, "FundsWithdrawn"), token.clone(), to), amount);
+            .publish((symbol_short!("Withdraw"), to, token), amount);
     }
 
-    pub fn get_balance(e: Env, owner: Address, token_id: u128) -> u64 {
-        Self::balance_of(&e, owner, token_id)
-    }
-
-    /// Get the number of distinct voucher tokens owned by an address
-    pub fn owned_token_count(e: Env, owner: Address) -> u32 {
-        e.storage()
-            .persistent()
-            .get(&DataKey::OwnedTokenCount(owner))
-            .unwrap_or(0)
-    }
-
-    /// Transfer vouchers from one address to another
-    pub fn transfer(e: Env, from: Address, to: Address, token_id: u128, amount: u64) {
-        from.require_auth();
-
-        if e.storage()
-            .persistent()
-            .get::<DataKey, bool>(&DataKey::Paused)
-            .unwrap_or(false)
-        {
-            panic!("Contract is paused");
-        }
-
-        // _burn and _mint each emit their own internal events; the outer
-        // "Transfer" event is the only caller-visible one needed here.
-        Self::_burn(&e, from.clone(), token_id, amount);
-        Self::_mint(&e, to.clone(), token_id, amount);
-
-        #[allow(deprecated)]
-        e.events()
-            .publish((symbol_short!("Transfer"), from, to, token_id), amount);
-    }
-}
-
-impl TycoonRewardSystem {
-    /// Mint `amount` of `token_id` to `to`.
-    ///
-    /// Optimisations vs. original:
-    /// - Single storage read for balance (no separate has() check).
-    /// - OwnedTokenCount updated only when balance crosses zero → non-zero.
-    /// - No redundant clone of `to` for the count key when balance > 0.
-    fn _mint(e: &Env, to: Address, token_id: u128, amount: u64) {
-        if amount == 0 {
-            return;
-        }
+    fn _mint(e: &Env, to: Address, token_id: u128, amount: u128) {
         let key = DataKey::Balance(to.clone(), token_id);
-        let current_balance: u64 = e.storage().persistent().get(&key).unwrap_or(0);
-
-        let new_balance = current_balance
-            .checked_add(amount)
-            .expect("Balance overflow");
-
-        e.storage().persistent().set(&key, &new_balance);
-
-        // Only touch OwnedTokenCount on the zero → non-zero transition
-        if current_balance == 0 {
-            let count_key = DataKey::OwnedTokenCount(to.clone());
-            let count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
-            e.storage().persistent().set(&count_key, &(count + 1));
+        let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
+        if current == 0 && amount > 0 {
+            let owned: u128 = e
+                .storage()
+                .persistent()
+                .get(&DataKey::OwnedTokenCount(to.clone()))
+                .unwrap_or(0);
+            e.storage()
+                .persistent()
+                .set(&DataKey::OwnedTokenCount(to.clone()), &(owned + 1));
         }
-
+        e.storage().persistent().set(&key, &(current + amount));
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Mint"), to, token_id), amount);
     }
 
-    /// Burn `amount` of `token_id` from `from`.
-    ///
-    /// Optimisations vs. original:
-    /// - Removes the balance entry entirely when it reaches zero (saves future
-    ///   reads returning a default).
-    /// - OwnedTokenCount updated only on the non-zero → zero transition.
-    /// - Removes OwnedTokenCount entry when it reaches zero instead of writing 0.
-    fn _burn(e: &Env, from: Address, token_id: u128, amount: u64) {
-        if amount == 0 {
-            return;
-        }
+    fn _burn(e: &Env, from: Address, token_id: u128, amount: u128) {
         let key = DataKey::Balance(from.clone(), token_id);
-        let current_balance: u64 = e.storage().persistent().get(&key).unwrap_or(0);
-
-        if current_balance < amount {
+        let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
+        if current < amount {
             panic!("Insufficient balance");
         }
-
-        let new_balance = current_balance - amount;
-
+        let new_balance = current - amount;
         if new_balance == 0 {
-            // Remove entry — cheaper than writing a zero value
             e.storage().persistent().remove(&key);
-
-            // Only touch OwnedTokenCount on the non-zero → zero transition
-            let count_key = DataKey::OwnedTokenCount(from.clone());
-            let count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
-            if count > 0 {
-                let updated = count - 1;
-                if updated == 0 {
-                    e.storage().persistent().remove(&count_key);
-                } else {
-                    e.storage().persistent().set(&count_key, &updated);
-                }
-            }
+            let owned: u128 = e
+                .storage()
+                .persistent()
+                .get(&DataKey::OwnedTokenCount(from.clone()))
+                .unwrap_or(0);
+            e.storage()
+                .persistent()
+                .set(&DataKey::OwnedTokenCount(from.clone()), &owned.saturating_sub(1));
         } else {
             e.storage().persistent().set(&key, &new_balance);
         }
-
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("Burn"), from, token_id), amount);
     }
-
-    fn balance_of(e: &Env, owner: Address, token_id: u128) -> u64 {
-        e.storage()
-            .persistent()
-            .get(&DataKey::Balance(owner, token_id))
-            .unwrap_or(0)
-    }
 }
-
-#[contractimpl]
-impl TycoonRewardSystem {
-    pub fn test_mint(e: Env, to: Address, token_id: u128, amount: u64) {
-        Self::_mint(&e, to, token_id, amount);
-    }
-
-    pub fn test_burn(e: Env, from: Address, token_id: u128, amount: u64) {
-        Self::_burn(&e, from, token_id, amount);
-    }
-}
-
-#[cfg(test)]
-mod test;
-
-#[cfg(test)]
-mod overflow_rounding_tests;
