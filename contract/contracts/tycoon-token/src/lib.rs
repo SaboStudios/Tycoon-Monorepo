@@ -282,10 +282,9 @@ impl TycoonToken {
         let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
         let new_supply = supply.checked_sub(amount).expect("Supply underflow");
 
-        e.storage().persistent().set(
-            &DataKey::Allowance(from.clone(), spender),
-            &(allowance - amount),
-        );
+        e.storage()
+            .persistent()
+            .set(&DataKey::Allowance(from.clone(), spender), &(allowance - amount));
         e.storage()
             .persistent()
             .set(&DataKey::Balance(from.clone()), &(balance - amount));
