@@ -74,6 +74,9 @@ export class AuctionManager {
     if (playerId === auction.sellerId) {
       throw new Error('Seller cannot bid on their own auction');
     }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error(`Invalid bid amount: ${amount}`);
+    }
     if (amount < auction.currentBid + MIN_BID_INCREMENT) {
       throw new Error('Bid is below the minimum increment');
     }

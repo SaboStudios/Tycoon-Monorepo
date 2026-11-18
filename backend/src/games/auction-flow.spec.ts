@@ -50,6 +50,26 @@ describe('AuctionManager', () => {
       expect(() => manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT - 1)).toThrow();
     });
 
+    it('rejects a NaN bid without changing currentBid', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      expect(() => manager.placeBid('a1', 'p1', NaN)).toThrow('NaN');
+      expect(manager.getAuction('a1')?.currentBid).toBe(STARTING_BID);
+      expect(manager.getAuction('a1')?.currentBidder).toBeNull();
+      expect(manager.getAuction('a1')?.bids).toEqual([]);
+    });
+
+    it('rejects an Infinity bid without changing currentBid', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      expect(() => manager.placeBid('a1', 'p1', Infinity)).toThrow('Infinity');
+      expect(manager.getAuction('a1')?.currentBid).toBe(STARTING_BID);
+      expect(manager.getAuction('a1')?.currentBidder).toBeNull();
+      expect(manager.getAuction('a1')?.bids).toEqual([]);
+    });
+
     it('rejects a bid from the seller', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
