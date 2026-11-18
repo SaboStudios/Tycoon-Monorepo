@@ -9,6 +9,16 @@ pub fn emit_transfer_event(env: &Env, from: &Address, to: &Address, token_id: u1
     );
 }
 
+/// Emit a burn event for a collectible. Uses a distinct `burn` topic (not
+/// `transfer`) so indexers can drop supply instead of attributing the burned
+/// tokens to the contract address.
+pub fn emit_burn_event(env: &Env, holder: &Address, token_id: u128, amount: u64) {
+    env.events().publish(
+        (symbol_short!("burn"), holder.clone()),
+        (token_id, amount),
+    );
+}
+
 pub fn emit_collectible_burned_event(
     env: &Env,
     burner: &Address,

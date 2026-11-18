@@ -20,4 +20,5 @@ pub enum CollectibleError {
     InvalidPageSize = 14,
     InvalidURIType = 15,
     MetadataFrozen = 16,
+    BalanceOverflow = 17,
 }

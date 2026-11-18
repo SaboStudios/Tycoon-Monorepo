@@ -235,4 +235,64 @@ export class GamesService {
 
       // Move cash in integer mino
 
-/* … truncated 1556 chars — edit only what you need near the top … */
+      if (offer.propertyIds.length > 0) {
+        const owned = await manager.find(Property, {
+          where: offer.propertyIds.map((id) => ({
+            id,
+            ownerId: offer.fromPlayerId,
+            gameId,
+          })),
+        });
+        if (owned.length !== offer.propertyIds.length) {
+          throw new BadRequestException('Offering player no longer owns all offered properties');
+        }
+      }
+
+      // Move cash atomically.
+      if (offer.cashAmount > 0) {
+        fromPlayer.cash -= offer.cashAmount;
+        toPlayer.cash += offer.cashAmount;
+        await manager.save([fromPlayer, toPlayer]);
+      }
+
+      // Move properties, scoped to the current owner so a concurrent trade
+      // cannot reassign a property the seller no longer owns. A short write
+      // rolls back the whole transaction (including the cash move).
+      if (offer.propertyIds.length > 0) {
+        const result = await manager
+          .createQueryBuilder()
+          .update(Property)
+          .set({ ownerId: offer.toPlayerId })
+          .where('id IN (:...ids)', { ids: offer.propertyIds })
+          .andWhere('gameId = :gameId', { gameId })
+          .andWhere('ownerId = :fromPlayerId', { fromPlayerId: offer.fromPlayerId })
+          .execute();
+
+        if (result.affected !== offer.propertyIds.length) {
+          throw new ConflictException(
+            'Offering player no longer owns all offered properties',
+          );
+        }
+      }
+
+      offer.status = TradeOfferStatus.ACCEPTED;
+      offer.acceptedAt = new Date();
+      await manager.save(offer);
+
+      const event = manager.create(GameEvent, {
+        gameId,
+        type: 'trade.accepted',
+        payload: {
+          offerId: offer.id,
+          fromPlayerId: offer.fromPlayerId,
+          toPlayerId: offer.toPlayerId,
+          cashAmount: offer.cashAmount,
+          propertyIds: offer.propertyIds,
+        },
+      });
+      await manager.save(event);
+
+      return offer;
+    });
+  }
+}

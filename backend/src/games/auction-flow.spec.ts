@@ -50,6 +50,26 @@ describe('AuctionManager', () => {
       expect(() => manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT - 1)).toThrow();
     });
 
+    it('rejects a NaN bid without changing currentBid', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      expect(() => manager.placeBid('a1', 'p1', NaN)).toThrow('NaN');
+      expect(manager.getAuction('a1')?.currentBid).toBe(STARTING_BID);
+      expect(manager.getAuction('a1')?.currentBidder).toBeNull();
+      expect(manager.getAuction('a1')?.bids).toEqual([]);
+    });
+
+    it('rejects an Infinity bid without changing currentBid', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      expect(() => manager.placeBid('a1', 'p1', Infinity)).toThrow('Infinity');
+      expect(manager.getAuction('a1')?.currentBid).toBe(STARTING_BID);
+      expect(manager.getAuction('a1')?.currentBidder).toBeNull();
+      expect(manager.getAuction('a1')?.bids).toEqual([]);
+    });
+
     it('rejects a bid from the seller', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
@@ -123,19 +143,69 @@ describe('AuctionManager', () => {
       });
     });
 
-    it('completes the auction once a bid exists', () => {
+    it('completes an active auction with a bidder once', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
       manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
 
       const result = manager.completeAuction('a1');
       expect(result.success).toBe(true);
+      expect(result.events).toHaveLength(1);
+      expect(result.events[0]).toMatchObject({ type: 'auction.completed', auctionId: 'a1' });
       expect(manager.getAuction('a1')?.status).toBe('completed');
+    });
+
+    it('returns the existing result without a second event when already completed', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+
+      const first = manager.completeAuction('a1');
+      const second = manager.completeAuction('a1');
+
+      expect(second.success).toBe(true);
+      expect(second.events).toEqual([]);
+      expect(second.result).toEqual(first.result);
+      expect(manager.getAuction('a1')?.status).toBe('completed');
+    });
+
+    it('fails to complete a cancelled auction', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+      auction.status = 'cancelled';
+
+      const result = manager.completeAuction('a1');
+      expect(result.success).toBe(false);
+      expect(result.events).toEqual([]);
+      expect(result.error).toBe('Auction is cancelled');
+      expect(manager.getAuction('a1')?.status).toBe('cancelled');
     });
   });
 
   describe('cleanupExpiredAuctions', () => {
-    it('completes only active auctions past expiresAt and returns the count', () => {
+    it('cancels an expired auction that received no bids', () => {
+      const manager = new AuctionManager();
+      const expired = manager.createAuction('a1', 'seller', 'item');
+
+      jest.setSystemTime(expired.expiresAt + 1);
+
+      expect(manager.cleanupExpiredAuctions()).toBe(1);
+      expect(manager.getAuction('a1')?.status).toBe('cancelled');
+    });
+
+    it('completes an expired auction that received a bid', () => {
+      const manager = new AuctionManager();
+      const expired = manager.createAuction('a1', 'seller', 'item');
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+
+      jest.setSystemTime(expired.expiresAt + 1);
+
+      expect(manager.cleanupExpiredAuctions()).toBe(1);
+      expect(manager.getAuction('a1')?.status).toBe('completed');
+    });
+
+    it('only touches active auctions past expiresAt and returns the count', () => {
       const manager = new AuctionManager();
       const expired = manager.createAuction('a1', 'seller', 'item');
       manager.createAuction('a2', 'seller', 'item');
@@ -143,7 +213,7 @@ describe('AuctionManager', () => {
       jest.setSystemTime(expired.expiresAt + 1);
 
       expect(manager.cleanupExpiredAuctions()).toBe(1);
-      expect(manager.getAuction('a1')?.status).toBe('completed');
+      expect(manager.getAuction('a1')?.status).toBe('cancelled');
       expect(manager.getAuction('a2')?.status).toBe('active');
     });
 
