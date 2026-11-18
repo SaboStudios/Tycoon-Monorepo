@@ -1,48 +1,187 @@
 # Tycoon Reward System
 
-Soroban smart contract that manages reward vouchers, backend minter authorization, and fee handling for the Tycoon game.
+The Tycoon Reward System is a Soroban smart contract that manages in-game reward vouchers and collectibles for the Tycoon ecosystem. It allows the backend to mint vouchers for players, players to redeem them for TYC tokens, and admins to manage collectibles and withdraw funds.
 
 ## Overview
 
-The reward system contract allows an admin to authorize a backend minter that can issue vouchers to players. Vouchers are redeemed for rewards and tracked on-chain.
+The contract provides the following core functionality:
 
-## Admin Functions
+- **Voucher Minting**: Backend minters can mint vouchers with a specified TYC value
+- **Voucher Redemption**: Players can redeem vouchers for TYC tokens
+- **Voucher Burning**: Vouchers can be burned
+- **Collectible Management**: Admins can create and manage collectible items
+- **Fund Withdrawal**: Admins can withdraw accumulated TYC and USDC tokens
+- **Pause/Unpause**: Admins can pause the contract in emergencies
 
-### `set_backend_minter(env, minter)`
+## Authorization
 
-Sets the backend minter address. Only the stored admin can call this function; the admin address is read from storage and must authorize the call. The caller does not need to pass their own address.
+The table below documents the signer each public method requires **today**, as enforced by the current `require_auth` calls in `src/lib.rs`. It reflects the code as written, not a desired end state.
 
-- **Arguments:**
-  - `minter`: The address to authorize as the backend minter.
-- **Authorization:** Requires the stored admin's signature. A non-admin caller will fail.
-- **Behavior:** The stored minter is updated only after the authorization check succeeds.
+| Method | Required signer | Notes |
+| --- | --- | --- |
+| `initialize` | **Open** (no `require_auth`) | Anyone may call it once; guarded only by the `Already initialized` check. |
+| `migrate` | Admin | Reads stored `Admin` and calls `admin.require_auth()`. |
+| `pause` | Admin | `admin.require_auth()`. |
+| `unpause` | Admin | `admin.require_auth()`. |
+| `set_backend_minter` | Admin | Caller must equal stored admin, then `admin.require_auth()`. |
+| `clear_backend_minter` | Admin | Caller must equal stored admin, then `admin.require_auth()`. |
+| `get_backend_minter` | **Open** (no `require_auth`) | Read-only view. |
+| `mint_voucher` | Admin **or** backend minter | `caller.require_auth()` plus an explicit check that `caller` is the admin or the configured backend minter. |
+| `redeem_voucher` | **Open** (no `require_auth`) | Always panics with `Use redeem_voucher_from instead`. |
+| `redeem_voucher_from` | Redeemer | `redeemer.require_auth()`. |
+| `burn_voucher` | Admin **or** backend minter | `caller.require_auth()` plus an explicit check that `caller` is the admin or the configured backend minter. |
+| `withdraw_funds` | **Admin only** | `admin.require_auth()` on the stored admin. |
 
-### `clear_backend_minter(env)`
+## Event topic symbols
 
-Clears the backend minter. Only the stored admin can call this function; the admin address is read from storage and must authorize the call. No arguments are required.
+Reward events are published with a topic symbol. Most use `symbol_short!`, which accepts **at most nine characters**. A longer topic must use `Symbol::new` instead — but note that switching an event to `Symbol::new` changes the topic encoding, so indexers that match on the short form will miss it. Keep the symbols below exactly as they appear in `src/lib.rs`.
 
-- **Authorization:** Requires the stored admin's signature. A non-admin caller will fail.
-- **Behavior:** The stored minter is cleared only after the authorization check succeeds.
+| Event | Topic symbol | Form |
+| --- | --- | --- |
+| Pause | `Paused` | `symbol_short!` |
+| Unpause | `Unpaused` | `symbol_short!` |
+| Set backend minter | `set_min` | `symbol_short!` |
+| Clear backend minter | `clr_min` | `symbol_short!` |
+| Mint voucher | `V_Mint` | `symbol_short!` |
+| Redeem voucher | `Redeem` | `symbol_short!` |
+| Transfer | `Transfer` | `symbol_short!` |
+| Mint | `Mint` | `symbol_short!` |
+| Burn | `Burn` | `symbol_short!` |
+| Withdraw funds | `FundsWithdrawn` | `Symbol::new` (long symbol, > 9 chars) |
 
-### `get_backend_minter(env)`
+`FundsWithdrawn` is longer than nine characters, so `withdraw_funds` uses `Symbol::new` rather than `symbol_short!`.
 
-Returns the currently configured backend minter address, if any.
+## Getting Started
 
-## Minter Functions
+### Prerequisites
 
-### `mint_voucher(env, ...)`
+- Rust and Cargo
+- Soroban CLI
+- Stellar account with testnet funds
 
-Issues a voucher. Requires the stored backend minter's authorization. The minter address is read from storage rather than passed as an argument.
+### Building
 
-## Example
-
-```rust
-// Admin sets the backend minter (no admin address argument needed)
-contract.set_backend_minter(&minter_address);
-
-// Admin clears the backend minter (no arguments)
-contract.clear_backend_minter();
-
-// Read the current minter
-let minter = contract.get_backend_minter();
+```bash
+cd contract/contracts/tycoon-reward-system
+cargo build --target wasm32-unknown-unknown --release
 ```
+
+### Testing
+
+```bash
+cargo test -p tycoon-reward-system
+```
+
+### Deployment
+
+1. Build the contract:
+```bash
+soroban contract build
+```
+
+2. Deploy to testnet:
+```bash
+soroban contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/tycoon_reward_system.wasm \
+  --source <your-secret-key> \
+  --network testnet
+```
+
+3. Initialize the contract:
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <your-secret-key> \
+  --network testnet \
+  -- initialize \
+  --admin <admin-address> \
+  --tyc_token <tyc-token-address> \
+  --usdc_token <usdc-token-address>
+```
+
+## Usage
+
+### Minting Vouchers
+
+Only the admin or the configured backend minter can mint vouchers:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <backend-minter-secret-key> \
+  --network testnet \
+  -- mint_voucher \
+  --caller <backend-minter-address> \
+  --to <player-address> \
+  --tyc_value 1000
+```
+
+### Redeeming Vouchers
+
+Players can redeem their vouchers for TYC tokens:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <player-secret-key> \
+  --network testnet \
+  -- redeem_voucher_from \
+  --redeemer <player-address> \
+  --token_id 1000000001
+```
+
+### Burning Vouchers
+
+Only the admin or the configured backend minter can burn vouchers:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <backend-minter-secret-key> \
+  --network testnet \
+  -- burn_voucher \
+  --caller <backend-minter-address> \
+  --token_id 1000000001
+```
+
+### Withdrawing Funds
+
+Only the admin can withdraw funds:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <admin-secret-key> \
+  --network testnet \
+  -- withdraw_funds \
+  --token <token-address> \
+  --to <recipient-address> \
+  --amount 1000
+```
+
+## Contract Structure
+
+- `src/lib.rs`: Main contract implementation
+- `src/test.rs`: Test suite
+
+## Production builds
+
+Production builds must not export test entrypoints. The contract ABI intentionally
+exposes only the real entrypoints (`mint_voucher`, `redeem_voucher_from`, `burn_voucher`,
+and the admin/backend configuration functions). Helper functions such as `_mint` and
+`_burn` are crate-private and are exercised only from unit tests inside the crate.
+
+Do not add `test_mint`, `test_burn`, or any other unauthenticated test-only entrypoint
+to a `#[contractimpl]` block. If a test needs to mint or burn directly, call the
+private helpers from a `#[cfg(test)]` module instead of exposing a public entrypoint.
+
+## Security Considerations
+
+- Vouchers can only be minted by the admin or the configured backend minter
+- Only the admin can withdraw funds
+- The contract can be paused in emergencies
+- Voucher values are stored on-chain and verified during redemption
+
+## License
+
+This contract is part of the Tycoon project and follows the project's licensing terms.

@@ -13,25 +13,17 @@ This document describes the deprecation path for three legacy entrypoints in the
 
 | # | Entrypoint | Contract | Status | Risk |
 |---|-----------|----------|--------|------|
-| 1 | `redeem_voucher` | `TycoonRewardSystem` | Hard-deprecated (always panics) | Low — already enforced |
+| 1 | `redeem_voucher` | `TycoonRewardSystem` | Removed from the ABI | Low — clients must use `redeem_voucher_from` |
 | 2 | `test_mint` / `test_burn` | `TycoonRewardSystem` | Unguarded test helpers exposed as public entrypoints | **High** — arbitrary caller can inflate/deflate balances |
 | 3 | `mint_registration_voucher` | `TycoonContract` | Uses raw untyped `invoke_contract` (legacy cross-contract pattern) | Medium — functional but not type-safe |
 
 ---
 
-## 1. `redeem_voucher` — Hard-deprecated entrypoint
+## 1. `redeem_voucher` — Removed entrypoint
 
 ### Current state
 
-The `redeem_voucher` entrypoint in `TycoonRewardSystem` always panics with the message:
-
-```rust
-pub fn redeem_voucher(_e: Env, _token_id: u128) {
-    panic!("Use redeem_voucher_from instead");
-}
-```
-
-This is the **correct** deprecation pattern for Soroban contracts: the entrypoint remains in the ABI (so existing clients see a clear error) but cannot succeed.
+The `redeem_voucher` entrypoint has been **removed** from `TycoonRewardSystem`.  It previously panicked with `"Use redeem_voucher_from instead"`, which surfaced as an opaque host error to wallets and the backend and could not be simulated cleanly.  The entrypoint no longer exists in the ABI.
 
 ### Canonical replacement
 
@@ -39,20 +31,17 @@ This is the **correct** deprecation pattern for Soroban contracts: the entrypoin
 pub fn redeem_voucher_from(e: Env, redeemer: Address, token_id: u128)
 ```
 
-The replacement requires the caller to explicitly pass the `redeemer` address and authenticate it via `redeemer.require_auth()`.  This prevents a class of front-running attacks where an attacker could observe a pending `redeem_voucher` transaction and submit their own redemption first.
+The replacement requires the caller to explicitly pass the `redeemer` address and authenticate it via `redeemer.require_auth()`.  This prevents a class of front-running attacks where an attacker could observe a pending redemption transaction and submit their own redemption first.  The kept path still burns exactly one voucher and pays the stored value.
 
 ### Migration steps
 
-1. **Frontend / backend clients:** Replace all calls to `redeem_voucher(token_id)` with `redeem_voucher_from(redeemer, token_id)`.
-2. **Testing:** The integration test suite in `contract/integration-tests/src/legacy_entrypoints.rs` verifies that:
-   - `redeem_voucher` always panics.
-   - `redeem_voucher_from` still works after a failed `redeem_voucher` attempt.
-   - No TYC tokens are transferred by the deprecated path.
-3. **Rollout:** No on-chain migration needed — the panic is already active.  Client updates can be deployed incrementally.
+1. **Frontend / backend clients:** Replace all calls to `redeem_voucher(token_id)` with `redeem_voucher_from(redeemer, token_id)`.  Calls to the removed entrypoint will now fail at the client/ABI layer rather than with a panic string.
+2. **Testing:** The reward tests exercise `redeem_voucher_from` and verify that exactly one voucher is burned and the stored value is paid out.
+3. **Rollout:** No on-chain migration needed — the entrypoint is gone from the deployed WASM.  Client updates can be deployed incrementally.
 
 ### Feature flag / rollout
 
-Not applicable — the deprecation is hard-coded in the contract source.  No feature flag is needed.
+Not applicable — the removal is hard-coded in the contract source.  No feature flag is needed.
 
 ---
 
@@ -213,109 +202,5 @@ cargo test --package tycoon-integration-tests legacy_entrypoints -- --nocapture
 
 | Test | Purpose |
 |------|---------|
-| `legacy_redeem_voucher_always_panics` | Primary acceptance gate: deprecated entrypoint must panic |
-| `legacy_redeem_voucher_does_not_transfer_tokens` | No TYC must move even if the panic is bypassed |
-| `canonical_redeem_voucher_from_still_works_after_legacy_attempt` | Canonical path is unaffected by deprecated call |
-| `test_mint_entrypoint_is_unguarded_canary` | Documents the unguarded `test_mint` risk |
-| `test_burn_entrypoint_is_unguarded_canary` | Documents the unguarded `test_burn` risk |
-| `test_burn_insufficient_balance_still_panics` | Underlying `_burn` guard is still active |
-| `test_mint_then_burn_leaves_zero_balance_no_token_movement` | Test helpers do not move TYC tokens |
-| `legacy_mint_registration_voucher_owner_succeeds` | Current behaviour: owner can mint via legacy path |
-| `legacy_mint_registration_voucher_produces_redeemable_voucher` | Voucher is redeemable via canonical path |
-| `legacy_mint_registration_voucher_non_owner_rejected` | Non-owner cannot call (auth guard is present) |
-| `deprecated_call_does_not_corrupt_subsequent_canonical_flow` | State integrity after failed deprecated call |
-| `test_mint_voucher_has_no_value_entry_redeem_panics` | Semantic gap between test helpers and canonical mint |
-
----
-
-## CI / Acceptance Criteria
-
-### PR checklist
-
-- [ ] PR title references `SW-CON-001` and "legacy entrypoints deprecation".
-- [ ] PR body includes a link to this migration document.
-- [ ] `cargo check` passes for all workspace members.
-- [ ] `make ci-full` passes (hygiene + build + wasm-check + test + integration tests).
-- [ ] No new privileged patterns introduced (no unaudited oracle or admin backdoor).
-- [ ] All tests in `legacy_entrypoints.rs` pass.
-
-### CI commands
-
-```bash
-cd contract
-make ci-full
-```
-
-This runs:
-
-1. `cargo fmt --all -- --check` (hygiene)
-2. `cargo clippy --workspace --all-targets -- -D warnings` (hygiene)
-3. `cargo build --target wasm32-unknown-unknown --release` (WASM build)
-4. `bash scripts/check-wasm-sizes.sh` (size check)
-5. `cargo test --all` (unit tests)
-6. `cargo test --package tycoon-integration-tests -- --nocapture` (integration tests)
-
----
-
-## Security Review
-
-### Privileged patterns
-
-- **`test_mint` / `test_burn`:** These are unguarded and must be removed or admin-gated before mainnet.  The integration tests document this as a "canary" — if the fix is applied, the tests will need updating.
-- **`mint_registration_voucher`:** This is owner-gated (correct) but uses an untyped cross-contract call (refactoring recommended, not a security issue).
-
-### Oracle / external data
-
-Not applicable — no external data sources are involved in these entrypoints.
-
-### Audit recommendation
-
-The `test_mint` / `test_burn` issue should be flagged in any pre-mainnet security audit.  The recommended fix (Option A: move to `#[cfg(test)]`) is straightforward and low-risk.
-
----
-
-## Rollout Plan
-
-### Phase 1: Integration tests (this PR)
-
-- Add `legacy_entrypoints.rs` to the integration test suite.
-- Verify all tests pass on the current contract code.
-- Merge to `main` (or `develop`).
-
-### Phase 2: Fix `test_mint` / `test_burn` (follow-up PR)
-
-- Apply Option A (move to `#[cfg(test)]`).
-- Update or remove the canary tests in `legacy_entrypoints.rs`.
-- Deploy to testnet.
-- Verify no legitimate clients call these entrypoints.
-- Deploy to mainnet.
-
-### Phase 3: Refactor `mint_registration_voucher` (follow-up PR)
-
-- Replace `env.invoke_contract` with a typed client.
-- Verify all tests in `legacy_entrypoints.rs` still pass (regression guard).
-- Deploy to testnet.
-- Deploy to mainnet.
-
-### Phase 4: Remove `redeem_voucher` (long-term)
-
-- After all clients have migrated to `redeem_voucher_from`, the deprecated entrypoint can be removed entirely.
-- This is a breaking ABI change and should be coordinated with a major version bump.
-
----
-
-## References
-
-- **Stellar Wave batch:** Contract (Soroban / Stellar)
-- **Issue ID:** SW-CON-001
-- **Integration tests:** `contract/integration-tests/src/legacy_entrypoints.rs`
-- **Soroban best practices:** [Soroban Docs — Contract Upgrades](https://soroban.stellar.org/docs/learn/contract-upgrades)
-- **CEI pattern audit:** `contract/CEI_SECURITY_AUDIT.md`
-
----
-
-## Changelog
-
-| Date | Author | Change |
-|------|--------|--------|
-| 2026-04-23 | Kiro (SW-CON-001) | Initial migration document |
+| `redeem_voucher_from_burns_and_pays` | Kept redeem path burns exactly one voucher and pays the stored value |
+| `legacy_redeem_voucher_does_not_transfer_tokens` | No TYC must move via the removed entrypoint |

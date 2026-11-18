@@ -48,6 +48,32 @@ impl FeeSplit {
     }
 }
 
+/// Splits `amount` into platform, creator, and pool fees using the basis
+/// points in `config`.
+///
+/// The fee denominator is **10,000 basis points**, i.e. `10,000 bps = 100%`
+/// (so `100 bps = 1%`). Each share is computed as
+/// `amount * fee_bps / 10_000`, truncating any fractional remainder.
+///
+/// `residue` is the rounding leftover: the part of `amount` not distributed
+/// to any of the three recipients after truncation. It always satisfies
+/// `platform_amount + creator_amount + pool_amount + residue == amount`.
+///
+/// # Example
+///
+/// With `platform_fee_bps = creator_fee_bps = pool_fee_bps = 3333`
+/// (33.33% each) and `amount = 100`:
+///
+/// - `platform_amount = 100 * 3333 / 10_000 = 33`
+/// - `creator_amount = 33`
+/// - `pool_amount = 33`
+/// - `residue = 100 - (33 * 3) = 1`
+///
+pub fn calculate_fee_split(amount: u128, config: &FeeConfig) -> FeeSplit {
+    let platform_amount = (amount * config.platform_fee_bps as u128) / 10000;
+    let creator_amount = (amount * config.creator_fee_bps as u128) / 10000;
+    let pool_amount = (amount * config.pool_fee_bps as u128) / 10000;
+
 /// Splits `amount` into platform, creator, and pool shares.
 ///
 /// `platform_bps` and `pool_bps` are basis points of `amount`; the creator
@@ -114,8 +140,21 @@ mod tests {
         // 100 units at 3333 bps platform, 1000 bps pool.
         let split = calculate_fee_split(100, 3333, 1000);
         assert_eq!(split.platform_amount, 33);
-        assert_eq!(split.pool_amount, 10);
-        assert_eq!(split.creator_amount, 57);
+        assert_eq!(split.creator_amount, 33);
+        assert_eq!(split.pool_amount, 33);
+        assert_eq!(split.residue, 1); // 100 - (33*3) = 1
+    }
+
+    #[test]
+    fn test_zero_amount() {
+        let env = Env::default();
+        let config = config_with_bps(&env, 250, 500, 1000);
+
+        // A zero amount yields an all-zero split (see the rustdoc example).
+        let split = calculate_fee_split(0, &config);
+        assert_eq!(split.platform_amount, 0);
+        assert_eq!(split.creator_amount, 0);
+        assert_eq!(split.pool_amount, 0);
         assert_eq!(split.residue, 0);
         assert_eq!(split.creator_total(), 57);
 

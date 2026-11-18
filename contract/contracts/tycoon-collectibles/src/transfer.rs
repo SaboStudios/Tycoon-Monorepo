@@ -1,6 +1,6 @@
 use crate::enumeration::{add_token_to_owner, remove_token_from_owner};
 use crate::errors::CollectibleError;
-use crate::events::emit_transfer_event;
+use crate::events::{emit_burn_event, emit_transfer_event};
 use crate::storage::{get_balance, set_balance};
 use soroban_sdk::{symbol_short, Address, Env};
 
@@ -51,9 +51,11 @@ pub fn _safe_transfer(
     Ok(())
 }
 
-/// Batch transfer stub for future implementation
-/// This can be expanded later for gas-efficient multi-token transfers
-#[allow(dead_code)]
+/// Batch transfer of multiple token ids from `from` to `to`.
+///
+/// Requires `from` authorization exactly once. Rejects empty batches and
+/// validates that `token_ids` and `amounts` have matching lengths before
+/// performing any transfer, so a mismatch cannot partially move tokens.
 pub fn _safe_batch_transfer(
     env: &Env,
     from: &Address,
@@ -61,6 +63,12 @@ pub fn _safe_batch_transfer(
     token_ids: &soroban_sdk::Vec<u128>,
     amounts: &soroban_sdk::Vec<u64>,
 ) -> Result<(), CollectibleError> {
+    from.require_auth();
+
+    if token_ids.len() == 0 {
+        return Err(CollectibleError::InvalidAmount);
+    }
+
     if token_ids.len() != amounts.len() {
         return Err(CollectibleError::TokenIdMismatch);
     }
@@ -127,14 +135,8 @@ pub fn _safe_burn(
         remove_token_from_owner(env, from, token_id);
     }
 
-    // Emit burn event
-    crate::events::emit_transfer_event(
-        env,
-        from,
-        &env.current_contract_address(),
-        token_id,
-        amount,
-    );
+    // Emit burn event (distinct topic, not a transfer to the contract)
+    emit_burn_event(env, from, token_id, amount);
 
     Ok(())
 }
