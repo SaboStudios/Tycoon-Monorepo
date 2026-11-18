@@ -4,6 +4,7 @@ import {
   isTradeOfferExpired,
   validateTradeOffer,
   applyTradeCashTransfer,
+  acceptTradeOffer,
 } from './games.service';
 
 describe('trade offer ruleset helpers', () => {
@@ -121,5 +122,39 @@ describe('trade offer ruleset helpers', () => {
 
   it('exposes a ruleset version', () => {
     expect(typeof TRADE_RULESET_VERSION).toBe('string');
+  });
+});
+
+describe('acceptTradeOffer recipient authorization', () => {
+  const recipientId = 'player-recipient';
+  const thirdPlayerId = 'player-third';
+
+  const makeOffer = (status: string) => ({
+    id: 'offer-1',
+    status,
+    toPlayerId: recipientId,
+    fromPlayerId: 'player-sender',
+    cashAmount: 100,
+    propertyIds: ['a', 'b'],
+  });
+
+  it('returns the stored accepted offer to the recipient on retry', () => {
+    const offer = makeOffer('ACCEPTED');
+    const result = acceptTradeOffer(offer, recipientId);
+    expect(result).toBe(offer);
+  });
+
+  it('rejects a third player reading an accepted offer with 403', () => {
+    const offer = makeOffer('ACCEPTED');
+    expect(() => acceptTradeOffer(offer, thirdPlayerId)).toThrow(
+      expect.objectContaining({ status: 403 }),
+    );
+  });
+
+  it('rejects a third player reading a pending offer with 403', () => {
+    const offer = makeOffer('PENDING');
+    expect(() => acceptTradeOffer(offer, thirdPlayerId)).toThrow(
+      expect.objectContaining({ status: 403 }),
+    );
   });
 });

@@ -192,6 +192,13 @@ export class GamesService {
         throw new NotFoundException('Trade offer not found');
       }
 
+      // Only the receiving player may read or accept this offer. This check
+      // must run before the idempotent return so a third player cannot read
+      // an already-accepted offer (cash amount, property ids).
+      if (offer.toPlayerId !== acceptingPlayerId) {
+        throw new ForbiddenException('Only the receiving player may accept this offer');
+      }
+
       // Idempotency: an already-accepted offer returns the same result
       // instead of re-applying economic mutations.
       if (offer.status === TradeOfferStatus.ACCEPTED) {
@@ -200,10 +207,6 @@ export class GamesService {
 
       if (offer.status !== TradeOfferStatus.PENDING) {
         throw new ConflictException('Trade offer is no longer pending');
-      }
-
-      if (offer.toPlayerId !== acceptingPlayerId) {
-        throw new ForbiddenException('Only the receiving player may accept this offer');
       }
 
       // Evaluate expiry against the ruleset pinned on the offer/game row.
@@ -230,53 +233,6 @@ export class GamesService {
         throw new NotFoundException('Trade participants not found');
       }
 
-      // Move cash in integer minor units so the debit equals the credit
-      // exactly and repeated trades cannot drift.
-      const cashMinor = toMinorUnits(offer.cashAmount);
-      const fromCashMinor = toMinorUnits(fromPlayer.cash);
-      const toCashMinor = toMinorUnits(toPlayer.cash);
+      // Move cash in integer mino
 
-      // Re-validate against current state; fail closed on writes.
-      if (fromCashMinor < cashMinor) {
-        throw new BadRequestException('Offering player no longer has sufficient cash');
-      }
-
-      if (offer.propertyIds.length > 0) {
-        const owned = await manager.find(Property, {
-          where: offer.propertyIds.map((id) => ({
-            id,
-            ownerId: offer.fromPlayerId,
-            gameId,
-          })),
-        });
-        if (owned.length !== offer.propertyIds.length) {
-          throw new BadRequestException('Offering player no longer owns all offered properties');
-        }
-      }
-
-      fromPlayer.cash = (fromCashMinor - cashMinor) / 100;
-      toPlayer.cash = (toCashMinor + cashMinor) / 100;
-
-      await manager.save(fromPlayer);
-      await manager.save(toPlayer);
-
-      offer.status = TradeOfferStatus.ACCEPTED;
-      await manager.save(offer);
-
-      const event = manager.create(GameEvent, {
-        gameId,
-        type: 'trade.accepted',
-        payload: {
-          offerId: offer.id,
-          fromPlayerId: offer.fromPlayerId,
-          toPlayerId: offer.toPlayerId,
-          cashAmountMinor: cashMinor,
-          propertyIds: offer.propertyIds,
-        },
-      });
-      await manager.save(event);
-
-      return offer;
-    });
-  }
-}
+/* … truncated 1556 chars — edit only what you need near the top … */
