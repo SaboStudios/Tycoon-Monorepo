@@ -319,6 +319,22 @@ impl TycoonToken {
 
         BurnEvent { from, amount }.publish(&e);
     }
+    use soroban_sdk::Env;
+
+    #[test]
+    fn decimals_is_pinned_to_18() {
+        let e = Env::default();
+        let contract_id = e.register(TycoonToken, ());
+        let client = TycoonTokenClient::new(&e, &contract_id);
+
+        let admin = Address::generate(&e);
+        let f
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
     pub fn decimals(_e: Env) -> u32 {
         18
     }
@@ -330,21 +346,23 @@ impl TycoonToken {
     pub fn symbol(e: Env) -> String {
         String::from_str(&e, "TYC")
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::Env;
-
-    #[test]
-    fn decimals_is_pinned_to_18() {
         let e = Env::default();
         let contract_id = e.register(TycoonToken, ());
         let client = TycoonTokenClient::new(&e, &contract_id);
 
-        assert_eq!(client.decimals(), 18);
+        let admin = Address::generate(&e);
+        let from = Address::generate(&e);
+        let spender = Address::generate(&e);
+
+        client.initialize(&admin, &1_000_000);
+
+        let from_balance_before = client.balance(&from);
+        let spender_balance_before = client.balance(&spender);
+
+        assert_eq!(client.allowance(&from, &spender), 0);
+
+        assert_eq!(client.balance(&from), from_balance_before);
+        assert_eq!(client.balance(&spender), spender_balance_before);
     }
 
     #[test]
