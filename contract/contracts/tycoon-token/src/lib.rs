@@ -282,34 +282,6 @@ impl TycoonToken {
         }
         e.storage()
             .persistent()
-            .set(&DataKey::Balance(from.clone()), &(balance - amount));
+            .set(&DataKey::Balance(from.clone()), &(balance - amount))
 
-        let supply: i128 = e.storage().instance().get(&DataKey::TotalSupply).unwrap();
-        e.storage()
-            .instance()
-            .set(&DataKey::TotalSupply, &(supply - amount));
-
-        BurnEvent { from, amount }.publish(&e);
-    }
-
-    pub fn decimals(_e: Env) -> u32 {
-        18
-    }
-
-    pub fn name(e: Env) -> String {
-        String::from_str(&e, "Tycoon")
-    }
-
-    pub fn symbol(e: Env) -> String {
-        String::from_str(&e, "TYC")
-    }
-}
-
-#[cfg(test)]
-mod test;
-
-#[cfg(test)]
-mod invariant_tests;
-
-#[cfg(test)]
-mod error_branch_tests;
+/* … truncated 568 chars — edit only what you need near the top … */
