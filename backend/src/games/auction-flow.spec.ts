@@ -135,7 +135,28 @@ describe('AuctionManager', () => {
   });
 
   describe('cleanupExpiredAuctions', () => {
-    it('completes only active auctions past expiresAt and returns the count', () => {
+    it('cancels an expired auction that received no bids', () => {
+      const manager = new AuctionManager();
+      const expired = manager.createAuction('a1', 'seller', 'item');
+
+      jest.setSystemTime(expired.expiresAt + 1);
+
+      expect(manager.cleanupExpiredAuctions()).toBe(1);
+      expect(manager.getAuction('a1')?.status).toBe('cancelled');
+    });
+
+    it('completes an expired auction that received a bid', () => {
+      const manager = new AuctionManager();
+      const expired = manager.createAuction('a1', 'seller', 'item');
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+
+      jest.setSystemTime(expired.expiresAt + 1);
+
+      expect(manager.cleanupExpiredAuctions()).toBe(1);
+      expect(manager.getAuction('a1')?.status).toBe('completed');
+    });
+
+    it('only touches active auctions past expiresAt and returns the count', () => {
       const manager = new AuctionManager();
       const expired = manager.createAuction('a1', 'seller', 'item');
       manager.createAuction('a2', 'seller', 'item');
@@ -143,7 +164,7 @@ describe('AuctionManager', () => {
       jest.setSystemTime(expired.expiresAt + 1);
 
       expect(manager.cleanupExpiredAuctions()).toBe(1);
-      expect(manager.getAuction('a1')?.status).toBe('completed');
+      expect(manager.getAuction('a1')?.status).toBe('cancelled');
       expect(manager.getAuction('a2')?.status).toBe('active');
     });
 
