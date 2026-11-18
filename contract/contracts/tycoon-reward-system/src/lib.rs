@@ -52,26 +52,6 @@ impl TycoonRewardSystem {
         e.storage().persistent().set(&DataKey::VoucherLiability, &0u128);
     }
 
-    /// Migrate the contract to a newer state version (admin only)
-    pub fn migrate(e: Env) {
-        let admin: Address = e
-            .storage()
-            .persistent()
-            .get(&DataKey::Admin)
-            .expect("Not initialized");
-        admin.require_auth();
-
-        let current_version: u32 = e
-            .storage()
-            .persistent()
-            .get(&DataKey::StateVersion)
-            .unwrap_or(0);
-
-        if current_version == 0 {
-            e.storage().persistent().set(&DataKey::StateVersion, &1u32);
-        }
-    }
-
     /// Emergency pause contract (admin only)
     pub fn pause(e: Env) {
         let admin: Address = e
@@ -178,9 +158,12 @@ impl TycoonRewardSystem {
             .persistent()
             .get(&DataKey::VoucherCount)
             .unwrap_or(VOUCHER_ID_START);
+        let next_id = token_id
+            .checked_add(1)
+            .expect("Voucher counter overflow");
         e.storage()
             .persistent()
-            .set(&DataKey::VoucherCount, &(token_id + 1));
+            .set(&DataKey::VoucherCount, &next_id);
 
         e.storage()
             .persistent()
@@ -291,6 +274,7 @@ impl TycoonRewardSystem {
         if balance.saturating_sub(amount) < liability {
             panic!("Withdrawal would underfund outstanding vouchers");
         }
+        }
 
         soroban_sdk::token::Client::new(&e, &token).transfer(
             &e.current_contract_address(),
@@ -306,15 +290,14 @@ impl TycoonRewardSystem {
     fn _mint(e: &Env, to: Address, token_id: u128, amount: u128) {
         let key = DataKey::Balance(to.clone(), token_id);
         let current: u128 = e.storage().persistent().get(&key).unwrap_or(0);
+        let new_balance = current.checked_add(amount).expect("Balance overflow");
+        e.storage().persistent().set(&key, &new_balance);
+
         if current == 0 && amount > 0 {
-            let owned: u128 = e
-                .storage()
-                .persistent()
-                .get(&DataKey::OwnedTokenCount(to.clone()))
-                .unwrap_or(0);
-            e.storage()
-                .persistent()
-                .set(&DataKey::OwnedTokenCount(to.clone()), &(owned + 1));
+            let count_key = DataKey::OwnedTokenCount(to.clone());
+            let count: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
+            let new_count = count.checked_add(1).expect("Owned count overflow");
+            e.storage().persistent().set(&count_key, &new_count);
         }
         e.storage().persistent().set(&key, &(current + amount));
         #[allow(deprecated)]
@@ -331,14 +314,11 @@ impl TycoonRewardSystem {
         let new_balance = current - amount;
         if new_balance == 0 {
             e.storage().persistent().remove(&key);
-            let owned: u128 = e
-                .storage()
-                .persistent()
-                .get(&DataKey::OwnedTokenCount(from.clone()))
-                .unwrap_or(0);
+            let count_key = DataKey::OwnedTokenCount(from.clone());
+            let owned: u128 = e.storage().persistent().get(&count_key).unwrap_or(0);
             e.storage()
                 .persistent()
-                .set(&DataKey::OwnedTokenCount(from.clone()), &owned.saturating_sub(1));
+                .set(&count_key, &owned.saturating_sub(1));
         } else {
             e.storage().persistent().set(&key, &new_balance);
         }
