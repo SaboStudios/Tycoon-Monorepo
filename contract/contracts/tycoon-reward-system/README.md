@@ -1,38 +1,141 @@
 # Tycoon Reward System
 
-Soroban smart contract for the Tycoon reward system, handling voucher minting, redemption, and collectible perks.
+The Tycoon Reward System is a Soroban smart contract that manages in-game reward vouchers and collectibles for the Tycoon ecosystem. It allows the backend to mint vouchers for players, players to redeem them for TYC tokens, and admins to manage collectibles and withdraw funds.
 
-## Voucher ID Starting Value
+## Overview
 
-Minted voucher ids start at `1_000_000_000` (the `VOUCHER_ID_START` constant in `src/lib.rs`) and increase by one for each new voucher. This offset exists because collectible ids and voucher ids both use `u128`, so a marketplace must not treat small collectible ids and voucher ids as the same namespace — the high starting value keeps the two id ranges clearly separated. Collectible ids are issued by a different contract, not by this reward system.
+The contract provides the following core functionality:
 
-## Features
+- **Voucher Minting**: Backend minters can mint vouchers with a specified TYC value
+- **Voucher Redemption**: Players can redeem vouchers for TYC tokens
+- **Collectible Management**: Admins can create and manage collectible items
+- **Fund Withdrawal**: Admins can withdraw accumulated TYC and USDC tokens
+- **Pause/Unpause**: Admins can pause the contract in emergencies
 
-- **Voucher Minting**: Admin or backend minter can mint vouchers with TYC value
-- **Voucher Redemption**: Users can redeem vouchers for TYC tokens
-- **Collectible Perks**: Collectibles can have perks (strength, TYC value, USDC value)
-- **Pausable**: Admin can pause/unpause the contract in emergencies
-- **Backend Minter**: Optional backend address authorized to mint vouchers
-- **State Migration**: Versioned state for safe upgrades
+## Authorization
 
-## Contract Structure
+The table below documents the signer each public method requires **today**, as enforced by the current `require_auth` calls in `src/lib.rs`. It reflects the code as written, not a desired end state.
 
-- `initialize`: Set up admin, TYC token, USDC token
-- `mint_voucher`: Mint a new voucher (admin or backend minter only)
-- `redeem_voucher_from`: Redeem a voucher for TYC tokens
-- `pause`/`unpause`: Emergency controls (admin only)
-- `set_backend_minter`/`clear_backend_minter`: Manage backend minter (admin only)
-- `withdraw_funds`: Withdraw tokens from contract (admin only)
-- `migrate`: Upgrade state version (admin only)
+| Method | Required signer | Notes |
+| --- | --- | --- |
+| `initialize` | **Open** (no `require_auth`) | Anyone may call it once; guarded only by the `Already initialized` check. |
+| `migrate` | Admin | Reads stored `Admin` and calls `admin.require_auth()`. |
+| `pause` | Admin | `admin.require_auth()`. |
+| `unpause` | Admin | `admin.require_auth()`. |
+| `set_backend_minter` | Admin | Caller must equal stored admin, then `admin.require_auth()`. |
+| `clear_backend_minter` | Admin | Caller must equal stored admin, then `admin.require_auth()`. |
+| `get_backend_minter` | **Open** (no `require_auth`) | Read-only view. |
+| `mint_voucher` | Admin **or** backend minter | `caller.require_auth()` plus an explicit check that `caller` is the admin or the configured backend minter. |
+| `redeem_voucher` | **Open** (no `require_auth`) | Always panics with `Use redeem_voucher_from instead`. |
+| `redeem_voucher_from` | Redeemer | `redeemer.require_auth()`. |
+| `withdraw_funds` | **Admin only** | `admin.require_auth()` on the stored admin. |
 
-## Building
+## Getting Started
+
+### Prerequisites
+
+- Rust and Cargo
+- Soroban CLI
+- Stellar account with testnet funds
+
+### Building
 
 ```bash
+cd contract/contracts/tycoon-reward-system
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-## Testing
+### Testing
 
 ```bash
 cargo test
 ```
+
+### Deployment
+
+1. Build the contract:
+```bash
+soroban contract build
+```
+
+2. Deploy to testnet:
+```bash
+soroban contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/tycoon_reward_system.wasm \
+  --source <your-secret-key> \
+  --network testnet
+```
+
+3. Initialize the contract:
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <your-secret-key> \
+  --network testnet \
+  -- initialize \
+  --admin <admin-address> \
+  --tyc_token <tyc-token-address> \
+  --usdc_token <usdc-token-address>
+```
+
+## Usage
+
+### Minting Vouchers
+
+Only the admin or the configured backend minter can mint vouchers:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <backend-minter-secret-key> \
+  --network testnet \
+  -- mint_voucher \
+  --caller <backend-minter-address> \
+  --to <player-address> \
+  --tyc_value 1000
+```
+
+### Redeeming Vouchers
+
+Players can redeem their vouchers for TYC tokens:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <player-secret-key> \
+  --network testnet \
+  -- redeem_voucher_from \
+  --redeemer <player-address> \
+  --token_id 1000000001
+```
+
+### Withdrawing Funds
+
+Only the admin can withdraw funds:
+
+```bash
+soroban contract invoke \
+  --id <contract-id> \
+  --source <admin-secret-key> \
+  --network testnet \
+  -- withdraw_funds \
+  --token <token-address> \
+  --to <recipient-address> \
+  --amount 1000
+```
+
+## Contract Structure
+
+- `src/lib.rs`: Main contract implementation
+- `src/test.rs`: Test suite
+
+## Security Considerations
+
+- Vouchers can only be minted by the admin or the configured backend minter
+- Only the admin can withdraw funds
+- The contract can be paused in emergencies
+- Voucher values are stored on-chain and verified during redemption
+
+## License
+
+This contract is part of the Tycoon project and follows the project's licensing terms.
