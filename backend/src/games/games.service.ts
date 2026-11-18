@@ -232,28 +232,37 @@ export class GamesService {
         }
       }
 
-      // Apply money mutation.
-      fromPlayer.cash -= offer.cashAmount;
-      toPlayer.cash += offer.cashAmount;
-      await manager.save(fromPlayer);
-      await manager.save(toPlayer);
+      // Move cash atomically.
+      if (offer.cashAmount > 0) {
+        fromPlayer.cash -= offer.cashAmount;
+        toPlayer.cash += offer.cashAmount;
+        await manager.save([fromPlayer, toPlayer]);
+      }
 
-      // Apply property mutation.
+      // Move properties, scoped to the current owner so a concurrent trade
+      // cannot reassign a property the seller no longer owns. A short write
+      // rolls back the whole transaction (including the cash move).
       if (offer.propertyIds.length > 0) {
-        await manager
+        const result = await manager
           .createQueryBuilder()
           .update(Property)
           .set({ ownerId: offer.toPlayerId })
           .where('id IN (:...ids)', { ids: offer.propertyIds })
           .andWhere('gameId = :gameId', { gameId })
+          .andWhere('ownerId = :fromPlayerId', { fromPlayerId: offer.fromPlayerId })
           .execute();
+
+        if (result.affected !== offer.propertyIds.length) {
+          throw new ConflictException(
+            'Offering player no longer owns all offered properties',
+          );
+        }
       }
 
       offer.status = TradeOfferStatus.ACCEPTED;
       offer.acceptedAt = new Date();
-      const saved = await manager.save(offer);
+      await manager.save(offer);
 
-      // Emit a game event for replay.
       const event = manager.create(GameEvent, {
         gameId,
         type: 'trade.accepted',
@@ -263,39 +272,11 @@ export class GamesService {
           toPlayerId: offer.toPlayerId,
           cashAmount: offer.cashAmount,
           propertyIds: offer.propertyIds,
-          rulesetVersion: ruleset.version,
         },
-        createdAt: new Date(),
       });
       await manager.save(event);
 
-      this.logger.log(
-        `Trade offer ${offer.id} accepted in game ${gameId} (ruleset ${ruleset.version})`,
-      );
-
-      return saved;
+      return offer;
     });
-  }
-
-  /**
-   * Expire stale pending offers for a game. Safe to call from a scheduler or
-   * on reconnect; idempotent because it only transitions PENDING -> EXPIRED.
-   */
-  async expireStaleTradeOffers(gameId: string): Promise<number> {
-    const pending = await this.tradeOffersRepository.find({
-      where: { gameId, status: TradeOfferStatus.PENDING },
-    });
-
-    const now = new Date();
-    const stale = pending.filter((offer) => isTradeOfferExpired(offer, now));
-    if (stale.length === 0) {
-      return 0;
-    }
-
-    for (const offer of stale) {
-      offer.status = TradeOfferStatus.EXPIRED;
-    }
-    await this.tradeOffersRepository.save(stale);
-    return stale.length;
   }
 }

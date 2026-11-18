@@ -1,33 +1,40 @@
-export const AUCTION_DURATION_MS = 60000;
-export const MIN_BID_INCREMENT = 10;
+export const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 export const STARTING_BID = 10;
+export const MIN_BID_INCREMENT = 5;
+
+export type AuctionStatus = 'active' | 'completed' | 'cancelled';
 
 export interface Bid {
   playerId: string;
   amount: number;
-  timestamp: number;
+  placedAt: number;
 }
 
-export interface AuctionState {
+export interface Auction {
   id: string;
   sellerId: string;
   itemId: string;
-  startingBid: number;
-  minBidIncrement: number;
   currentBid: number;
   currentBidder: string | null;
-  status: 'active' | 'completed' | 'cancelled';
-  createdAt: number;
-  expiresAt: number;
+  status: AuctionStatus;
   bids: Bid[];
+  expiresAt: number;
 }
 
-/**
- * Pure expiry predicate shared by `placeBid` and `cleanupExpiredAuctions` so the
- * boundary is defined once. An auction is expired only once `now` is strictly
- * greater than `expiresAt`; a bid at exactly `expiresAt` is still accepted.
- */
-export function isAuctionExpired(auction: AuctionState, now: number = Date.now()): boolean {
+export interface AuctionEvent {
+  type: string;
+  auctionId: string;
+  playerId?: string;
+  amount?: number;
+}
+
+export interface AuctionResult {
+  success: boolean;
+  events: AuctionEvent[];
+  error?: string;
+}
+
+export function isAuctionExpired(auction: Auction, now: number = Date.now()): boolean {
   return now > auction.expiresAt;
 }
 
@@ -51,53 +58,29 @@ function generateAuctionId(): string {
 }
 
 export class AuctionManager {
-  private auctions: Map<string, AuctionState> = new Map();
+  private auctions = new Map<string, Auction>();
 
-  createAuction(
-    sellerId: string,
-    itemId: string,
-    startingBid: number = STARTING_BID,
-    minBidIncrement: number = MIN_BID_INCREMENT,
-  ): AuctionState {
-    const now = Date.now();
-    let id = generateAuctionId();
-    // Retry on the (astronomically unlikely) collision with an existing id so
-    // a new auction never overwrites another one in the map.
-    let attempts = 0;
-    while (this.auctions.has(id)) {
-      attempts += 1;
-      if (attempts >= 5) {
-        throw new Error('Failed to generate a unique auction id');
-      }
-      id = generateAuctionId();
-    }
-    const auction: AuctionState = {
+  createAuction(id: string, sellerId: string, itemId: string): Auction {
+    const auction: Auction = {
       id,
       sellerId,
       itemId,
-      startingBid,
-      minBidIncrement,
-      currentBid: startingBid,
+      currentBid: STARTING_BID,
       currentBidder: null,
       status: 'active',
-      createdAt: now,
-      expiresAt: now + AUCTION_DURATION_MS,
       bids: [],
+      expiresAt: Date.now() + AUCTION_DURATION_MS,
     };
-    this.auctions.set(auction.id, auction);
+    this.auctions.set(id, auction);
     return auction;
   }
 
-  getAuction(auctionId: string): AuctionState | undefined {
-    return this.auctions.get(auctionId);
+  getAuction(id: string): Auction | undefined {
+    return this.auctions.get(id);
   }
 
-  getActiveAuctions(): AuctionState[] {
-    return Array.from(this.auctions.values()).filter((a) => a.status === 'active');
-  }
-
-  placeBid(auctionId: string, playerId: string, amount: number): AuctionState {
-    const auction = this.auctions.get(auctionId);
+  placeBid(id: string, playerId: string, amount: number): AuctionResult {
+    const auction = this.auctions.get(id);
     if (!auction) {
       throw new Error('Auction not found');
     }
@@ -105,25 +88,30 @@ export class AuctionManager {
       throw new Error('Auction is not active');
     }
     if (isAuctionExpired(auction)) {
-      // Rejected bids must not mutate the auction; the transition is owned by
-      // `cleanupExpiredAuctions` / `completeAuction`.
       throw new Error('Auction has expired');
     }
     if (playerId === auction.sellerId) {
       throw new Error('Seller cannot bid on their own auction');
     }
-    if (amount < auction.currentBid + auction.minBidIncrement) {
-      throw new Error('Bid must be at least the current bid plus the minimum increment');
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error(`Invalid bid amount: ${amount}`);
+    }
+    if (amount < auction.currentBid + MIN_BID_INCREMENT) {
+      throw new Error('Bid is below the minimum increment');
     }
 
     auction.currentBid = amount;
     auction.currentBidder = playerId;
-    auction.bids.push({ playerId, amount, timestamp: Date.now() });
-    return auction;
+    auction.bids.push({ playerId, amount, placedAt: Date.now() });
+
+    return {
+      success: true,
+      events: [{ type: 'bid_placed', auctionId: id, playerId, amount }],
+    };
   }
 
-  completeAuction(auctionId: string): { success: boolean; events: string[]; error?: string } {
-    const auction = this.auctions.get(auctionId);
+  completeAuction(id: string): AuctionResult {
+    const auction = this.auctions.get(id);
     if (!auction) {
       return { success: false, events: [], error: 'Auction not found' };
     }
@@ -135,24 +123,38 @@ export class AuctionManager {
       // emitting a second `auction.completed` event.
       return { success: true, events: [] };
     }
-    if (auction.currentBidder === null) {
+    if (!auction.currentBidder) {
       return { success: false, events: [], error: 'No bids received' };
     }
 
     auction.status = 'completed';
+
     return {
       success: true,
-      events: ['auction.completed'],
+      events: [
+        {
+          type: 'auction_completed',
+          auctionId: id,
+          playerId: auction.currentBidder,
+          amount: auction.currentBid,
+        },
+      ],
     };
   }
 
   cleanupExpiredAuctions(now: number = Date.now()): number {
     let count = 0;
     for (const auction of this.auctions.values()) {
-      if (auction.status === 'active' && isAuctionExpired(auction, now)) {
-        auction.status = 'completed';
-        count += 1;
+      if (auction.status !== 'active' || !isAuctionExpired(auction, now)) {
+        continue;
       }
+
+      if (auction.currentBidder) {
+        auction.status = 'completed';
+      } else {
+        auction.status = 'cancelled';
+      }
+      count += 1;
     }
     return count;
   }

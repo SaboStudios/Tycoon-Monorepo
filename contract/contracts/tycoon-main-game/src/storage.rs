@@ -215,7 +215,14 @@ pub fn set_usdc_token(env: &Env, address: &Address) {
 // Pause configuration helpers (persistent storage)
 // ============================================================
 
+/// Persist the pause configuration.
+///
+/// Rejects configs whose `required_signatures` exceeds the number of
+/// authorized signers, since such a threshold can never be satisfied.
 pub fn set_pause_config(env: &Env, config: &PauseConfig) {
+    if config.required_signatures > config.signers.len() {
+        panic!("required_signatures exceeds signer count");
+    }
     env.storage()
         .persistent()
         .set(&DataKey::PauseConfig, config);
@@ -284,124 +291,36 @@ pub fn set_pause_reason(env: &Env, reason: &Symbol) {
         .set(&DataKey::PauseReason, reason);
 }
 
-/// Pause the contract with an expiry.
-pub fn pause_with_expiry(
-    env: &Env,
-    caller: &Address,
-    reason: &Symbol,
-    duration_ledgers: u32,
-) -> u32 {
-    let current_ledger = env.ledger().sequence();
-    let expiry = current_ledger
-        .checked_add(duration_ledgers)
-        .expect("Pause expiry exceeds ledger range");
+// ============================================================
+// Pause authorization
+// ============================================================
 
-    set_paused(env, true);
-    set_paused_by(env, caller);
-    set_paused_at(env, env.ledger().timestamp());
-    set_pause_expiry(env, expiry);
-    set_pause_reason(env, reason);
-    expiry
-}
-
-/// Check if the pause has expired and clear pause state if so.
-pub fn check_pause_expiry(env: &Env) {
-    if is_paused(env) {
-        let expiry = get_pause_expiry(env);
-        if expiry > 0 && env.ledger().sequence() >= expiry {
-            set_paused(env, false);
-        }
-    }
-}
-
-/// Panic if the contract is currently paused.
-pub fn ensure_not_paused(env: &Env, operation: &Symbol) {
-    check_pause_expiry(env);
-    if is_paused(env) {
-        panic!("Operation blocked: contract is paused");
-    }
-}
-
-/// Check whether the caller is authorized to pause/unpause.
-pub fn is_authorized_to_pause(env: &Env, caller: &Address, config: &PauseConfig) -> bool {
-    // Admin is always authorized
-    if let Some(ref admin) = config.admin {
-        if caller == admin {
+/// Returns true when `caller` is authorized to pause/unpause the contract.
+///
+/// The admin is always authorized. A non-admin caller is only authorized
+/// when the configured threshold is exactly 1 and the caller is a listed
+/// signer. Thresholds greater than 1 require a real multisig flow that is
+/// not yet implemented, so a single signer cannot satisfy them.
+pub fn is_authorized_to_pause(env: &Env, caller: &Address) -> bool {
+    if let Some(admin) = env
+        .storage()
+        .instance()
+        .get::<DataKey, Address>(&DataKey::Owner)
+    {
+        if &admin == caller {
             return true;
         }
     }
 
-    // Check multisig signers
-    if config.required_signatures > 0 {
-        for signer in config.signers.iter() {
-            if &signer == caller {
-                return true;
-            }
-        }
+    let config = match get_pause_config(env) {
+        Some(c) => c,
+        None => return false,
+    };
+
+    // A single signer can only satisfy a threshold of exactly 1.
+    if config.required_signatures != 1 {
+        return false;
     }
 
-    false
-}
-
-// ============================================================
-// Player registration helpers (persistent storage)
-// ============================================================
-
-pub fn is_registered(env: &Env, address: &Address) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Registered(address.clone()))
-        .unwrap_or(false)
-}
-
-pub fn set_registered(env: &Env, address: &Address) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::Registered(address.clone()), &true);
-}
-
-// ============================================================
-// Game ID counter (instance storage)
-// ============================================================
-
-/// Increments and returns the next game ID, starting at 1.
-pub fn next_game_id(env: &Env) -> u64 {
-    let id: u64 = env
-        .storage()
-        .instance()
-        .get(&DataKey::NextGameId)
-        .unwrap_or(0);
-    let next = id + 1;
-    env.storage().instance().set(&DataKey::NextGameId, &next);
-    next
-}
-
-// ============================================================
-// Game storage helpers (persistent storage)
-// ============================================================
-
-pub fn get_game(env: &Env, game_id: u64) -> Option<Game> {
-    env.storage().persistent().get(&DataKey::Game(game_id))
-}
-
-pub fn set_game(env: &Env, game: &Game) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::Game(game.id), game);
-}
-
-// ============================================================
-// GameSettings storage helpers (persistent storage)
-// ============================================================
-
-pub fn get_game_settings(env: &Env, game_id: u64) -> Option<GameSettings> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::GameSettings(game_id))
-}
-
-pub fn set_game_settings(env: &Env, game_id: u64, settings: &GameSettings) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::GameSettings(game_id), settings);
+    config.signers.iter().any(|s| &s == caller)
 }
