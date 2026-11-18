@@ -1,52 +1,44 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
-  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
-import type { Request } from 'express';
-import { GamePlayersService } from '../game-players.service';
+import { Reflector } from '@nestjs/core';
+import { GamesService } from '../games.service';
 
-interface AuthenticatedRequest extends Request {
-  user?: { id: number; role?: string; is_admin?: boolean };
+const CANONICAL_INTEGER = /^[0-9]+$/;
+
+function parseId(value: unknown, name: string): number {
+  if (typeof value !== 'string' || !CANONICAL_INTEGER.test(value)) {
+    throw new BadRequestException(`Invalid ${name}`);
+  }
+  const parsed = BigInt(value);
+  if (parsed > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new BadRequestException(`Invalid ${name}`);
+  }
+  return Number(parsed);
 }
 
-/**
- * Seat-ownership guard for game mutation routes.
- *
- * A non-admin caller may only act for the seat (`GamePlayer` row) they own;
- * admins may act for any seat (moderation/repair tooling). Resolves the seat
- * from `:playerId` (or `:id`) and, when present, scopes it to `:gameId` so a
- * player id from another game cannot be used as a confused deputy.
- *
- * Must be paired with JwtAuthGuard so `req.user` is populated.
- */
 @Injectable()
 export class SeatOwnershipGuard implements CanActivate {
-  constructor(private readonly gamePlayersService: GamePlayersService) {}
+  constructor(
+    private readonly gamesService: GamesService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const user = req.user;
-    if (!user?.id) {
-      throw new ForbiddenException('Authentication required');
+    const request = context.switchToHttp().getRequest();
+    const params = request.params ?? {};
+
+    const playerId = parseId(params.playerId, 'playerId');
+    const gameId = parseId(params.gameId, 'gameId');
+
+    const user = request.user;
+    if (!user) {
+      return false;
     }
 
-    const params = req.params ?? {};
-    const playerId = Number(params.playerId ?? params.id);
-    const gameId =
-      params.gameId !== undefined ? Number(params.gameId) : undefined;
-
-    const seat =
-      gameId !== undefined && Number.isFinite(gameId)
-        ? await this.gamePlayersService.findByGameAndPlayer(gameId, playerId)
-        : await this.gamePlayersService.findOne(playerId);
-
-    if (seat.user_id === user.id || user.is_admin || user.role === 'admin') {
-      return true;
-    }
-
-    throw new NotFoundException('Seat not found for your account in this game');
+    return this.gamesService.isSeatOwner(gameId, playerId, user.id);
   }
 }
