@@ -153,9 +153,16 @@ impl TycoonMainGame {
 
     /// Register a player for the main game.
     ///
+    /// The `address` must authorize this call, so an account can only
+    /// register itself.
+    ///
     /// # Panics
     /// * If contract is paused
+    /// * If `address` has not authorized the call
+    /// * If `address` is already registered
     pub fn register_player(env: Env, address: Address) {
+        address.require_auth();
+
         let op = Symbol::new(&env, "register_player");
         storage::ensure_not_paused(&env, &op);
 
@@ -244,30 +251,6 @@ impl TycoonMainGame {
 
     // ============================================================
     // View Functions
-    // ============================================================
+    // ======================================================
 
-    pub fn get_owner(env: Env) -> Address {
-        storage::get_owner(&env)
-    }
-
-    pub fn get_reward_system(env: Env) -> Address {
-        storage::get_reward_system(&env)
-    }
-
-    pub fn is_registered(env: Env, address: Address) -> bool {
-        storage::is_registered(&env, &address)
-    }
-
-    pub fn get_game(env: Env, game_id: u64) -> Option<storage::Game> {
-        storage::get_game(&env, game_id)
-    }
-
-    pub fn get_game_settings(env: Env, game_id: u64) -> Option<storage::GameSettings> {
-        storage::get_game_settings(&env, game_id)
-    }
-
-    /// Return the pause config (for testing/verification).
-    pub fn get_pause_config(env: Env) -> Option<storage::PauseConfig> {
-        storage::get_pause_config(&env)
-    }
-}
+/* … truncated 753 chars — edit only what you need near the top … */
