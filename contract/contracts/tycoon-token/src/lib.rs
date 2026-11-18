@@ -319,4 +319,45 @@ impl TycoonToken {
 
         BurnEvent { from, amount }.publish(&e);
     }
+    pub fn decimals(_e: Env) -> u32 {
+        18
+    }
+
+    pub fn name(e: Env) -> String {
+        String::from_str(&e, "Tycoon Token")
+    }
+
+    pub fn symbol(e: Env) -> String {
+        String::from_str(&e, "TYC")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::Env;
+
+    #[test]
+    fn decimals_is_pinned_to_18() {
+        let e = Env::default();
+        let contract_id = e.register(TycoonToken, ());
+        let client = TycoonTokenClient::new(&e, &contract_id);
+
+        assert_eq!(client.decimals(), 18);
+    }
+
+    #[test]
+    fn initialize_sets_admin_and_supply() {
+        let e = Env::default();
+        let contract_id = e.register(TycoonToken, ());
+        let client = TycoonTokenClient::new(&e, &contract_id);
+        let admin = Address::generate(&e);
+
+        client.initialize(&admin, &1_000);
+
+        assert_eq!(client.admin(), admin);
+        assert_eq!(client.total_supply(), 1_000);
+        assert_eq!(client.balance(&admin), 1_000);
+    }
 }
