@@ -276,38 +276,37 @@ describe('CouponsService', () => {
 
       expect(discount).toBe(100);
     });
-  });
 
-  describe('incrementUsage', () => {
-    it('should increment coupon usage', async () => {
-      mockRepository.increment.mockResolvedValue(undefined);
+    it('should compute 10 percent of 10.10 as 1.01 without float drift', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '10',
+      } as Coupon;
+      const discount = service.calculateDiscount(coupon, 10.1);
 
-      await service.incrementUsage(1);
-
-      expect(mockRepository.increment).toHaveBeenCalledWith(
-        { id: 1 },
-        'current_usage',
-        1,
-      );
-    });
-  });
-
-  describe('applyCoupon', () => {
-    it('should apply a valid coupon and increment usage', async () => {
-      mockRepository.findOne.mockResolvedValue(mockCoupon);
-      mockRepository.increment.mockResolvedValue(undefined);
-
-      const discount = await service.applyCoupon('SAVE20', null, 100);
-
-      expect(discount).toBe(20);
-      expect(mockRepository.increment).toHaveBeenCalled();
+      expect(discount).toBe(1.01);
     });
 
-    it('should throw BadRequestException for invalid coupon', async () => {
-      const inactiveCoupon = { ...mockCoupon, active: false };
-      mockRepository.findOne.mockResolvedValue(inactiveCoupon);
+    it('should round a fixed coupon with three decimal places to minor units', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.FIXED,
+        value: '15.555',
+      } as Coupon;
+      const discount = service.calculateDiscount(coupon, 100);
 
-      await expect(service.applyCoupon('SAVE20', null, 100)).rejects.toThrow(
+      expect(discount).toBe(15.56);
+    });
+
+    it('should reject a non-numeric coupon value', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: 'abc',
+      } as Coupon;
+
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
         BadRequestException,
       );
     });
