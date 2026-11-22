@@ -4,6 +4,7 @@
 
 ### Added
 
+- `parseExpiresIn` helper in `src/config/jwt.config.ts` converting `s`/`m`/`h`/`d` JWT lifetimes to seconds, with tests.
 - API versioning strategy using URI versioning (`/api/v1/*`) with centralized bootstrap configuration.
 - Optional unversioned compatibility route (`/api/*`) that rewrites to `/api/v1/*`.
 - Deprecation headers for compatibility routes:

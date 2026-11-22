@@ -30,7 +30,26 @@ export function resolveJwtSecret(
   return secret;
 }
 
+const EXPIRES_IN_UNITS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 60 * 60,
+  d: 24 * 60 * 60,
+};
+
+/**
+ * Parses a JWT lifetime string (e.g. `15s`, `15m`, `1h`, `1d`) into seconds.
+ * Returns the input unchanged when it is not a supported duration string.
+ */
+export function parseExpiresIn(value: string): number | string {
+  const match = /^(\d+)([smhd])$/.exec(value.trim());
+  if (!match) {
+    return value;
+  }
+  return Number(match[1]) * EXPIRES_IN_UNITS[match[2]];
+}
+
 export default registerAs('jwt', () => ({
   secret: resolveJwtSecret(),
-  expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  expiresIn: parseExpiresIn(process.env.JWT_EXPIRES_IN || '7d'),
 }));
