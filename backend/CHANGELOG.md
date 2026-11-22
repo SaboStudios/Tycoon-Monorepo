@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `SessionFixationGuard` now treats a missing `nonceCreatedAt` and a negative nonce age as expired, rotating the session nonce in both cases (#2116).
+
 ### Added
 
 - API versioning strategy using URI versioning (`/api/v1/*`) with centralized bootstrap configuration.
