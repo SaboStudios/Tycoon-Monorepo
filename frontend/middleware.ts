@@ -56,13 +56,27 @@ function buildConnectSrc(): string {
   return Array.from(new Set(sources)).join(' ');
 }
 
-function buildCsp(): string {
+// Explicit image hosts (no bare `https:` scheme). Keep in sync with
+// next/image remote patterns and any external artwork sources.
+const IMAGE_HOSTS = [
+  'https://placehold.co',
+  'https://ipfs.io',
+  'https://cloudflare-ipfs.com',
+  'https://gateway.pinata.cloud',
+  'https://arweave.net',
+];
+
+function buildImgSrc(): string {
+  return ["'self'", 'data:', ...IMAGE_HOSTS].join(' ');
+}
+
+export function buildCsp(): string {
   return [
     "default-src 'self'",
     `connect-src ${buildConnectSrc()}`,
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    `img-src ${buildImgSrc()}`,
     "font-src 'self' data:",
     "frame-src 'self' https://wallet.testnet.near.org https://wallet.near.org",
     "object-src 'none'",
@@ -72,7 +86,7 @@ function buildCsp(): string {
   ].join('; ');
 }
 
-export function middleware(request: NextRequest) {
+export function middleware(_request: NextRequest) {
   const response = NextResponse.next();
   response.headers.set('Content-Security-Policy', buildCsp());
   return response;
