@@ -247,7 +247,14 @@ export class CouponsService {
 
     let discount_amount = 0;
     if (purchase_amount) {
-      discount_amount = this.calculateDiscount(coupon, purchase_amount);
+      try {
+        discount_amount = this.calculateDiscount(coupon, purchase_amount);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          return { valid: false, message: error.message };
+        }
+        throw error;
+      }
     }
 
     return {
@@ -301,6 +308,13 @@ export class CouponsService {
     if (coupon.type === CouponType.PERCENTAGE) {
       // Percentage value is expressed in basis points (1% = 100 bps).
       const basisPoints = parseMinorUnits(coupon.value);
+
+      if (basisPoints < 100 || basisPoints > 10000) {
+        throw new BadRequestException(
+          'Percentage discount must be between 1 and 100',
+        );
+      }
+
       discountMinorUnits = Math.floor(
         (purchaseMinorUnits * basisPoints) / 10000,
       );
@@ -311,6 +325,12 @@ export class CouponsService {
       }
     } else if (coupon.type === CouponType.FIXED) {
       discountMinorUnits = parseMinorUnits(coupon.value);
+
+      if (discountMinorUnits > purchaseMinorUnits) {
+        throw new BadRequestException(
+          'Fixed discount cannot exceed the purchase amount',
+        );
+      }
     }
 
     discountMinorUnits = Math.min(discountMinorUnits, purchaseMinorUnits);

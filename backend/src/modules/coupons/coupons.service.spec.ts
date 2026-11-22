@@ -190,6 +190,37 @@ describe('CouponsService', () => {
       expect(result.message).toContain('expired');
     });
 
+    it('should report an invalid percentage coupon as not valid', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockCoupon,
+        value: '101',
+      });
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 100,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('between 1 and 100');
+    });
+
+    it('should report a fixed discount above the price as not valid', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockCoupon,
+        type: CouponType.FIXED,
+        value: '150',
+      });
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 100,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('cannot exceed the purchase amount');
+    });
+
     it('should reject a coupon that reached usage limit', async () => {
       const usedUpCoupon = { ...mockCoupon, max_uses: 10, current_usage: 10 };
       mockRepository.findOne.mockResolvedValue(usedUpCoupon);
@@ -313,15 +344,50 @@ describe('CouponsService', () => {
       expect(discount).toBe(15);
     });
 
-    it('should not exceed purchase amount', () => {
+    it('should reject a fixed discount above the purchase amount', () => {
       const coupon = {
         ...mockCoupon,
         type: CouponType.FIXED,
         value: '150',
       } as Coupon;
-      const discount = service.calculateDiscount(coupon, 100);
 
-      expect(discount).toBe(100);
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should allow a 100 percent discount to cover the full price', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '100',
+      } as Coupon;
+
+      expect(service.calculateDiscount(coupon, 100)).toBe(100);
+    });
+
+    it('should reject a percentage discount above 100', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '101',
+      } as Coupon;
+
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should reject a percentage discount below 1', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '0.5',
+      } as Coupon;
+
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+        BadRequestException,
+      );
     });
   });
 
