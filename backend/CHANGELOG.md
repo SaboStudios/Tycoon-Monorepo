@@ -14,6 +14,10 @@
   - `API_ENABLE_LEGACY_UNVERSIONED`
   - `API_LEGACY_UNVERSIONED_SUNSET`
 
+### Fixed
+
+- `AuctionManager.createAuction` now rejects non-finite, zero, or negative `startingBid` and `minBidIncrement` values before inserting the auction.
+
 ### Changed
 
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
