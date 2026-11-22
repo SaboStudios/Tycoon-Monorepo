@@ -82,11 +82,27 @@ function isJoinRoomError(value: unknown): value is JoinRoomError {
   );
 }
 
-function mapUnknownError(error: unknown): JoinRoomError {
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+/**
+ * Maps a thrown value to a user-facing error. Returns `null` for an aborted
+ * request: a cancelled join is not a failure, so the caller clears the
+ * submitting state without surfacing an error.
+ */
+function mapUnknownError(error: unknown): JoinRoomError | null {
   if (isJoinRoomError(error)) {
     return error;
   }
-  if (error instanceof DOMException && error.name === 'AbortError') {
+  if (isAbortError(error)) {
+    return null;
+  }
+  if (error instanceof TypeError) {
     return { code: 'network_error', message: ERROR_COPY.network_error };
   }
   return { code: 'server_error', message: ERROR_COPY.server_error };
@@ -149,8 +165,11 @@ export function JoinRoomForm({
         onJoined?.(result);
       } catch (caught) {
         setStatus('idle');
-        setError(mapUnknownError(caught));
-        inputRef.current?.focus();
+        const mapped = mapUnknownError(caught);
+        setError(mapped);
+        if (mapped) {
+          inputRef.current?.focus();
+        }
       } finally {
         inFlightRef.current = false;
         abortRef.current = null;
