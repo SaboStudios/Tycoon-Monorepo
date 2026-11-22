@@ -129,6 +129,40 @@ describe('AuctionManager', () => {
         'Auction has expired',
       );
     });
+
+    it('accepts a bid at expiresAt when now equals expiresAt', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+
+      const result = manager.placeBid(
+        'a1',
+        'p1',
+        STARTING_BID + MIN_BID_INCREMENT,
+        auction.expiresAt,
+      );
+
+      expect(result.success).toBe(true);
+      expect(manager.getAuction('a1')?.currentBidder).toBe('p1');
+    });
+
+    it('rejects a bid one millisecond after expiresAt', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+
+      expect(() =>
+        manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT, auction.expiresAt + 1),
+      ).toThrow('Auction has expired');
+    });
+
+    it('stores the injected now as the bid timestamp', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+      const now = auction.expiresAt - 1000;
+
+      manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT, now);
+
+      expect(manager.getAuction('a1')?.bids[0].placedAt).toBe(now);
+    });
   });
 
   describe('completeAuction', () => {
