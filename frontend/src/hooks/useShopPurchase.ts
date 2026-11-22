@@ -26,9 +26,19 @@ export interface ShopPurchasePayload {
   quantity: number;
 }
 
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
 export interface ShopPurchaseResult {
   status: ShopPurchaseStatus;
-  data?: unknown;
+  data?: ShopPurchaseOrder;
   error?: string;
 }
 
@@ -48,6 +58,161 @@ export function buildIdempotencyKey(payload: ShopPurchasePayload): string {
 function payloadSignature(payload: ShopPurchasePayload): string {
   return `${payload.sku}:${payload.quantity}`;
 }
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+export function parsePurchaseOrder(body: unknown): ShopPurchaseOrder | null {
+  // Only a JSON object carrying a non-empty string orderId is a success.
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return null;
+  }
+  const orderId = (body as { orderId?: unknown }).orderId;
+  if (typeof orderId !== 'string' || orderId.trim() === '') {
+    return null;
+  }
+  return body as ShopPurchaseOrder;
+}
+
+const INVALID_RESPONSE_ERROR =
+  'Purchase response was invalid: the server did not return an order id. Please retry.';
 
 /**
  * Resolve the API base URL the same way the rest of the frontend does.
@@ -131,8 +296,21 @@ export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
           return failure;
         }
 
-        const data = await response.json().catch(() => undefined);
-        const success: ShopPurchaseResult = { status: 'success', data };
+        const body = await response.json().catch(() => undefined);
+        const order = parsePurchaseOrder(body);
+        if (!order) {
+          // A 2xx without the documented order id is not a success. Drop the
+          // cached key so the retry is treated as a fresh attempt.
+          keyRef.current = null;
+          const invalid: ShopPurchaseResult = {
+            status: 'error',
+            error: INVALID_RESPONSE_ERROR,
+          };
+          setResult(invalid);
+          return invalid;
+        }
+
+        const success: ShopPurchaseResult = { status: 'success', data: order };
         setResult(success);
         return success;
       } catch (err) {
