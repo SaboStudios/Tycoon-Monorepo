@@ -47,12 +47,9 @@ export interface ShopPurchaseResult {
  * so retries/reconnects reuse it; a different payload yields a different key.
  */
 export function buildIdempotencyKey(payload: ShopPurchasePayload): string {
-  const intent = `${payload.sku}:${payload.quantity}`;
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    // Deterministic per-intent key derived from a random seed kept in memory.
-    return `${intent}:${crypto.randomUUID()}`;
-  }
-  return `${intent}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  // Pure function of the intent: no clock, no randomness. Retries of the same
+  // SKU + quantity reuse the key; a different payload yields a different key.
+  return `shop-purchase:${payload.sku}:${payload.quantity}`;
 }
 
 function payloadSignature(payload: ShopPurchasePayload): string {
@@ -60,139 +57,11 @@ function payloadSignature(payload: ShopPurchasePayload): string {
 }
 
 /**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
- */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
-
-/**
- * The documented success body from shop-api: a JSON object carrying the
- * created order's id. Anything else (empty object, non-object, missing id)
- * is not a successful purchase.
+ * Single source of truth for the purchase endpoint.
+ *
+ * Always a same-origin relative path so the Next rewrite / route handler
+ * forwards it to shop-api. Never build this from an env base URL: an empty
+ * base would otherwise resolve to an unexpected host.
  */
 export interface ShopPurchaseOrder {
   orderId: string;
@@ -217,14 +86,7 @@ const INVALID_RESPONSE_ERROR =
 /**
  * Resolve the API base URL the same way the rest of the frontend does.
  */
-function getShopApiBaseUrl(): string {
-  const base =
-    (typeof process !== 'undefined' &&
-      process.env &&
-      (process.env.NEXT_PUBLIC_SHOP_API_URL || process.env.NEXT_PUBLIC_API_URL)) ||
-    '';
-  return base.replace(/\/$/, '');
-}
+export const SHOP_PURCHASES_PATH = '/api/shop/purchases';
 
 export interface UseShopPurchaseOptions {
   /** Optional override for tests / custom clients. */
@@ -262,12 +124,11 @@ export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
 
       const idempotencyKey = getKeyForPayload(payload);
       const doFetch = options.fetchImpl ?? fetch;
-      const baseUrl = getShopApiBaseUrl();
 
       setResult({ status: 'pending' });
 
       try {
-        const response = await doFetch(`${baseUrl}/shop/purchases`, {
+        const response = await doFetch(SHOP_PURCHASES_PATH, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
