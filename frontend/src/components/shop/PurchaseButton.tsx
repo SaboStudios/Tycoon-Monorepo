@@ -45,7 +45,7 @@ export interface PurchaseConflict {
   message: string;
 }
 
-type PurchaseStatus = 'idle' | 'pending' | 'success' | 'conflict' | 'error';
+type PurchaseStatus = 'idle' | 'pending' | 'success' | 'conflict' | 'signed_out' | 'error';
 
 const IDEMPOTENCY_HEADER = 'Idempotency-Key';
 
@@ -68,6 +68,8 @@ async function postPurchase(
 ): Promise<Response> {
   return fetch(SHOP_PURCHASES_PATH, {
     method: 'POST',
+    // Same-origin proxy route: keep the default same-origin credentials mode.
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       [IDEMPOTENCY_HEADER]: idempotencyKey,
@@ -115,6 +117,7 @@ export default function PurchaseButton({
     if (status === 'pending') return 'Purchasing…';
     if (status === 'success') return 'Purchased';
     if (status === 'conflict') return 'Retry purchase';
+    if (status === 'signed_out') return 'Sign in to purchase';
     return 'Purchase';
   }, [status]);
 
@@ -132,6 +135,33 @@ export default function PurchaseButton({
 
     try {
       const res = await postPurchase(sku, quantity, idempotencyKey, controller.signal);
+
+      if (!res.ok) {
+        const mapped = mapShopPurchaseError(
+          res.status,
+          await readShopPurchaseErrorMessage(res),
+        );
+        if (mapped.status === 'conflict') {
+          // Payload conflict / duplicate intent: distinct UX, not a generic error.
+          const conflict: PurchaseConflict = {
+            sku,
+            quantity,
+            message: mapped.message,
+          };
+          setStatus('conflict');
+          setMessage(conflict.message);
+          onConflict?.(conflict);
+          return;
+        }
+
+        if (mapped.status === 'signed_out') {
+          // Missing/expired session: distinct signed-out state, not a generic
+          // purchase failure. The key is kept for a retry after signing in.
+          setStatus('signed_out');
+          setMessage(mapped.message);
+          return;
+        }
+      }
 
       if (!res.ok) {
         const mapped = mapShopPurchaseError(
@@ -197,7 +227,7 @@ export default function PurchaseButton({
       </button>
       {message ? (
         <p
-          role={status === 'conflict' || status === 'error' ? 'alert' : 'status'}
+          role={status === 'conflict' || status === 'error' || status === 'signed_out' ? 'alert' : 'status'}
           className={`shop-purchase-button__message shop-purchase-button__message--${status}`}
         >
           {message}

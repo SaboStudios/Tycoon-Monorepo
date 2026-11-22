@@ -8,6 +8,7 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ### Fixed
 
+- Shop purchase clients now set `credentials` on the request (`include` for a cross-origin shop-api, `same-origin` for the same-origin proxy) so the session cookie is sent, and HTTP 401 maps to a distinct signed-out state instead of a generic purchase failure (#2136).
 - Validate shop purchase payloads (non-empty SKU, integer quantity >= 1) before sending a request, and disable `PurchaseButton` for invalid quantities (#2140).
 - Remove the hardcoded `XLM` default in `PurchaseButton`; the price ticker now comes from the shop payload currency and is omitted when absent (#2141).
 - Authenticate `/settings` and `/shop` in `middleware.ts`: unauthenticated requests are redirected to `/login` (with a `next` param) using the ADR-004 session cookie, public routes stay open, and the CSP header is still set (#2135).
