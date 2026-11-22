@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useClaimPrize } from './useClaimPrize';
+import { resolveCredentials, useShopPurchase } from './useShopPurchase';
 
 const ok = (body: any, status = 200) => Promise.resolve({ ok: status < 400, status, json: async () => body } as Response);
 
@@ -44,4 +45,54 @@ describe('useClaimPrize', () => {
       await act(async () => { await result.current.claim(); });
       expect(result.current.state).toEqual({ phase: 'error', code, retryable });
     });
-}); 
+});
+
+describe('useShopPurchase request options', () => {
+  const originalEnv = process.env.NEXT_PUBLIC_SHOP_API_URL;
+
+  beforeEach(() => {
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_SHOP_API_URL = originalEnv;
+  });
+
+  it('sends credentials: include to a cross-origin shop-api', async () => {
+    process.env.NEXT_PUBLIC_SHOP_API_URL = 'https://shop-api.example.com';
+    (fetch as jest.Mock).mockReturnValue(ok({ orderId: 'o1' }));
+    const { result } = renderHook(() => useShopPurchase());
+    await act(async () => { await result.current.purchase({ sku: 'sku_1', quantity: 1 }); });
+
+    const [url, init] = (fetch as jest.Mock).mock.calls[0];
+    expect(url).toBe('https://shop-api.example.com/shop/purchases');
+    expect(init.credentials).toBe('include');
+    expect(init.headers['Idempotency-Key']).toEqual(expect.any(String));
+  });
+
+  it('keeps same-origin credentials for a relative shop-api base URL', async () => {
+    process.env.NEXT_PUBLIC_SHOP_API_URL = '';
+    (fetch as jest.Mock).mockReturnValue(ok({ orderId: 'o1' }));
+    const { result } = renderHook(() => useShopPurchase());
+    await act(async () => { await result.current.purchase({ sku: 'sku_1', quantity: 1 }); });
+
+    const [, init] = (fetch as jest.Mock).mock.calls[0];
+    expect(init.credentials).toBe('same-origin');
+  });
+
+  it('maps HTTP 401 to a signed_out state, not a generic error', async () => {
+    process.env.NEXT_PUBLIC_SHOP_API_URL = 'https://shop-api.example.com';
+    (fetch as jest.Mock).mockReturnValue(ok({}, 401));
+    const { result } = renderHook(() => useShopPurchase());
+    let outcome: any;
+    await act(async () => { outcome = await result.current.purchase({ sku: 'sku_1', quantity: 1 }); });
+
+    expect(outcome.status).toBe('signed_out');
+    expect(result.current.result.status).toBe('signed_out');
+  });
+
+  it('resolveCredentials picks include only for cross-origin bases', () => {
+    expect(resolveCredentials('')).toBe('same-origin');
+    expect(resolveCredentials('https://shop-api.example.com')).toBe('include');
+  });
+});

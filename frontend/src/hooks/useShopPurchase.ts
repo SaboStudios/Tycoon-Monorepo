@@ -17,6 +17,7 @@ export type ShopPurchaseStatus =
   | 'pending'
   | 'success'
   | 'conflict'
+  | 'signed_out'
   | 'error';
 
 export interface ShopPurchasePayload {
@@ -59,6 +60,25 @@ function getShopApiBaseUrl(): string {
   return base.replace(/\/$/, '');
 }
 
+/**
+ * Same-origin requests (relative base URL) keep the default `same-origin`
+ * credentials mode; cross-origin shop-api calls must opt in to `include` so the
+ * session cookie is sent.
+ */
+export function resolveCredentials(baseUrl: string): RequestCredentials {
+  if (!baseUrl) return 'same-origin';
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return 'include';
+  }
+  try {
+    return new URL(baseUrl, window.location.origin).origin === window.location.origin
+      ? 'same-origin'
+      : 'include';
+  } catch {
+    return 'include';
+  }
+}
+
 export interface UseShopPurchaseOptions {
   /** Optional override for tests / custom clients. */
   fetchImpl?: typeof fetch;
@@ -92,6 +112,7 @@ export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
       try {
         const response = await doFetch(`${baseUrl}/shop/purchases`, {
           method: 'POST',
+          credentials: resolveCredentials(baseUrl),
           headers: {
             'Content-Type': 'application/json',
             'Idempotency-Key': idempotencyKey,
@@ -108,6 +129,18 @@ export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
           };
           setResult(conflict);
           return conflict;
+        }
+
+        if (response.status === 401) {
+          // Session cookie missing/expired: distinct signed-out state, not a
+          // generic purchase failure. The key is retained for a retry after
+          // signing back in.
+          const signedOut: ShopPurchaseResult = {
+            status: 'signed_out',
+            error: 'Please sign in to complete this purchase.',
+          };
+          setResult(signedOut);
+          return signedOut;
         }
 
         if (!response.ok) {

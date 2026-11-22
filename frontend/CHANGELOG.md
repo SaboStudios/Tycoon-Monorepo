@@ -8,6 +8,7 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ### Fixed
 
+- Shop purchase clients now set `credentials` on the request (`include` for a cross-origin shop-api, `same-origin` for the same-origin proxy) so the session cookie is sent, and HTTP 401 maps to a distinct signed-out state instead of a generic purchase failure (#2136).
 - Restore Vitest setup and include app route specs so the join and landing page safeguards run in CI.
 
 ### Added
