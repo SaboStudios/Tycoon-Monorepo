@@ -12,6 +12,7 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ### Added
 
+- Unit spec for the join form's room code validation: three-character codes are rejected, four-character codes pass, and lowercase input normalizes to uppercase (#2125).
 - Analytics consent banner and a withdraw/reset control on `/privacy-policy#analytics-choices`. Telemetry is sent only after explicit consent, and withdrawal applies to the next event (#1761).
 - `GET /.well-known/farcaster.json` mini app manifest. It is deny-by-default: it returns 404 unless an account association signed for this exact host is configured through server env (#1760).
 - Bundle budget and regression gate for Next 16 (Turbopack and webpack builds): per-route budgets, a join-room budget, regression checks against `bundle-baseline.json`, and detection of MSW code in client chunks (#1759).
