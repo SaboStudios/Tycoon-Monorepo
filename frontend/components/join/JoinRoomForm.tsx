@@ -61,7 +61,7 @@ function normalizeCode(raw: string): string {
   return raw.trim().toUpperCase();
 }
 
-function validateCode(raw: string): JoinRoomError | null {
+export function validateCode(raw: string): JoinRoomError | null {
   const code = normalizeCode(raw);
   if (code.length === 0) {
     return { code: 'empty', message: ERROR_COPY.empty };

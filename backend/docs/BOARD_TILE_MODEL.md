@@ -208,6 +208,32 @@ Table-driven vectors in `backend/test/mortgage.audit-spec.ts` cover:
 Vectors assert both the resulting money/board state and the emitted event
 sequence.
 
+## Auction rules
+
+Auctions are server-authoritative and encoded in the pure module
+(`backend/src/games/auction-flow.ts`). Clients never compute auction timing or
+bid validity; they render the server quote/result only.
+
+### Auction constants
+
+- `AUCTION_DURATION_MS` — how long an auction stays open after it starts:
+  **60 seconds** (`60_000` ms).
+- `STARTING_BID` — the opening bid for an auction: **10**.
+- `MIN_BID_INCREMENT` — the minimum amount a new bid must exceed the current bid
+  by: **10**.
+
+### Auction rules
+
+1. **Server-only** — only the server derives `expiresAt` from
+   `AUCTION_DURATION_MS` and validates bid amounts. Client-supplied timing or
+   amounts are ignored.
+2. **Expiry** — an auction is expired once `now > expiresAt`; bids at/after
+   expiry are rejected and no state change occurs.
+3. **Bid validity** — the first bid must be at least `STARTING_BID`; every
+   subsequent bid must be at least `currentBid + MIN_BID_INCREMENT`.
+4. **Idempotent** — a bid is keyed by `(gameId, auctionId, playerId)`; a
+   duplicate request returns the original result and MUST NOT double-apply money.
+
 ## Economic rules
 
 - Money mutations are transactional: debit and credit commit atomically or not at all.

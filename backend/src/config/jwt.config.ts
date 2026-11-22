@@ -30,7 +30,77 @@ export function resolveJwtSecret(
   return secret;
 }
 
+const DEFAULT_EXPIRES_IN = '7d';
+const EXPIRES_IN_PATTERN = /^(\d+)(s|m|h|d|w|y)$/;
+const UNIT_SECONDS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400,
+  w: 604800,
+  y: 31536000,
+};
+
+export function parseExpiresIn(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.JWT_EXPIRES_IN;
+
+  if (raw === undefined || raw.trim() === '') {
+    return parseExpiresInValue(DEFAULT_EXPIRES_IN);
+  }
+
+  const value = raw.trim();
+  const match = EXPIRES_IN_PATTERN.exec(value);
+
+  if (!match) {
+    throw new Error(
+      `Invalid JWT_EXPIRES_IN value "${raw}". Expected a positive integer followed by a unit (s, m, h, d, w, y), e.g. "15m" or "7d".`,
+    );
+  }
+
+  return Number(match[1]) * UNIT_SECONDS[match[2]];
+}
+
+function parseExpiresInValue(value: string): number {
+  const match = EXPIRES_IN_PATTERN.exec(value) as RegExpExecArray;
+  return Number(match[1]) * UNIT_SECONDS[match[2]];
+}
+
+const DEFAULT_CLOCK_SKEW_SECONDS = 60;
+const MAX_CLOCK_SKEW_SECONDS = 300;
+const INTEGER_PATTERN = /^\d+$/;
+
+export function parseClockSkewSeconds(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.JWT_CLOCK_SKEW_SECONDS;
+
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_CLOCK_SKEW_SECONDS;
+  }
+
+  const value = raw.trim();
+
+  if (!INTEGER_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid JWT_CLOCK_SKEW_SECONDS value "${raw}". Expected an integer between 0 and ${MAX_CLOCK_SKEW_SECONDS}.`,
+    );
+  }
+
+  const seconds = Number(value);
+
+  if (seconds > MAX_CLOCK_SKEW_SECONDS) {
+    throw new Error(
+      `Invalid JWT_CLOCK_SKEW_SECONDS value "${raw}". Expected an integer between 0 and ${MAX_CLOCK_SKEW_SECONDS}.`,
+    );
+  }
+
+  return seconds;
+}
+
 export default registerAs('jwt', () => ({
   secret: resolveJwtSecret(),
-  expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  expiresIn: parseExpiresIn(),
+  clockTolerance: parseClockSkewSeconds(),
 }));

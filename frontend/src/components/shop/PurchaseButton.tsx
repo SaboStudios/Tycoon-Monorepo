@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  isValidPurchasePayload,
+  mapShopPurchaseError,
+  readShopPurchaseErrorMessage,
+} from '../../lib/api';
+import { SHOP_PURCHASES_PATH } from '@/hooks/useShopPurchase';
+
 /**
  * Shop purchase button.
  *
@@ -16,6 +23,10 @@ export interface PurchaseButtonProps {
   quantity: number;
   /** Optional price in minor units, for display only. Never trusted for money. */
   priceMinorUnits?: number;
+  /**
+   * Ticker from the shop payload. Required whenever a price is displayed so the
+   * label never falls back to a hardcoded chain ticker (ADR-003: NEAR-only UI).
+   */
   currency?: string;
   disabled?: boolean;
   onPurchased?: (result: PurchaseResult) => void;
@@ -44,15 +55,9 @@ const IDEMPOTENCY_HEADER = 'Idempotency-Key';
  * changed payload produces a different key.
  */
 export function buildIdempotencyKey(sku: string, quantity: number): string {
-  const payload = `${sku}:${quantity}`;
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    // randomUUID gives us a per-intent nonce; combine with payload so the key
-    // is both unique per intent and stable for retries of that intent.
-    return `${payload}:${crypto.randomUUID()}`;
-  }
-  const rand = Math.random().toString(36).slice(2);
-  const ts = Date.now().toString(36);
-  return `${payload}:${ts}-${rand}`;
+  // Pure function of the intent: no clock, no randomness. Retries of the same
+  // SKU + quantity reuse the key; a different payload yields a different key.
+  return `shop-purchase:${sku}:${quantity}`;
 }
 
 async function postPurchase(
@@ -61,7 +66,7 @@ async function postPurchase(
   idempotencyKey: string,
   signal: AbortSignal,
 ): Promise<Response> {
-  return fetch('/api/shop/purchases', {
+  return fetch(SHOP_PURCHASES_PATH, {
     method: 'POST',
     // Same-origin proxy route: keep the default same-origin credentials mode.
     credentials: 'same-origin',
@@ -78,7 +83,7 @@ export default function PurchaseButton({
   sku,
   quantity,
   priceMinorUnits,
-  currency = 'XLM',
+  currency,
   disabled = false,
   onPurchased,
   onConflict,
@@ -116,8 +121,10 @@ export default function PurchaseButton({
     return 'Purchase';
   }, [status]);
 
+  const isValidPayload = isValidPurchasePayload({ sku, quantity });
+
   const handlePurchase = useCallback(async () => {
-    if (disabled || status === 'pending') return;
+    if (disabled || status === 'pending' || !isValidPayload) return;
 
     // Reuse the existing key for retries of the same intent.
     const idempotencyKey = keyRef.current;
@@ -129,31 +136,53 @@ export default function PurchaseButton({
     try {
       const res = await postPurchase(sku, quantity, idempotencyKey, controller.signal);
 
-      if (res.status === 409) {
-        // Payload conflict / duplicate intent: distinct UX, not a generic error.
-        const conflict: PurchaseConflict = {
-          sku,
-          quantity,
-          message:
-            'This purchase conflicts with a previous request. Review your cart and try again.',
-        };
-        setStatus('conflict');
-        setMessage(conflict.message);
-        onConflict?.(conflict);
-        return;
-      }
+      if (!res.ok) {
+        const mapped = mapShopPurchaseError(
+          res.status,
+          await readShopPurchaseErrorMessage(res),
+        );
+        if (mapped.status === 'conflict') {
+          // Payload conflict / duplicate intent: distinct UX, not a generic error.
+          const conflict: PurchaseConflict = {
+            sku,
+            quantity,
+            message: mapped.message,
+          };
+          setStatus('conflict');
+          setMessage(conflict.message);
+          onConflict?.(conflict);
+          return;
+        }
 
-      if (res.status === 401) {
-        // Missing/expired session: distinct signed-out state, not a generic
-        // purchase failure. The key is kept for a retry after signing in.
-        setStatus('signed_out');
-        setMessage('Please sign in to complete this purchase.');
-        return;
+        if (mapped.status === 'signed_out') {
+          // Missing/expired session: distinct signed-out state, not a generic
+          // purchase failure. The key is kept for a retry after signing in.
+          setStatus('signed_out');
+          setMessage(mapped.message);
+          return;
+        }
       }
 
       if (!res.ok) {
+        const mapped = mapShopPurchaseError(
+          res.status,
+          await readShopPurchaseErrorMessage(res),
+        );
+        if (mapped.status === 'conflict') {
+          // Payload conflict / duplicate intent: distinct UX, not a generic error.
+          const conflict: PurchaseConflict = {
+            sku,
+            quantity,
+            message: mapped.message,
+          };
+          setStatus('conflict');
+          setMessage(conflict.message);
+          onConflict?.(conflict);
+          return;
+        }
+
         setStatus('error');
-        setMessage('Purchase failed. Please try again.');
+        setMessage(mapped.message);
         return;
       }
 
@@ -169,11 +198,14 @@ export default function PurchaseButton({
     } finally {
       abortRef.current = null;
     }
-  }, [disabled, status, sku, quantity, onPurchased, onConflict]);
+  }, [disabled, status, isValidPayload, sku, quantity, onPurchased, onConflict]);
 
+  // The ticker always comes from the shop payload; there is no default, so a
+  // missing currency renders the amount without inventing a chain ticker.
+  const ticker = typeof currency === 'string' ? currency.trim() : '';
   const priceLabel =
     typeof priceMinorUnits === 'number'
-      ? `${(priceMinorUnits / 100).toFixed(2)} ${currency}`
+      ? `${(priceMinorUnits / 100).toFixed(2)}${ticker ? ` ${ticker}` : ''}`
       : null;
 
   return (
@@ -181,12 +213,17 @@ export default function PurchaseButton({
       <button
         type="button"
         onClick={handlePurchase}
-        disabled={disabled || status === 'pending'}
+        disabled={disabled || status === 'pending' || !isValidPayload}
         aria-busy={status === 'pending'}
         data-status={status}
       >
         {label}
-        {priceLabel ? <span className="shop-purchase-button__price"> · {priceLabel}</span> : null}
+        {priceLabel ? (
+          <span className="shop-purchase-button__price" data-testid="purchase-price">
+            {' '}
+            · {priceLabel}
+          </span>
+        ) : null}
       </button>
       {message ? (
         <p

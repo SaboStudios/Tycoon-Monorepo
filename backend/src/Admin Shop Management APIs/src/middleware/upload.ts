@@ -17,6 +17,32 @@ if (!fs.existsSync(uploadDir)) {
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
 // ---------------------------------------------------------------------------
+// Allowed file extensions (allowlist). Anything else is rejected outright.
+// ---------------------------------------------------------------------------
+const ALLOWED_EXTENSIONS = new Set(['jpeg', 'jpg', 'png', 'gif', 'webp']);
+
+/**
+ * Returns the lower-cased extension (without the dot) when it is on the
+ * allowlist, otherwise `null`.
+ */
+export function getAllowedExtension(originalname: string): string | null {
+  const ext = path.extname(originalname).toLowerCase().replace('.', '');
+  return ALLOWED_EXTENSIONS.has(ext) ? ext : null;
+}
+
+/**
+ * Builds a collision-resistant, time-independent file name.
+ * Uses 16 random bytes (128 bits) of entropy.
+ */
+export function generateUploadFileName(originalname: string): string {
+  const ext = getAllowedExtension(originalname);
+  if (!ext) {
+    throw new Error('Only JPEG, PNG, GIF, and WebP image files are allowed');
+  }
+  return `${randomBytes(16).toString('hex')}.${ext}`;
+}
+
+// ---------------------------------------------------------------------------
 // Executable magic-byte patterns that must never be stored, regardless of the
 // declared MIME type or file extension.
 // ---------------------------------------------------------------------------
@@ -45,8 +71,11 @@ function hasExecutableMagic(buf: Buffer): string | null {
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${randomBytes(8).toString('hex')}`;
-    cb(null, uniqueSuffix + path.extname(file.originalname).toLowerCase());
+    try {
+      cb(null, generateUploadFileName(file.originalname));
+    } catch (err) {
+      cb(err as Error, '');
+    }
   },
 });
 
@@ -59,10 +88,9 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ): void => {
-  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
-  const allowedExts = new Set(['jpeg', 'jpg', 'png', 'gif', 'webp']);
+  const ext = getAllowedExtension(file.originalname);
 
-  if (!ALLOWED_MIME.has(file.mimetype) || !allowedExts.has(ext)) {
+  if (!ALLOWED_MIME.has(file.mimetype) || !ext) {
     return cb(new Error('Only JPEG, PNG, GIF, and WebP image files are allowed'));
   }
 

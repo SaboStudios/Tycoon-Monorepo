@@ -102,6 +102,20 @@ export function buildConnectSrc(env: CspEnv = process.env as CspEnv): string {
   return Array.from(new Set(sources)).join(' ');
 }
 
+// Explicit image hosts (no bare `https:` scheme). Keep in sync with
+// next/image remote patterns and any external artwork sources.
+const IMAGE_HOSTS = [
+  'https://placehold.co',
+  'https://ipfs.io',
+  'https://cloudflare-ipfs.com',
+  'https://gateway.pinata.cloud',
+  'https://arweave.net',
+];
+
+function buildImgSrc(): string {
+  return ["'self'", 'data:', ...IMAGE_HOSTS].join(' ');
+}
+
 function buildFrameSrc(): string {
   const sources = ["'self'", ...NEAR_WALLET_FRAME_HOSTS];
   return Array.from(new Set(sources)).join(' ');
@@ -113,7 +127,7 @@ export function buildCsp(env: CspEnv = process.env as CspEnv): string {
     `connect-src ${buildConnectSrc(env)}`,
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    `img-src ${buildImgSrc()}`,
     "font-src 'self' data:",
     `frame-src ${buildFrameSrc()}`,
     "object-src 'none'",
@@ -125,7 +139,59 @@ export function buildCsp(env: CspEnv = process.env as CspEnv): string {
 
 export const NEAR_WALLET_FRAME_ORIGINS = NEAR_WALLET_FRAME_HOSTS;
 
+/**
+ * Session cookie name per ADR-004 (httpOnly session cookie issued by the
+ * backend). `auth-token` is the transitional cookie written by the legacy
+    "style-src 'self' 'unsafe-inline'",
+    `img-src ${buildImgSrc()}`,
+    "font-src 'self' data:",
+    `frame-src ${buildFrameSrc()}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
+export const NEAR_WALLET_FRAME_ORIGINS = NEAR_WALLET_FRAME_HOSTS;
+
+/**
+ * Session cookie name per ADR-004 (httpOnly session cookie issued by the
+ * backend). `auth-token` is the transitional cookie written by the legacy
+ * auth provider and is accepted only while the migration is in progress.
+ */
+export const SESSION_COOKIE = 'access_token';
+const LEGACY_SESSION_COOKIE = 'auth-token';
+
+/** Routes that require a session; everything else stays public. */
+const PROTECTED_ROUTES = ['/settings', '/shop'];
+
+const SIGN_IN_PATH = '/login';
+
+function hasSession(request: NextRequest): boolean {
+  return Boolean(
+    request.cookies.get(SESSION_COOKIE)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE)?.value,
+  );
+}
+
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (isProtectedPath(pathname) && !hasSession(request)) {
+    const signInUrl = new URL(SIGN_IN_PATH, request.url);
+    signInUrl.searchParams.set('next', pathname);
+    const redirect = NextResponse.redirect(signInUrl);
+    redirect.headers.set('Content-Security-Policy', buildCsp());
+    return redirect;
+  }
+
   const response = NextResponse.next();
   response.headers.set('Content-Security-Policy', buildCsp());
   return response;

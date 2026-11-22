@@ -60,12 +60,24 @@ function generateAuctionId(): string {
 export class AuctionManager {
   private auctions = new Map<string, Auction>();
 
-  createAuction(id: string, sellerId: string, itemId: string): Auction {
+  createAuction(
+    id: string,
+    sellerId: string,
+    itemId: string,
+    startingBid: number = STARTING_BID,
+    minBidIncrement: number = MIN_BID_INCREMENT,
+  ): Auction {
+    if (!Number.isFinite(startingBid) || startingBid < 1) {
+      throw new Error(`Invalid starting bid: ${startingBid}`);
+    }
+    if (!Number.isFinite(minBidIncrement) || minBidIncrement < 1) {
+      throw new Error(`Invalid minimum bid increment: ${minBidIncrement}`);
+    }
     const auction: Auction = {
       id,
       sellerId,
       itemId,
-      currentBid: STARTING_BID,
+      currentBid: startingBid,
       currentBidder: null,
       status: 'active',
       bids: [],
@@ -77,6 +89,10 @@ export class AuctionManager {
 
   getAuction(id: string): Auction | undefined {
     return this.auctions.get(id);
+  }
+
+  getActiveAuctions(): Auction[] {
+    return Array.from(this.auctions.values()).filter((auction) => auction.status === 'active');
   }
 
   placeBid(id: string, playerId: string, amount: number): AuctionResult {
