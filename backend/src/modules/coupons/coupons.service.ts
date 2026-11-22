@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
+import { Repository, LessThan, MoreThan, EntityManager } from 'typeorm';
 import { Coupon } from './entities/coupon.entity';
 import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
@@ -47,6 +47,23 @@ function parseMinorUnits(value: string | number | null | undefined): number {
   const paddedFraction = (fraction + '00').slice(0, 2);
 
   return parseInt(whole, 10) * 100 + parseInt(paddedFraction, 10);
+}
+
+/**
+ * Sum coupon usage-log discount amounts in integer minor units. Rows with a
+ * null/undefined amount are skipped so a single missing value can never turn
+ * the report total into NaN.
+ */
+function sumDiscountMinorUnits(
+  rows: Array<{ discount_amount?: string | number | null }>,
+): number {
+  return rows.reduce((total, row) => {
+    const amount = row?.discount_amount;
+    if (amount === null || amount === undefined || amount === '') {
+      return total;
+    }
+    return total + parseMinorUnits(amount);
+  }, 0);
 }
 
 @Injectable()
@@ -291,6 +308,19 @@ export class CouponsService {
         'This coupon has reached its usage limit',
       );
     }
+  }
+
+  /**
+   * Total discount granted by a coupon, summed in integer minor units from the
+   * usage log. Null amounts are skipped; malformed amounts fail the report.
+   */
+  async getTotalDiscount(couponId: number): Promise<number> {
+    const rows = await this.couponUsageLogRepository.find({
+      where: { coupon_id: couponId },
+      select: ['discount_amount'],
+    });
+
+    return sumDiscountMinorUnits(rows) / 100;
   }
 
   calculateDiscount(coupon: Coupon, purchaseAmount: number): number {
