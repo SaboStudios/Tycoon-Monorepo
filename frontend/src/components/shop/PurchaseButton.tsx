@@ -44,15 +44,9 @@ const IDEMPOTENCY_HEADER = 'Idempotency-Key';
  * changed payload produces a different key.
  */
 export function buildIdempotencyKey(sku: string, quantity: number): string {
-  const payload = `${sku}:${quantity}`;
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    // randomUUID gives us a per-intent nonce; combine with payload so the key
-    // is both unique per intent and stable for retries of that intent.
-    return `${payload}:${crypto.randomUUID()}`;
-  }
-  const rand = Math.random().toString(36).slice(2);
-  const ts = Date.now().toString(36);
-  return `${payload}:${ts}-${rand}`;
+  // Pure function of the intent: no clock, no randomness. Retries of the same
+  // SKU + quantity reuse the key; a different payload yields a different key.
+  return `shop-purchase:${sku}:${quantity}`;
 }
 
 async function postPurchase(

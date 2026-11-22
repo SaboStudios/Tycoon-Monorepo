@@ -9,6 +9,7 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 ### Fixed
 
 - Restore Vitest setup and include app route specs so the join and landing page safeguards run in CI.
+- Shop purchase idempotency keys are now a pure function of SKU and quantity, so retries reuse one key instead of a new random value per build (#2132).
 
 ### Added
 
