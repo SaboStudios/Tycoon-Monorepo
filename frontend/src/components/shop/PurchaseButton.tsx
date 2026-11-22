@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { SHOP_PURCHASES_PATH } from '@/hooks/useShopPurchase';
+
 /**
  * Shop purchase button.
  *
@@ -55,7 +57,7 @@ async function postPurchase(
   idempotencyKey: string,
   signal: AbortSignal,
 ): Promise<Response> {
-  return fetch('/api/shop/purchases', {
+  return fetch(SHOP_PURCHASES_PATH, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
