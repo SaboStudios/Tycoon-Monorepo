@@ -14,9 +14,18 @@
   - `API_ENABLE_LEGACY_UNVERSIONED`
   - `API_LEGACY_UNVERSIONED_SUNSET`
 
+### Fixed
+
+- `AuctionManager.createAuction` now rejects non-finite, zero, or negative `startingBid` and `minBidIncrement` values before inserting the auction.
+- `JWT_CLOCK_SKEW_SECONDS` is parsed as an integer in the 0-300 range (default 60) and invalid values now fail config load instead of producing `NaN`.
+
 ### Changed
 
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
+
+### Fixed
+
+- Coupon percentage discounts are validated to 1-100 in both the DTO and `calculateDiscount`; fixed discounts above the purchase amount are rejected instead of silently clamped.
 
 ### Policy
 

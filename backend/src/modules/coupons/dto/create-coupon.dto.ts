@@ -37,6 +37,7 @@ export class CreateCouponDto {
   @Type(() => Number)
   @IsPositive()
   @ValidateIf((o) => o.type === CouponType.PERCENTAGE)
+  @Min(1, { message: 'Percentage discount must be at least 1' })
   @Max(100, { message: 'Percentage discount cannot exceed 100' })
   value: number;
 

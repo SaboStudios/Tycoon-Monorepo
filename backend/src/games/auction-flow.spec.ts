@@ -27,6 +27,62 @@ describe('AuctionManager', () => {
       expect(auction.bids).toEqual([]);
       expect(auction.expiresAt).toBe(Date.now() + AUCTION_DURATION_MS);
     });
+
+    it('throws when the starting bid is zero', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', 0)).toThrow(
+        'Invalid starting bid',
+      );
+      expect(manager.getAuction('a1')).toBeUndefined();
+    });
+
+    it('throws when the starting bid is negative', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', -5)).toThrow(
+        'Invalid starting bid',
+      );
+      expect(manager.getAuction('a1')).toBeUndefined();
+    });
+
+    it('throws when the starting bid is not finite', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', Number.NaN)).toThrow(
+        'Invalid starting bid',
+      );
+      expect(() => manager.createAuction('a2', 'seller', 'item', Infinity)).toThrow(
+        'Invalid starting bid',
+      );
+    });
+
+    it('throws when the minimum bid increment is zero', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', STARTING_BID, 0)).toThrow(
+        'Invalid minimum bid increment',
+      );
+      expect(manager.getAuction('a1')).toBeUndefined();
+    });
+
+    it('throws when the minimum bid increment is negative or not finite', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', STARTING_BID, -1)).toThrow(
+        'Invalid minimum bid increment',
+      );
+      expect(() =>
+        manager.createAuction('a2', 'seller', 'item', STARTING_BID, Number.NaN),
+      ).toThrow('Invalid minimum bid increment');
+    });
+
+    it('accepts a custom starting bid and increment', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item', 25, 2);
+
+      expect(auction.currentBid).toBe(25);
+    });
   });
 
   describe('placeBid', () => {
