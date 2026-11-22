@@ -22,6 +22,10 @@
 
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
 
+### Fixed
+
+- Coupon percentage discounts are validated to 1-100 in both the DTO and `calculateDiscount`; fixed discounts above the purchase amount are rejected instead of silently clamped.
+
 ### Policy
 
 - Breaking API changes must be introduced via a new API version (for example `v2`) and documented in this changelog.
