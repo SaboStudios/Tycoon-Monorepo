@@ -8,9 +8,12 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ### Fixed
 
+- Validate shop purchase payloads (non-empty SKU, integer quantity >= 1) before sending a request, and disable `PurchaseButton` for invalid quantities (#2140).
+- Remove the hardcoded `XLM` default in `PurchaseButton`; the price ticker now comes from the shop payload currency and is omitted when absent (#2141).
 - Authenticate `/settings` and `/shop` in `middleware.ts`: unauthenticated requests are redirected to `/login` (with a `next` param) using the ADR-004 session cookie, public routes stay open, and the CSP header is still set (#2135).
 - Tighten the production CSP in `middleware.ts`: `script-src` is `'self'` only (no `unsafe-inline`) and `img-src` lists explicit image hosts plus `data:` instead of a bare `https:` scheme (#2134).
 - Restore Vitest setup and include app route specs so the join and landing page safeguards run in CI.
+- Unify shop purchase error mapping in `useShopPurchase` and `PurchaseButton` via `mapShopPurchaseError`: only a 409 is a conflict, the server message is surfaced, and other 4xx statuses are plain errors (#2142).
 - Shop purchase idempotency keys are now a pure function of SKU and quantity, so retries reuse one key instead of a new random value per build (#2132).
 
 ### Added
