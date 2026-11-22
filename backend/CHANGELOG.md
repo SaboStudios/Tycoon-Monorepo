@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Chance and board-style DTO money fields now reject `NaN`, `Infinity`, non-integer units, and negative amounts via `@IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces })`.
+
 ### Added
 
 - API versioning strategy using URI versioning (`/api/v1/*`) with centralized bootstrap configuration.
