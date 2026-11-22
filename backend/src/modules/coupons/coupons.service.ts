@@ -233,15 +233,16 @@ export class CouponsService {
       };
     }
 
-    if (
-      coupon.min_purchase_amount &&
-      purchase_amount &&
-      purchase_amount < parseMinorUnits(coupon.min_purchase_amount) / 100
-    ) {
-      return {
-        valid: false,
-        message: `Minimum purchase amount of ${coupon.min_purchase_amount} required`,
-      };
+    if (coupon.min_purchase_amount && purchase_amount) {
+      const minimumMinorUnits = parseMinorUnits(coupon.min_purchase_amount);
+      const purchaseMinorUnits = Math.round(purchase_amount * 100);
+
+      if (purchaseMinorUnits < minimumMinorUnits) {
+        return {
+          valid: false,
+          message: `Minimum purchase amount of ${(minimumMinorUnits / 100).toFixed(2)} required`,
+        };
+      }
     }
 
     let discount_amount = 0;

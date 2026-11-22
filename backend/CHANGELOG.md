@@ -18,6 +18,10 @@
 
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
 
+### Fixed
+
+- Coupon minimum purchase validation now compares integer minor units instead of floats, and the error message reports the stored minimum amount.
+
 ### Policy
 
 - Breaking API changes must be introduced via a new API version (for example `v2`) and documented in this changelog.
