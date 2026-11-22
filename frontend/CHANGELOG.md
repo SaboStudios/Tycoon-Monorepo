@@ -8,7 +8,10 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ### Fixed
 
+- Authenticate `/settings` and `/shop` in `middleware.ts`: unauthenticated requests are redirected to `/login` (with a `next` param) using the ADR-004 session cookie, public routes stay open, and the CSP header is still set (#2135).
+- Tighten the production CSP in `middleware.ts`: `script-src` is `'self'` only (no `unsafe-inline`) and `img-src` lists explicit image hosts plus `data:` instead of a bare `https:` scheme (#2134).
 - Restore Vitest setup and include app route specs so the join and landing page safeguards run in CI.
+- Shop purchase idempotency keys are now a pure function of SKU and quantity, so retries reuse one key instead of a new random value per build (#2132).
 
 ### Added
 

@@ -56,13 +56,27 @@ function buildConnectSrc(): string {
   return Array.from(new Set(sources)).join(' ');
 }
 
-function buildCsp(): string {
+// Explicit image hosts (no bare `https:` scheme). Keep in sync with
+// next/image remote patterns and any external artwork sources.
+const IMAGE_HOSTS = [
+  'https://placehold.co',
+  'https://ipfs.io',
+  'https://cloudflare-ipfs.com',
+  'https://gateway.pinata.cloud',
+  'https://arweave.net',
+];
+
+function buildImgSrc(): string {
+  return ["'self'", 'data:', ...IMAGE_HOSTS].join(' ');
+}
+
+export function buildCsp(): string {
   return [
     "default-src 'self'",
     `connect-src ${buildConnectSrc()}`,
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    `img-src ${buildImgSrc()}`,
     "font-src 'self' data:",
     "frame-src 'self' https://wallet.testnet.near.org https://wallet.near.org",
     "object-src 'none'",
@@ -72,7 +86,43 @@ function buildCsp(): string {
   ].join('; ');
 }
 
+/**
+ * Session cookie name per ADR-004 (httpOnly session cookie issued by the
+ * backend). `auth-token` is the transitional cookie written by the legacy
+ * auth provider and is accepted only while the migration is in progress.
+ */
+export const SESSION_COOKIE = 'access_token';
+const LEGACY_SESSION_COOKIE = 'auth-token';
+
+/** Routes that require a session; everything else stays public. */
+const PROTECTED_ROUTES = ['/settings', '/shop'];
+
+const SIGN_IN_PATH = '/login';
+
+function hasSession(request: NextRequest): boolean {
+  return Boolean(
+    request.cookies.get(SESSION_COOKIE)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE)?.value,
+  );
+}
+
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (isProtectedPath(pathname) && !hasSession(request)) {
+    const signInUrl = new URL(SIGN_IN_PATH, request.url);
+    signInUrl.searchParams.set('next', pathname);
+    const redirect = NextResponse.redirect(signInUrl);
+    redirect.headers.set('Content-Security-Policy', buildCsp());
+    return redirect;
+  }
+
   const response = NextResponse.next();
   response.headers.set('Content-Security-Policy', buildCsp());
   return response;
