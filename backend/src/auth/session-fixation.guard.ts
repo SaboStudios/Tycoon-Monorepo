@@ -10,6 +10,8 @@ const ALLOWED_REDIRECT_HOSTS = new Set([
 
 const ALLOWED_REDIRECT_PATHS = ['/dashboard', '/game', '/profile', '/settings'];
 
+const NONCE_MAX_AGE_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class SessionFixationGuard implements CanActivate {
   private readonly logger = new Logger(SessionFixationGuard.name);
@@ -29,8 +31,8 @@ export class SessionFixationGuard implements CanActivate {
       session.nonceCreatedAt = Date.now();
     }
 
-    const nonceAge = Date.now() - (session.nonceCreatedAt || 0);
-    if (nonceAge > 5 * 60 * 1000) {
+    const nonceAge = this.getNonceAge(session.nonceCreatedAt);
+    if (nonceAge === null || nonceAge < 0 || nonceAge > NONCE_MAX_AGE_MS) {
       session.nonce = crypto.randomBytes(32).toString('hex');
       session.nonceCreatedAt = Date.now();
       this.logger.debug('Session nonce rotated due to age');
@@ -46,6 +48,13 @@ export class SessionFixationGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private getNonceAge(createdAt: unknown): number | null {
+    if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) {
+      return null;
+    }
+    return Date.now() - createdAt;
   }
 
   private isRefreshTokenReused(request: Request, family: string): boolean {

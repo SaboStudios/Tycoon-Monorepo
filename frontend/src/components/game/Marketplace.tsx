@@ -73,6 +73,8 @@ export function Marketplace() {
     try {
       const response = await fetch('/api/shop/purchase', {
         method: 'POST',
+        // Same-origin proxy route: keep the default same-origin credentials mode.
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           shop_item_id: selectedItem.id, 
@@ -82,6 +84,12 @@ export function Marketplace() {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          // Missing/expired session: distinct signed-out state, not a generic
+          // purchase failure.
+          throw new Error('Please sign in to complete this purchase.');
+        }
+
         let errorMessage = 'Purchase failed';
         try {
           const errorData = await response.json();

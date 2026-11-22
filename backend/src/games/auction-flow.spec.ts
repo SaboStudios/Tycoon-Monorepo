@@ -27,12 +27,78 @@ describe('AuctionManager', () => {
       expect(auction.bids).toEqual([]);
       expect(auction.expiresAt).toBe(Date.now() + AUCTION_DURATION_MS);
     });
+
+    it('throws when the starting bid is zero', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', 0)).toThrow(
+        'Invalid starting bid',
+      );
+      expect(manager.getAuction('a1')).toBeUndefined();
+    });
+
+    it('throws when the starting bid is negative', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', -5)).toThrow(
+        'Invalid starting bid',
+      );
+      expect(manager.getAuction('a1')).toBeUndefined();
+    });
+
+    it('throws when the starting bid is not finite', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', Number.NaN)).toThrow(
+        'Invalid starting bid',
+      );
+      expect(() => manager.createAuction('a2', 'seller', 'item', Infinity)).toThrow(
+        'Invalid starting bid',
+      );
+    });
+
+    it('throws when the minimum bid increment is zero', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', STARTING_BID, 0)).toThrow(
+        'Invalid minimum bid increment',
+      );
+      expect(manager.getAuction('a1')).toBeUndefined();
+    });
+
+    it('throws when the minimum bid increment is negative or not finite', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.createAuction('a1', 'seller', 'item', STARTING_BID, -1)).toThrow(
+        'Invalid minimum bid increment',
+      );
+      expect(() =>
+        manager.createAuction('a2', 'seller', 'item', STARTING_BID, Number.NaN),
+      ).toThrow('Invalid minimum bid increment');
+    });
+
+    it('accepts a custom starting bid and increment', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item', 25, 2);
+
+      expect(auction.currentBid).toBe(25);
+    });
   });
 
   describe('placeBid', () => {
     it('throws when the auction does not exist', () => {
       const manager = new AuctionManager();
       expect(() => manager.placeBid('missing', 'p1', 100)).toThrow('Auction not found');
+    });
+
+    it('throws "Auction not found" for an unknown auction id and creates no auction', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.placeBid('unknown-auction', 'p1', STARTING_BID + MIN_BID_INCREMENT)).toThrow(
+        'Auction not found',
+      );
+      expect(manager.getAuction('unknown-auction')).toBeUndefined();
+      expect(manager.cleanupExpiredAuctions()).toBe(0);
     });
 
     it('throws when the auction is not active', () => {
@@ -77,6 +143,25 @@ describe('AuctionManager', () => {
       expect(() => manager.placeBid('a1', 'seller', STARTING_BID + MIN_BID_INCREMENT)).toThrow(
         'Seller cannot bid on their own auction',
       );
+    });
+
+    it('leaves currentBid at the starting bid when the seller bids, while another player can still bid', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      expect(() => manager.placeBid('a1', 'seller', STARTING_BID + MIN_BID_INCREMENT)).toThrow(
+        'Seller cannot bid on their own auction',
+      );
+
+      const auction = manager.getAuction('a1');
+      expect(auction?.currentBid).toBe(STARTING_BID);
+      expect(auction?.currentBidder).toBeNull();
+      expect(auction?.bids).toEqual([]);
+
+      const result = manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+      expect(result.success).toBe(true);
+      expect(manager.getAuction('a1')?.currentBid).toBe(STARTING_BID + MIN_BID_INCREMENT);
+      expect(manager.getAuction('a1')?.currentBidder).toBe('p1');
     });
 
     it('accepts a valid bid and updates currentBid, currentBidder and bids', () => {
@@ -177,6 +262,17 @@ describe('AuctionManager', () => {
       });
     });
 
+    it('fails to complete an auction created and completed immediately with no bids', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      const result = manager.completeAuction('a1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No bids received');
+      expect(manager.getAuction('a1')?.status).toBe('active');
+    });
+
     it('completes an active auction with a bidder once', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
@@ -262,8 +358,32 @@ describe('AuctionManager', () => {
     });
   });
 
+  describe('getActiveAuctions', () => {
+    it('excludes a completed auction while still returning an active one', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+      manager.createAuction('a2', 'seller', 'item');
+      manager.placeBid('a2', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+      manager.completeAuction('a2');
+
+      const active = manager.getActiveAuctions();
+
+      expect(active.map((auction) => auction.id)).not.toContain('a2');
+      expect(active.map((auction) => auction.id)).toContain('a1');
+      expect(active.every((auction) => auction.status === 'active')).toBe(true);
+    });
+  });
+
   describe('isAuctionExpired', () => {
     it('uses a strict greater-than comparison against expiresAt', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+
+      expect(isAuctionExpired(auction, auction.expiresAt)).toBe(false);
+      expect(isAuctionExpired(auction, auction.expiresAt + 1)).toBe(true);
+    });
+
+    it('accepts a bid at the exact expiry time and rejects one millisecond later', () => {
       const manager = new AuctionManager();
       const auction = manager.createAuction('a1', 'seller', 'item');
 

@@ -17,6 +17,15 @@ const NEAR_WALLET_HOSTS = [
   'https://app.mynearwallet.com',
 ];
 
+// MyNearWallet origins framed by NearWalletConnect (wallet selector).
+// These are the only wallet origins allowed in frame-src; no wildcards.
+const NEAR_WALLET_FRAME_HOSTS = [
+  'https://wallet.testnet.near.org',
+  'https://wallet.near.org',
+  'https://testnet.mynearwallet.com',
+  'https://app.mynearwallet.com',
+];
+
 const NEAR_RPC_HOSTS = [
   'https://rpc.testnet.near.org',
   'https://rpc.mainnet.near.org',
@@ -24,19 +33,56 @@ const NEAR_RPC_HOSTS = [
   'https://archival-rpc.mainnet.near.org',
 ];
 
-// Backend (NestJS) and shop-api (NestJS purchases SoT) origins.
-// Configurable per environment; defaults cover local development.
-function apiHosts(): string[] {
+export interface CspEnv {
+  NODE_ENV?: string;
+  NEXT_PUBLIC_BACKEND_URL?: string;
+  NEXT_PUBLIC_SHOP_API_URL?: string;
+}
+
+export class CspConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CspConfigError';
+  }
+}
+
+function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/$/, '');
+}
+
+/**
+ * Backend (NestJS) and shop-api (NestJS purchases SoT) origins.
+ *
+ * In production both URLs are required: silently dropping them from
+ * connect-src would block every API call at runtime, so we fail loudly
+ * instead (the build gate in next.config.ts turns this into a build error).
+ * Localhost defaults are only ever added outside production.
+ */
+export function apiHosts(env: CspEnv = process.env as CspEnv): string[] {
   const hosts = new Set<string>();
+  const isProduction = env.NODE_ENV === 'production';
 
-  const backend = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (backend) hosts.add(backend.replace(/\/$/, ''));
+  const backend = env.NEXT_PUBLIC_BACKEND_URL?.trim();
+  const shopApi = env.NEXT_PUBLIC_SHOP_API_URL?.trim();
 
-  const shopApi = process.env.NEXT_PUBLIC_SHOP_API_URL;
-  if (shopApi) hosts.add(shopApi.replace(/\/$/, ''));
+  if (isProduction) {
+    const missing: string[] = [];
+    if (!backend) missing.push('NEXT_PUBLIC_BACKEND_URL');
+    if (!shopApi) missing.push('NEXT_PUBLIC_SHOP_API_URL');
+    if (missing.length > 0) {
+      throw new CspConfigError(
+        `Missing required environment variable(s) for the production CSP connect-src: ${missing.join(
+          ', ',
+        )}. Set them before building.`,
+      );
+    }
+  }
+
+  if (backend) hosts.add(normalizeOrigin(backend));
+  if (shopApi) hosts.add(normalizeOrigin(shopApi));
 
   // Local development defaults.
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProduction) {
     hosts.add('http://localhost:3001');
     hosts.add('http://localhost:3002');
     hosts.add('ws://localhost:3001');
@@ -46,25 +92,44 @@ function apiHosts(): string[] {
   return Array.from(hosts);
 }
 
-function buildConnectSrc(): string {
+export function buildConnectSrc(env: CspEnv = process.env as CspEnv): string {
   const sources = [
     "'self'",
     ...NEAR_WALLET_HOSTS,
     ...NEAR_RPC_HOSTS,
-    ...apiHosts(),
+    ...apiHosts(env),
   ];
   return Array.from(new Set(sources)).join(' ');
 }
 
-function buildCsp(): string {
+// Explicit image hosts (no bare `https:` scheme). Keep in sync with
+// next/image remote patterns and any external artwork sources.
+const IMAGE_HOSTS = [
+  'https://placehold.co',
+  'https://ipfs.io',
+  'https://cloudflare-ipfs.com',
+  'https://gateway.pinata.cloud',
+  'https://arweave.net',
+];
+
+function buildImgSrc(): string {
+  return ["'self'", 'data:', ...IMAGE_HOSTS].join(' ');
+}
+
+function buildFrameSrc(): string {
+  const sources = ["'self'", ...NEAR_WALLET_FRAME_HOSTS];
+  return Array.from(new Set(sources)).join(' ');
+}
+
+export function buildCsp(env: CspEnv = process.env as CspEnv): string {
   return [
     "default-src 'self'",
-    `connect-src ${buildConnectSrc()}`,
+    `connect-src ${buildConnectSrc(env)}`,
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    `img-src ${buildImgSrc()}`,
     "font-src 'self' data:",
-    "frame-src 'self' https://wallet.testnet.near.org https://wallet.near.org",
+    `frame-src ${buildFrameSrc()}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -72,10 +137,80 @@ function buildCsp(): string {
   ].join('; ');
 }
 
+export const NEAR_WALLET_FRAME_ORIGINS = NEAR_WALLET_FRAME_HOSTS;
+
+/**
+ * Session cookie name per ADR-004 (httpOnly session cookie issued by the
+ * backend). `auth-token` is the transitional cookie written by the legacy
+    "style-src 'self' 'unsafe-inline'",
+    `img-src ${buildImgSrc()}`,
+    "font-src 'self' data:",
+    `frame-src ${buildFrameSrc()}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
+export const NEAR_WALLET_FRAME_ORIGINS = NEAR_WALLET_FRAME_HOSTS;
+
+/**
+ * Session cookie name per ADR-004 (httpOnly session cookie issued by the
+ * backend). `auth-token` is the transitional cookie written by the legacy
+ * auth provider and is accepted only while the migration is in progress.
+ */
+export const SESSION_COOKIE = 'access_token';
+const LEGACY_SESSION_COOKIE = 'auth-token';
+
+/** Routes that require a session; everything else stays public. */
+const PROTECTED_ROUTES = ['/settings', '/shop'];
+
+const SIGN_IN_PATH = '/login';
+
+function hasSession(request: NextRequest): boolean {
+  return Boolean(
+    request.cookies.get(SESSION_COOKIE)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE)?.value,
+  );
+}
+
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (isProtectedPath(pathname) && !hasSession(request)) {
+    const signInUrl = new URL(SIGN_IN_PATH, request.url);
+    signInUrl.searchParams.set('next', pathname);
+    const redirect = NextResponse.redirect(signInUrl);
+    redirect.headers.set('Content-Security-Policy', buildCsp());
+    return redirect;
+  }
+
   const response = NextResponse.next();
   response.headers.set('Content-Security-Policy', buildCsp());
   return response;
+}
+
+/**
+ * Build-time gate: `next build` evaluates this module, so a production build
+ * without the API URLs fails here instead of shipping a CSP that blocks the API.
+ */
+if (process.env.NODE_ENV === 'production') {
+  apiHosts();
+}
+
+/**
+ * Build-time gate: `next build` evaluates this module, so a production build
+ * without the API URLs fails here instead of shipping a CSP that blocks the API.
+ */
+if (process.env.NODE_ENV === 'production') {
+  apiHosts();
 }
 
 export const config = {
