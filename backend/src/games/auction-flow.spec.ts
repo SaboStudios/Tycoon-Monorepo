@@ -91,6 +91,16 @@ describe('AuctionManager', () => {
       expect(() => manager.placeBid('missing', 'p1', 100)).toThrow('Auction not found');
     });
 
+    it('throws "Auction not found" for an unknown auction id and creates no auction', () => {
+      const manager = new AuctionManager();
+
+      expect(() => manager.placeBid('unknown-auction', 'p1', STARTING_BID + MIN_BID_INCREMENT)).toThrow(
+        'Auction not found',
+      );
+      expect(manager.getAuction('unknown-auction')).toBeUndefined();
+      expect(manager.cleanupExpiredAuctions()).toBe(0);
+    });
+
     it('throws when the auction is not active', () => {
       const manager = new AuctionManager();
       const auction = manager.createAuction('a1', 'seller', 'item');
@@ -216,6 +226,17 @@ describe('AuctionManager', () => {
         events: [],
         error: 'No bids received',
       });
+    });
+
+    it('fails to complete an auction created and completed immediately with no bids', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      const result = manager.completeAuction('a1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No bids received');
+      expect(manager.getAuction('a1')?.status).toBe('active');
     });
 
     it('completes an active auction with a bidder once', () => {
