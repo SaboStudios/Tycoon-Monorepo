@@ -7,6 +7,10 @@
 - Related: ADR-004 (auth), ADR-001 (shop purchase write path), `GAMES_MATCHMAKING_RUNBOOK.md`
 - Issue: #1440
 
+## Auction Expiry Boundary
+
+Auctions last 60 seconds and expire only when `now` is strictly greater than `expiresAt`; equal timestamps are still accepted, matching `isAuctionExpired` (`now > auction.expiresAt`).
+
 ## Context
 
 The games surface is currently REST-only. Clients poll for match state, which
