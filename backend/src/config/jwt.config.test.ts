@@ -1,4 +1,4 @@
-import { resolveJwtSecret } from './jwt.config';
+import { resolveJwtSecret, parseExpiresIn } from './jwt.config';
 
 const PLACEHOLDER_SECRET = 'your-secret-key-change-this-in-production';
 
@@ -32,5 +32,27 @@ describe('resolveJwtSecret', () => {
     const secret = resolveJwtSecret({ NODE_ENV: 'development' } as NodeJS.ProcessEnv);
     expect(secret).toBeTruthy();
     expect(secret).not.toBe(PLACEHOLDER_SECRET);
+  });
+});
+
+describe('parseExpiresIn', () => {
+  it('converts a duration string to seconds', () => {
+    expect(parseExpiresIn({ JWT_EXPIRES_IN: '15m' } as NodeJS.ProcessEnv)).toBe(900);
+  });
+
+  it('throws a config-load error for a bare number', () => {
+    expect(() =>
+      parseExpiresIn({ JWT_EXPIRES_IN: '900' } as NodeJS.ProcessEnv),
+    ).toThrow(/JWT_EXPIRES_IN/);
+  });
+
+  it('uses the default when the value is empty', () => {
+    expect(parseExpiresIn({ JWT_EXPIRES_IN: '' } as NodeJS.ProcessEnv)).toBe(
+      7 * 86400,
+    );
+  });
+
+  it('uses the default when the value is unset', () => {
+    expect(parseExpiresIn({} as NodeJS.ProcessEnv)).toBe(7 * 86400);
   });
 });
