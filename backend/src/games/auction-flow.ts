@@ -79,6 +79,10 @@ export class AuctionManager {
     return this.auctions.get(id);
   }
 
+  getActiveAuctions(): Auction[] {
+    return Array.from(this.auctions.values()).filter((auction) => auction.status === 'active');
+  }
+
   placeBid(id: string, playerId: string, amount: number): AuctionResult {
     const auction = this.auctions.get(id);
     if (!auction) {

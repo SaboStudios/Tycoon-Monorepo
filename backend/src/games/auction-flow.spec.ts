@@ -228,6 +228,22 @@ describe('AuctionManager', () => {
     });
   });
 
+  describe('getActiveAuctions', () => {
+    it('excludes a completed auction while still returning an active one', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+      manager.createAuction('a2', 'seller', 'item');
+      manager.placeBid('a2', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+      manager.completeAuction('a2');
+
+      const active = manager.getActiveAuctions();
+
+      expect(active.map((auction) => auction.id)).not.toContain('a2');
+      expect(active.map((auction) => auction.id)).toContain('a1');
+      expect(active.every((auction) => auction.status === 'active')).toBe(true);
+    });
+  });
+
   describe('isAuctionExpired', () => {
     it('uses a strict greater-than comparison against expiresAt', () => {
       const manager = new AuctionManager();
