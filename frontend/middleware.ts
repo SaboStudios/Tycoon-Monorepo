@@ -86,7 +86,43 @@ export function buildCsp(): string {
   ].join('; ');
 }
 
-export function middleware(_request: NextRequest) {
+/**
+ * Session cookie name per ADR-004 (httpOnly session cookie issued by the
+ * backend). `auth-token` is the transitional cookie written by the legacy
+ * auth provider and is accepted only while the migration is in progress.
+ */
+export const SESSION_COOKIE = 'access_token';
+const LEGACY_SESSION_COOKIE = 'auth-token';
+
+/** Routes that require a session; everything else stays public. */
+const PROTECTED_ROUTES = ['/settings', '/shop'];
+
+const SIGN_IN_PATH = '/login';
+
+function hasSession(request: NextRequest): boolean {
+  return Boolean(
+    request.cookies.get(SESSION_COOKIE)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE)?.value,
+  );
+}
+
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (isProtectedPath(pathname) && !hasSession(request)) {
+    const signInUrl = new URL(SIGN_IN_PATH, request.url);
+    signInUrl.searchParams.set('next', pathname);
+    const redirect = NextResponse.redirect(signInUrl);
+    redirect.headers.set('Content-Security-Policy', buildCsp());
+    return redirect;
+  }
+
   const response = NextResponse.next();
   response.headers.set('Content-Security-Policy', buildCsp());
   return response;
