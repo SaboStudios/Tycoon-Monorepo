@@ -153,6 +153,17 @@ describe('AuctionManager', () => {
       });
     });
 
+    it('fails to complete an auction created and completed immediately with no bids', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      const result = manager.completeAuction('a1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No bids received');
+      expect(manager.getAuction('a1')?.status).toBe('active');
+    });
+
     it('completes an active auction with a bidder once', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
