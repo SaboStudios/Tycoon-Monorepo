@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Chance and board-style DTO money fields now reject `NaN`, `Infinity`, non-integer units, and negative amounts via `@IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces })`.
 - `SessionFixationGuard` now treats a missing `nonceCreatedAt` and a negative nonce age as expired, rotating the session nonce in both cases (#2116).
 
 ### Added
@@ -26,6 +27,7 @@
 
 ### Changed
 
+- `AuctionManager.placeBid` accepts an optional `now` parameter (defaults to `Date.now()`) used for both the expiry check and the stored bid timestamp, so bid placement and `cleanupExpiredAuctions` share one clock.
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
 
 ### Fixed

@@ -95,7 +95,12 @@ export class AuctionManager {
     return Array.from(this.auctions.values()).filter((auction) => auction.status === 'active');
   }
 
-  placeBid(id: string, playerId: string, amount: number): AuctionResult {
+  placeBid(
+    id: string,
+    playerId: string,
+    amount: number,
+    now: number = Date.now(),
+  ): AuctionResult {
     const auction = this.auctions.get(id);
     if (!auction) {
       throw new Error('Auction not found');
@@ -103,7 +108,7 @@ export class AuctionManager {
     if (auction.status !== 'active') {
       throw new Error('Auction is not active');
     }
-    if (isAuctionExpired(auction)) {
+    if (isAuctionExpired(auction, now)) {
       throw new Error('Auction has expired');
     }
     if (playerId === auction.sellerId) {
@@ -118,7 +123,7 @@ export class AuctionManager {
 
     auction.currentBid = amount;
     auction.currentBidder = playerId;
-    auction.bids.push({ playerId, amount, placedAt: Date.now() });
+    auction.bids.push({ playerId, amount, placedAt: now });
 
     return {
       success: true,

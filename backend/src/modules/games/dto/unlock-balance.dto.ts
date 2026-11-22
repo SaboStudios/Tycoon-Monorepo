@@ -1,7 +1,7 @@
-import { IsNumber, IsPositive } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
 
 export class UnlockBalanceDto {
-  @IsNumber()
-  @IsPositive()
+  @IsInt()
+  @Min(1)
   amount: number;
 }

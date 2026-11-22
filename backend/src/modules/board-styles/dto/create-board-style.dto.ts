@@ -37,8 +37,11 @@ export class CreateBoardStyleDto {
     example: 9.99,
     required: false,
   })
-  @IsNumber()
-  @Min(0)
+  @IsNumber(
+    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 },
+    { message: 'Price must be a finite number with at most 2 decimal places' },
+  )
+  @Min(0, { message: 'Price must be a non-negative number' })
   @IsOptional()
   price?: number;
 
