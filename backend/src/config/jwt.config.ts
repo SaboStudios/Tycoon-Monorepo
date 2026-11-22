@@ -67,7 +67,40 @@ function parseExpiresInValue(value: string): number {
   return Number(match[1]) * UNIT_SECONDS[match[2]];
 }
 
+const DEFAULT_CLOCK_SKEW_SECONDS = 60;
+const MAX_CLOCK_SKEW_SECONDS = 300;
+const INTEGER_PATTERN = /^\d+$/;
+
+export function parseClockSkewSeconds(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.JWT_CLOCK_SKEW_SECONDS;
+
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_CLOCK_SKEW_SECONDS;
+  }
+
+  const value = raw.trim();
+
+  if (!INTEGER_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid JWT_CLOCK_SKEW_SECONDS value "${raw}". Expected an integer between 0 and ${MAX_CLOCK_SKEW_SECONDS}.`,
+    );
+  }
+
+  const seconds = Number(value);
+
+  if (seconds > MAX_CLOCK_SKEW_SECONDS) {
+    throw new Error(
+      `Invalid JWT_CLOCK_SKEW_SECONDS value "${raw}". Expected an integer between 0 and ${MAX_CLOCK_SKEW_SECONDS}.`,
+    );
+  }
+
+  return seconds;
+}
+
 export default registerAs('jwt', () => ({
   secret: resolveJwtSecret(),
   expiresIn: parseExpiresIn(),
+  clockTolerance: parseClockSkewSeconds(),
 }));

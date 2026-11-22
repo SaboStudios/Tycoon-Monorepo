@@ -17,6 +17,7 @@
 ### Fixed
 
 - `AuctionManager.createAuction` now rejects non-finite, zero, or negative `startingBid` and `minBidIncrement` values before inserting the auction.
+- `JWT_CLOCK_SKEW_SECONDS` is parsed as an integer in the 0-300 range (default 60) and invalid values now fail config load instead of producing `NaN`.
 
 ### Changed
 

@@ -1,4 +1,8 @@
-import { resolveJwtSecret, parseExpiresIn } from './jwt.config';
+import {
+  resolveJwtSecret,
+  parseExpiresIn,
+  parseClockSkewSeconds,
+} from './jwt.config';
 
 const PLACEHOLDER_SECRET = 'your-secret-key-change-this-in-production';
 
@@ -54,5 +58,53 @@ describe('parseExpiresIn', () => {
 
   it('uses the default when the value is unset', () => {
     expect(parseExpiresIn({} as NodeJS.ProcessEnv)).toBe(7 * 86400);
+  });
+});
+
+describe('parseClockSkewSeconds', () => {
+  it('uses 60 when the value is unset', () => {
+    expect(parseClockSkewSeconds({} as NodeJS.ProcessEnv)).toBe(60);
+  });
+
+  it('uses 60 when the value is empty', () => {
+    expect(
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '  ' } as NodeJS.ProcessEnv),
+    ).toBe(60);
+  });
+
+  it('parses an integer within the 0-300 range', () => {
+    expect(
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '120' } as NodeJS.ProcessEnv),
+    ).toBe(120);
+  });
+
+  it('accepts the range boundaries', () => {
+    expect(
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '0' } as NodeJS.ProcessEnv),
+    ).toBe(0);
+    expect(
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '300' } as NodeJS.ProcessEnv),
+    ).toBe(300);
+  });
+
+  it('throws a config-load error for a non-numeric value', () => {
+    expect(() =>
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: 'abc' } as NodeJS.ProcessEnv),
+    ).toThrow(/JWT_CLOCK_SKEW_SECONDS/);
+  });
+
+  it('throws a config-load error above the maximum', () => {
+    expect(() =>
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '301' } as NodeJS.ProcessEnv),
+    ).toThrow(/JWT_CLOCK_SKEW_SECONDS/);
+  });
+
+  it('throws a config-load error for negative or fractional values', () => {
+    expect(() =>
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '-1' } as NodeJS.ProcessEnv),
+    ).toThrow(/JWT_CLOCK_SKEW_SECONDS/);
+    expect(() =>
+      parseClockSkewSeconds({ JWT_CLOCK_SKEW_SECONDS: '1.5' } as NodeJS.ProcessEnv),
+    ).toThrow(/JWT_CLOCK_SKEW_SECONDS/);
   });
 });
