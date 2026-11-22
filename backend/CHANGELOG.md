@@ -26,6 +26,7 @@
 
 ### Fixed
 
+- Coupon minimum purchase validation now compares integer minor units instead of floats, and the error message reports the stored minimum amount.
 - Coupon percentage discounts are validated to 1-100 in both the DTO and `calculateDiscount`; fixed discounts above the purchase amount are rejected instead of silently clamped.
 
 ### Policy

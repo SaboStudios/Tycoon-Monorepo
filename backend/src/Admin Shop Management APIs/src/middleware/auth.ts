@@ -35,15 +35,59 @@ export function authenticateToken(
   }
 }
 
-export function requireAdmin(
+/**
+ * Loads the authenticated user from the database by id.
+ * Returns null when the user no longer exists.
+ */
+export type AdminUserLookup = (
+  userId: string
+) => Promise<{ id: string; role: string } | null>;
+
+let adminUserLookup: AdminUserLookup | null = null;
+
+/**
+ * Registers the database-backed user lookup used by `requireAdmin`.
+ * Call this once at startup (see `src/index.ts`).
+ */
+export function setAdminUserLookup(lookup: AdminUserLookup): void {
+  adminUserLookup = lookup;
+}
+
+/**
+ * Authorizes the request against the *stored* role, not the JWT claim.
+ * A stale `role: 'admin'` claim is rejected when the database says otherwise.
+ */
+export async function requireAdmin(
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): void {
-  if (!req.user || req.user.role !== 'admin') {
+): Promise<void> {
+  const userId = req.user?.id;
+
+  if (!userId) {
     res.status(403).json({ error: 'Admin access required' });
     return;
   }
 
+  if (!adminUserLookup) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  let storedUser: { id: string; role: string } | null;
+  try {
+    storedUser = await adminUserLookup(userId);
+  } catch {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  if (!storedUser || storedUser.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  // Replace the untrusted claim with the authoritative stored role.
+  req.user = { ...req.user, id: storedUser.id, role: storedUser.role };
   next();
 }

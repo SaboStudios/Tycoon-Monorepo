@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import path from 'path';
 import fs from 'fs';
 import { shopService } from '../services/shopService';
+import { generateUploadFileName } from '../middleware/upload';
 
 const adminToken = jwt.sign(
   { id: '1', username: 'admin', role: 'admin' },
@@ -56,6 +57,37 @@ describe('Image Upload', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.images).toHaveLength(1);
+    });
+
+    it('should generate time-independent, unique file names', () => {
+      const first = generateUploadFileName('photo.JPG');
+      const second = generateUploadFileName('photo.JPG');
+
+      expect(first).toMatch(/^[0-9a-f]{32}\.jpg$/);
+      expect(second).toMatch(/^[0-9a-f]{32}\.jpg$/);
+      expect(first).not.toBe(second);
+      expect(first).not.toContain(String(Date.now()).slice(0, 8));
+    });
+
+    it('should reject a disallowed extension', async () => {
+      const item = shopService.createItem({
+        name: 'Test Item',
+        description: 'Test',
+        price: 50,
+        isActive: true,
+        images: [],
+      });
+
+      const response = await request(app)
+        .post(`/api/shop/${item.id}/images`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('images', Buffer.from('#!/bin/sh\n'), {
+          filename: 'payload.sh',
+          contentType: 'image/jpeg',
+        });
+
+      expect(response.status).toBe(400);
+      expect(() => generateUploadFileName('payload.sh')).toThrow();
     });
 
     it('should handle non-existent item', async () => {

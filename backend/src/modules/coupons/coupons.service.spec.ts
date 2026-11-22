@@ -260,6 +260,53 @@ describe('CouponsService', () => {
       expect(result.valid).toBe(false);
       expect(result.message).toContain('Minimum purchase amount');
     });
+
+    it('should accept a purchase exactly equal to the minimum amount', async () => {
+      const minPurchaseCoupon = {
+        ...mockCoupon,
+        min_purchase_amount: '50.00',
+      };
+      mockRepository.findOne.mockResolvedValue(minPurchaseCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 50,
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject a purchase one minor unit below the minimum amount', async () => {
+      const minPurchaseCoupon = {
+        ...mockCoupon,
+        min_purchase_amount: '50.00',
+      };
+      mockRepository.findOne.mockResolvedValue(minPurchaseCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 49.99,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('Minimum purchase amount of 50.00');
+    });
+
+    it('should report the stored minimum amount in the error message', async () => {
+      const minPurchaseCoupon = {
+        ...mockCoupon,
+        min_purchase_amount: '10.10',
+      };
+      mockRepository.findOne.mockResolvedValue(minPurchaseCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 10.09,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('Minimum purchase amount of 10.10');
+    });
   });
 
   describe('calculateDiscount', () => {
