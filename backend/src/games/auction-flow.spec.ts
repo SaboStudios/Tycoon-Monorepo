@@ -236,5 +236,13 @@ describe('AuctionManager', () => {
       expect(isAuctionExpired(auction, auction.expiresAt)).toBe(false);
       expect(isAuctionExpired(auction, auction.expiresAt + 1)).toBe(true);
     });
+
+    it('accepts a bid at the exact expiry time and rejects one millisecond later', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+
+      expect(isAuctionExpired(auction, auction.expiresAt)).toBe(false);
+      expect(isAuctionExpired(auction, auction.expiresAt + 1)).toBe(true);
+    });
   });
 });
