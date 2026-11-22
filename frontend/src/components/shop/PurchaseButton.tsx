@@ -18,6 +18,10 @@ export interface PurchaseButtonProps {
   quantity: number;
   /** Optional price in minor units, for display only. Never trusted for money. */
   priceMinorUnits?: number;
+  /**
+   * Ticker from the shop payload. Required whenever a price is displayed so the
+   * label never falls back to a hardcoded chain ticker (ADR-003: NEAR-only UI).
+   */
   currency?: string;
   disabled?: boolean;
   onPurchased?: (result: PurchaseResult) => void;
@@ -78,7 +82,7 @@ export default function PurchaseButton({
   sku,
   quantity,
   priceMinorUnits,
-  currency = 'XLM',
+  currency,
   disabled = false,
   onPurchased,
   onConflict,
@@ -164,9 +168,12 @@ export default function PurchaseButton({
     }
   }, [disabled, status, isValidPayload, sku, quantity, onPurchased, onConflict]);
 
+  // The ticker always comes from the shop payload; there is no default, so a
+  // missing currency renders the amount without inventing a chain ticker.
+  const ticker = typeof currency === 'string' ? currency.trim() : '';
   const priceLabel =
     typeof priceMinorUnits === 'number'
-      ? `${(priceMinorUnits / 100).toFixed(2)} ${currency}`
+      ? `${(priceMinorUnits / 100).toFixed(2)}${ticker ? ` ${ticker}` : ''}`
       : null;
 
   return (
@@ -179,7 +186,12 @@ export default function PurchaseButton({
         data-status={status}
       >
         {label}
-        {priceLabel ? <span className="shop-purchase-button__price"> · {priceLabel}</span> : null}
+        {priceLabel ? (
+          <span className="shop-purchase-button__price" data-testid="purchase-price">
+            {' '}
+            · {priceLabel}
+          </span>
+        ) : null}
       </button>
       {message ? (
         <p
