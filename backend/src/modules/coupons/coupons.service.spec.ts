@@ -391,6 +391,40 @@ describe('CouponsService', () => {
     });
   });
 
+  describe('getTotalDiscount', () => {
+    it('should sum two normal rows to the exact integer total', async () => {
+      usageLogRepository.find = jest.fn().mockResolvedValue([
+        { discount_amount: '10.10' },
+        { discount_amount: '0.20' },
+      ]);
+
+      await expect(service.getTotalDiscount(1)).resolves.toBe(10.3);
+    });
+
+    it('should skip a null amount instead of producing NaN', async () => {
+      usageLogRepository.find = jest.fn().mockResolvedValue([
+        { discount_amount: '5.00' },
+        { discount_amount: null },
+        { discount_amount: '2.50' },
+      ]);
+
+      const total = await service.getTotalDiscount(1);
+
+      expect(Number.isNaN(total)).toBe(false);
+      expect(total).toBe(7.5);
+    });
+
+    it('should fail the report on a malformed amount', async () => {
+      usageLogRepository.find = jest
+        .fn()
+        .mockResolvedValue([{ discount_amount: 'not-a-number' }]);
+
+      await expect(service.getTotalDiscount(1)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
   describe('incrementUsage', () => {
     it('should increment usage atomically and succeed when under limit', async () => {
       const limitedCoupon = { ...mockCoupon, max_uses: 1, current_usage: 0 };

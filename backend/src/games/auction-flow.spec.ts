@@ -135,6 +135,25 @@ describe('AuctionManager', () => {
       );
     });
 
+    it('leaves currentBid at the starting bid when the seller bids, while another player can still bid', () => {
+      const manager = new AuctionManager();
+      manager.createAuction('a1', 'seller', 'item');
+
+      expect(() => manager.placeBid('a1', 'seller', STARTING_BID + MIN_BID_INCREMENT)).toThrow(
+        'Seller cannot bid on their own auction',
+      );
+
+      const auction = manager.getAuction('a1');
+      expect(auction?.currentBid).toBe(STARTING_BID);
+      expect(auction?.currentBidder).toBeNull();
+      expect(auction?.bids).toEqual([]);
+
+      const result = manager.placeBid('a1', 'p1', STARTING_BID + MIN_BID_INCREMENT);
+      expect(result.success).toBe(true);
+      expect(manager.getAuction('a1')?.currentBid).toBe(STARTING_BID + MIN_BID_INCREMENT);
+      expect(manager.getAuction('a1')?.currentBidder).toBe('p1');
+    });
+
     it('accepts a valid bid and updates currentBid, currentBidder and bids', () => {
       const manager = new AuctionManager();
       manager.createAuction('a1', 'seller', 'item');
@@ -286,6 +305,14 @@ describe('AuctionManager', () => {
 
   describe('isAuctionExpired', () => {
     it('uses a strict greater-than comparison against expiresAt', () => {
+      const manager = new AuctionManager();
+      const auction = manager.createAuction('a1', 'seller', 'item');
+
+      expect(isAuctionExpired(auction, auction.expiresAt)).toBe(false);
+      expect(isAuctionExpired(auction, auction.expiresAt + 1)).toBe(true);
+    });
+
+    it('accepts a bid at the exact expiry time and rejects one millisecond later', () => {
       const manager = new AuctionManager();
       const auction = manager.createAuction('a1', 'seller', 'item');
 

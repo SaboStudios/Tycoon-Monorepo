@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `SessionFixationGuard` now treats a missing `nonceCreatedAt` and a negative nonce age as expired, rotating the session nonce in both cases (#2116).
+
 ### Added
 
 - `parseExpiresIn` helper in `src/config/jwt.config.ts` converting `s`/`m`/`h`/`d` JWT lifetimes to seconds, with tests.
