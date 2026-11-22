@@ -16,6 +16,7 @@
 
 ### Changed
 
+- Documented the JWT environment variables (`JWT_SECRET`, `JWT_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `JWT_CLOCK_SKEW_SECONDS`) in `docs/AUTH_JWT_RUNBOOK.md` (#2120).
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
 
 ### Policy
