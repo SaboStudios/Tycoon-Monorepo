@@ -30,26 +30,77 @@ export function resolveJwtSecret(
   return secret;
 }
 
-const EXPIRES_IN_UNITS: Record<string, number> = {
+const DEFAULT_EXPIRES_IN = '7d';
+const EXPIRES_IN_PATTERN = /^(\d+)(s|m|h|d|w|y)$/;
+const UNIT_SECONDS: Record<string, number> = {
   s: 1,
   m: 60,
-  h: 60 * 60,
-  d: 24 * 60 * 60,
+  h: 3600,
+  d: 86400,
+  w: 604800,
+  y: 31536000,
 };
 
-/**
- * Parses a JWT lifetime string (e.g. `15s`, `15m`, `1h`, `1d`) into seconds.
- * Returns the input unchanged when it is not a supported duration string.
- */
-export function parseExpiresIn(value: string): number | string {
-  const match = /^(\d+)([smhd])$/.exec(value.trim());
-  if (!match) {
-    return value;
+export function parseExpiresIn(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.JWT_EXPIRES_IN;
+
+  if (raw === undefined || raw.trim() === '') {
+    return parseExpiresInValue(DEFAULT_EXPIRES_IN);
   }
-  return Number(match[1]) * EXPIRES_IN_UNITS[match[2]];
+
+  const value = raw.trim();
+  const match = EXPIRES_IN_PATTERN.exec(value);
+
+  if (!match) {
+    throw new Error(
+      `Invalid JWT_EXPIRES_IN value "${raw}". Expected a positive integer followed by a unit (s, m, h, d, w, y), e.g. "15m" or "7d".`,
+    );
+  }
+
+  return Number(match[1]) * UNIT_SECONDS[match[2]];
+}
+
+function parseExpiresInValue(value: string): number {
+  const match = EXPIRES_IN_PATTERN.exec(value) as RegExpExecArray;
+  return Number(match[1]) * UNIT_SECONDS[match[2]];
+}
+
+const DEFAULT_CLOCK_SKEW_SECONDS = 60;
+const MAX_CLOCK_SKEW_SECONDS = 300;
+const INTEGER_PATTERN = /^\d+$/;
+
+export function parseClockSkewSeconds(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.JWT_CLOCK_SKEW_SECONDS;
+
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_CLOCK_SKEW_SECONDS;
+  }
+
+  const value = raw.trim();
+
+  if (!INTEGER_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid JWT_CLOCK_SKEW_SECONDS value "${raw}". Expected an integer between 0 and ${MAX_CLOCK_SKEW_SECONDS}.`,
+    );
+  }
+
+  const seconds = Number(value);
+
+  if (seconds > MAX_CLOCK_SKEW_SECONDS) {
+    throw new Error(
+      `Invalid JWT_CLOCK_SKEW_SECONDS value "${raw}". Expected an integer between 0 and ${MAX_CLOCK_SKEW_SECONDS}.`,
+    );
+  }
+
+  return seconds;
 }
 
 export default registerAs('jwt', () => ({
   secret: resolveJwtSecret(),
-  expiresIn: parseExpiresIn(process.env.JWT_EXPIRES_IN || '7d'),
+  expiresIn: parseExpiresIn(),
+  clockTolerance: parseClockSkewSeconds(),
 }));
