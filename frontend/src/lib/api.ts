@@ -112,6 +112,58 @@ export function clearIdempotencyKeyForPurchase(payload: {
   purchaseKeyCache.delete(purchasePayloadFingerprint(payload));
 }
 
+export type ShopPurchaseErrorStatus = "conflict" | "error";
+
+export interface ShopPurchaseErrorMapping {
+  status: ShopPurchaseErrorStatus;
+  message: string;
+}
+
+const DEFAULT_CONFLICT_MESSAGE =
+  "This purchase conflicts with a previous request. Review your cart and try again.";
+const DEFAULT_PURCHASE_ERROR_MESSAGE = "Purchase failed. Please try again.";
+
+/**
+ * Single source of truth for mapping a failed shop purchase response to a UX
+ * state. Only a 409 is a conflict; every other non-2xx status is a plain error.
+ * The server's message is surfaced when present, otherwise a status-specific
+ * fallback is used.
+ */
+export function mapShopPurchaseError(
+  status: number,
+  serverMessage?: unknown
+): ShopPurchaseErrorMapping {
+  const message =
+    typeof serverMessage === "string" && serverMessage.trim() !== ""
+      ? serverMessage.trim()
+      : undefined;
+
+  if (status === 409) {
+    return { status: "conflict", message: message ?? DEFAULT_CONFLICT_MESSAGE };
+  }
+
+  return {
+    status: "error",
+    message: message ?? `${DEFAULT_PURCHASE_ERROR_MESSAGE} (${status})`,
+  };
+}
+
+/**
+ * Read the server-provided error message from a failed response body. Accepts
+ * the documented `{ message }` shape and falls back to a plain string body.
+ */
+export async function readShopPurchaseErrorMessage(
+  response: Response
+): Promise<string | undefined> {
+  const body = await response.json().catch(() => undefined);
+  if (typeof body === "string") return body;
+  if (body && typeof body === "object") {
+    const message = (body as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return undefined;
+}
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}

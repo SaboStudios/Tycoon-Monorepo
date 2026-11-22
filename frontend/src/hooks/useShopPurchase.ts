@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
-import { isValidPurchasePayload } from '../lib/api';
+import { isValidPurchasePayload, mapShopPurchaseError, readShopPurchaseErrorMessage } from '../lib/api';
 
 /**
  * Shop purchase hook.
@@ -276,21 +276,25 @@ export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
           body: JSON.stringify(payload),
         });
 
-        if (response.status === 409) {
-          // Payload conflict / duplicate intent: distinct UX state, not a
-          // generic error. The key is retained so the user can reconcile.
-          const conflict: ShopPurchaseResult = {
-            status: 'conflict',
-            error: 'This purchase conflicts with a previous request for the same item.',
-          };
-          setResult(conflict);
-          return conflict;
-        }
-
         if (!response.ok) {
+          const mapped = mapShopPurchaseError(
+            response.status,
+            await readShopPurchaseErrorMessage(response),
+          );
+          if (mapped.status === 'conflict') {
+            // Payload conflict / duplicate intent: distinct UX state, not a
+            // generic error. The key is retained so the user can reconcile.
+            const conflict: ShopPurchaseResult = {
+              status: 'conflict',
+              error: mapped.message,
+            };
+            setResult(conflict);
+            return conflict;
+          }
+
           const failure: ShopPurchaseResult = {
             status: 'error',
-            error: `Purchase failed (${response.status}).`,
+            error: mapped.message,
           };
           setResult(failure);
           return failure;

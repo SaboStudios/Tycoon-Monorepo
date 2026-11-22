@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { isValidPurchasePayload } from '../../lib/api';
+import {
+  isValidPurchasePayload,
+  mapShopPurchaseError,
+  readShopPurchaseErrorMessage,
+} from '../../lib/api';
 
 /**
  * Shop purchase button.
@@ -134,23 +138,26 @@ export default function PurchaseButton({
     try {
       const res = await postPurchase(sku, quantity, idempotencyKey, controller.signal);
 
-      if (res.status === 409) {
-        // Payload conflict / duplicate intent: distinct UX, not a generic error.
-        const conflict: PurchaseConflict = {
-          sku,
-          quantity,
-          message:
-            'This purchase conflicts with a previous request. Review your cart and try again.',
-        };
-        setStatus('conflict');
-        setMessage(conflict.message);
-        onConflict?.(conflict);
-        return;
-      }
-
       if (!res.ok) {
+        const mapped = mapShopPurchaseError(
+          res.status,
+          await readShopPurchaseErrorMessage(res),
+        );
+        if (mapped.status === 'conflict') {
+          // Payload conflict / duplicate intent: distinct UX, not a generic error.
+          const conflict: PurchaseConflict = {
+            sku,
+            quantity,
+            message: mapped.message,
+          };
+          setStatus('conflict');
+          setMessage(conflict.message);
+          onConflict?.(conflict);
+          return;
+        }
+
         setStatus('error');
-        setMessage('Purchase failed. Please try again.');
+        setMessage(mapped.message);
         return;
       }
 
