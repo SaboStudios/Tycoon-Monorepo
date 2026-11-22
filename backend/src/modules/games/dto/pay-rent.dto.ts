@@ -1,11 +1,11 @@
-import { IsNumber, IsPositive } from 'class-validator';
+import { IsInt, IsNumber, IsPositive, Min } from 'class-validator';
 
 export class PayRentDto {
   @IsNumber()
   @IsPositive()
   payeeId: number;
 
-  @IsNumber()
-  @IsPositive()
+  @IsInt()
+  @Min(1)
   baseRent: number;
 }
