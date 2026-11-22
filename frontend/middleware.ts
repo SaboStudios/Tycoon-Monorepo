@@ -17,6 +17,15 @@ const NEAR_WALLET_HOSTS = [
   'https://app.mynearwallet.com',
 ];
 
+// MyNearWallet origins framed by NearWalletConnect (wallet selector).
+// These are the only wallet origins allowed in frame-src; no wildcards.
+const NEAR_WALLET_FRAME_HOSTS = [
+  'https://wallet.testnet.near.org',
+  'https://wallet.near.org',
+  'https://testnet.mynearwallet.com',
+  'https://app.mynearwallet.com',
+];
+
 const NEAR_RPC_HOSTS = [
   'https://rpc.testnet.near.org',
   'https://rpc.mainnet.near.org',
@@ -56,6 +65,11 @@ function buildConnectSrc(): string {
   return Array.from(new Set(sources)).join(' ');
 }
 
+function buildFrameSrc(): string {
+  const sources = ["'self'", ...NEAR_WALLET_FRAME_HOSTS];
+  return Array.from(new Set(sources)).join(' ');
+}
+
 function buildCsp(): string {
   return [
     "default-src 'self'",
@@ -64,13 +78,15 @@ function buildCsp(): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    "frame-src 'self' https://wallet.testnet.near.org https://wallet.near.org",
+    `frame-src ${buildFrameSrc()}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
   ].join('; ');
 }
+
+export const NEAR_WALLET_FRAME_ORIGINS = NEAR_WALLET_FRAME_HOSTS;
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
