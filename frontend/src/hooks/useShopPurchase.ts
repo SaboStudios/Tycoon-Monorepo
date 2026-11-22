@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { isValidPurchasePayload } from '../lib/api';
+
 /**
  * Shop purchase hook.
  *
@@ -83,6 +85,16 @@ export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
 
   const purchase = useCallback(
     async (payload: ShopPurchasePayload): Promise<ShopPurchaseResult> => {
+      // Reject invalid payloads before generating a key or calling fetch.
+      if (!isValidPurchasePayload(payload)) {
+        const invalid: ShopPurchaseResult = {
+          status: 'error',
+          error: 'Quantity must be a whole number of at least 1.',
+        };
+        setResult(invalid);
+        return invalid;
+      }
+
       const idempotencyKey = getKeyForPayload(payload);
       const doFetch = options.fetchImpl ?? fetch;
       const baseUrl = getShopApiBaseUrl();

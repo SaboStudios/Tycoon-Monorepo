@@ -50,6 +50,25 @@ export function generateIdempotencyKey(): string {
 }
 
 /**
+ * Shared validation for shop purchase payloads. A purchase is only valid when
+ * the SKU is a non-empty string and the quantity is an integer >= 1.
+ */
+export function isValidPurchaseQuantity(quantity: unknown): quantity is number {
+  return typeof quantity === "number" && Number.isInteger(quantity) && quantity >= 1;
+}
+
+export function isValidPurchaseSku(sku: unknown): sku is string {
+  return typeof sku === "string" && sku.trim().length > 0;
+}
+
+export function isValidPurchasePayload(payload: {
+  sku: unknown;
+  quantity: unknown;
+}): boolean {
+  return isValidPurchaseSku(payload.sku) && isValidPurchaseQuantity(payload.quantity);
+}
+
+/**
  * Deterministic fingerprint of a purchase payload. Used to decide whether a
  * cached Idempotency-Key still matches the current intent (SKU + quantity).
  */

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { isValidPurchasePayload } from '../../lib/api';
+
 /**
  * Shop purchase button.
  *
@@ -113,8 +115,10 @@ export default function PurchaseButton({
     return 'Purchase';
   }, [status]);
 
+  const isValidPayload = isValidPurchasePayload({ sku, quantity });
+
   const handlePurchase = useCallback(async () => {
-    if (disabled || status === 'pending') return;
+    if (disabled || status === 'pending' || !isValidPayload) return;
 
     // Reuse the existing key for retries of the same intent.
     const idempotencyKey = keyRef.current;
@@ -158,7 +162,7 @@ export default function PurchaseButton({
     } finally {
       abortRef.current = null;
     }
-  }, [disabled, status, sku, quantity, onPurchased, onConflict]);
+  }, [disabled, status, isValidPayload, sku, quantity, onPurchased, onConflict]);
 
   const priceLabel =
     typeof priceMinorUnits === 'number'
@@ -170,7 +174,7 @@ export default function PurchaseButton({
       <button
         type="button"
         onClick={handlePurchase}
-        disabled={disabled || status === 'pending'}
+        disabled={disabled || status === 'pending' || !isValidPayload}
         aria-busy={status === 'pending'}
         data-status={status}
       >

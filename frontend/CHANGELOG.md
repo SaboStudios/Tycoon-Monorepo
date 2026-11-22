@@ -8,6 +8,7 @@ Add entries under `## [Unreleased]`. CI enforces this; see CONTRIBUTING.md.
 
 ### Fixed
 
+- Validate shop purchase payloads (non-empty SKU, integer quantity >= 1) before sending a request, and disable `PurchaseButton` for invalid quantities (#2140).
 - Restore Vitest setup and include app route specs so the join and landing page safeguards run in CI.
 
 ### Added
