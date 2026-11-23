@@ -8,6 +8,17 @@ The frontend includes a small analytics taxonomy layer for staging validation.
 - Set `NEXT_PUBLIC_ANALYTICS_DEBUG=true` in development to expose `window.__tycoonAnalytics.events` and log sanitized events to the console.
 - Visit `/shop` to emit `view_shop`, then use the "Track Purchase" buttons to emit `purchase_click` without sending PII-bearing fields.
 
+## Testing
+
+Run the frontend unit test suite from the `frontend/` directory:
+
+```bash
+cd frontend
+npm test
+```
+
+This runs the `test` script defined in `frontend/package.json`.
+
 ## Getting Started
 
 First, run the development server:

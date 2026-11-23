@@ -92,3 +92,17 @@ describe('apiHosts — WebSocket origin derivation (#2152)', () => {
     expect(hosts.some((host) => host.includes('localhost'))).toBe(false);
   });
 });
+
+describe('middleware response CSP header (#2165)', () => {
+  it('sets frame-ancestors none and object-src none on the response header', () => {
+    // No browser is started: the middleware is invoked directly and the
+    // resulting Content-Security-Policy header value is inspected as a string.
+    const response = middleware(request('/'));
+    const csp = response.headers.get('Content-Security-Policy') ?? '';
+
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+  });
+});
+  });
+});

@@ -136,6 +136,14 @@ export default function PurchaseButton({
     try {
       const res = await postPurchase(sku, quantity, idempotencyKey, controller.signal);
 
+      // The component may have unmounted (or the intent may have changed)
+      // while this request was in flight. A fetch mock/polyfill is not
+      // guaranteed to reject just because the signal was aborted, so check
+      // explicitly rather than relying only on the AbortError branch below
+      // (#2150 — a late response must not call setState or onPurchased for
+      // a screen that is gone).
+      if (controller.signal.aborted) return;
+
       if (!res.ok) {
         const mapped = mapShopPurchaseError(
           res.status,
@@ -187,11 +195,12 @@ export default function PurchaseButton({
       }
 
       const data = (await res.json().catch(() => ({}))) as Partial<PurchaseResult>;
+      if (controller.signal.aborted) return;
       setStatus('success');
       setMessage('Purchase complete.');
       onPurchased?.({ orderId: data.orderId, sku, quantity });
     } catch (err) {
-      if ((err as { name?: string })?.name === 'AbortError') return;
+      if (controller.signal.aborted || (err as { name?: string })?.name === 'AbortError') return;
       // Network failure: keep the same key so a retry is deduped server-side.
       setStatus('error');
       setMessage('Network error. Retry to complete your purchase.');
