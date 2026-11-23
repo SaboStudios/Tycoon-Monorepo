@@ -67,6 +67,23 @@ describe("LandingPage hero loading (#1957)", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
+  it("renders exactly one h1 on the landing page (#2169)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      headline: "Own the board. Roll the dice.",
+      subheadline: "Tycoon is a player-owned economy on NEAR.",
+      ctaLabel: "Play now",
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    render(<LandingPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Own the board. Roll the dice.",
+    );
+  });
+
   it("renders fetched content when the hero payload is valid", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       headline: "A new headline",
