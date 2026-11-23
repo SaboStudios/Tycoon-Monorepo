@@ -25,3 +25,11 @@ This update improves the Tycoon offline fallback route by adding accessible page
 ## Notes
 
 This fix is isolated to the offline shell route and does not change server-side behavior or the offline service worker fallback contract.
+
+## Offline cache exclusions (#2159)
+
+The `/shop` page and every `/api/shop/*` call (items, inventory, purchase, purchases,
+gift) are excluded from the offline cache — see `docs/SW-deny-list.md` and
+`isCacheExcludedPath` in `frontend/src/lib/pwa/constants.ts`. A player who loses
+connectivity on `/shop` lands on this offline route instead of a cached shop page, so
+they are never shown a stale price or a purchase button that looks live.

@@ -36,6 +36,9 @@ export default defineConfig({
       "src/**/*.test.{ts,tsx}",
       "src/**/*.spec.{ts,tsx}",
       "app/**/*.spec.{ts,tsx}",
+      // Pre-existing gap (#2160): components/join/JoinRoomForm.spec.ts lived
+      // outside every glob above, so it never actually ran under `vitest`.
+      "components/**/*.spec.{ts,tsx}",
     ],
     exclude: ["node_modules/**", ".next/**", "e2e/**"],
   },
