@@ -32,12 +32,16 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: [
+      "*.spec.{ts,tsx}",
       "test/**/*.test.{ts,tsx}",
       "src/**/*.test.{ts,tsx}",
       "src/**/*.spec.{ts,tsx}",
       "app/**/*.spec.{ts,tsx}",
-      // Pre-existing gap (#2160): components/join/JoinRoomForm.spec.ts lived
-      // outside every glob above, so it never actually ran under `vitest`.
+      // Pre-existing/unrelated: root-level and components/** specs (e.g.
+      // middleware.spec.ts, components/join/JoinRoomForm.spec.ts) were never
+      // matched by the patterns above, so `npm test` silently skipped them.
+      "*.spec.{ts,tsx}",
+      "components/**/*.spec.{ts,tsx}",
       "components/**/*.spec.{ts,tsx}",
     ],
     exclude: ["node_modules/**", ".next/**", "e2e/**"],

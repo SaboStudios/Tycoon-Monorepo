@@ -44,24 +44,30 @@ export const ShopItem: React.FC<ShopItemData> = ({
   disabled = false,
 }) => {
   const itemId = String(id);
-  
+
+  // A price that is missing, negative, or non-finite (NaN/Infinity) must fail
+  // closed: render an "unavailable" state and disable the buy button, rather
+  // than showing a bogus discount ("-$5.00") or "$NaN".
+  const isPriceValid = React.useMemo(() => {
+    if (price === null || price === undefined) return false;
+    const p = typeof price === "string" ? parseFloat(price) : price;
+    return Number.isFinite(p) && p >= 0;
+  }, [price]);
+
   const displayPrice = React.useMemo(() => {
-    try {
-      const p = typeof price === "string" ? parseFloat(price) : price;
-      if (isNaN(p)) return "0.00";
-      return p.toFixed(2);
-    } catch (e) {
-      console.error(`Invalid price for item ${itemId}:`, price);
-      return "0.00";
-    }
-  }, [price, itemId]);
+    if (!isPriceValid) return null;
+    const p = typeof price === "string" ? parseFloat(price) : price;
+    return (p as number).toFixed(2);
+  }, [price, isPriceValid]);
+
+  const isPurchaseDisabled = disabled || !isPriceValid;
 
   return (
     <div
       className={cn(
         "flex flex-col rounded-lg border-2 p-4 transition-all duration-200",
         rarityColors[rarity] ?? rarityColors.common,
-        disabled && "opacity-50 cursor-not-allowed"
+        isPurchaseDisabled && "opacity-50 cursor-not-allowed"
       )}
       data-testid={`shop-item-${itemId}`}
     >
@@ -92,14 +98,23 @@ export const ShopItem: React.FC<ShopItemData> = ({
 
       {/* Price and Button */}
       <div className="mt-auto flex items-center justify-between gap-2">
-        <span className="font-bold text-lg text-gray-900 dark:text-white">
-          ${displayPrice}
-        </span>
+        {isPriceValid ? (
+          <span className="font-bold text-lg text-gray-900 dark:text-white">
+            ${displayPrice}
+          </span>
+        ) : (
+          <span
+            className="font-bold text-sm text-gray-500 dark:text-gray-400"
+            data-testid={`shop-item-unavailable-${itemId}`}
+          >
+            Unavailable
+          </span>
+        )}
         <Button
           size="sm"
-          variant={disabled ? "outline" : "default"}
+          variant={isPurchaseDisabled ? "outline" : "default"}
           onClick={() => onPurchase?.(itemId)}
-          disabled={disabled}
+          disabled={isPurchaseDisabled}
           className="gap-1"
           data-testid={`shop-item-buy-${itemId}`}
         >
