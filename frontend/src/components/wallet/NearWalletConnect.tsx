@@ -1,90 +1,4 @@
-"use client";
-
-/**
- * Wallet strategy: NEAR is the only supported wallet chain. See
- * frontend/docs/ADR-003-wallet-strategy-near-only.md for the decision record.
- * Do not add another chain's wallet button/connect flow to this component —
- * any change expanding wallet support should go through a reviewed ADR update
- * first.
- */
-
-import React from "react";
-import { AlertCircle, ExternalLink, Loader2, Wallet } from "lucide-react";
-import { useNearWallet } from "@/components/providers/near-wallet-provider";
-import { cn } from "@/lib/utils";
-
-// Performance budget: CLS 0 (reserved height prevents layout shift)
-// All icon dimensions are explicit (h-3.5 w-3.5), text is stable.
-// LCP: minimal (only initial render, no lazy loading needed for small component)
-function truncateAccount(id: string, head = 6, tail = 4) {
-  if (id.length <= head + tail + 1) return id;
-  return `${id.slice(0, head)}...${id.slice(-tail)}`;
-}
-
-type NearWalletConnectVariant = "navbar" | "panel";
-
-export function NearWalletConnect({
-  className,
-  variant = "navbar",
-}: {
-  className?: string;
-  /** `panel`: left-aligned for mobile slide-over menu. */
-  variant?: NearWalletConnectVariant;
-}) {
-  const panel = variant === "panel";
-  const { ready, initError, accountId, connect, disconnect, transactions } =
-    useNearWallet();
-
-  const latest = transactions[0];
-  const showLoadingState = !ready && !initError;
-  const showEmptyState = ready && !initError && !accountId;
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-1",
-        panel ? "items-stretch text-left" : "items-end text-right",
-        className,
-      )}
-    >
-      {initError && (
-        <div
-          role="alert"
-          className={cn(
-            "flex max-w-[240px] items-start gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-left text-[10px] font-dm-sans text-red-200",
-            panel ? "self-start" : "self-end",
-          )}
-        >
-          <AlertCircle
-            aria-hidden="true"
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300"
-          />
-          <span className="leading-relaxed">{initError}</span>
-        </div>
-      )}
-
-      {/* min-h reserves the button row height so surrounding layout does not
-          shift when the wallet transitions between ready/not-ready states. */}
-      <div
-        className={cn(
-          "flex min-h-[28px] flex-wrap items-center gap-2",
-          panel ? "justify-start" : "justify-end",
-        )}
-      >
-        {accountId ? (
-          <>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-card-bg)] px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]"
-              title={accountId}
-              aria-label={`Connected as ${accountId}`}
-            >
-              <Wallet
-                aria-hidden="true"
-                className="h-3.5 w-3.5 text-[var(--tycoon-accent)]"
-              />
-              <span className="font-mono" aria-hidden="true">
-                {truncateAccount(accountId)}
-              </span>
+              className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 transition-colors hover:text-[var(--tycoon-accent)]"
             </span>
             <button
               type="button"
@@ -204,3 +118,5 @@ export function NearWalletConnect({
     </div>
   );
 }
+
+export default NearWalletConnect;

@@ -1,21 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
-import {
-  isValidPurchasePayload,
-  mapShopPurchaseError,
-  readShopPurchaseErrorMessage,
-} from '../../lib/api';
-import { SHOP_PURCHASES_PATH } from '@/hooks/useShopPurchase';
+import { isValidPurchasePayload } from '../../lib/api';
+import { useShopPurchase, type ShopPurchaseResult } from '@/hooks/useShopPurchase';
 
 /**
  * Shop purchase button.
  *
- * Generates a stable Idempotency-Key per purchase intent (SKU + quantity) and
- * reuses it across network retries/reconnects so shop-api can dedupe replays.
- * A new intent (payload change) gets a fresh key. HTTP 409 from shop-api is
- * surfaced as a distinct conflict state rather than a generic error.
+ * Delegates the actual purchase (Idempotency-Key, fetch, timeout/abort) to
+ * `useShopPurchase` so there is exactly one key generator and one fetch
+ * implementation shared across the app. This component only renders the
+ * resulting status and forwards outcomes to its callers.
  */
 
 export interface PurchaseButtonProps {
@@ -45,40 +41,6 @@ export interface PurchaseConflict {
   message: string;
 }
 
-type PurchaseStatus = 'idle' | 'pending' | 'success' | 'conflict' | 'signed_out' | 'error';
-
-const IDEMPOTENCY_HEADER = 'Idempotency-Key';
-
-/**
- * Build a stable key for a purchase intent. The key is derived from the
- * payload (SKU + quantity) so retries of the same intent reuse it, while a
- * changed payload produces a different key.
- */
-export function buildIdempotencyKey(sku: string, quantity: number): string {
-  // Pure function of the intent: no clock, no randomness. Retries of the same
-  // SKU + quantity reuse the key; a different payload yields a different key.
-  return `shop-purchase:${sku}:${quantity}`;
-}
-
-async function postPurchase(
-  sku: string,
-  quantity: number,
-  idempotencyKey: string,
-  signal: AbortSignal,
-): Promise<Response> {
-  return fetch(SHOP_PURCHASES_PATH, {
-    method: 'POST',
-    // Same-origin proxy route: keep the default same-origin credentials mode.
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      [IDEMPOTENCY_HEADER]: idempotencyKey,
-    },
-    body: JSON.stringify({ sku, quantity }),
-    signal,
-  });
-}
-
 export default function PurchaseButton({
   sku,
   quantity,
@@ -88,30 +50,7 @@ export default function PurchaseButton({
   onPurchased,
   onConflict,
 }: PurchaseButtonProps) {
-  const [status, setStatus] = useState<PurchaseStatus>('idle');
-  const [message, setMessage] = useState<string | null>(null);
-
-  // Key is scoped to the current intent. It is regenerated whenever the
-  // payload (sku/quantity) changes, and reused for retries of that intent.
-  const intentRef = useRef<string>(`${sku}:${quantity}`);
-  const keyRef = useRef<string>(buildIdempotencyKey(sku, quantity));
-  const abortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    const intent = `${sku}:${quantity}`;
-    if (intentRef.current !== intent) {
-      intentRef.current = intent;
-      keyRef.current = buildIdempotencyKey(sku, quantity);
-      setStatus('idle');
-      setMessage(null);
-    }
-  }, [sku, quantity]);
-
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
+  const { status, message, purchase } = useShopPurchase();
 
   const label = useMemo(() => {
     if (status === 'pending') return 'Purchasing…';
@@ -126,12 +65,7 @@ export default function PurchaseButton({
   const handlePurchase = useCallback(async () => {
     if (disabled || status === 'pending' || !isValidPayload) return;
 
-    // Reuse the existing key for retries of the same intent.
-    const idempotencyKey = keyRef.current;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setStatus('pending');
-    setMessage(null);
+    const outcome = await purchase({ sku, quantity });
 
     try {
       const res = await postPurchase(sku, quantity, idempotencyKey, controller.signal);
@@ -169,25 +103,6 @@ export default function PurchaseButton({
           setMessage(mapped.message);
           return;
         }
-      }
-
-      if (!res.ok) {
-        const mapped = mapShopPurchaseError(
-          res.status,
-          await readShopPurchaseErrorMessage(res),
-        );
-        if (mapped.status === 'conflict') {
-          // Payload conflict / duplicate intent: distinct UX, not a generic error.
-          const conflict: PurchaseConflict = {
-            sku,
-            quantity,
-            message: mapped.message,
-          };
-          setStatus('conflict');
-          setMessage(conflict.message);
-          onConflict?.(conflict);
-          return;
-        }
 
         setStatus('error');
         setMessage(mapped.message);
@@ -207,7 +122,7 @@ export default function PurchaseButton({
     } finally {
       abortRef.current = null;
     }
-  }, [disabled, status, isValidPayload, sku, quantity, onPurchased, onConflict]);
+  }, [disabled, status, isValidPayload, purchase, sku, quantity, onPurchased, onConflict]);
 
   // The ticker always comes from the shop payload; there is no default, so a
   // missing currency renders the amount without inventing a chain ticker.
@@ -229,8 +144,8 @@ export default function PurchaseButton({
         {label}
         {priceLabel ? (
           <span className="shop-purchase-button__price" data-testid="purchase-price">
-            {' '}
-            · {priceLabel}
+            {' · '}
+            {priceLabel}
           </span>
         ) : null}
       </button>

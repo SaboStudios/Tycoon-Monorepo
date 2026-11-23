@@ -1,24 +1,75 @@
-import { useCallback, useRef, useState } from 'react';
+'use client';
 
-import { isValidPurchasePayload, mapShopPurchaseError, readShopPurchaseErrorMessage } from '../lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import {
+  isValidPurchasePayload,
+  mapShopPurchaseError,
+  readShopPurchaseErrorMessage,
+} from '../lib/api';
 
 /**
- * Shop purchase hook.
+ * Single source of truth for purchasing shop items.
  *
- * Generates a stable Idempotency-Key per purchase intent (SKU + quantity).
- * The key is reused across network retries/reconnects for the same payload,
- * and regenerated whenever the payload changes so a new intent gets a new key.
+ * Owns the Idempotency-Key for a purchase intent (SKU + quantity) so there
+ * is exactly one key generator and one fetch implementation shared by every
+ * caller (button, future surfaces). A hung request aborts after a timeout
+ * and surfaces an error while keeping the same key, so a retry of the same
+ * intent is deduped server-side rather than double-charging.
  *
  * shop-api enforces Idempotency-Key with a body hash: replays return the stored
  * response, and a payload conflict returns HTTP 409. We surface 409 as a
  * distinct UX state rather than a generic error.
  */
 
+export const SHOP_PURCHASES_PATH = '/api/shop/purchases';
+
+/** Default request timeout for a shop purchase, in milliseconds. */
+export const PURCHASE_TIMEOUT_MS = 15_000;
+
+const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+
+export interface ShopPurchasePayload {
+  sku: string;
+  quantity: number;
+}
+
+export interface ShopPurchaseResult {
+  orderId?: string;
+  sku: string;
+  quantity: number;
+}
+
+export interface ShopPurchaseConflict {
+  sku: string;
+  quantity: number;
+  message: string;
+}
+
 export type ShopPurchaseStatus =
   | 'idle'
   | 'pending'
   | 'success'
   | 'conflict'
+  | 'signed_out'
+  | 'error';
+
+export type PurchaseOutcome =
+  | { status: 'success'; result: ShopPurchaseResult }
+  | { status: 'conflict'; conflict: ShopPurchaseConflict }
+  | { status: 'signed_out'; message: string }
+  | { status: 'error'; message: string }
+  | { status: 'skipped' };
+
+/**
+ * Stable key for a purchase intent. Pure function of the payload: no clock,
+ * no randomness, so retries 
+export type ShopPurchaseStatus =
+  | 'idle'
+  | 'pending'
+  | 'success'
+  | 'conflict'
+  | 'signed_out'
   | 'error';
 
 export interface ShopPurchasePayload {
@@ -36,19 +87,19 @@ export interface ShopPurchaseOrder {
   [key: string]: unknown;
 }
 
-export interface ShopPurchaseResult {
-  status: ShopPurchaseStatus;
-  data?: ShopPurchaseOrder;
-  error?: string;
-}
+export type PurchaseOutcome =
+  | { status: 'success'; result: ShopPurchaseResult }
+  | { status: 'conflict'; conflict: ShopPurchaseConflict }
+  | { status: 'signed_out'; message: string }
+  | { status: 'error'; message: string }
+  | { status: 'skipped' };
 
 /**
- * Build a stable key for a purchase intent. Same SKU + quantity => same key,
- * so retries/reconnects reuse it; a different payload yields a different key.
+ * Stable key for a purchase intent. Pure function of the payload: no clock,
+ * no randomness, so retries of the same SKU + quantity reuse the key while a
+ * changed payload (new intent) gets a fresh one.
  */
 export function buildIdempotencyKey(payload: ShopPurchasePayload): string {
-  // Pure function of the intent: no clock, no randomness. Retries of the same
-  // SKU + quantity reuse the key; a different payload yields a different key.
   return `shop-purchase:${payload.sku}:${payload.quantity}`;
 }
 
@@ -63,10 +114,7 @@ function payloadSignature(payload: ShopPurchasePayload): string {
  * forwards it to shop-api. Never build this from an env base URL: an empty
  * base would otherwise resolve to an unexpected host.
  */
-export interface ShopPurchaseOrder {
-  orderId: string;
-  [key: string]: unknown;
-}
+export const SHOP_PURCHASES_PATH = '/api/shop/purchases';
 
 export function parsePurchaseOrder(body: unknown): ShopPurchaseOrder | null {
   // Only a JSON object carrying a non-empty string orderId is a success.
@@ -83,121 +131,140 @@ export function parsePurchaseOrder(body: unknown): ShopPurchaseOrder | null {
 const INVALID_RESPONSE_ERROR =
   'Purchase response was invalid: the server did not return an order id. Please retry.';
 
-/**
- * Resolve the API base URL the same way the rest of the frontend does.
- */
-export const SHOP_PURCHASES_PATH = '/api/shop/purchases';
-
-export interface UseShopPurchaseOptions {
-  /** Optional override for tests / custom clients. */
-  fetchImpl?: typeof fetch;
+async function postPurchase(
+  payload: ShopPurchasePayload,
+  idempotencyKey: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  return fetch(SHOP_PURCHASES_PATH, {
+    method: 'POST',
+    // Same-origin proxy route: keep the default same-origin credentials mode.
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      [IDEMPOTENCY_HEADER]: idempotencyKey,
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
 }
 
-export function useShopPurchase(options: UseShopPurchaseOptions = {}) {
-  const [result, setResult] = useState<ShopPurchaseResult>({ status: 'idle' });
+export interface UseShopPurchaseResult {
+  status: ShopPurchaseStatus;
+  message: string | null;
+  purchase: (payload: ShopPurchasePayload, signal?: AbortSignal) => Promise<PurchaseOutcome>;
+}
 
-  // Cache the key per payload signature so retries reuse it and payload
-  // changes regenerate it.
-  const keyRef = useRef<{ signature: string; key: string } | null>(null);
+export function useShopPurchase(timeoutMs: number = PURCHASE_TIMEOUT_MS): UseShopPurchaseResult {
+  const [status, setStatus] = useState<ShopPurchaseStatus>('idle');
+  const [message, setMessage] = useState<string | null>(null);
 
-  const getKeyForPayload = useCallback((payload: ShopPurchasePayload): string => {
-    const signature = payloadSignature(payload);
-    if (keyRef.current && keyRef.current.signature === signature) {
-      return keyRef.current.key;
-    }
-    const key = buildIdempotencyKey(payload);
-    keyRef.current = { signature, key };
-    return key;
+  // Scoped to the current intent; reused for retries of that intent and
+  // regenerated only when the payload (SKU/quantity) changes.
+  const intentRef = useRef<string | null>(null);
+  const keyRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const statusRef = useRef<ShopPurchaseStatus>('idle');
+  statusRef.current = status;
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
 
   const purchase = useCallback(
-    async (payload: ShopPurchasePayload): Promise<ShopPurchaseResult> => {
-      // Reject invalid payloads before generating a key or calling fetch.
-      if (!isValidPurchasePayload(payload)) {
-        const invalid: ShopPurchaseResult = {
-          status: 'error',
-          error: 'Quantity must be a whole number of at least 1.',
-        };
-        setResult(invalid);
-        return invalid;
+    async (payload: ShopPurchasePayload, callerSignal?: AbortSignal): Promise<PurchaseOutcome> => {
+      if (!isValidPurchasePayload(payload) || statusRef.current === 'pending') {
+        return { status: 'skipped' };
       }
 
-      const idempotencyKey = getKeyForPayload(payload);
-      const doFetch = options.fetchImpl ?? fetch;
+      const intent = `${payload.sku}:${payload.quantity}`;
+      if (intentRef.current !== intent || !keyRef.current) {
+        intentRef.current = intent;
+        keyRef.current = buildIdempotencyKey(payload);
+      }
+      const idempotencyKey = keyRef.current;
 
-      setResult({ status: 'pending' });
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+
+      const onCallerAbort = () => controller.abort();
+      if (callerSignal) {
+        if (callerSignal.aborted) controller.abort();
+        else callerSignal.addEventListener('abort', onCallerAbort);
+      }
+
+      setStatus('pending');
+      setMessage(null);
 
       try {
-        const response = await doFetch(SHOP_PURCHASES_PATH, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': idempotencyKey,
-          },
-          body: JSON.stringify(payload),
-        });
+        const res = await postPurchase(payload, idempotencyKey, controller.signal);
 
-        if (!response.ok) {
-          const mapped = mapShopPurchaseError(
-            response.status,
-            await readShopPurchaseErrorMessage(response),
-          );
+        if (!res.ok) {
+          const mapped = mapShopPurchaseError(res.status, await readShopPurchaseErrorMessage(res));
+
           if (mapped.status === 'conflict') {
-            // Payload conflict / duplicate intent: distinct UX state, not a
-            // generic error. The key is retained so the user can reconcile.
-            const conflict: ShopPurchaseResult = {
-              status: 'conflict',
-              error: mapped.message,
-            };
-            setResult(conflict);
-            return conflict;
+            const conflict: ShopPurchaseConflict = { ...payload, message: mapped.message };
+            setStatus('conflict');
+            setMessage(conflict.message);
+            return { status: 'conflict', conflict };
           }
 
-          const failure: ShopPurchaseResult = {
-            status: 'error',
-            error: mapped.message,
-          };
-          setResult(failure);
-          return failure;
+          if (res.status === 401 || res.status === 403) {
+            // Missing/expired session: distinct signed-out state. Keep the
+            // key so a retry after signing in reuses the same intent.
+            setStatus('signed_out');
+            setMessage(mapped.message);
+            return { status: 'signed_out', message: mapped.message };
+          }
+
+          setStatus('error');
+          setMessage(mapped.message);
+          return { status: 'error', message: mapped.message };
         }
 
-        const body = await response.json().catch(() => undefined);
-        const order = parsePurchaseOrder(body);
-        if (!order) {
-          // A 2xx without the documented order id is not a success. Drop the
-          // cached key so the retry is treated as a fresh attempt.
-          keyRef.current = null;
-          const invalid: ShopPurchaseResult = {
-            status: 'error',
-            error: INVALID_RESPONSE_ERROR,
-          };
-          setResult(invalid);
-          return invalid;
-        }
-
-        const success: ShopPurchaseResult = { status: 'success', data: order };
-        setResult(success);
-        return success;
+        const data = (await res.json().catch(() => ({}))) as Partial<ShopPurchaseResult>;
+        const result: ShopPurchaseResult = { orderId: data.orderId, ...payload };
+        setStatus('success');
+        setMessage('Purchase complete.');
+        // Purchase succeeded: this intent is done, so a later purchase of
+        // the same SKU/quantity is a new intent and gets a fresh key.
+        intentRef.current = null;
+        keyRef.current = null;
+        return { status: 'success', result };
       } catch (err) {
-        // Network failure: keep the same key so a retry/reconnect replays the
-        // same intent instead of creating a duplicate purchase.
-        const failure: ShopPurchaseResult = {
-          status: 'error',
-          error: err instanceof Error ? err.message : 'Network error during purchase.',
-        };
-        setResult(failure);
-        return failure;
+        if ((err as { name?: string })?.name === 'AbortError' && !timedOut) {
+          // Real cancellation (component teardown / caller's own signal),
+          // not a user-facing failure.
+          setStatus('idle');
+          return { status: 'skipped' };
+        }
+
+        // Timeout or network failure: surface an error but KEEP the same
+        // idempotency key so a retry of this intent is deduped server-side.
+        const errorMessage = timedOut
+          ? 'The request took too long. Retry to complete your purchase.'
+          : 'Network error. Retry to complete your purchase.';
+        setStatus('error');
+        setMessage(errorMessage);
+        return { status: 'error', message: errorMessage };
+      } finally {
+        clearTimeout(timer);
+        callerSignal?.removeEventListener('abort', onCallerAbort);
+        abortRef.current = null;
       }
     },
-    [getKeyForPayload, options.fetchImpl],
+    [timeoutMs],
   );
 
-  const reset = useCallback(() => {
-    keyRef.current = null;
-    setResult({ status: 'idle' });
-  }, []);
-
-  return { purchase, reset, result };
+  return { status, message, purchase };
 }
 
 export default useShopPurchase;
