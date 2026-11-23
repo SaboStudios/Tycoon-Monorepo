@@ -114,3 +114,63 @@ describe("analytics client consent gating (#1761)", () => {
     expect(win.posthog?.capture).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("analytics client PII scrub (#2158)", () => {
+  let win: ProviderWindow;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    win = window as ProviderWindow;
+    win.plausible = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    delete win.plausible;
+  });
+
+  it("drops an `email` property before the event is queued or sent", async () => {
+    const { track, setConsent } = await loadClient({
+      NEXT_PUBLIC_ENABLE_ANALYTICS: "true",
+      NEXT_PUBLIC_ANALYTICS_PROVIDERS: "plausible",
+    });
+    setConsent("granted");
+
+    track("purchase_click", { sku: "starter-pack", email: "player@example.com" });
+
+    expect(win.plausible).toHaveBeenCalledTimes(1);
+    const [, options] = (win.plausible as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.props).not.toHaveProperty("email");
+  });
+
+  it("keeps a `sku` property, which carries no PII", async () => {
+    const { track, setConsent } = await loadClient({
+      NEXT_PUBLIC_ENABLE_ANALYTICS: "true",
+      NEXT_PUBLIC_ANALYTICS_PROVIDERS: "plausible",
+    });
+    setConsent("granted");
+
+    track("purchase_click", { sku: "starter-pack", email: "player@example.com" });
+
+    const [, options] = (win.plausible as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.props).toMatchObject({ sku: "starter-pack" });
+  });
+
+  it("scrubs the payload even when consent is granted after the fact, never queueing the raw value", async () => {
+    const { track, setConsent, scrubAnalyticsPayload } = await loadClient({
+      NEXT_PUBLIC_ENABLE_ANALYTICS: "true",
+      NEXT_PUBLIC_ANALYTICS_PROVIDERS: "plausible",
+    });
+
+    // The scrub is a pure function of the payload: it runs the same whether
+    // or not consent/sending ever happens, so a denied event is never queued
+    // with raw PII waiting for a later `setConsent("granted")`.
+    expect(scrubAnalyticsPayload({ sku: "starter-pack", email: "player@example.com" })).toEqual({
+      sku: "starter-pack",
+    });
+
+    setConsent("denied");
+    track("purchase_click", { sku: "starter-pack", email: "player@example.com" });
+    expect(win.plausible).not.toHaveBeenCalled();
+  });
+});

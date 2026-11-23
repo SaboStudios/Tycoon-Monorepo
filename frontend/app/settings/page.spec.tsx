@@ -89,3 +89,14 @@ describe("Settings page danger-zone dialog (#1958)", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/settings/danger/reset-progress", expect.anything());
   });
 });
+
+describe("Settings page main heading (#2168)", () => {
+  it("renders a single level-1 heading with the page title", async () => {
+    render(<SettingsPage />);
+    await waitFor(() => screen.getByRole("button", { name: "Reset progress" }));
+
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("Settings");
+  });
+});

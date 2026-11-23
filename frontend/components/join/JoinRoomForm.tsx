@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import { WALLET_MISSING_MESSAGE } from '../landing/Hero';
+
 /**
  * Join room form with strict validation and explicit error states.
  *
@@ -41,9 +43,27 @@ export interface JoinRoomFormProps {
   initialCode?: string;
   /** Disable the form while the wallet/session is not ready. */
   disabled?: boolean;
+  /**
+   * Sentence shown when `disabled` is true, explaining why. Defaults to the
+   * same missing-wallet copy the landing hero uses (#2153), so a signed-out
+   * player sees one consistent sentence instead of a bare disabled button.
+   */
+  disabledReason?: string;
 }
 
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
+
+/**
+ * Error codes that typing should clear (#2148). A format error (empty input
+ * or a code that doesn't match the pattern) is stale the moment the user
+ * edits the field. A session/rate-limit/access error is not caused by the
+ * current keystroke and must stay visible until a successful retry or an
+ * explicit dismiss — otherwise the user resubmits blind into the same wall.
+ */
+const CLEARABLE_ON_CHANGE_ERRORS: ReadonlySet<JoinRoomErrorCode> = new Set([
+  'empty',
+  'invalid_code',
+]);
 
 const ERROR_COPY: Record<JoinRoomErrorCode, string> = {
   invalid_code: 'Room codes are 4–12 letters or numbers.',
@@ -153,6 +173,7 @@ export function JoinRoomForm({
   onJoined,
   initialCode = '',
   disabled = false,
+  disabledReason = WALLET_MISSING_MESSAGE,
 }: JoinRoomFormProps) {
   const [code, setCode] = useState(initialCode);
   const [error, setError] = useState<JoinRoomError | null>(null);
@@ -160,6 +181,7 @@ export function JoinRoomForm({
 
   const inputId = useId();
   const errorId = useId();
+  const disabledReasonId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const inFlightRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -171,8 +193,16 @@ export function JoinRoomForm({
   }, []);
 
   const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    setCode(event.target.value);
-    setError((current) => (current ? null : current));
+    // #2149 — the controlled value is the normalized code, so the field
+    // shows uppercase (and no surrounding whitespace) as the user types,
+    // matching exactly what submit sends.
+    setCode(normalizeCode(event.target.value));
+    // #2148 — only a format error is stale after a keystroke. A
+    // session/rate-limit/access error stays until a successful retry or an
+    // explicit dismiss.
+    setError((current) =>
+      current && CLEARABLE_ON_CHANGE_ERRORS.has(current.code) ? null : current,
+    );
   }, []);
 
   const handleSubmit = useCallback(
@@ -228,6 +258,17 @@ export function JoinRoomForm({
       noValidate
       aria-busy={isSubmitting}
     >
+      {disabled ? (
+        <p
+          id={disabledReasonId}
+          role="status"
+          className="join-room-form__disabled-reason"
+          data-testid="join-room-disabled-reason"
+        >
+          {disabledReason}
+        </p>
+      ) : null}
+
       <label htmlFor={inputId}>Room code</label>
       <input
         id={inputId}
@@ -243,7 +284,11 @@ export function JoinRoomForm({
         onChange={handleChange}
         disabled={isDisabled}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={
+          [error ? errorId : null, disabled ? disabledReasonId : null]
+            .filter((id): id is string => Boolean(id))
+            .join(' ') || undefined
+        }
         placeholder="ABCD12"
       />
 

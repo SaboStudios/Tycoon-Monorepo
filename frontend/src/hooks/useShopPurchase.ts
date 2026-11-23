@@ -16,6 +16,10 @@ import {
  * caller (button, future surfaces). A hung request aborts after a timeout
  * and surfaces an error while keeping the same key, so a retry of the same
  * intent is deduped server-side rather than double-charging.
+ *
+ * shop-api enforces Idempotency-Key with a body hash: replays return the stored
+ * response, and a payload conflict returns HTTP 409. We surface 409 as a
+ * distinct UX state rather than a generic error.
  */
 
 export const SHOP_PURCHASES_PATH = '/api/shop/purchases';
@@ -59,12 +63,73 @@ export type PurchaseOutcome =
 
 /**
  * Stable key for a purchase intent. Pure function of the payload: no clock,
+ * no randomness, so retries 
+export type ShopPurchaseStatus =
+  | 'idle'
+  | 'pending'
+  | 'success'
+  | 'conflict'
+  | 'signed_out'
+  | 'error';
+
+export interface ShopPurchasePayload {
+  sku: string;
+  quantity: number;
+}
+
+/**
+ * The documented success body from shop-api: a JSON object carrying the
+ * created order's id. Anything else (empty object, non-object, missing id)
+ * is not a successful purchase.
+ */
+export interface ShopPurchaseOrder {
+  orderId: string;
+  [key: string]: unknown;
+}
+
+export type PurchaseOutcome =
+  | { status: 'success'; result: ShopPurchaseResult }
+  | { status: 'conflict'; conflict: ShopPurchaseConflict }
+  | { status: 'signed_out'; message: string }
+  | { status: 'error'; message: string }
+  | { status: 'skipped' };
+
+/**
+ * Stable key for a purchase intent. Pure function of the payload: no clock,
  * no randomness, so retries of the same SKU + quantity reuse the key while a
  * changed payload (new intent) gets a fresh one.
  */
 export function buildIdempotencyKey(payload: ShopPurchasePayload): string {
   return `shop-purchase:${payload.sku}:${payload.quantity}`;
 }
+
+function payloadSignature(payload: ShopPurchasePayload): string {
+  return `${payload.sku}:${payload.quantity}`;
+}
+
+/**
+ * Single source of truth for the purchase endpoint.
+ *
+ * Always a same-origin relative path so the Next rewrite / route handler
+ * forwards it to shop-api. Never build this from an env base URL: an empty
+ * base would otherwise resolve to an unexpected host.
+ */
+export const SHOP_PURCHASES_PATH = '/api/shop/purchases';
+
+export function parsePurchaseOrder(body: unknown): ShopPurchaseOrder | null {
+  // Only a JSON object carrying a non-empty string orderId is a success.
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return null;
+  }
+  const orderId = (body as { orderId?: unknown }).orderId;
+  if (typeof orderId !== 'string' || orderId.trim() === '') {
+    return null;
+  }
+  return body as ShopPurchaseOrder;
+}
+
+const INVALID_RESPONSE_ERROR =
+  'Purchase response was invalid: the server did not return an order id. Please retry.';
 
 async function postPurchase(
   payload: ShopPurchasePayload,
@@ -201,3 +266,5 @@ export function useShopPurchase(timeoutMs: number = PURCHASE_TIMEOUT_MS): UseSho
 
   return { status, message, purchase };
 }
+
+export default useShopPurchase;

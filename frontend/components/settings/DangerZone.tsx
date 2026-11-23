@@ -12,6 +12,11 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
  * - ARIA labelling via aria-labelledby / aria-describedby
  * - loading / empty / error states for the destructive action
  * - strict null guards around the async confirm flow
+ *
+ * Additionally (#2154): a single Confirm click is not enough for the
+ * strongest account actions. The confirm button stays disabled until the
+ * user retypes the exact confirmation phrase shown in the dialog, so a
+ * mis-click cannot delete or reset the account.
  */
 
 export type DangerZoneActionId = 'delete-account' | 'reset-progress';
@@ -23,6 +28,12 @@ export interface DangerZoneAction {
   confirmLabel: string;
   /** Human-readable consequence shown inside the confirm dialog. */
   consequence: string;
+  /**
+   * Exact phrase the user must retype to enable the confirm button. Required
+   * for every action: the dialog's slower-confirmation guarantee only holds
+   * when every destructive action defines one.
+   */
+  confirmationPhrase: string;
 }
 
 export interface DangerZoneProps {
@@ -45,6 +56,7 @@ const DEFAULT_ACTIONS: DangerZoneAction[] = [
     description: 'Clear your local progress and start over from the beginning.',
     confirmLabel: 'Reset progress',
     consequence: 'Your saved progress will be permanently cleared.',
+    confirmationPhrase: 'RESET PROGRESS',
   },
   {
     id: 'delete-account',
@@ -52,6 +64,7 @@ const DEFAULT_ACTIONS: DangerZoneAction[] = [
     description: 'Permanently delete your account and all associated data.',
     confirmLabel: 'Delete account',
     consequence: 'This action cannot be undone. All account data will be erased.',
+    confirmationPhrase: 'DELETE MY ACCOUNT',
   },
 ];
 
@@ -67,6 +80,7 @@ export function DangerZone({
   const [pendingId, setPendingId] = useState<DangerZoneActionId | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [phraseInput, setPhraseInput] = useState('');
 
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -74,20 +88,25 @@ export function DangerZone({
 
   const titleId = useId();
   const descriptionId = useId();
+  const phraseInputId = useId();
 
   const pendingAction =
     pendingId === null ? null : actions.find((action) => action.id === pendingId) ?? null;
+
+  const isPhraseConfirmed =
+    pendingAction !== null && phraseInput === pendingAction.confirmationPhrase;
 
   const closeDialog = useCallback(() => {
     setPendingId(null);
     setSubmitError(null);
     setSubmitting(false);
+    setPhraseInput('');
     // Return focus to the element that opened the dialog.
     triggerRef.current?.focus();
   }, []);
 
   const handleConfirm = useCallback(async () => {
-    if (pendingId === null || submitting) {
+    if (pendingId === null || submitting || !isPhraseConfirmed) {
       return;
     }
     setSubmitting(true);
@@ -103,7 +122,7 @@ export function DangerZone({
       setSubmitError(message);
       setSubmitting(false);
     }
-  }, [closeDialog, onConfirm, pendingId, submitting]);
+  }, [closeDialog, isPhraseConfirmed, onConfirm, pendingId, submitting]);
 
   // Focus trap + Escape handling while the dialog is open.
   useEffect(() => {
@@ -205,6 +224,7 @@ export function DangerZone({
               onClick={(event) => {
                 triggerRef.current = event.currentTarget;
                 setSubmitError(null);
+                setPhraseInput('');
                 setPendingId(action.id);
               }}
             >
@@ -227,6 +247,23 @@ export function DangerZone({
             <h3 id={titleId}>Confirm {pendingAction.title.toLowerCase()}</h3>
             <p id={descriptionId}>{pendingAction.consequence}</p>
 
+            <label htmlFor={phraseInputId} className="danger-zone__phrase-label">
+              Type <strong>{pendingAction.confirmationPhrase}</strong> to confirm.
+            </label>
+            <input
+              id={phraseInputId}
+              type="text"
+              className="danger-zone__phrase-input"
+              value={phraseInput}
+              onChange={(event) => setPhraseInput(event.target.value)}
+              disabled={submitting}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-describedby={descriptionId}
+            />
+
             {submitError !== null && (
               <p role="alert" className="danger-zone__error">
                 {submitError}
@@ -246,7 +283,7 @@ export function DangerZone({
                 type="button"
                 className="danger-zone__confirm"
                 onClick={handleConfirm}
-                disabled={submitting}
+                disabled={submitting || !isPhraseConfirmed}
                 aria-busy={submitting}
               >
                 {submitting ? 'Working…' : pendingAction.confirmLabel}

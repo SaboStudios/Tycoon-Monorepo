@@ -1,76 +1,4 @@
-'use client';
-
-import type { NearTxRecord } from '../../lib/near/types';
-import { useNearWallet } from '../providers/near-wallet-provider';
-
-export interface NearWalletConnectProps {
-  variant?: 'navbar' | 'panel';
-}
-
-function truncateAccountId(accountId: string): string {
-  if (accountId.length <= 20) return accountId;
-  return `${accountId.slice(0, 10)}…${accountId.slice(-6)}`;
-}
-
-function NearTxStatus({ record }: { record: NearTxRecord }) {
-  if (record.phase === 'pending') {
-    return (
-      <p
-        className="near-wallet-connect__tx near-wallet-connect__tx--pending text-xs text-gray-500"
-        data-testid="near-wallet-tx-pending"
-      >
-        Transaction pending: {record.methodName}
-      </p>
-    );
-  }
-
-  if (record.phase === 'failed') {
-    return (
-      <p
-        className="near-wallet-connect__tx near-wallet-connect__tx--failed text-xs text-red-600"
-        data-testid="near-wallet-tx-failed"
-      >
-        Transaction failed
-        {record.errorMessage ? <span>{record.errorMessage}</span> : null}
-      </p>
-    );
-  }
-
-  return (
-    <p
-      className="near-wallet-connect__tx near-wallet-connect__tx--confirmed text-xs text-green-600"
-      data-testid="near-wallet-tx-confirmed"
-    >
-      Transaction confirmed: {record.methodName}
-      {record.hash && record.explorerUrl ? (
-        <>
-          {' '}
-          <a href={record.explorerUrl} target="_blank" rel="noopener noreferrer">
-            View on explorer
-          </a>
-        </>
-      ) : null}
-    </p>
-  );
-}
-
-export function NearWalletConnect({ variant = 'navbar' }: NearWalletConnectProps) {
-  const { ready, initError, accountId, connect, disconnect, transactions } = useNearWallet();
-
-  const alignmentClasses = variant === 'panel' ? 'items-stretch text-left' : 'items-end text-right';
-  const latestTransaction = transactions[transactions.length - 1];
-
-  return (
-    <div className={`near-wallet-connect flex flex-col gap-1 ${alignmentClasses}`}>
-      <div className="near-wallet-connect__row flex min-h-[28px] items-center gap-2">
-        {accountId ? (
-          <>
-            <span
-              className="near-wallet-connect__account truncate"
-              title={accountId}
-              aria-label={`Connected as ${accountId}`}
-            >
-              {truncateAccountId(accountId)}
+              className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 transition-colors hover:text-[var(--tycoon-accent)]"
             </span>
             <button
               type="button"
@@ -78,45 +6,114 @@ export function NearWalletConnect({ variant = 'navbar' }: NearWalletConnectProps
                 void disconnect();
               }}
               aria-label={`Disconnect NEAR wallet ${accountId}`}
+              className="rounded-full border border-[var(--tycoon-border)] bg-transparent px-3 py-1 text-[11px] font-dm-sans text-[var(--tycoon-text)]/80 transition-colors hover:text-[var(--tycoon-accent)]"
             >
               Disconnect NEAR
             </button>
           </>
         ) : (
-          <button type="button" onClick={connect} disabled={!ready}>
+          <button
+            type="button"
+            onClick={connect}
+            disabled={!ready}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--tycoon-border)] bg-[var(--tycoon-card-bg)] px-3 py-1.5 text-[11px] font-dm-sans font-medium text-[var(--tycoon-text)] transition-colors hover:bg-[var(--tycoon-accent)] hover:text-[#010F10] disabled:opacity-50"
+          >
+            <Wallet aria-hidden="true" className="h-3.5 w-3.5" />
             Connect NEAR
           </button>
         )}
       </div>
 
-      {!accountId ? (
-        initError ? (
-          <p role="alert" className="near-wallet-connect__init-error text-xs text-red-600">
-            {initError}
-          </p>
-        ) : (
-          <div
-            data-testid="near-wallet-empty-state"
-            className="near-wallet-connect__empty text-xs text-gray-500"
-          >
-            {ready ? (
-              <>
-                <p>No NEAR wallet connected yet.</p>
-                <p>Connect to sign in and submit transactions.</p>
-              </>
-            ) : (
-              <p>{'Preparing NEAR wallet support…'}</p>
-            )}
-          </div>
-        )
-      ) : null}
+      {showLoadingState && (
+        <div
+          data-testid="near-wallet-empty-state"
+          className={cn(
+            "flex max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
+            panel ? "self-start" : "self-end",
+          )}
+        >
+          <Loader2
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--tycoon-accent)]"
+          />
+          <span className="leading-relaxed">
+            Preparing NEAR wallet support...
+          </span>
+        </div>
+      )}
 
+      {showEmptyState && (
+        <div
+          data-testid="near-wallet-empty-state"
+          className={cn(
+            "flex max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
+            panel ? "self-start" : "self-end",
+          )}
+        >
+          <Wallet
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--tycoon-accent)]"
+          />
+          <span className="leading-relaxed">
+            No NEAR wallet connected yet. Connect to sign in and submit
+            transactions.
+          </span>
+        </div>
+      )}
+
+      {/* aria-live="polite" announces transaction status changes without
+          interrupting the user. role="status" is implied by aria-live but
+          explicit here for clarity. min-h prevents CLS. */}
       <div
-        className="near-wallet-connect__status min-h-[28px]"
         aria-live="polite"
         aria-atomic="true"
+        className={cn("min-h-[28px]", panel ? "items-start" : "items-end")}
       >
-        {latestTransaction ? <NearTxStatus record={latestTransaction} /> : null}
+        {latest && (
+          <div
+            className={cn(
+              "flex max-w-[280px] flex-col gap-0.5 rounded-lg border border-[var(--tycoon-border)]/80 bg-[#010F10]/80 px-2 py-1.5",
+              panel ? "items-start" : "items-end",
+            )}
+          >
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-dm-sans text-[var(--tycoon-text)]/80">
+              {latest.phase === "pending" && (
+                <>
+                  <Loader2
+                    aria-hidden="true"
+                    className="h-3 w-3 animate-spin text-[var(--tycoon-accent)]"
+                  />
+                  <span>Transaction pending...</span>
+                </>
+              )}
+              {latest.phase === "confirmed" && (
+                <span className="text-emerald-400/90">Confirmed</span>
+              )}
+              {latest.phase === "failed" && (
+                <span className="text-red-400/90">Failed</span>
+              )}
+              <span className="font-mono text-[var(--tycoon-text)]/60">
+                {latest.methodName}
+              </span>
+            </div>
+            {latest.errorMessage && (
+              <span className="text-[10px] text-red-400/90">
+                {latest.errorMessage}
+              </span>
+            )}
+            {latest.hash && latest.explorerUrl && (
+              <a
+                href={latest.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-[var(--tycoon-accent)] hover:underline"
+              >
+                View on explorer
+                <ExternalLink aria-hidden="true" className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

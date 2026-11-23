@@ -12,6 +12,7 @@ The service worker (`public/sw.js`) caches shell assets for offline support but 
 | `/ai-play/` | AI game sessions are ephemeral; caching would break reconnection flows. |
 | `/join-room` | Room-join handshake must always hit the server to validate the invite. |
 | `/socket.io/` | Socket.IO's HTTP long-polling fallback. These XHR/fetch requests must reach the server every time. WebSocket upgrade frames (`wss://`) are already invisible to the fetch handler — the browser never fires a fetch event for them. |
+| `/shop` | The shop page and every `/api/shop/*` call (items, inventory, purchase, purchases, gift) carry a live price and inventory snapshot. A cached hit here could resurface a stale price or let a purchase button look active while offline, so the whole `/shop` prefix is excluded even though `/api/shop/*` is already covered by the `/api/` rule above. |
 
 ## What is cached
 
@@ -31,9 +32,10 @@ re-exported from `@/lib/pwa`) mirrors the deny-list for use in app code, tests, 
 middleware.
 
 ```ts
-import { isCacheExcludedPath } from "@/lib/pwa";
-isCacheExcludedPath("/socket.io/"); // true
-isCacheExcludedPath("/shop");       // false
+import { isCacheExcludedPath } from "@/lib/pwa/constants";
+isCacheExcludedPath("/socket.io/");    // true
+isCacheExcludedPath("/shop");          // true
+isCacheExcludedPath("/api/shop/purchase"); // true
 ```
 
 ## Adding a new excluded pattern
