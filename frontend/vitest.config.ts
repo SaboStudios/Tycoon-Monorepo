@@ -42,6 +42,7 @@ export default defineConfig({
       // matched by the patterns above, so `npm test` silently skipped them.
       "*.spec.{ts,tsx}",
       "components/**/*.spec.{ts,tsx}",
+      "components/**/*.spec.{ts,tsx}",
     ],
     exclude: ["node_modules/**", ".next/**", "e2e/**"],
   },

@@ -81,7 +81,12 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/game-") ||
     url.pathname.startsWith("/ai-play/") ||
-    url.pathname.startsWith("/join-room")
+    url.pathname.startsWith("/join-room") ||
+    // Shop page + shop-api calls carry live prices and inventory; a cached
+    // hit here could show a stale price or an active buy button offline.
+    // Kept in sync with PWA_CACHE_EXCLUDED_PATTERNS in src/lib/pwa/constants.ts
+    // (see docs/SW-deny-list.md) — sw.js cannot import that TS module.
+    url.pathname.startsWith("/shop")
   ) {
     return;
   }
