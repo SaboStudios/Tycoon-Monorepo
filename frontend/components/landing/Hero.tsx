@@ -28,9 +28,29 @@ type HeroState =
   | { readonly status: 'loading' }
   | { readonly status: 'empty' }
   | { readonly status: 'error'; readonly message: string }
+  | { readonly status: 'wallet-missing' }
   | { readonly status: 'ready'; readonly content: HeroContent };
 
+export interface HeroProps {
+  /**
+   * Whether a wallet is currently connected. Defaults to `true` so existing
+   * callers keep fetching hero content unchanged. Pass `false` from the
+   * wallet provider to show the shared missing-wallet copy instead of
+   * fetching/rendering CTAs that would fail without a session.
+   */
+  hasWallet?: boolean;
+}
+
 const HERO_ENDPOINT = '/api/landing/hero';
+
+/**
+ * Single source of truth for the "no wallet connected" sentence (#2153).
+ * `JoinRoomForm` imports this so a signed-out player sees the exact same
+ * copy whether they land on the hero or a disabled join form — instead of
+ * two different sentences for the same underlying state.
+ */
+export const WALLET_MISSING_MESSAGE =
+  'Connect a wallet to continue. You need a wallet to play Tycoon.';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -74,8 +94,10 @@ function track(event: string, props: Record<string, string> = {}): void {
   sink(event, props);
 }
 
-export default function Hero(): JSX.Element {
-  const [state, setState] = useState<HeroState>({ status: 'loading' });
+export default function Hero({ hasWallet = true }: HeroProps = {}): JSX.Element {
+  const [state, setState] = useState<HeroState>(
+    hasWallet ? { status: 'loading' } : { status: 'wallet-missing' },
+  );
   const inFlight = useRef(false);
   const mounted = useRef(true);
 
@@ -115,13 +137,23 @@ export default function Hero(): JSX.Element {
 
   useEffect(() => {
     mounted.current = true;
+
+    if (!hasWallet) {
+      // No wallet connected: show the shared missing-wallet copy instead of
+      // fetching hero content that would just fail server-side.
+      setState({ status: 'wallet-missing' });
+      return () => {
+        mounted.current = false;
+      };
+    }
+
     const controller = new AbortController();
     void load(controller.signal);
     return () => {
       mounted.current = false;
       controller.abort();
     };
-  }, [load]);
+  }, [hasWallet, load]);
 
   const onCtaClick = useCallback((cta: HeroCta) => {
     // Guard against double CTA clicks / duplicate navigation.
@@ -144,6 +176,15 @@ export default function Hero(): JSX.Element {
         <button type="button" onClick={() => void load()}>
           Retry
         </button>
+      </section>
+    );
+  }
+
+  if (state.status === 'wallet-missing') {
+    return (
+      <section className="hero" role="status" aria-live="polite" data-testid="hero-wallet-missing">
+        <h1>Tycoon</h1>
+        <p>{WALLET_MISSING_MESSAGE}</p>
       </section>
     );
   }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import { WALLET_MISSING_MESSAGE } from '../landing/Hero';
+
 /**
  * Join room form with strict validation and explicit error states.
  *
@@ -41,6 +43,12 @@ export interface JoinRoomFormProps {
   initialCode?: string;
   /** Disable the form while the wallet/session is not ready. */
   disabled?: boolean;
+  /**
+   * Sentence shown when `disabled` is true, explaining why. Defaults to the
+   * same missing-wallet copy the landing hero uses (#2153), so a signed-out
+   * player sees one consistent sentence instead of a bare disabled button.
+   */
+  disabledReason?: string;
 }
 
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
@@ -113,6 +121,7 @@ export function JoinRoomForm({
   onJoined,
   initialCode = '',
   disabled = false,
+  disabledReason = WALLET_MISSING_MESSAGE,
 }: JoinRoomFormProps) {
   const [code, setCode] = useState(initialCode);
   const [error, setError] = useState<JoinRoomError | null>(null);
@@ -120,6 +129,7 @@ export function JoinRoomForm({
 
   const inputId = useId();
   const errorId = useId();
+  const disabledReasonId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const inFlightRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -188,6 +198,17 @@ export function JoinRoomForm({
       noValidate
       aria-busy={isSubmitting}
     >
+      {disabled ? (
+        <p
+          id={disabledReasonId}
+          role="status"
+          className="join-room-form__disabled-reason"
+          data-testid="join-room-disabled-reason"
+        >
+          {disabledReason}
+        </p>
+      ) : null}
+
       <label htmlFor={inputId}>Room code</label>
       <input
         id={inputId}
@@ -203,7 +224,11 @@ export function JoinRoomForm({
         onChange={handleChange}
         disabled={isDisabled}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={
+          [error ? errorId : null, disabled ? disabledReasonId : null]
+            .filter((id): id is string => Boolean(id))
+            .join(' ') || undefined
+        }
         placeholder="ABCD12"
       />
 
