@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
+import { Repository, LessThan, MoreThan, EntityManager } from 'typeorm';
 import { Coupon } from './entities/coupon.entity';
 import { CouponUsageLog } from './entities/coupon-usage-log.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
@@ -47,6 +47,23 @@ function parseMinorUnits(value: string | number | null | undefined): number {
   const paddedFraction = (fraction + '00').slice(0, 2);
 
   return parseInt(whole, 10) * 100 + parseInt(paddedFraction, 10);
+}
+
+/**
+ * Sum coupon usage-log discount amounts in integer minor units. Rows with a
+ * null/undefined amount are skipped so a single missing value can never turn
+ * the report total into NaN.
+ */
+function sumDiscountMinorUnits(
+  rows: Array<{ discount_amount?: string | number | null }>,
+): number {
+  return rows.reduce((total, row) => {
+    const amount = row?.discount_amount;
+    if (amount === null || amount === undefined || amount === '') {
+      return total;
+    }
+    return total + parseMinorUnits(amount);
+  }, 0);
 }
 
 @Injectable()
@@ -233,20 +250,28 @@ export class CouponsService {
       };
     }
 
-    if (
-      coupon.min_purchase_amount &&
-      purchase_amount &&
-      purchase_amount < parseMinorUnits(coupon.min_purchase_amount) / 100
-    ) {
-      return {
-        valid: false,
-        message: `Minimum purchase amount of ${coupon.min_purchase_amount} required`,
-      };
+    if (coupon.min_purchase_amount && purchase_amount) {
+      const minimumMinorUnits = parseMinorUnits(coupon.min_purchase_amount);
+      const purchaseMinorUnits = Math.round(purchase_amount * 100);
+
+      if (purchaseMinorUnits < minimumMinorUnits) {
+        return {
+          valid: false,
+          message: `Minimum purchase amount of ${(minimumMinorUnits / 100).toFixed(2)} required`,
+        };
+      }
     }
 
     let discount_amount = 0;
     if (purchase_amount) {
-      discount_amount = this.calculateDiscount(coupon, purchase_amount);
+      try {
+        discount_amount = this.calculateDiscount(coupon, purchase_amount);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          return { valid: false, message: error.message };
+        }
+        throw error;
+      }
     }
 
     return {
@@ -293,6 +318,19 @@ export class CouponsService {
     }
   }
 
+  /**
+   * Total discount granted by a coupon, summed in integer minor units from the
+   * usage log. Null amounts are skipped; malformed amounts fail the report.
+   */
+  async getTotalDiscount(couponId: number): Promise<number> {
+    const rows = await this.couponUsageLogRepository.find({
+      where: { coupon_id: couponId },
+      select: ['discount_amount'],
+    });
+
+    return sumDiscountMinorUnits(rows) / 100;
+  }
+
   calculateDiscount(coupon: Coupon, purchaseAmount: number): number {
     const purchaseMinorUnits = Math.round(purchaseAmount * 100);
     let discountMinorUnits = 0;
@@ -300,6 +338,13 @@ export class CouponsService {
     if (coupon.type === CouponType.PERCENTAGE) {
       // Percentage value is expressed in basis points (1% = 100 bps).
       const basisPoints = parseMinorUnits(coupon.value);
+
+      if (basisPoints < 100 || basisPoints > 10000) {
+        throw new BadRequestException(
+          'Percentage discount must be between 1 and 100',
+        );
+      }
+
       discountMinorUnits = Math.floor(
         (purchaseMinorUnits * basisPoints) / 10000,
       );
@@ -310,6 +355,12 @@ export class CouponsService {
       }
     } else if (coupon.type === CouponType.FIXED) {
       discountMinorUnits = parseMinorUnits(coupon.value);
+
+      if (discountMinorUnits > purchaseMinorUnits) {
+        throw new BadRequestException(
+          'Fixed discount cannot exceed the purchase amount',
+        );
+      }
     }
 
     discountMinorUnits = Math.min(discountMinorUnits, purchaseMinorUnits);

@@ -12,6 +12,16 @@ import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { GamePlayerSymbol } from '../enums/game-player-symbol.enum';
 
+/** Canonical non-negative integer string, e.g. "10" (no signs, decimals, or exponents). */
+const CANONICAL_INTEGER_STRING = /^\d+$/;
+
+function toCanonicalInteger(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  return CANONICAL_INTEGER_STRING.test(value) ? Number(value) : value;
+}
+
 export class UpdateGamePlayerDto {
   @ApiPropertyOptional({
     description: 'Player token/symbol (allowed only before game starts)',
@@ -36,9 +46,7 @@ export class UpdateGamePlayerDto {
   @IsOptional()
   @IsNumber()
   @Min(1, { message: 'balance must be positive' })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? parseFloat(value) : value,
-  )
+  @Transform(({ value }) => toCanonicalInteger(value))
   balance?: number;
 
   @ApiPropertyOptional({
@@ -68,9 +76,7 @@ export class UpdateGamePlayerDto {
   @IsOptional()
   @IsNumber()
   @Min(0, { message: 'trade_locked_balance must be >= 0' })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? parseFloat(value) : value,
-  )
+  @Transform(({ value }) => toCanonicalInteger(value))
   trade_locked_balance?: number;
 
   /** Admin/system only */

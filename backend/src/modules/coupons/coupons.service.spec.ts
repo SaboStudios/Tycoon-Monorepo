@@ -190,6 +190,37 @@ describe('CouponsService', () => {
       expect(result.message).toContain('expired');
     });
 
+    it('should report an invalid percentage coupon as not valid', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockCoupon,
+        value: '101',
+      });
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 100,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('between 1 and 100');
+    });
+
+    it('should report a fixed discount above the price as not valid', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockCoupon,
+        type: CouponType.FIXED,
+        value: '150',
+      });
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 100,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('cannot exceed the purchase amount');
+    });
+
     it('should reject a coupon that reached usage limit', async () => {
       const usedUpCoupon = { ...mockCoupon, max_uses: 10, current_usage: 10 };
       mockRepository.findOne.mockResolvedValue(usedUpCoupon);
@@ -229,6 +260,53 @@ describe('CouponsService', () => {
       expect(result.valid).toBe(false);
       expect(result.message).toContain('Minimum purchase amount');
     });
+
+    it('should accept a purchase exactly equal to the minimum amount', async () => {
+      const minPurchaseCoupon = {
+        ...mockCoupon,
+        min_purchase_amount: '50.00',
+      };
+      mockRepository.findOne.mockResolvedValue(minPurchaseCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 50,
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject a purchase one minor unit below the minimum amount', async () => {
+      const minPurchaseCoupon = {
+        ...mockCoupon,
+        min_purchase_amount: '50.00',
+      };
+      mockRepository.findOne.mockResolvedValue(minPurchaseCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 49.99,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('Minimum purchase amount of 50.00');
+    });
+
+    it('should report the stored minimum amount in the error message', async () => {
+      const minPurchaseCoupon = {
+        ...mockCoupon,
+        min_purchase_amount: '10.10',
+      };
+      mockRepository.findOne.mockResolvedValue(minPurchaseCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'SAVE20',
+        purchase_amount: 10.09,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.message).toContain('Minimum purchase amount of 10.10');
+    });
   });
 
   describe('calculateDiscount', () => {
@@ -266,15 +344,84 @@ describe('CouponsService', () => {
       expect(discount).toBe(15);
     });
 
-    it('should not exceed purchase amount', () => {
+    it('should reject a fixed discount above the purchase amount', () => {
       const coupon = {
         ...mockCoupon,
         type: CouponType.FIXED,
         value: '150',
       } as Coupon;
-      const discount = service.calculateDiscount(coupon, 100);
 
-      expect(discount).toBe(100);
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should allow a 100 percent discount to cover the full price', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '100',
+      } as Coupon;
+
+      expect(service.calculateDiscount(coupon, 100)).toBe(100);
+    });
+
+    it('should reject a percentage discount above 100', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '101',
+      } as Coupon;
+
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should reject a percentage discount below 1', () => {
+      const coupon = {
+        ...mockCoupon,
+        type: CouponType.PERCENTAGE,
+        value: '0.5',
+      } as Coupon;
+
+      expect(() => service.calculateDiscount(coupon, 100)).toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('getTotalDiscount', () => {
+    it('should sum two normal rows to the exact integer total', async () => {
+      usageLogRepository.find = jest.fn().mockResolvedValue([
+        { discount_amount: '10.10' },
+        { discount_amount: '0.20' },
+      ]);
+
+      await expect(service.getTotalDiscount(1)).resolves.toBe(10.3);
+    });
+
+    it('should skip a null amount instead of producing NaN', async () => {
+      usageLogRepository.find = jest.fn().mockResolvedValue([
+        { discount_amount: '5.00' },
+        { discount_amount: null },
+        { discount_amount: '2.50' },
+      ]);
+
+      const total = await service.getTotalDiscount(1);
+
+      expect(Number.isNaN(total)).toBe(false);
+      expect(total).toBe(7.5);
+    });
+
+    it('should fail the report on a malformed amount', async () => {
+      usageLogRepository.find = jest
+        .fn()
+        .mockResolvedValue([{ discount_amount: 'not-a-number' }]);
+
+      await expect(service.getTotalDiscount(1)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

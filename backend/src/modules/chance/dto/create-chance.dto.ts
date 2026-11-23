@@ -22,12 +22,18 @@ export class CreateChanceDto {
   @IsNotEmpty()
   type: ChanceType;
 
-  @IsNumber()
+  @IsNumber(
+    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 0 },
+    { message: 'Amount must be a finite integer' },
+  )
   @IsOptional()
   @Min(0, { message: 'Amount must be a non-negative number' })
   amount?: number;
 
-  @IsNumber()
+  @IsNumber(
+    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 0 },
+    { message: 'Position must be a finite integer' },
+  )
   @IsOptional()
   @Min(0, { message: 'Position must be a non-negative number' })
   position?: number;
