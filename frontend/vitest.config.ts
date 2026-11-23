@@ -32,6 +32,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: [
+      "*.spec.{ts,tsx}",
       "test/**/*.test.{ts,tsx}",
       "src/**/*.test.{ts,tsx}",
       "src/**/*.spec.{ts,tsx}",

@@ -51,6 +51,21 @@ function normalizeOrigin(value: string): string {
 }
 
 /**
+ * Derives the WebSocket origin for an HTTP(S) API origin (http -> ws,
+ * https -> wss) so the dev CSP allowlist tracks whatever port the API is
+ * actually configured on, instead of a hardcoded pair of ports.
+ */
+function toWsOrigin(httpOrigin: string): string {
+  if (httpOrigin.startsWith('https://')) {
+    return `wss://${httpOrigin.slice('https://'.length)}`;
+  }
+  if (httpOrigin.startsWith('http://')) {
+    return `ws://${httpOrigin.slice('http://'.length)}`;
+  }
+  return httpOrigin;
+}
+
+/**
  * Backend (NestJS) and shop-api (NestJS purchases SoT) origins.
  *
  * In production both URLs are required: silently dropping them from
@@ -81,12 +96,20 @@ export function apiHosts(env: CspEnv = process.env as CspEnv): string[] {
   if (backend) hosts.add(normalizeOrigin(backend));
   if (shopApi) hosts.add(normalizeOrigin(shopApi));
 
-  // Local development defaults.
+  // Local development defaults: the WebSocket origin is derived from each
+  // HTTP API origin (http -> ws, https -> wss) so a backend configured on a
+  // non-default port is not silently blocked by the CSP. The hardcoded
+  // localhost:3001 / localhost:3002 pair is used only as a fallback when the
+  // corresponding env var is unset in development.
   if (!isProduction) {
-    hosts.add('http://localhost:3001');
-    hosts.add('http://localhost:3002');
-    hosts.add('ws://localhost:3001');
-    hosts.add('ws://localhost:3002');
+    const httpOrigins = [
+      backend ? normalizeOrigin(backend) : 'http://localhost:3001',
+      shopApi ? normalizeOrigin(shopApi) : 'http://localhost:3002',
+    ];
+    for (const origin of httpOrigins) {
+      hosts.add(origin);
+      hosts.add(toWsOrigin(origin));
+    }
   }
 
   return Array.from(hosts);
