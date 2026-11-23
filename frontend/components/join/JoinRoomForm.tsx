@@ -90,6 +90,41 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
+/** HTTP statuses that map onto an existing, distinct JoinRoomErrorCode. */
+const STATUS_ERROR_CODES: Partial<Record<number, JoinRoomErrorCode>> = {
+  401: 'auth_expired',
+  403: 'forbidden',
+  404: 'not_found',
+  429: 'rate_limited',
+};
+
+/**
+ * Reads an HTTP status off a thrown value. Accepts a fetch `Response`
+ * (failed fetch rejects with the response itself in some callers' wrappers)
+ * or any Error-like object carrying a numeric `status` field (e.g. ApiError).
+ */
+function getStatusFromError(error: unknown): number | undefined {
+  if (typeof Response !== 'undefined' && error instanceof Response) {
+    return error.status;
+  }
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === 'number') return status;
+  }
+  return undefined;
+}
+
+/**
+ * Maps an HTTP status code onto the matching JoinRoomErrorCode. Returns
+ * `null` for a status with no distinct UI treatment, so the caller falls
+ * back to the generic server error.
+ */
+function mapHttpStatusError(status: number): JoinRoomError | null {
+  const code = STATUS_ERROR_CODES[status];
+  if (!code) return null;
+  return { code, message: ERROR_COPY[code] };
+}
+
 /**
  * Maps a thrown value to a user-facing error. Returns `null` for an aborted
  * request: a cancelled join is not a failure, so the caller clears the
@@ -101,6 +136,11 @@ function mapUnknownError(error: unknown): JoinRoomError | null {
   }
   if (isAbortError(error)) {
     return null;
+  }
+  const status = getStatusFromError(error);
+  if (typeof status === 'number') {
+    const mapped = mapHttpStatusError(status);
+    if (mapped) return mapped;
   }
   if (error instanceof TypeError) {
     return { code: 'network_error', message: ERROR_COPY.network_error };
