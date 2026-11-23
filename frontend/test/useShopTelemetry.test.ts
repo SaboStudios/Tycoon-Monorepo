@@ -7,13 +7,20 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/consent", () => ({ hasAnalyticsConsent: vi.fn() }));
 
 import { track } from "@/lib/analytics";
+import { hasAnalyticsConsent } from "@/lib/analytics/consent";
 import { useShopTelemetry } from "@/hooks/useShopTelemetry";
 
 const mockTrack = vi.mocked(track);
+const mockHasAnalyticsConsent = vi.mocked(hasAnalyticsConsent);
 
-beforeEach(() => mockTrack.mockClear());
+beforeEach(() => {
+  mockTrack.mockClear();
+  mockHasAnalyticsConsent.mockReset();
+  mockHasAnalyticsConsent.mockReturnValue(true);
+});
 
 describe("useShopTelemetry", () => {
   describe("trackGridViewed", () => {
@@ -78,18 +85,20 @@ describe("useShopTelemetry", () => {
   });
 
   describe("trackPurchaseInitiated", () => {
-    it("emits shop_purchase_initiated with price and currency", () => {
+    const item = {
+      itemId: "7",
+      itemName: "Lucky Dice",
+      itemCategory: "dice",
+      itemRarity: "common",
+      currency: "USD",
+      value: 50,
+    };
+
+    // #2151 — a purchase event must only ever represent a confirmed sale.
+    it("emits shop_purchase_initiated with price and currency on success when consent is granted", () => {
+      mockHasAnalyticsConsent.mockReturnValue(true);
       const { result } = renderHook(() => useShopTelemetry());
-      act(() =>
-        result.current.trackPurchaseInitiated({
-          itemId: "7",
-          itemName: "Lucky Dice",
-          itemCategory: "dice",
-          itemRarity: "common",
-          currency: "USD",
-          value: 50,
-        }),
-      );
+      act(() => result.current.trackPurchaseInitiated(item, "success"));
       expect(mockTrack).toHaveBeenCalledWith("shop_purchase_initiated", {
         route: "/shop",
         item_id: "7",
@@ -99,6 +108,27 @@ describe("useShopTelemetry", () => {
         currency: "USD",
         value: 50,
       });
+    });
+
+    it("does not emit the purchase event for an error result", () => {
+      mockHasAnalyticsConsent.mockReturnValue(true);
+      const { result } = renderHook(() => useShopTelemetry());
+      act(() => result.current.trackPurchaseInitiated(item, "error"));
+      expect(mockTrack).not.toHaveBeenCalled();
+    });
+
+    it("does not emit the purchase event for a conflict result", () => {
+      mockHasAnalyticsConsent.mockReturnValue(true);
+      const { result } = renderHook(() => useShopTelemetry());
+      act(() => result.current.trackPurchaseInitiated(item, "conflict"));
+      expect(mockTrack).not.toHaveBeenCalled();
+    });
+
+    it("does not emit a success purchase event when consent is denied", () => {
+      mockHasAnalyticsConsent.mockReturnValue(false);
+      const { result } = renderHook(() => useShopTelemetry());
+      act(() => result.current.trackPurchaseInitiated(item, "success"));
+      expect(mockTrack).not.toHaveBeenCalled();
     });
   });
 
