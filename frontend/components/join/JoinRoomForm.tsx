@@ -53,6 +53,18 @@ export interface JoinRoomFormProps {
 
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
 
+/**
+ * Error codes that typing should clear (#2148). A format error (empty input
+ * or a code that doesn't match the pattern) is stale the moment the user
+ * edits the field. A session/rate-limit/access error is not caused by the
+ * current keystroke and must stay visible until a successful retry or an
+ * explicit dismiss — otherwise the user resubmits blind into the same wall.
+ */
+const CLEARABLE_ON_CHANGE_ERRORS: ReadonlySet<JoinRoomErrorCode> = new Set([
+  'empty',
+  'invalid_code',
+]);
+
 const ERROR_COPY: Record<JoinRoomErrorCode, string> = {
   invalid_code: 'Room codes are 4–12 letters or numbers.',
   empty: 'Enter a room code to continue.',
@@ -141,8 +153,16 @@ export function JoinRoomForm({
   }, []);
 
   const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    setCode(event.target.value);
-    setError((current) => (current ? null : current));
+    // #2149 — the controlled value is the normalized code, so the field
+    // shows uppercase (and no surrounding whitespace) as the user types,
+    // matching exactly what submit sends.
+    setCode(normalizeCode(event.target.value));
+    // #2148 — only a format error is stale after a keystroke. A
+    // session/rate-limit/access error stays until a successful retry or an
+    // explicit dismiss.
+    setError((current) =>
+      current && CLEARABLE_ON_CHANGE_ERRORS.has(current.code) ? null : current,
+    );
   }, []);
 
   const handleSubmit = useCallback(

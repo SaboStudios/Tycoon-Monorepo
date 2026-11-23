@@ -265,23 +265,21 @@ describe("ShopGrid", () => {
       expect(mockTrack).not.toHaveBeenCalledWith("shop_grid_viewed", expect.anything());
     });
 
-    test("fires shop_purchase_initiated with item data on buy click", () => {
+    // #2151 — a buy click only starts the purchase; the outcome is unknown
+    // at click time, so it must not emit the purchase event itself (that
+    // would count failed/conflicted attempts as sales). The caller that
+    // learns the real outcome is responsible for calling
+    // `trackPurchaseInitiated(data, "success")` from the hook once the
+    // purchase is confirmed.
+    test("does not fire shop_purchase_initiated merely on buy click", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
       mockTrack.mockClear();
       fireEvent.click(screen.getByTestId("shop-item-buy-1"));
-      expect(mockTrack).toHaveBeenCalledWith("shop_purchase_initiated", {
-        route: "/shop",
-        item_id: "1",
-        item_name: mockItems[0].name,
-        item_category: mockItems[0].type,
-        item_rarity: mockItems[0].rarity,
-        currency: mockItems[0].currency,
-        value: mockItems[0].price,
-      });
+      expect(mockTrack).not.toHaveBeenCalledWith("shop_purchase_initiated", expect.anything());
     });
 
-    test("still calls onPurchase after telemetry fires", () => {
+    test("still calls onPurchase on buy click", () => {
       const onPurchase = vi.fn();
       render(<ShopGrid items={mockItems} onPurchase={onPurchase} />);
       fireEvent.click(screen.getByTestId("shop-item-buy-1"));

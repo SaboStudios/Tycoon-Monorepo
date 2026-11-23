@@ -41,8 +41,7 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
     4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
   }), []);
 
-  const { trackGridViewed, trackItemImpression, trackPurchaseInitiated } =
-    useShopTelemetry();
+  const { trackGridViewed, trackItemImpression } = useShopTelemetry();
 
   // Fire shop_grid_viewed once when items become visible (not during loading/error).
   const trackedCountRef = useRef<number | null>(null);
@@ -53,22 +52,17 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
     }
   }, [isLoading, error, items, telemetrySource, trackGridViewed]);
 
+  // Buy click only starts the purchase; it does not know the outcome yet, so
+  // it must not emit the purchase telemetry event itself (#2151 — firing
+  // here double-counted failed/conflicted attempts as sales). The caller
+  // that owns the actual purchase request (e.g. via `PurchaseButton`'s
+  // `onPurchased`) is responsible for calling `trackPurchaseInitiated`
+  // from the hook with `status: "success"` once the purchase is confirmed.
   const handlePurchase = useCallback(
     (itemId: string) => {
-      const item = items.find((i) => String(i.id) === itemId);
-      if (item) {
-        trackPurchaseInitiated({
-          itemId,
-          itemName: item.name,
-          itemCategory: item.type,
-          itemRarity: item.rarity,
-          currency: item.currency,
-          value: item.price,
-        });
-      }
       onPurchase?.(itemId);
     },
-    [items, onPurchase, trackPurchaseInitiated],
+    [onPurchase],
   );
 
   // Error state (check first to take priority)

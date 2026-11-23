@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PurchaseButton from './PurchaseButton';
 
@@ -65,5 +65,73 @@ describe('PurchaseButton pending state (#2171)', () => {
     } as Response);
 
     await waitFor(() => expect(button).not.toBeDisabled());
+  });
+});
+
+// #2150 — the button can stay pending after unmount: the request must be
+// aborted, and a response that arrives afterward must not touch state or
+// notify the caller.
+describe('PurchaseButton unmount safety', () => {
+  let resolveFetch!: (value: unknown) => void;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    const deferred = new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+    fetchMock = vi.fn(() => deferred);
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('aborts the in-flight request on unmount', () => {
+    const { unmount } = render(<PurchaseButton sku="skin-1" quantity={1} />);
+
+    fireEvent.click(screen.getByRole('button'));
+
+    const signal = fetchMock.mock.calls[0]?.[1]?.signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    unmount();
+
+    expect(signal.aborted).toBe(true);
+  });
+
+  it('does not call onPurchased when a late success resolves after unmount', async () => {
+    const onPurchased = vi.fn();
+    const { unmount } = render(<PurchaseButton sku="skin-1" quantity={1} onPurchased={onPurchased} />);
+
+    fireEvent.click(screen.getByRole('button'));
+    unmount();
+
+    // The mock fetch does not itself honor the abort signal (it is a plain
+    // deferred promise), so resolving it here exercises the explicit
+    // `signal.aborted` guard in the handler rather than relying on fetch to
+    // reject on its own.
+    await act(async () => {
+      resolveFetch({ ok: true, json: async () => ({ orderId: 'order-1' }) });
+      await Promise.resolve();
+    });
+
+    expect(onPurchased).not.toHaveBeenCalled();
+  });
+
+  it('still calls onPurchased when the request completes before unmount', async () => {
+    const onPurchased = vi.fn();
+    render(<PurchaseButton sku="skin-1" quantity={1} onPurchased={onPurchased} />);
+
+    fireEvent.click(screen.getByRole('button'));
+
+    await act(async () => {
+      resolveFetch({ ok: true, json: async () => ({ orderId: 'order-1' }) });
+      await Promise.resolve();
+    });
+
+    expect(onPurchased).toHaveBeenCalledWith({ orderId: 'order-1', sku: 'skin-1', quantity: 1 });
+  });
+});
   });
 });
