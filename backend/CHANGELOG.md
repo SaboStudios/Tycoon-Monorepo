@@ -27,6 +27,7 @@
 
 ### Changed
 
+- Documented the JWT environment variables (`JWT_SECRET`, `JWT_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `JWT_CLOCK_SKEW_SECONDS`) in `docs/AUTH_JWT_RUNBOOK.md` (#2120).
 - `AuctionManager.placeBid` accepts an optional `now` parameter (defaults to `Date.now()`) used for both the expiry check and the stored bid timestamp, so bid placement and `cleanupExpiredAuctions` share one clock.
 - `API_PREFIX` now represents the base prefix (`api`) instead of embedding a version segment.
 
